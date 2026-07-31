@@ -302,7 +302,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex items-center justify-center p-8"
+                className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
               >
                 <div className="relative w-full h-full">
                   {unit.floorPlan3dUrl && (
@@ -314,14 +314,17 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       wheel={{ step: 0.1 }}
                     >
                       <ZoomControls />
-                      <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
+                      <TransformComponent 
+                        wrapperClass="w-full h-full flex items-center justify-center"
+                        contentClass="w-full h-full flex items-center justify-center"
+                      >
                         <Image
                           src={unit.floorPlan3dUrl}
                           alt="Planta 3D"
                           width={1200}
                           height={1200}
                           priority
-                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain drop-shadow-xl"
+                          className="w-full h-full max-h-[85vh] object-contain drop-shadow-2xl"
                           draggable={false}
                         />
                       </TransformComponent>
@@ -378,7 +381,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex items-center justify-center p-8"
+                className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
               >
                 <div className="relative w-full h-full">
                   {unit.floorPlan3dUrl && (
@@ -390,13 +393,16 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       wheel={{ step: 0.1 }}
                     >
                       <ZoomControls />
-                      <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
+                      <TransformComponent 
+                        wrapperClass="w-full h-full flex items-center justify-center"
+                        contentClass="w-full h-full flex items-center justify-center"
+                      >
                         <Image
                           src={unit.floorPlan3dUrl}
                           alt="Plano técnico"
                           width={1200}
                           height={1200}
-                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain drop-shadow-lg"
+                          className="w-full h-full max-h-[85vh] object-contain drop-shadow-xl"
                           style={{ filter: 'grayscale(100%)' }}
                           draggable={false}
                         />
