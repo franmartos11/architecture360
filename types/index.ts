@@ -58,6 +58,7 @@ export interface Unit {
   status: UnitStatus;
   tourImageUrl?: string;       // 360 equirectangular
   floorPlan3dUrl?: string;     // 3D floor plan render
+  orientation?: 'N' | 'S' | 'E' | 'O' | 'NE' | 'NO' | 'SE' | 'SO';
   technicalPlanUrl?: string;   // architectural plan image
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
