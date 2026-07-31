@@ -25,6 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Dashboard', href: '/admin' },
     { label: 'Inventario', href: '/admin/inventory' },
     { label: 'Leads', href: '/admin/leads' },
+    { label: 'Configuración', href: '/admin/settings' },
   ];
 
   return (

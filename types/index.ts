@@ -56,9 +56,9 @@ export interface Unit {
   hasServiceRoom: boolean;
   price?: number;       // USD — undefined means "consultar precio"
   status: UnitStatus;
+  orientation?: string; // N, S, E, O
   tourImageUrl?: string;       // 360 equirectangular
   floorPlan3dUrl?: string;     // 3D floor plan render
-  orientation?: 'N' | 'S' | 'E' | 'O' | 'NE' | 'NO' | 'SE' | 'SO';
   technicalPlanUrl?: string;   // architectural plan image
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
