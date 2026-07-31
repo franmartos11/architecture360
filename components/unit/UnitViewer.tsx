@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
-import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import dynamic from 'next/dynamic';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab } from '@/types';
@@ -313,10 +313,8 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       centerOnInit={true}
                       wheel={{ step: 0.1 }}
                     >
-                      <ZoomControls />
                       <TransformComponent 
-                        wrapperClass="w-full h-full flex items-center justify-center"
-                        contentClass="w-full h-full flex items-center justify-center"
+                        wrapperStyle={{ width: '100%', height: '100%' }}
                       >
                         <Image
                           src={unit.floorPlan3dUrl}
@@ -324,7 +322,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                           width={1200}
                           height={1200}
                           priority
-                          className="w-full h-full max-h-[85vh] object-contain drop-shadow-2xl"
+                          className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
                           draggable={false}
                         />
                       </TransformComponent>
@@ -392,17 +390,15 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       centerOnInit={true}
                       wheel={{ step: 0.1 }}
                     >
-                      <ZoomControls />
                       <TransformComponent 
-                        wrapperClass="w-full h-full flex items-center justify-center"
-                        contentClass="w-full h-full flex items-center justify-center"
+                        wrapperStyle={{ width: '100%', height: '100%' }}
                       >
                         <Image
                           src={unit.floorPlan3dUrl}
                           alt="Plano técnico"
                           width={1200}
                           height={1200}
-                          className="w-full h-full max-h-[85vh] object-contain drop-shadow-xl"
+                          className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
                           style={{ filter: 'grayscale(100%)' }}
                           draggable={false}
                         />
@@ -642,43 +638,5 @@ function SpecRow({ label }: { label: string }) {
       <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
       {label}
     </motion.div>
-  );
-}
-
-function ZoomControls() {
-  const { zoomIn, zoomOut, resetTransform } = useControls();
-
-  return (
-    <div className="absolute right-4 bottom-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur rounded-xl shadow-lg p-1.5 border border-gray-100">
-      <button
-        onClick={() => zoomIn(0.5)}
-        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
-        title="Acercar"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-      </button>
-      <div className="w-full h-px bg-gray-200" />
-      <button
-        onClick={() => zoomOut(0.5)}
-        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
-        title="Alejar"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
-        </svg>
-      </button>
-      <div className="w-full h-px bg-gray-200" />
-      <button
-        onClick={() => resetTransform()}
-        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
-        title="Restablecer vista"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-        </svg>
-      </button>
-    </div>
   );
 }
