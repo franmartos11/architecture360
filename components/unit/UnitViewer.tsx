@@ -322,14 +322,14 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                           width={1200}
                           height={1200}
                           priority
-                          className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
+                          className="max-w-full max-h-[85vh] object-contain"
                           draggable={false}
                         />
                       </TransformComponent>
                     </TransformWrapper>
                   )}
                   {/* Active tab label */}
-                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
+                  <div className="absolute bottom-5 left-5 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
                     Planta 3D
                   </div>
                 </div>
@@ -398,14 +398,14 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                           alt="Plano técnico"
                           width={1200}
                           height={1200}
-                          className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
+                          className="max-w-full max-h-[85vh] object-contain"
                           style={{ filter: 'grayscale(100%)' }}
                           draggable={false}
                         />
                       </TransformComponent>
                     </TransformWrapper>
                   )}
-                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
+                  <div className="absolute bottom-5 left-5 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
                     Plano técnico
                   </div>
                 </div>
