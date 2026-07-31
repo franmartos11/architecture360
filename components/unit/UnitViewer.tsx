@@ -328,10 +328,6 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       </TransformComponent>
                     </TransformWrapper>
                   )}
-                  {/* Active tab label */}
-                  <div className="absolute bottom-5 left-5 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
-                    Planta 3D
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -405,9 +401,6 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       </TransformComponent>
                     </TransformWrapper>
                   )}
-                  <div className="absolute bottom-5 left-5 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
-                    Plano técnico
-                  </div>
                 </div>
               </motion.div>
             )}
