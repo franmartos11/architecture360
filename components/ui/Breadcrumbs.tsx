@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { TransitionLink } from '@/components/ui/TransitionUtils';
-import { motion } from 'framer-motion';
+import { m as motion } from 'framer-motion';
 
 export default function Breadcrumbs({ projectName = "Residencias del Mar" }) {
   const pathname = usePathname();
