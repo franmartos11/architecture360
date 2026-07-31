@@ -196,19 +196,17 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
             >
               Consultar precio
             </button>
-            {unit.price && (
-              <button 
-                onClick={() => setIsCalculatorOpen(true)}
-                className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors flex items-center justify-center shadow-sm"
-                title="Calculadora de Financiación"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm2.25-4.5h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm2.25-4.5h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm2.25-4.5h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm-7.5-7.5h.008v.008H7.5V10.5zm2.25 0h.008v.008H9.75V10.5zm2.25 0h.008v.008H12V10.5zm2.25 0h.008v.008H14.25V10.5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5h9v3h-9v-3z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-            )}
+            <button 
+              onClick={() => setIsCalculatorOpen(true)}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors flex items-center justify-center shadow-sm"
+              title="Calculadora de Financiación"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm2.25-4.5h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm2.25-4.5h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm2.25-4.5h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm-7.5-7.5h.008v.008H7.5V10.5zm2.25 0h.008v.008H9.75V10.5zm2.25 0h.008v.008H12V10.5zm2.25 0h.008v.008H14.25V10.5z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5h9v3h-9v-3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
           </div>
 
           {/* View tabs (Galería / Planta 3D / Planos) */}
@@ -642,7 +640,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
       <MortgageCalculatorModal 
         isOpen={isCalculatorOpen} 
         onClose={() => setIsCalculatorOpen(false)} 
-        unitPrice={unit.price || 0} 
+        unitPrice={unit.price || 150000} 
       />
     </div>
   );
