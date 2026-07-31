@@ -5,7 +5,7 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab } from '@/types';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
 

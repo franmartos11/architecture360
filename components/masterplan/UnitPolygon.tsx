@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, memo } from 'react';
 import type { Unit } from '@/types';
 
 interface UnitPolygonProps {
@@ -10,7 +10,7 @@ interface UnitPolygonProps {
   onSelect: (unit: Unit) => void;
 }
 
-export default function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
+function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
   if (!unit.polygon || unit.polygon.length === 0) return null;
   const points = unit.polygon.map((p) => `${p.x},${p.y}`).join(' ');
 
@@ -47,3 +47,5 @@ export default function UnitPolygon({ unit, isHovered, onHover, onSelect }: Unit
     />
   );
 }
+
+export default memo(UnitPolygon);

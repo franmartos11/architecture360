@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import type { Unit } from '@/types';
@@ -31,13 +31,15 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
     floor: 'all',
   });
 
-  const filteredUnits = units.filter((unit) => {
-    if (filters.status !== 'all' && unit.status !== filters.status) return false;
-    if (filters.type !== 'all' && unit.type !== filters.type) return false;
-    if (filters.buildingId !== 'all' && unit.buildingId !== filters.buildingId) return false;
-    if (filters.floor !== 'all' && unit.floor !== filters.floor) return false;
-    return true;
-  });
+  const filteredUnits = useMemo(() => {
+    return units.filter((unit) => {
+      if (filters.status !== 'all' && unit.status !== filters.status) return false;
+      if (filters.type !== 'all' && unit.type !== filters.type) return false;
+      if (filters.buildingId !== 'all' && unit.buildingId !== filters.buildingId) return false;
+      if (filters.floor !== 'all' && unit.floor !== filters.floor) return false;
+      return true;
+    });
+  }, [units, filters]);
 
   const handleSelectUnit = useCallback((unit: Unit) => {
     setSelectedUnit(unit);
@@ -48,14 +50,18 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
   }, []);
 
   // Extract unique values for filters
-  const buildings = [...new Set(units.map((u) => u.buildingId))];
-  const floors = [...new Set(units.map((u) => u.floor))].sort();
-  const types = [...new Set(units.map((u) => u.type))];
+  const buildings = useMemo(() => [...new Set(units.map((u) => u.buildingId))], [units]);
+  const floors = useMemo(() => [...new Set(units.map((u) => u.floor))].sort(), [units]);
+  const types = useMemo(() => [...new Set(units.map((u) => u.type))], [units]);
 
   // Stats
-  const availableCount = units.filter((u) => u.status === 'available').length;
-  const reservedCount = units.filter((u) => u.status === 'reserved').length;
-  const soldCount = units.filter((u) => u.status === 'sold').length;
+  const { availableCount, reservedCount, soldCount } = useMemo(() => {
+    return {
+      availableCount: units.filter((u) => u.status === 'available').length,
+      reservedCount: units.filter((u) => u.status === 'reserved').length,
+      soldCount: units.filter((u) => u.status === 'sold').length,
+    };
+  }, [units]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 w-full">

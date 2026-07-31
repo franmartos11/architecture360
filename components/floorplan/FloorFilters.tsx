@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m as motion } from 'framer-motion';
 import type { FloorFiltersState } from '@/hooks/useFloorFilters';
 import type { UnitStatus, UnitType } from '@/types';
 
