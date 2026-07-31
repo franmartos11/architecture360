@@ -61,6 +61,7 @@ export interface Unit {
   technicalPlanUrl?: string;   // architectural plan image
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
+  polygon?: { x: number; y: number }[]; // optional polygon for masterplan
 }
 
 // ─── Building (tower) ──────────────────────────────────────────────

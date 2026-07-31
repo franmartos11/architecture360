@@ -67,7 +67,7 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-white">{unit.name}</h2>
-                    <p className="text-sm text-white/50">{unit.building} · Piso {unit.floor}</p>
+                    <p className="text-sm text-white/50">{unit.buildingId} · Piso {unit.floor}</p>
                   </div>
                 </div>
 
@@ -93,7 +93,7 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                       </svg>
                     }
                     label="Superficie"
-                    value={`${unit.area} m²`}
+                    value={`${unit.totalArea} m²`}
                   />
                   <DetailItem
                     icon={
@@ -102,7 +102,7 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                       </svg>
                     }
                     label="Precio"
-                    value={formatPrice(unit.price)}
+                    value={unit.price ? formatPrice(unit.price) : 'Consultar'}
                   />
                   <DetailItem
                     icon={
@@ -121,14 +121,14 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white/40">Precio por m²</span>
                   <span className="text-white font-medium">
-                    {formatPrice(Math.round(unit.price / unit.area))}/m²
+                    {unit.price ? formatPrice(Math.round(unit.price / unit.totalArea)) : '-'}/m²
                   </span>
                 </div>
               </div>
 
               {/* Actions */}
               <div className="px-6 py-5 border-t border-white/5 flex gap-3">
-                {unit.tourSceneId && unit.status !== 'sold' && (
+                {unit.tourImageUrl && unit.status !== 'sold' && (
                   <Link
                     href={`/proyecto/${projectSlug}/tour/${unit.id}`}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"

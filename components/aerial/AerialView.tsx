@@ -225,7 +225,7 @@ export default function AerialView({ project }: AerialViewProps) {
             </div>
             <div>
               <h1 className="text-white font-bold text-lg leading-tight tracking-wide drop-shadow-md">{project.name}</h1>
-              <p className="text-white/80 text-xs font-medium tracking-widest uppercase drop-shadow-md">{project.city}</p>
+              <p className="text-white/80 text-xs font-medium tracking-widest uppercase drop-shadow-md">{project.location}</p>
             </div>
           </div>
         </motion.div>
