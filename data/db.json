@@ -1,4 +1,9 @@
 {
+  "calculatorSettings": {
+    "interestRate": 5.5,
+    "maxYears": 30,
+    "minDownPayment": 20
+  },
   "units": [
     { "id": "A01-01", "name": "A01-01", "modelName": "SUITE GARDEN", "buildingId": "torre-a", "floor": 1, "type": "1 dormitorio", "totalArea": 68, "innerArea": 58, "balconyArea": 10, "externalArea": 0, "bedrooms": 1, "bathrooms": 1, "hasServiceRoom": false, "status": "available", "interiorImageUrl": "/units/interior-1.jpg", "tourImageUrl": "/tours/sample-pano.png", "floorPlan3dUrl": "/floorplans/floor-1.png", "price": 150000 },
     { "id": "A01-02", "name": "A01-02", "modelName": "DUET GARDEN", "buildingId": "torre-a", "floor": 1, "type": "2 dormitorios", "totalArea": 96, "innerArea": 82, "balconyArea": 14, "externalArea": 0, "bedrooms": 2, "bathrooms": 2, "hasServiceRoom": false, "status": "reserved", "interiorImageUrl": "/units/interior-1.jpg", "tourImageUrl": "/tours/sample-pano.png", "floorPlan3dUrl": "/floorplans/floor-1.png", "price": 210000 },

@@ -42,30 +42,29 @@ export default function Breadcrumbs({ projectName = "Residencias del Mar" }) {
     <motion.div 
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
+      className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-200/50"
     >
-      <nav className="flex items-center gap-2 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-white/10" aria-label="Breadcrumb">
-        {paths.map((path, index) => (
-          <div key={path.href} className="flex items-center">
-            {index > 0 && (
-              <svg className="w-4 h-4 text-slate-500 mx-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            )}
-            {index === paths.length - 1 ? (
-              <span className="text-sm font-bold text-white truncate max-w-[150px] sm:max-w-none" aria-current="page">
-                {path.label}
-              </span>
-            ) : (
-              <TransitionLink 
-                href={path.href}
-                className="text-sm font-medium text-slate-300 hover:text-white hover:underline transition-colors max-w-[120px] sm:max-w-none truncate"
-              >
-                {path.label}
-              </TransitionLink>
-            )}
-          </div>
-        ))}
-      </nav>
+      {paths.map((path, index) => (
+        <div key={path.href} className="flex items-center">
+          {index > 0 && (
+            <svg className="w-4 h-4 mx-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          )}
+          {index === paths.length - 1 ? (
+            <span className="text-sm font-semibold text-gray-900 tracking-wide">
+              {path.label}
+            </span>
+          ) : (
+            <TransitionLink 
+              href={path.href}
+              className="text-sm font-medium text-gray-500 hover:text-brand-500 transition-colors tracking-wide"
+            >
+              {path.label}
+            </TransitionLink>
+          )}
+        </div>
+      ))}
     </motion.div>
   );
 }
