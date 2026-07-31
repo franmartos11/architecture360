@@ -1,0 +1,199 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ─── Custom Tailwind Theme ────────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Inter', var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand palette */
+  --color-brand-50: #f0f4ff;
+  --color-brand-100: #dbe4ff;
+  --color-brand-200: #bac8ff;
+  --color-brand-300: #91a7ff;
+  --color-brand-400: #748ffc;
+  --color-brand-500: #5c7cfa;
+  --color-brand-600: #4c6ef5;
+  --color-brand-700: #4263eb;
+  --color-brand-800: #3b5bdb;
+  --color-brand-900: #364fc7;
+
+  /* Accent (gold) */
+  --color-accent-400: #ffd43b;
+  --color-accent-500: #fcc419;
+  --color-accent-600: #fab005;
+
+  /* Surface colors */
+  --color-surface-50: #1a1d2e;
+  --color-surface-100: #1e2235;
+  --color-surface-200: #252a3f;
+  --color-surface-300: #2d3350;
+  --color-surface-400: #3d4468;
+  --color-surface-500: #4d5580;
+
+  /* Status colors */
+  --color-status-available: #51cf66;
+  --color-status-reserved: #fcc419;
+  --color-status-sold: #ff6b6b;
+}
+
+/* ─── Base tokens ──────────────────────────────────────────────── */
+:root {
+  --background: #0f1120;
+  --foreground: #e8eaf0;
+  --glass-bg: rgba(30, 34, 53, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Global styles ────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-400) transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Glassmorphism utility ────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Status badge colors ──────────────────────────────────────── */
+.badge-available {
+  background: rgba(81, 207, 102, 0.15);
+  color: #51cf66;
+  border: 1px solid rgba(81, 207, 102, 0.3);
+}
+
+.badge-reserved {
+  background: rgba(252, 196, 25, 0.15);
+  color: #fcc419;
+  border: 1px solid rgba(252, 196, 25, 0.3);
+}
+
+.badge-sold {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+/* ─── SVG Polygon interactions ─────────────────────────────────── */
+.unit-polygon {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.unit-polygon:hover {
+  filter: brightness(1.4) drop-shadow(0 0 8px currentColor);
+  stroke-width: 2.5;
+}
+
+.unit-polygon.status-available {
+  fill: rgba(81, 207, 102, 0.35);
+  stroke: #51cf66;
+}
+
+.unit-polygon.status-reserved {
+  fill: rgba(252, 196, 25, 0.3);
+  stroke: #fcc419;
+}
+
+.unit-polygon.status-sold {
+  fill: rgba(255, 107, 107, 0.25);
+  stroke: #ff6b6b;
+}
+
+/* ─── Marzipano container ──────────────────────────────────────── */
+.pano-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.pano-container canvas {
+  display: block;
+}
+
+/* ─── Animations ───────────────────────────────────────────────── */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(92, 124, 250, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(92, 124, 250, 0.6); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* ─── Gradient text ────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #5c7cfa, #91a7ff, #fcc419);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Background patterns ──────────────────────────────────────── */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
