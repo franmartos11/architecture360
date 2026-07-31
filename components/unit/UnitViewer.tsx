@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
+import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
 import dynamic from 'next/dynamic';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab } from '@/types';
@@ -72,6 +73,32 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
 
+  // Keyboard navigation for gallery and lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTab !== 'galeria') return;
+      
+      if (e.key === 'ArrowRight') {
+        if (lightboxOpen) {
+          setLightboxIndex((i) => Math.min(i + 1, (unit.galleryImages?.length || 1) - 1));
+        } else {
+          setGalleryIndex((i) => Math.min(i + 1, (unit.galleryImages?.length || 1) - 1));
+        }
+      } else if (e.key === 'ArrowLeft') {
+        if (lightboxOpen) {
+          setLightboxIndex((i) => Math.max(i - 1, 0));
+        } else {
+          setGalleryIndex((i) => Math.max(i - 1, 0));
+        }
+      } else if (e.key === 'Escape') {
+        if (lightboxOpen) setLightboxOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, lightboxOpen, unit.galleryImages?.length]);
+
   const openContact = (method: 'email' | 'whatsapp' | 'phone' = 'email') => {
     setContactMethod(method);
     setIsContactModalOpen(true);
@@ -103,8 +130,16 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
   const statusColor = getStatusColor(unit.status);
   const statusLabel = getStatusLabel(unit.status);
 
+  // Preload images
+  const currentImg = lightboxOpen ? lightboxIndex : galleryIndex;
+  const nextImgUrl = unit.galleryImages?.[currentImg + 1];
+  const prevImgUrl = unit.galleryImages?.[currentImg - 1];
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden relative">
+      {/* Preload hints for adjacent images to make transitions instant */}
+      {nextImgUrl && <link rel="preload" as="image" href={nextImgUrl} />}
+      {prevImgUrl && <link rel="preload" as="image" href={prevImgUrl} />}
       {/* ── Left Sidebar ──────────────────────────────────── */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 md:relative flex-shrink-0 bg-white border-gray-100 flex flex-col overflow-y-auto transition-all duration-300 shadow-2xl md:shadow-sm ${sidebarCollapsed ? '-translate-x-full md:w-0 md:overflow-hidden md:border-none md:opacity-0' : 'translate-x-0 w-full sm:w-80 md:w-72 border-r md:opacity-100'}`}
@@ -269,19 +304,31 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0 pt-16 flex items-center justify-center p-8"
               >
-                <div className="relative max-w-2xl w-full">
+                <div className="relative w-full h-full">
                   {unit.floorPlan3dUrl && (
-                    <Image
-                      src={unit.floorPlan3dUrl}
-                      alt="Planta 3D"
-                      width={800}
-                      height={800}
-                      priority
-                      className="w-full h-auto object-contain rounded-xl shadow-lg"
-                    />
+                    <TransformWrapper
+                      initialScale={1}
+                      minScale={0.5}
+                      maxScale={4}
+                      centerOnInit={true}
+                      wheel={{ step: 0.1 }}
+                    >
+                      <ZoomControls />
+                      <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
+                        <Image
+                          src={unit.floorPlan3dUrl}
+                          alt="Planta 3D"
+                          width={1200}
+                          height={1200}
+                          priority
+                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain drop-shadow-xl"
+                          draggable={false}
+                        />
+                      </TransformComponent>
+                    </TransformWrapper>
                   )}
                   {/* Active tab label */}
-                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm">
+                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
                     Planta 3D
                   </div>
                 </div>
@@ -333,18 +380,30 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0 pt-16 flex items-center justify-center p-8"
               >
-                <div className="relative max-w-2xl w-full">
+                <div className="relative w-full h-full">
                   {unit.floorPlan3dUrl && (
-                    <Image
-                      src={unit.floorPlan3dUrl}
-                      alt="Plano técnico"
-                      width={800}
-                      height={800}
-                      className="w-full h-auto object-contain rounded-xl shadow-lg"
-                      style={{ filter: 'grayscale(100%)' }}
-                    />
+                    <TransformWrapper
+                      initialScale={1}
+                      minScale={0.5}
+                      maxScale={4}
+                      centerOnInit={true}
+                      wheel={{ step: 0.1 }}
+                    >
+                      <ZoomControls />
+                      <TransformComponent wrapperClass="w-full h-full flex items-center justify-center">
+                        <Image
+                          src={unit.floorPlan3dUrl}
+                          alt="Plano técnico"
+                          width={1200}
+                          height={1200}
+                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain drop-shadow-lg"
+                          style={{ filter: 'grayscale(100%)' }}
+                          draggable={false}
+                        />
+                      </TransformComponent>
+                    </TransformWrapper>
                   )}
-                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm">
+                  <div className="absolute top-3 left-3 bg-white/90 rounded-lg px-3 py-1 text-sm font-medium text-gray-700 shadow-sm pointer-events-none z-10">
                     Plano técnico
                   </div>
                 </div>
@@ -577,5 +636,43 @@ function SpecRow({ label }: { label: string }) {
       <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
       {label}
     </motion.div>
+  );
+}
+
+function ZoomControls() {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+
+  return (
+    <div className="absolute right-4 bottom-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur rounded-xl shadow-lg p-1.5 border border-gray-100">
+      <button
+        onClick={() => zoomIn(0.5)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
+        title="Acercar"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </button>
+      <div className="w-full h-px bg-gray-200" />
+      <button
+        onClick={() => zoomOut(0.5)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
+        title="Alejar"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+        </svg>
+      </button>
+      <div className="w-full h-px bg-gray-200" />
+      <button
+        onClick={() => resetTransform()}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
+        title="Restablecer vista"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+        </svg>
+      </button>
+    </div>
   );
 }
