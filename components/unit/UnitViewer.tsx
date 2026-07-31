@@ -308,13 +308,16 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                   {unit.floorPlan3dUrl && (
                     <TransformWrapper
                       initialScale={1}
-                      minScale={0.5}
+                      minScale={1}
                       maxScale={4}
                       centerOnInit={true}
                       wheel={{ step: 0.1 }}
+                      doubleClick={{ step: 1 }}
+                      panning={{ disabled: false }}
                     >
                       <TransformComponent 
                         wrapperStyle={{ width: '100%', height: '100%' }}
+                        contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                       >
                         <Image
                           src={unit.floorPlan3dUrl}
@@ -381,13 +384,16 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                   {unit.floorPlan3dUrl && (
                     <TransformWrapper
                       initialScale={1}
-                      minScale={0.5}
+                      minScale={1}
                       maxScale={4}
                       centerOnInit={true}
                       wheel={{ step: 0.1 }}
+                      doubleClick={{ step: 1 }}
+                      panning={{ disabled: false }}
                     >
                       <TransformComponent 
                         wrapperStyle={{ width: '100%', height: '100%' }}
+                        contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                       >
                         <Image
                           src={unit.floorPlan3dUrl}
