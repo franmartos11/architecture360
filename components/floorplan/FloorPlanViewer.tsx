@@ -85,24 +85,24 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
     .sort((a, b) => b - a); // descending (top = highest)
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
+    <div className="flex h-screen bg-slate-950 overflow-hidden">
       {/* ── Left unit panel ──────────────────────────────────── */}
       {/* ── Left panel ──────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 md:relative flex-shrink-0 bg-white border-r border-gray-100 flex flex-col overflow-y-auto transition-transform duration-300 shadow-2xl md:shadow-sm ${
+        className={`fixed inset-y-0 left-0 z-40 md:relative flex-shrink-0 bg-slate-900 border-r border-white/5 flex flex-col overflow-y-auto transition-transform duration-300 shadow-2xl md:shadow-sm ${
           panelOpen ? 'translate-x-0 w-full sm:w-80' : '-translate-x-full md:translate-x-0'
         } md:w-72`}
       >
         {selectedUnit ? (
           <div className="flex flex-col h-full animate-in fade-in duration-300">
             {/* Interior photo thumbnail */}
-            <div className="relative h-44 sm:h-56 md:h-44 bg-gray-100 flex-shrink-0">
+            <div className="relative h-44 sm:h-56 md:h-44 bg-slate-800 flex-shrink-0">
               {/* Close button for mobile */}
               <button
                 onClick={handleClosePanel}
-                className="md:hidden absolute top-4 left-4 w-10 h-10 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow z-10"
+                className="md:hidden absolute top-4 left-4 w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center shadow z-10"
               >
-                <svg className="w-5 h-5 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -119,9 +119,9 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               {/* Share button */}
               <button 
                 onClick={handleShare}
-                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-colors"
+                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center shadow hover:bg-slate-800 transition-colors"
               >
-                <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
                 </svg>
               </button>
@@ -131,7 +131,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
             <div className="p-5 flex-1 flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between mb-1">
-                <h2 className="text-lg font-bold text-gray-900">{selectedUnit.name}</h2>
+                <h2 className="text-lg font-bold text-white">{selectedUnit.name}</h2>
                 <span
                   className="text-xs font-semibold flex items-center gap-1"
                   style={{ color: getStatusColor(selectedUnit.status) }}
@@ -143,20 +143,20 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
                   {getStatusLabel(selectedUnit.status).toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mb-4 uppercase tracking-wide">{selectedUnit.modelName}</p>
+              <p className="text-sm text-slate-400 mb-4 uppercase tracking-wide">{selectedUnit.modelName}</p>
 
               {/* Price / Consult */}
               {selectedUnit.price ? (
                 <div className="mb-4">
-                  <p className="text-xs text-gray-400">Precio</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xs text-slate-400">Precio</p>
+                  <p className="text-2xl font-bold text-white">
                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedUnit.price)}
                   </p>
                 </div>
               ) : (
                 <button 
                   onClick={() => openContact()}
-                  className="w-full mb-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className="w-full mb-4 py-2 rounded-lg border border-white/10 text-sm text-slate-200 font-medium hover:bg-white/5 transition-colors"
                 >
                   Consultar precio
                 </button>
@@ -173,7 +173,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               )}
 
               {/* Specs */}
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Instalaciones</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Instalaciones</h4>
               <motion.div
                 initial="hidden"
                 animate="visible"
@@ -199,8 +199,8 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               </motion.div>
 
               {/* Contact */}
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
+              <div className="mt-auto pt-4 border-t border-white/5">
+                <p className="text-xs text-slate-400 mb-3">Solicitar información</p>
                 <div className="flex items-center gap-3">
                   <ContactBtn title="Email" onClick={() => openContact('email')}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -224,7 +224,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
         ) : (
           <div className="flex flex-col h-full animate-in fade-in duration-300">
             {/* Building/Floor abstract header */}
-            <div className="relative h-44 sm:h-56 md:h-44 bg-gray-900 flex-shrink-0 overflow-hidden">
+            <div className="relative h-44 sm:h-56 md:h-44 bg-slate-900 flex-shrink-0 overflow-hidden">
               {floor && (
                 <Image
                   src={floor.planImage}
@@ -237,7 +237,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               )}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                 <h2 className="text-3xl font-bold text-white drop-shadow-lg">{building.name}</h2>
-                <span className="text-sm font-semibold text-gray-900 bg-white/90 px-4 py-1.5 rounded-full mt-3 shadow-md">
+                <span className="text-sm font-semibold text-white bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full mt-3 shadow-md border border-white/20">
                   Planta {activeFloor}
                 </span>
               </div>
@@ -384,7 +384,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
 
 
       {/* ── Right floor selector ──────────────────────────── */}
-      <div className="w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-white border-l border-gray-100 z-20">
+      <div className="w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-slate-900 border-l border-white/5 z-20">
         {/* Top: fullscreen icon placeholder */}
         <div className="w-8 h-8" />
 
@@ -396,8 +396,8 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); }}
               className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
                 activeFloor === num
-                  ? 'w-10 h-10 bg-gray-900 text-white shadow-lg'
-                  : 'w-9 h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                  ? 'w-10 h-10 bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                  : 'w-9 h-9 text-slate-400 hover:text-white hover:bg-white/10'
               }`}
             >
               {num === 0 ? 'L' : num}
@@ -471,8 +471,8 @@ function SpecRow({ icon, label }: { icon: string; label: string }) {
       }}
       className="flex items-center gap-2.5"
     >
-      <span className="text-gray-400 flex-shrink-0">{icons[icon] || null}</span>
-      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-slate-500 flex-shrink-0">{icons[icon] || null}</span>
+      <span className="text-sm text-slate-300">{label}</span>
     </motion.div>
   );
 }
@@ -482,7 +482,7 @@ function ContactBtn({ title, children, onClick }: { title: string; children: Rea
     <button
       title={title}
       onClick={onClick}
-      className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+      className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
     >
       {children}
     </button>
