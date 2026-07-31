@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
-import type { Unit, FilterState } from '@/types';
+import type { Unit } from '@/types';
 import UnitPolygon from './UnitPolygon';
 import UnitModal from './UnitModal';
 
@@ -13,6 +13,13 @@ interface MasterplanProps {
   projectSlug: string;
 }
 
+interface FilterState {
+  status: Unit['status'] | 'all';
+  type: Unit['type'] | 'all';
+  buildingId: string | 'all';
+  floor: number | 'all';
+}
+
 export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanProps) {
   const router = useTransitionRouter();
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -20,14 +27,14 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
   const [filters, setFilters] = useState<FilterState>({
     status: 'all',
     type: 'all',
-    building: 'all',
+    buildingId: 'all',
     floor: 'all',
   });
 
   const filteredUnits = units.filter((unit) => {
     if (filters.status !== 'all' && unit.status !== filters.status) return false;
     if (filters.type !== 'all' && unit.type !== filters.type) return false;
-    if (filters.building !== 'all' && unit.building !== filters.building) return false;
+    if (filters.buildingId !== 'all' && unit.buildingId !== filters.buildingId) return false;
     if (filters.floor !== 'all' && unit.floor !== filters.floor) return false;
     return true;
   });
@@ -41,7 +48,7 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
   }, []);
 
   // Extract unique values for filters
-  const buildings = [...new Set(units.map((u) => u.building))];
+  const buildings = [...new Set(units.map((u) => u.buildingId))];
   const floors = [...new Set(units.map((u) => u.floor))].sort();
   const types = [...new Set(units.map((u) => u.type))];
 
@@ -96,8 +103,8 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
 
           <FilterSelect
             label="Torre"
-            value={filters.building}
-            onChange={(v) => setFilters((f) => ({ ...f, building: v }))}
+            value={filters.buildingId}
+            onChange={(v) => setFilters((f) => ({ ...f, buildingId: v }))}
             options={[
               { value: 'all', label: 'Todas' },
               ...buildings.map((b) => ({ value: b, label: b })),
@@ -116,7 +123,7 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
 
           <button
             onClick={() =>
-              setFilters({ status: 'all', type: 'all', building: 'all', floor: 'all' })
+              setFilters({ status: 'all', type: 'all', buildingId: 'all', floor: 'all' })
             }
             className="w-full py-2 text-sm text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5"
           >
@@ -246,8 +253,10 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 
 function HoverTooltip({ unit }: { unit: Unit }) {
   // Position tooltip near the center of the polygon
-  const centerX = unit.polygon.reduce((sum, p) => sum + p.x, 0) / unit.polygon.length;
-  const centerY = unit.polygon.reduce((sum, p) => sum + p.y, 0) / unit.polygon.length;
+  const polygon = unit.polygon || [];
+  if (polygon.length === 0) return null;
+  const centerX = polygon.reduce((sum, p) => sum + p.x, 0) / polygon.length;
+  const centerY = polygon.reduce((sum, p) => sum + p.y, 0) / polygon.length;
 
   return (
     <div
@@ -261,7 +270,7 @@ function HoverTooltip({ unit }: { unit: Unit }) {
       <div className="glass rounded-lg px-3 py-2 text-center whitespace-nowrap">
         <p className="text-xs font-semibold text-white">{unit.name}</p>
         <p className="text-[10px] text-white/50">
-          {unit.area}m² · {unit.type}
+          {unit.totalArea}m² · {unit.type}
         </p>
       </div>
     </div>

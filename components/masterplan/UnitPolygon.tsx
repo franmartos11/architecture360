@@ -11,6 +11,7 @@ interface UnitPolygonProps {
 }
 
 export default function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
+  if (!unit.polygon || unit.polygon.length === 0) return null;
   const points = unit.polygon.map((p) => `${p.x},${p.y}`).join(' ');
 
   const handleMouseEnter = useCallback(() => {
@@ -35,7 +36,7 @@ export default function UnitPolygon({ unit, isHovered, onHover, onSelect }: Unit
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       role="button"
-      aria-label={`${unit.name} - ${unit.type} - ${unit.area}m²`}
+      aria-label={`${unit.name} - ${unit.type} - ${unit.totalArea}m²`}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
