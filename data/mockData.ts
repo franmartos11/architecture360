@@ -60,14 +60,14 @@ const buildings: Building[] = [
     name: 'Torre A',
     totalFloors: 15,
     floors: [
-      { number: 0, label: 'L', planImage: '/floorplans/floor-1.png', unitDots: [] },
-      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1.png', unitDots: floorADots },
-      { number: 2, label: 'Planta 2', planImage: '/floorplans/floor-1.png', unitDots: floorA2Dots },
-      { number: 3, label: 'Planta 3', planImage: '/floorplans/floor-1.png', unitDots: floorADots.map(d => ({ ...d, unitId: d.unitId.replace('01', '03') })) },
+      { number: 0, label: 'L', planImage: '/floorplans/floor-1-render.png', unitDots: [] },
+      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1-render.png', unitDots: floorADots },
+      { number: 2, label: 'Planta 2', planImage: '/floorplans/floor-1-render.png', unitDots: floorA2Dots },
+      { number: 3, label: 'Planta 3', planImage: '/floorplans/floor-1-render.png', unitDots: floorADots.map(d => ({ ...d, unitId: d.unitId.replace('01', '03') })) },
       ...Array.from({ length: 11 }, (_, i) => ({
         number: i + 4,
         label: `Planta ${i + 4}`,
-        planImage: '/floorplans/floor-1.png',
+        planImage: '/floorplans/floor-1-render.png',
         unitDots: floorADots.map(d => ({ ...d, unitId: d.unitId.replace('01', String(i + 4).padStart(2, '0')) })),
       })),
     ],
@@ -77,7 +77,7 @@ const buildings: Building[] = [
     name: 'Torre B',
     totalFloors: 12,
     floors: [
-      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1.png', unitDots: [
+      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1-render.png', unitDots: [
         { unitId: 'B01-01', x: 25, y: 40 },
         { unitId: 'B01-02', x: 55, y: 30 },
         { unitId: 'B01-03', x: 72, y: 55 },
@@ -85,7 +85,7 @@ const buildings: Building[] = [
       ...Array.from({ length: 11 }, (_, i) => ({
         number: i + 2,
         label: `Planta ${i + 2}`,
-        planImage: '/floorplans/floor-1.png',
+        planImage: '/floorplans/floor-1-render.png',
         unitDots: [
           { unitId: `B0${i+2}-01`, x: 25, y: 40 },
           { unitId: `B0${i+2}-02`, x: 55, y: 30 },
@@ -98,14 +98,14 @@ const buildings: Building[] = [
     name: 'Torre C',
     totalFloors: 10,
     floors: [
-      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1.png', unitDots: [
+      { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1-render.png', unitDots: [
         { unitId: 'C01-01', x: 35, y: 45 },
         { unitId: 'C01-02', x: 62, y: 38 },
       ]},
       ...Array.from({ length: 9 }, (_, i) => ({
         number: i + 2,
         label: `Planta ${i + 2}`,
-        planImage: '/floorplans/floor-1.png',
+        planImage: '/floorplans/floor-1-render.png',
         unitDots: [
           { unitId: `C0${i+2}-01`, x: 35, y: 45 },
         ],
