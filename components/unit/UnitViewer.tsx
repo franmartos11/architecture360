@@ -403,7 +403,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       onClick={() => setPlanView('3d')}
                       className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                      Vista 3D
+                      Plano 3D
                     </button>
                     <button
                       onClick={() => setPlanView('2d')}
@@ -425,7 +425,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       transition={{ duration: 0.25 }}
                       className="absolute inset-0 flex items-center justify-center p-2 sm:p-4"
                     >
-                      {(unit.floorPlan3dUrl || unit.technicalPlanUrl) && (
+                      {(unit.plan3dUrl || unit.technicalPlanUrl) && (
                         <TransformWrapper
                           key={planView}
                           initialScale={1}
@@ -441,8 +441,8 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                             contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                           >
                             <Image
-                              src={planView === '3d' ? (unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.floorPlan3dUrl || '')}
-                              alt={planView === '3d' ? 'Vista 3D' : 'Plano técnico'}
+                              src={planView === '3d' ? (unit.plan3dUrl || unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.plan3dUrl || '')}
+                              alt={planView === '3d' ? 'Plano 3D' : 'Plano técnico'}
                               width={1200}
                               height={1200}
                               className="max-w-full max-h-[80vh] object-contain"

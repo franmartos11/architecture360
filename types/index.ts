@@ -58,8 +58,9 @@ export interface Unit {
   status: UnitStatus;
   orientation?: string; // N, S, E, O
   tourImageUrl?: string;       // 360 equirectangular
-  floorPlan3dUrl?: string;     // 3D floor plan render
-  technicalPlanUrl?: string;   // architectural plan image
+  floorPlan3dUrl?: string;     // render 3D del edificio/planta
+  plan3dUrl?: string;          // esquema 3D técnico de la planta
+  technicalPlanUrl?: string;   // plano arquitectónico 2D con rótulos
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
   polygon?: { x: number; y: number }[]; // optional polygon for masterplan
