@@ -39,7 +39,7 @@ export default function Calculator() {
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12 items-center">
         {/* Formulario */}
         <div className="w-full md:w-1/2 space-y-6">
-          <h2 className="text-3xl font-light text-trevo-dark mb-8 tracking-wide">CALCULA TU CUOTA</h2>
+          <h2 className="text-2xl md:text-3xl font-light text-trevo-dark mb-6 md:mb-8 tracking-wide text-center md:text-left">CALCULA TU CUOTA</h2>
           
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-trevo-dark">Modelo interesado</label>
@@ -106,10 +106,10 @@ export default function Calculator() {
         </div>
 
         {/* Resultado */}
-        <div className="w-full md:w-1/2 bg-trevo-green p-10 rounded-xl flex flex-col items-center justify-center space-y-6 shadow-2xl">
-          <div className="text-white/80 text-lg">Cuota mensual aproximada</div>
-          <h2 className="text-white text-5xl font-light">{formatUSD(resultado)}</h2>
-          <button className="btn-solid-brown w-full md:w-auto mt-4">
+        <div className="w-full md:w-1/2 bg-trevo-green p-6 sm:p-8 md:p-10 rounded-xl flex flex-col items-center justify-center space-y-4 md:space-y-6 shadow-2xl">
+          <div className="text-white/80 text-base md:text-lg text-center">Cuota mensual aproximada</div>
+          <h2 className="text-white text-4xl sm:text-5xl font-light text-center break-all">{formatUSD(resultado)}</h2>
+          <button className="btn-solid-brown w-full mt-2 md:mt-4">
             SOLICITAR INFORMACIÓN
           </button>
         </div>

@@ -178,7 +178,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView }: Virtual
 
       {/* Floating navigation menu (only if multi-node) */}
       {tourData && tourData.nodes.length > 1 && !isLoading && !error && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2 p-1.5 bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-lg border border-white/10">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-wrap justify-center gap-2 p-1.5 bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-lg border border-white/10 max-w-[90vw]">
           {tourData.nodes.map(node => (
             <button
               key={node.id}

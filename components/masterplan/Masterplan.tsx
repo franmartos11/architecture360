@@ -64,7 +64,7 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
   }, [units]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 w-full">
+    <div className="flex flex-col-reverse lg:flex-row gap-6 w-full">
       {/* Sidebar filters */}
       <aside className="w-full lg:w-72 shrink-0 space-y-5">
         {/* Stats cards */}
@@ -161,7 +161,7 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
               width={1600}
               height={900}
               priority
-              className="w-full h-auto block"
+              className="w-full h-auto block min-h-[300px] object-cover"
               draggable={false}
             />
 
