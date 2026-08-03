@@ -211,19 +211,19 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
           </div>
 
           {/* View tabs (Galería / Planta 3D / Planos) */}
-          <div className="flex items-center justify-around border border-gray-100 rounded-xl p-1 mb-5 bg-gray-50">
+          <div className="flex items-center gap-1 overflow-x-auto border border-gray-100 rounded-xl p-1 mb-5 bg-gray-50" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
+                className={`flex-none md:flex-1 w-[72px] md:w-auto flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
                   activeTab === tab.id
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
                 {tab.icon}
-                {tab.label}
+                <span className="truncate w-full text-center px-1">{tab.label}</span>
               </button>
             ))}
           </div>
@@ -290,8 +290,8 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
               Cambiar planta
             </button>
           </div>
-        </div>        {/* Right tab selector */}
-        <div className="absolute right-4 top-20 z-20 flex flex-col gap-2">
+        </div>        {/* Right tab selector (Desktop only, or hidden on very small if overlapping) */}
+        <div className="hidden sm:flex absolute right-4 top-20 z-20 flex-col gap-2">
           {TABS.map(tab => (
             <button
               key={tab.id}
