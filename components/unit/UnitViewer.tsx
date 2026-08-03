@@ -416,7 +416,6 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                           width={1200}
                           height={1200}
                           className="max-w-full max-h-[85vh] object-contain"
-                          style={{ filter: 'grayscale(100%)' }}
                           draggable={false}
                         />
                       </TransformComponent>

@@ -1,221 +1,186 @@
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import Image from 'next/image';
 import Navbar from '@/components/ui/Navbar';
-import { demoProject } from '@/data/mockData';
+import { AmenitiesCarousel, ZonesCarousel } from '@/components/SwiperCarousels';
+import { TabsSection } from '@/components/TabsSection';
+import Calculator from '@/components/Calculator';
+import Image from 'next/image';
 
 export default function HomePage() {
-  const project = demoProject;
-  const availableCount = project.units.filter((u) => u.status === 'available').length;
-
   return (
-    <>
+    <div className="bg-trevo-light min-h-screen">
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-grid-pattern">
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--background)]/50 to-[var(--background)]" />
-
-        {/* Floating orbs */}
-        <div className="absolute top-20 left-20 w-72 h-72 bg-brand-600/10 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-32 right-20 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }} />
-
-        <div className="relative z-10 text-center max-w-4xl mx-auto px-6 pt-24">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-light text-xs font-medium text-white/60 mb-8 animate-fade-in-up">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-available animate-pulse" />
-            {availableCount} unidades disponibles
-          </div>
-
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-            Explorá tu próximo hogar{' '}
-            <span className="gradient-text">de forma interactiva</span>
-          </h1>
-
-          <p className="text-lg sm:text-xl text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            Masterplan interactivo con disponibilidad en tiempo real y recorridos virtuales 360° de cada unidad.
-            Tecnología de vanguardia para la comercialización inmobiliaria.
-          </p>
-
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-            <Link
-              href="/proyecto/demo"
-              className="group inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-lg transition-all duration-300 hover:shadow-2xl hover:shadow-brand-600/30 hover:-translate-y-0.5 animate-pulse-glow"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-              </svg>
-              Ver Masterplan
-              <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
-          </div>
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Background video/image placeholder */}
+        <div className="absolute inset-0 z-0">
+          <Image 
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80" 
+            alt="Hero background" 
+            fill 
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 bg-black/40" />
         </div>
+
+        <div className="relative z-10 text-center px-6 mt-16 max-w-4xl mx-auto">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-thin tracking-wide text-white animate-fade-in-up">
+            VIVE TU PRÓXIMO HOGAR <span className="font-medium">EN ARMONÍA</span>
+          </h1>
+        </div>
+
+        <a href="#next" className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+          <div className="w-10 h-10 rounded-full border border-white/50 flex items-center justify-center text-white backdrop-blur-sm">
+            &darr;
+          </div>
+        </a>
       </section>
 
-      {/* Project Card Section */}
-      <section className="relative -mt-32 z-20 max-w-6xl mx-auto px-6 pb-20">
-        <div className="glass rounded-3xl overflow-hidden">
-          <div className="grid lg:grid-cols-2 gap-0">
-            {/* Image */}
-            <div className="relative h-64 lg:h-auto">
-              <Image
-                src={project.masterplanImage}
-                alt={project.name}
-                fill
-                sizes="(max-width: 1024px) 100vw, 50vw"
+      {/* Intro Section */}
+      <section id="next" className="py-24 bg-trevo-light">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-2xl font-light text-trevo-dark tracking-wide">
+              Donde el diseño contemporáneo y la vida se encuentran
+            </h2>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h2 className="text-3xl font-light text-trevo-dark leading-tight">
+                NACE DE UNA VISIÓN ÚNICA, DONDE ARQUITECTURA Y CONFORT EVOLUCIONAN JUNTOS
+              </h2>
+              <p className="text-trevo-dark/80 font-light leading-relaxed">
+                <span className="font-medium">Residencias Natura parte de una premisa esencial:</span> crear espacios que se adapten a tu estilo de vida. El proyecto se diseña como un sistema integral donde cada detalle arquitectónico y área verde dialogan en perfecta armonía, para construir una experiencia de bienestar diario.
+              </p>
+              <div className="pt-4 flex flex-wrap gap-4">
+                <button className="btn-outline">MÁS SOBRE EL PROYECTO</button>
+                <button className="btn-solid-green">TOUR 360°</button>
+              </div>
+            </div>
+            
+            <div className="relative h-[600px] w-full rounded-2xl overflow-hidden">
+              <Image 
+                src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
+                alt="Arquitectura" 
+                fill 
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-surface-50/80 hidden lg:block" />
-              <div className="absolute inset-0 bg-gradient-to-t from-surface-50/90 to-transparent lg:hidden" />
-            </div>
-
-            {/* Details */}
-            <div className="p-8 lg:p-12 flex flex-col justify-center">
-              <span className="text-xs font-semibold uppercase tracking-wider text-brand-400 mb-2">
-                Proyecto destacado
-              </span>
-              <h2 className="text-3xl lg:text-4xl font-bold text-white mb-3">
-                {project.name}
-              </h2>
-              <p className="text-white/50 mb-6 leading-relaxed">
-                {project.description}
-              </p>
-
-              <div className="flex items-center gap-2 text-sm text-white/40 mb-8">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                </svg>
-                {project.location}
-              </div>
-
-              {/* Amenities pills */}
-              <div className="flex flex-wrap gap-2 mb-8">
-                {project.amenities.slice(0, 5).map((amenity) => (
-                  <span
-                    key={amenity}
-                    className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-xs text-white/50"
-                  >
-                    {amenity}
-                  </span>
-                ))}
-                {project.amenities.length > 5 && (
-                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-xs text-white/40">
-                    +{project.amenities.length - 5} más
-                  </span>
-                )}
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div>
-                  <div className="text-2xl font-bold text-white">{project.units.length}</div>
-                  <div className="text-xs text-white/40">Unidades</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-status-available">{availableCount}</div>
-                  <div className="text-xs text-white/40">Disponibles</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-white">3</div>
-                  <div className="text-xs text-white/40">Torres</div>
-                </div>
-              </div>
-
-              <Link
-                href="/proyecto/demo"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25 w-full sm:w-auto"
-              >
-                Explorar Masterplan
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="max-w-6xl mx-auto px-6 pb-24">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-white mb-3">
-            Tecnología que vende
+      {/* Amenities Section */}
+      <section className="py-24 bg-trevo-light">
+        <div className="max-w-7xl mx-auto px-6 mb-12">
+          <div className="grid md:grid-cols-2 gap-8 items-end">
+            <h2 className="text-3xl font-medium text-trevo-dark">
+              AMENIDADES INTEGRADAS PARA TU DÍA A DÍA
+            </h2>
+            <p className="text-trevo-dark/70 font-light">
+              Espacios exclusivos pensados como extensión de tu hogar: para disfrutar, relajarte y conectar.
+            </p>
+          </div>
+        </div>
+        
+        <AmenitiesCarousel />
+      </section>
+
+      {/* 360 Tour Section */}
+      <section id="tour-360" className="py-24 bg-trevo-light">
+        <div className="max-w-6xl mx-auto px-6 text-center space-y-4 mb-12">
+          <h2 className="text-3xl font-light text-trevo-dark tracking-widest">MASTERPLAN INTERACTIVO</h2>
+          <p className="text-trevo-dark/70 font-light">Explora el proyecto desde cualquier ángulo con nuestro visor 3D interactivo.</p>
+        </div>
+        
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <div className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden bg-trevo-dark group mb-8 shadow-2xl">
+            <Image 
+              src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
+              alt="Vista previa del masterplan" 
+              fill 
+              className="object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-500"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+              <h3 className="text-white text-3xl font-light tracking-widest mb-6">RESIDENCIAS NATURA</h3>
+              <a href="/proyecto/demo" className="btn-outline-white bg-white/10 backdrop-blur-md hover:bg-white text-white hover:text-trevo-dark">
+                ENTRAR AL MASTERPLAN
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Typologies Section */}
+      <section className="py-24 bg-trevo-green">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="mb-16 space-y-4">
+            <div className="text-white/70 tracking-widest text-sm font-semibold">MODELOS DISPONIBLES</div>
+            <h2 className="text-4xl md:text-5xl font-light text-white leading-tight max-w-3xl">
+              DISEÑADOS PARA INSPIRAR Y ADAPTARSE A TU RUTINA
+            </h2>
+            <p className="text-white/80 font-light max-w-xl">
+              Espacios funcionales con excelente iluminación natural, amplias terrazas y distribuciones inteligentes que priorizan tu comodidad.
+            </p>
+          </div>
+          
+          <div className="bg-trevo-light rounded-2xl p-8 md:p-12">
+            <TabsSection />
+          </div>
+        </div>
+      </section>
+
+      {/* Zone / Location Section */}
+      <section className="py-24 bg-trevo-dark">
+        <div className="max-w-6xl mx-auto px-6 mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
+          <h2 className="text-3xl md:text-4xl font-light text-white max-w-lg leading-tight">
+            UBICACIÓN PRIVILEGIADA EN EL CORAZÓN DE LA CIUDAD
           </h2>
-          <p className="text-white/40 max-w-xl mx-auto">
-            Herramientas interactivas que transforman la experiencia de compra inmobiliaria
-          </p>
+          <button className="btn-outline-white whitespace-nowrap">DESCUBRIR LA ZONA</button>
         </div>
+        
+        <ZonesCarousel />
+      </section>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <FeatureCard
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-              </svg>
-            }
-            title="Masterplan Interactivo"
-            description="Visualización aérea del proyecto con polígonos SVG que muestran disponibilidad en tiempo real. Click para ver detalles de cada unidad."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            }
-            title="Tours Virtuales 360°"
-            description="Recorridos inmersivos del interior de cada unidad con Marzipano. Ultra ligero y compatible con todos los dispositivos."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605" />
-              </svg>
-            }
-            title="Datos en Tiempo Real"
-            description="Integración con CRM para reflejar precios, disponibilidad y estados de cada unidad actualizados al instante."
-          />
+      {/* Calculator Section */}
+      <Calculator />
+
+      {/* Contact Section */}
+      <section className="py-24 bg-trevo-green relative overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+          <div>
+            <h1 className="text-5xl md:text-6xl font-thin text-white leading-tight mb-6">
+              Trevoluciona <br/>
+              <span className="font-medium">tu forma de vivir</span>
+            </h1>
+          </div>
+          
+          <div className="bg-white/5 backdrop-blur-sm p-8 rounded-2xl border border-white/10">
+            <div className="text-white mb-8 font-light">Completa el formulario para obtener más información.</div>
+            {/* Placeholder form */}
+            <form className="space-y-4">
+              <input type="text" placeholder="Nombre completo" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
+              <input type="email" placeholder="Correo electrónico" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
+              <input type="tel" placeholder="Teléfono" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
+              <button type="button" className="btn-solid-brown w-full mt-4">ENVIAR</button>
+            </form>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-[10px]">
-              360
-            </div>
-            <span className="text-sm text-white/30">InteractiveRE</span>
+      {/* Footer Placeholder */}
+      <footer className="bg-trevo-dark text-white py-12 border-t border-white/10">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-2xl font-bold tracking-widest">RESIDENCIAS NATURA</div>
+          <div className="flex gap-6 text-sm font-light text-white/70">
+            <a href="#" className="hover:text-white transition-colors">Inicio</a>
+            <a href="#" className="hover:text-white transition-colors">Nosotros</a>
+            <a href="#" className="hover:text-white transition-colors">Modelos</a>
+            <a href="#" className="hover:text-white transition-colors">Cotizador</a>
           </div>
-          <p className="text-xs text-white/20">
-            Demo de plataforma inmobiliaria interactiva · Masterplan + Tours 360°
-          </p>
         </div>
       </footer>
-    </>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="glass rounded-2xl p-6 hover:bg-white/[0.03] transition-all duration-300 group">
-      <div className="w-12 h-12 rounded-xl bg-brand-600/10 border border-brand-600/20 flex items-center justify-center text-brand-400 mb-4 group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-      <p className="text-sm text-white/40 leading-relaxed">{description}</p>
     </div>
   );
 }
