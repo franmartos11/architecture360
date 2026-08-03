@@ -361,7 +361,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 className={isFullscreen ? "fixed inset-0 z-[100] bg-black animate-in zoom-in duration-300" : "absolute inset-0 pt-16"}
               >
                 <div className="relative w-full h-full overflow-hidden shadow-inner">
-                  <VirtualTour imageUrl={unit.tourImageUrl} />
+                  <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} />
                   {isFullscreen ? (
                     <button
                       onClick={() => setIsFullscreen(false)}
