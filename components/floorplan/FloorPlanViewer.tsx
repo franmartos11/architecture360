@@ -307,7 +307,7 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
         </div>
 
         {/* Floor plan image + unit dots */}
-        <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-16 sm:pt-24 cursor-grab active:cursor-grabbing">
+        <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
           {floor ? (
             <TransformWrapper
               initialScale={1}
@@ -318,14 +318,14 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
               doubleClick={{ disabled: false, step: 0.5 }}
               pinch={{ step: 5 }}
             >
-              <TransformComponent wrapperClass="w-full h-full !flex items-center justify-center" contentClass="relative max-w-4xl w-full">
+              <TransformComponent wrapperClass="w-full h-full !flex items-center justify-center" contentClass="relative w-full max-w-[1400px]">
                 <Image
                   src={floor.planImage}
                   alt={floor.label}
-                  width={800}
-                  height={800}
+                  width={1600}
+                  height={1600}
                   priority
-                  className="w-full h-auto object-contain rounded-xl select-none pointer-events-none"
+                  className="w-full h-auto object-contain select-none pointer-events-none"
                   draggable={false}
                 />
 
