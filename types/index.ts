@@ -7,6 +7,37 @@ export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria';
 // ─── Unit type ─────────────────────────────────────────────────────
 export type UnitType = 'monoambiente' | '1 dormitorio' | '2 dormitorios' | '3 dormitorios' | 'penthouse';
 
+// ─── Tour 360 Types ────────────────────────────────────────────────
+export interface TourLinkHotspot {
+  yaw: number;
+  pitch: number;
+  targetNodeId: string;
+  targetYaw?: number;
+  targetPitch?: number;
+  label?: string;
+}
+
+export interface TourInfoHotspot {
+  yaw: number;
+  pitch: number;
+  title: string;
+  description?: string;
+}
+
+export interface TourNode {
+  id: string;
+  name: string;
+  imageUrl: string;
+  initialView?: { yaw: number; pitch: number; fov: number };
+  linkHotspots?: TourLinkHotspot[];
+  infoHotspots?: TourInfoHotspot[];
+}
+
+export interface TourData {
+  initialNodeId: string;
+  nodes: TourNode[];
+}
+
 // ─── Hotspot on an aerial image ────────────────────────────────────
 export interface AerialHotspot {
   buildingId: string;
@@ -57,7 +88,8 @@ export interface Unit {
   price?: number;       // USD — undefined means "consultar precio"
   status: UnitStatus;
   orientation?: string; // N, S, E, O
-  tourImageUrl?: string;       // 360 equirectangular
+  tourImageUrl?: string;       // 360 equirectangular (legacy, single node)
+  tourData?: TourData;         // Multi-node 360 tour data
   floorPlan3dUrl?: string;     // render 3D del edificio/planta
   plan3dUrl?: string;          // esquema 3D técnico de la planta
   technicalPlanUrl?: string;   // plano arquitectónico 2D con rótulos

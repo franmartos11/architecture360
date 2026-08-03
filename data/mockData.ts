@@ -10,7 +10,34 @@ const GALLERY = [
 // ─── Units ────────────────────────────────────────────────────────
 const units: Unit[] = [
   // Building A — Floor 1
-  { id: 'A01-01', name: 'A01-01', modelName: 'SUITE GARDEN', buildingId: 'torre-a', floor: 1, type: '1 dormitorio', totalArea: 68, innerArea: 58, balconyArea: 10, externalArea: 0, bedrooms: 1, bathrooms: 1, hasServiceRoom: false, status: 'available', interiorImageUrl: '/units/interior-1.jpg', tourImageUrl: '/tours/sample-pano.png', floorPlan3dUrl: '/floorplans/floor-1-render.png', plan3dUrl: '/floorplans/floor-1-3d.png', technicalPlanUrl: '/floorplans/floor-1-2d.png', galleryImages: GALLERY, orientation: 'N' },
+  { id: 'A01-01', name: 'A01-01', modelName: 'SUITE GARDEN', buildingId: 'torre-a', floor: 1, type: '1 dormitorio', totalArea: 68, innerArea: 58, balconyArea: 10, externalArea: 0, bedrooms: 1, bathrooms: 1, hasServiceRoom: false, status: 'available', interiorImageUrl: '/units/interior-1.jpg', tourImageUrl: '/tours/sample-pano.png', 
+    tourData: {
+      initialNodeId: 'living',
+      nodes: [
+        {
+          id: 'living',
+          name: 'Living Comedor',
+          imageUrl: '/tours/sample-pano.png',
+          initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 },
+          linkHotspots: [
+            { yaw: 1.5, pitch: -0.1, targetNodeId: 'balcon', targetYaw: 0, targetPitch: 0, label: 'Ir al Balcón' }
+          ],
+          infoHotspots: [
+            { yaw: -0.5, pitch: -0.2, title: 'Terminaciones', description: 'Pisos de porcelanato importado' }
+          ]
+        },
+        {
+          id: 'balcon',
+          name: 'Balcón Terraza',
+          imageUrl: '/tours/sample-pano-2.png',
+          initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 },
+          linkHotspots: [
+            { yaw: 3.14, pitch: -0.1, targetNodeId: 'living', targetYaw: -1.5, targetPitch: 0, label: 'Volver al Living' }
+          ]
+        }
+      ]
+    },
+    floorPlan3dUrl: '/floorplans/floor-1-render.png', plan3dUrl: '/floorplans/floor-1-3d.png', technicalPlanUrl: '/floorplans/floor-1-2d.png', galleryImages: GALLERY, orientation: 'N' },
   { id: 'A01-02', name: 'A01-02', modelName: 'DUET GARDEN', buildingId: 'torre-a', floor: 1, type: '2 dormitorios', totalArea: 96, innerArea: 82, balconyArea: 14, externalArea: 0, bedrooms: 2, bathrooms: 2, hasServiceRoom: false, status: 'reserved', interiorImageUrl: '/units/interior-1.jpg', tourImageUrl: '/tours/sample-pano.png', floorPlan3dUrl: '/floorplans/floor-1-render.png', plan3dUrl: '/floorplans/floor-1-3d.png', technicalPlanUrl: '/floorplans/floor-1-2d.png', galleryImages: GALLERY, orientation: 'S' },
   { id: 'A01-03', name: 'A01-03', modelName: 'TRIO PLUS', buildingId: 'torre-a', floor: 1, type: '3 dormitorios', totalArea: 132, innerArea: 115, balconyArea: 17, externalArea: 0, bedrooms: 3, bathrooms: 2.5, hasServiceRoom: true, status: 'sold', interiorImageUrl: '/units/interior-1.jpg', tourImageUrl: '/tours/sample-pano.png', floorPlan3dUrl: '/floorplans/floor-1-render.png', plan3dUrl: '/floorplans/floor-1-3d.png', technicalPlanUrl: '/floorplans/floor-1-2d.png', galleryImages: GALLERY, orientation: 'E' },
   { id: 'A01-04', name: 'A01-04', modelName: 'SUITE CORNER', buildingId: 'torre-a', floor: 1, type: '1 dormitorio', totalArea: 72, innerArea: 62, balconyArea: 10, externalArea: 0, bedrooms: 1, bathrooms: 1, hasServiceRoom: false, status: 'available', interiorImageUrl: '/units/interior-1.jpg', tourImageUrl: '/tours/sample-pano.png', floorPlan3dUrl: '/floorplans/floor-1-render.png', plan3dUrl: '/floorplans/floor-1-3d.png', technicalPlanUrl: '/floorplans/floor-1-2d.png', galleryImages: GALLERY, orientation: 'O' },
