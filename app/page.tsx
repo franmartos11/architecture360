@@ -23,7 +23,7 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-black/40" />
         </div>
 
-        <div className="relative z-10 text-center px-6 mt-16 max-w-4xl mx-auto">
+        <div className="relative z-10 text-center px-4 sm:px-6 mt-16 max-w-4xl mx-auto">
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-thin tracking-wide text-white animate-fade-in-up">
             VIVE TU PRÓXIMO HOGAR <span className="font-medium">EN ARMONÍA</span>
           </h1>
@@ -38,14 +38,14 @@ export default function HomePage() {
 
       {/* Intro Section */}
       <section id="next" className="py-24 bg-trevo-light">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-6">
+          <div className="text-center mb-12 md:mb-16">
             <h2 className="text-2xl font-light text-trevo-dark tracking-wide">
               Donde el diseño contemporáneo y la vida se encuentran
             </h2>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
             <div className="space-y-6">
               <h2 className="text-3xl font-light text-trevo-dark leading-tight">
                 NACE DE UNA VISIÓN ÚNICA, DONDE ARQUITECTURA Y CONFORT EVOLUCIONAN JUNTOS
@@ -73,8 +73,8 @@ export default function HomePage() {
 
       {/* Amenities Section */}
       <section className="py-24 bg-trevo-light">
-        <div className="max-w-7xl mx-auto px-6 mb-12">
-          <div className="grid md:grid-cols-2 gap-8 items-end">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-end">
             <h2 className="text-3xl font-medium text-trevo-dark">
               AMENIDADES INTEGRADAS PARA TU DÍA A DÍA
             </h2>
@@ -133,11 +133,11 @@ export default function HomePage() {
 
       {/* Zone / Location Section */}
       <section className="py-24 bg-trevo-dark">
-        <div className="max-w-6xl mx-auto px-6 mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <h2 className="text-3xl md:text-4xl font-light text-white max-w-lg leading-tight">
             UBICACIÓN PRIVILEGIADA EN EL CORAZÓN DE LA CIUDAD
           </h2>
-          <button className="btn-outline-white whitespace-nowrap">DESCUBRIR LA ZONA</button>
+          <button className="btn-outline-white whitespace-nowrap w-full md:w-auto">DESCUBRIR LA ZONA</button>
         </div>
         
         <ZonesCarousel />
@@ -148,22 +148,22 @@ export default function HomePage() {
 
       {/* Contact Section */}
       <section className="py-24 bg-trevo-green relative overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
           <div>
-            <h1 className="text-5xl md:text-6xl font-thin text-white leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-thin text-white leading-tight mb-6 text-center md:text-left">
               Trevoluciona <br/>
               <span className="font-medium">tu forma de vivir</span>
             </h1>
           </div>
           
-          <div className="bg-white/5 backdrop-blur-sm p-8 rounded-2xl border border-white/10">
-            <div className="text-white mb-8 font-light">Completa el formulario para obtener más información.</div>
+          <div className="bg-white/5 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-white/10">
+            <div className="text-white mb-6 md:mb-8 font-light text-center md:text-left">Completa el formulario para obtener más información.</div>
             {/* Placeholder form */}
             <form className="space-y-4">
-              <input type="text" placeholder="Nombre completo" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
-              <input type="email" placeholder="Correo electrónico" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
-              <input type="tel" placeholder="Teléfono" className="w-full p-4 bg-white/10 border border-white/20 rounded text-white placeholder:text-white/50 focus:outline-none focus:border-white" />
-              <button type="button" className="btn-solid-brown w-full mt-4">ENVIAR</button>
+              <input type="text" placeholder="Nombre completo" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
+              <input type="email" placeholder="Correo electrónico" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
+              <input type="tel" placeholder="Teléfono" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
+              <button type="button" className="btn-solid-brown w-full mt-2 py-4 rounded-lg">ENVIAR</button>
             </form>
           </div>
         </div>
