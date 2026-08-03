@@ -70,6 +70,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [planView, setPlanView] = useState<'3d' | '2d'>('3d');
   const thumbsRef = useRef<HTMLDivElement>(null);
   
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -393,34 +394,65 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
+                className="absolute inset-0 pt-16 flex flex-col"
               >
-                <div className="relative w-full h-full">
-                  {(unit.technicalPlanUrl || unit.floorPlan3dUrl) && (
-                    <TransformWrapper
-                      initialScale={1}
-                      minScale={1}
-                      maxScale={4}
-                      centerOnInit={true}
-                      wheel={{ step: 0.1 }}
-                      doubleClick={{ step: 1 }}
-                      panning={{ disabled: false }}
+                {/* Toggle bar */}
+                <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+                    <button
+                      onClick={() => setPlanView('3d')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                      <TransformComponent 
-                        wrapperStyle={{ width: '100%', height: '100%' }}
-                        contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Image
-                          src={unit.technicalPlanUrl || unit.floorPlan3dUrl || ''}
-                          alt="Plano técnico"
-                          width={1200}
-                          height={1200}
-                          className="max-w-full max-h-[85vh] object-contain"
-                          draggable={false}
-                        />
-                      </TransformComponent>
-                    </TransformWrapper>
-                  )}
+                      Vista 3D
+                    </button>
+                    <button
+                      onClick={() => setPlanView('2d')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '2d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      Plano técnico
+                    </button>
+                  </div>
+                </div>
+
+                {/* Plan image with zoom */}
+                <div className="flex-1 relative overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={planView}
+                      initial={{ opacity: 0, x: planView === '3d' ? -20 : 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: planView === '3d' ? 20 : -20 }}
+                      transition={{ duration: 0.25 }}
+                      className="absolute inset-0 flex items-center justify-center p-2 sm:p-4"
+                    >
+                      {(unit.floorPlan3dUrl || unit.technicalPlanUrl) && (
+                        <TransformWrapper
+                          key={planView}
+                          initialScale={1}
+                          minScale={0.5}
+                          maxScale={4}
+                          centerOnInit={true}
+                          wheel={{ step: 0.1 }}
+                          doubleClick={{ step: 1 }}
+                          panning={{ disabled: false }}
+                        >
+                          <TransformComponent
+                            wrapperStyle={{ width: '100%', height: '100%' }}
+                            contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                          >
+                            <Image
+                              src={planView === '3d' ? (unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.floorPlan3dUrl || '')}
+                              alt={planView === '3d' ? 'Vista 3D' : 'Plano técnico'}
+                              width={1200}
+                              height={1200}
+                              className="max-w-full max-h-[80vh] object-contain"
+                              draggable={false}
+                            />
+                          </TransformComponent>
+                        </TransformWrapper>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}
