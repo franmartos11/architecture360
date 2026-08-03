@@ -396,7 +396,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
               >
                 <div className="relative w-full h-full">
-                  {unit.floorPlan3dUrl && (
+                  {(unit.technicalPlanUrl || unit.floorPlan3dUrl) && (
                     <TransformWrapper
                       initialScale={1}
                       minScale={1}
@@ -411,7 +411,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                         contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                       >
                         <Image
-                          src={unit.floorPlan3dUrl}
+                          src={unit.technicalPlanUrl || unit.floorPlan3dUrl || ''}
                           alt="Plano técnico"
                           width={1200}
                           height={1200}

@@ -353,7 +353,8 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
                         bedrooms: 2, bathrooms: 2, hasServiceRoom: false, status: 'available',
                         interiorImageUrl: '/units/interior-1.jpg',
                         tourImageUrl: '/tours/sample-pano.png',
-                        floorPlan3dUrl: '/floorplans/floor-1.png',
+                        floorPlan3dUrl: '/floorplans/floor-1-3d.png',
+                        technicalPlanUrl: '/floorplans/floor-1-2d.png',
                       };
                     }
                     const isFilteredOut = !filteredUnits.some(u => u.id === unit.id);
