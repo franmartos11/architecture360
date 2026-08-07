@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -14,6 +14,7 @@ export default function AerialView({ project }: AerialViewProps) {
   const router = useRouter();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [activeHotspot, setActiveHotspot] = useState<AerialHotspot | null>(null);
+  const [hoveredBuildingId, setHoveredBuildingId] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
   const [showTutorial, setShowTutorial] = useState(true);
@@ -22,6 +23,52 @@ export default function AerialView({ project }: AerialViewProps) {
   const building = activeHotspot
     ? project.buildings.find(b => b.id === activeHotspot.buildingId)
     : null;
+
+  // ── Corrección de coordenadas por el recorte de object-cover ──────
+  // La foto llena la pantalla completa con object-cover (recorta en vez
+  // de deformar), y ese recorte cambia con el tamaño de ventana. Los
+  // puntos de los polígonos/hotspots están guardados en % de la imagen
+  // ORIGINAL sin recortar, así que hay que recalcular en qué % del
+  // contenedor visible cae cada punto, en vivo, cada vez que cambia el
+  // tamaño del contenedor o se carga una imagen nueva.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+  }, []);
+
+  const mapPoint = useCallback((px: number, py: number) => {
+    const { w: cw, h: ch } = containerSize;
+    const { w: nw, h: nh } = naturalSize;
+    if (!cw || !ch || !nw || !nh) return { x: px, y: py };
+
+    // Con object-fit: cover, la imagen se escala al mayor factor que
+    // cubra ambos ejes del contenedor, y se recorta el sobrante
+    // centrado (object-position: center, el default).
+    const scale = Math.max(cw / nw, ch / nh);
+    const displayedW = nw * scale;
+    const displayedH = nh * scale;
+    const offsetX = (displayedW - cw) / 2;
+    const offsetY = (displayedH - ch) / 2;
+
+    const pixelX = (px / 100) * displayedW - offsetX;
+    const pixelY = (py / 100) * displayedH - offsetY;
+
+    return { x: (pixelX / cw) * 100, y: (pixelY / ch) * 100 };
+  }, [containerSize, naturalSize]);
 
   // Autoplay carousel
   useEffect(() => {
@@ -82,6 +129,7 @@ export default function AerialView({ project }: AerialViewProps) {
 
   return (
     <div
+      ref={containerRef}
       className={`relative w-full h-screen overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
       onClick={handleBackgroundClick}
     >
@@ -103,22 +151,61 @@ export default function AerialView({ project }: AerialViewProps) {
             priority
             className="object-cover"
             draggable={false}
+            onLoad={handleImageLoad}
           />
           {/* Gradient vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/20 pointer-events-none" />
         </motion.div>
       </AnimatePresence>
 
+      {/* ── Siluetas de las torres (delimitación) ──────────────────
+          El estilo se maneja 100% por estado de React (no CSS :hover)
+          para que se comporte igual en mouse y en touch: en celular no
+          existe "hover" real, así que si dependiera de :hover el
+          resaltado queda pegado de forma inconsistente después de tocar. */}
+      {slide.hotspots.some(h => h.polygon && h.polygon.length > 0) && (
+        <svg
+          className="absolute inset-0 w-full h-full z-10"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          {slide.hotspots.filter(h => h.polygon && h.polygon.length > 0).map(hotspot => {
+            const isActive = activeHotspot?.buildingId === hotspot.buildingId;
+            const isHovered = hoveredBuildingId === hotspot.buildingId;
+            return (
+              <polygon
+                key={hotspot.buildingId}
+                points={hotspot.polygon!.map(p => { const m = mapPoint(p.x, p.y); return `${m.x},${m.y}`; }).join(' ')}
+                fill={isActive ? 'rgba(255,255,255,0.16)' : isHovered ? 'rgba(255,255,255,0.08)' : 'transparent'}
+                stroke={isActive || isHovered ? 'rgba(255,255,255,0.85)' : 'transparent'}
+                strokeWidth={isActive ? 1.5 : 1}
+                vectorEffect="non-scaling-stroke"
+                style={{ cursor: 'pointer', transition: 'fill 0.25s ease-out, stroke 0.25s ease-out, stroke-width 0.25s ease-out' }}
+                onMouseEnter={() => setHoveredBuildingId(hotspot.buildingId)}
+                onMouseLeave={() => setHoveredBuildingId(null)}
+                onClick={e => {
+                  e.stopPropagation();
+                  setActiveHotspot(isActive ? null : hotspot);
+                }}
+                role="button"
+                aria-label={`Seleccionar ${project.buildings.find(b => b.id === hotspot.buildingId)?.name}`}
+              />
+            );
+          })}
+        </svg>
+      )}
+
       {/* ── Building hotspots ──────────────────────────────────── */}
       {slide.hotspots.map(hotspot => {
         const b = project.buildings.find(b => b.id === hotspot.buildingId);
         const isActive = activeHotspot?.buildingId === hotspot.buildingId;
+        const pos = mapPoint(hotspot.x, hotspot.y);
 
         return (
           <button
             key={hotspot.buildingId}
             className="absolute z-20 group"
-            style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%`, transform: 'translate(-50%, -50%)' }}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
             onClick={e => {
               e.stopPropagation();
               setActiveHotspot(isActive ? null : hotspot);
@@ -139,8 +226,8 @@ export default function AerialView({ project }: AerialViewProps) {
           <div
             className="absolute z-30 pointer-events-none"
             style={{
-              left: `${activeHotspot.x}%`,
-              top: `${activeHotspot.y}%`,
+              left: `${mapPoint(activeHotspot.x, activeHotspot.y).x}%`,
+              top: `${mapPoint(activeHotspot.x, activeHotspot.y).y}%`,
               transform: 'translate(-50%, calc(-100% - 16px))',
             }}
           >

@@ -248,12 +248,20 @@ export default function AdminProjectPage() {
                   <p className="font-medium text-gray-900">{slide.label}</p>
                   <p className="text-xs text-gray-500 break-all">{slide.image_url}</p>
                 </div>
-                <button
-                  onClick={() => handleDeleteSlide(slide.id)}
-                  className="text-sm text-red-500 hover:text-red-700 shrink-0"
-                >
-                  Borrar vista
-                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Link
+                    href={`/admin/proyecto/aereas/${slide.id}`}
+                    className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Delimitar torres →
+                  </Link>
+                  <button
+                    onClick={() => handleDeleteSlide(slide.id)}
+                    className="text-sm text-red-500 hover:text-red-700"
+                  >
+                    Borrar vista
+                  </button>
+                </div>
               </div>
 
               {/* Hotspots de este slide */}
