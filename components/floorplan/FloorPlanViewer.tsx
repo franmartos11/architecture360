@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -14,15 +14,17 @@ import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 
 interface FloorPlanViewerProps {
   building: Building;
+  units: Unit[];
   projectSlug: string;
   initialFloor?: number;
 }
 
-export default function FloorPlanViewer({ building, projectSlug, initialFloor = 1 }: FloorPlanViewerProps) {
+export default function FloorPlanViewer({ building, units: allUnits, projectSlug, initialFloor = 1 }: FloorPlanViewerProps) {
   const router = useTransitionRouter();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
@@ -53,8 +55,15 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
   };
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
-  const unitsOnFloor = getUnitsByBuildingAndFloor(building.id, activeFloor);
+  const unitsOnFloor = getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor);
   const { filters, setFilters, filteredUnits, totalUnits, filteredCount } = useFloorFilters(unitsOnFloor);
+
+  // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
+  // para marcar la sección en gris al pasar el mouse.
+  const polygonUnits = useMemo(
+    () => unitsOnFloor.filter(u => u.polygon && u.polygon.length > 0),
+    [unitsOnFloor]
+  );
 
   useEffect(() => {
     if (unitsOnFloor.length > 0) {
@@ -325,11 +334,54 @@ export default function FloorPlanViewer({ building, projectSlug, initialFloor = 
                   width={1600}
                   height={1600}
                   priority
+                  unoptimized={floor.planImage.endsWith('.svg')}
                   className="w-full h-auto object-contain select-none pointer-events-none"
                   draggable={false}
                 />
 
-                {/* Unit dots */}
+                {/* Deptos: al pasar el mouse se marca la sección en gris */}
+                {polygonUnits.length > 0 && (
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {polygonUnits.map(unit => (
+                      <polygon
+                        key={unit.id}
+                        points={unit.polygon!.map(p => `${p.x},${p.y}`).join(' ')}
+                        className="unit-hover-zone pointer-events-auto"
+                        onMouseEnter={() => setHoveredUnit(unit.id)}
+                        onMouseLeave={() => setHoveredUnit(null)}
+                        onClick={() => handleSelectUnit(unit)}
+                        role="button"
+                        aria-label={`Seleccionar ${unit.name}`}
+                      />
+                    ))}
+                  </svg>
+                )}
+
+                {/* Etiqueta flotante del depto bajo el mouse */}
+                {hoveredUnit && (() => {
+                  const hu = polygonUnits.find(u => u.id === hoveredUnit);
+                  const poly = hu?.polygon;
+                  if (!hu || !poly || poly.length === 0) return null;
+                  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+                  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+                  return (
+                    <div
+                      className="absolute z-10 pointer-events-none"
+                      style={{ left: `${cx}%`, top: `${cy}%`, transform: 'translate(-50%, -50%)' }}
+                    >
+                      <div className="bg-white shadow-lg rounded-lg px-3 py-1.5 text-center whitespace-nowrap border border-gray-100">
+                        <p className="text-xs font-semibold text-gray-900">{hu.name}</p>
+                        <p className="text-[10px] text-gray-500">{hu.modelName} · {hu.totalArea}m²</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Unit dots (etiquetas tipo píldora, como antes) */}
                 <motion.div
                   initial="hidden"
                   animate="visible"

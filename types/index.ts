@@ -62,6 +62,16 @@ export interface UnitDot {
   y: number;
 }
 
+// ─── Room/ambiente dentro de una unidad ────────────────────────────
+export interface Room {
+  id: string;
+  name: string;
+  /** Polígono (% sobre el plano de ambientes de la unidad) */
+  polygon: { x: number; y: number }[];
+  /** Nodo del tour 360° al que salta al seleccionar este ambiente */
+  tourNodeId?: string;
+}
+
 // ─── Floor ─────────────────────────────────────────────────────────
 export interface Floor {
   number: number;
@@ -96,6 +106,8 @@ export interface Unit {
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
   polygon?: { x: number; y: number }[]; // optional polygon for masterplan
+  roomPlanImage?: string;      // plano de ambientes (para delimitar espacios internos)
+  rooms?: Room[];              // ambientes delimitados dentro de la unidad
 }
 
 // ─── Building (tower) ──────────────────────────────────────────────
@@ -118,6 +130,8 @@ export interface Project {
   buildings: Building[];
   units: Unit[];
   amenities: string[];
+  /** Recorrido 360° de espacios comunes: pasillos, pileta, parrilla, etc. */
+  commonAreasTour?: TourData;
 }
 
 // ─── Filter state ──────────────────────────────────────────────────

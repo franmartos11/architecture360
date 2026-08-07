@@ -23,7 +23,7 @@ declare module 'marzipano' {
     targetFov: number;
   }
 
-  class Viewer {
+  export class Viewer {
     constructor(domElement: HTMLElement, opts?: ViewerOpts);
     createScene(opts: {
       source: ImageUrlSource;
@@ -40,11 +40,11 @@ declare module 'marzipano' {
     view(): RectilinearView | null;
   }
 
-  class EquirectGeometry {
+  export class EquirectGeometry {
     constructor(levels: Array<{ width: number }>);
   }
 
-  class RectilinearView {
+  export class RectilinearView {
     constructor(params?: Partial<ViewParams>, limiter?: ViewLimiter);
     static limit: {
       traditional(maxResolution: number, maxFov: number): ViewLimiter;
@@ -55,21 +55,22 @@ declare module 'marzipano' {
     setYaw(yaw: number): void;
     setPitch(pitch: number): void;
     setFov(fov: number): void;
+    screenToCoordinates(point: { x: number; y: number }): { yaw: number; pitch: number };
   }
 
-  class ImageUrlSource {
+  export class ImageUrlSource {
     static fromString(url: string, opts?: Record<string, unknown>): ImageUrlSource;
   }
 
-  class Scene {
+  export class Scene {
     switchTo(opts?: { transitionDuration?: number }): void;
     hotspotContainer(): HotspotContainer;
     view(): RectilinearView;
   }
 
-  function autorotate(opts: AutorotateOpts): any;
+  export function autorotate(opts: AutorotateOpts): any;
 
-  class HotspotContainer {
+  export class HotspotContainer {
     createHotspot(
       domElement: HTMLElement,
       position: { yaw: number; pitch: number },
@@ -78,7 +79,7 @@ declare module 'marzipano' {
     destroyHotspot(hotspot: Hotspot): void;
   }
 
-  class Hotspot {
+  export class Hotspot {
     domElement(): HTMLElement;
     destroy(): void;
   }

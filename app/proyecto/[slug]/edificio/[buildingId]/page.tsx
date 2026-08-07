@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
-import { getProjectBySlug, getBuildingById } from '@/data/mockData';
+import { getProjectBySlug } from '@/data/project-repository';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -10,7 +10,8 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId } = await params;
-  const building = getBuildingById(slug, buildingId);
+  const project = await getProjectBySlug(slug);
+  const building = project?.buildings.find(b => b.id === buildingId);
   return {
     title: building ? `${building.name} | Plano de Pisos` : 'Edificio no encontrado',
   };
@@ -20,8 +21,8 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
   const { slug, buildingId } = await params;
   const { piso } = await searchParams;
 
-  const project = getProjectBySlug(slug);
-  const building = getBuildingById(slug, buildingId);
+  const project = await getProjectBySlug(slug);
+  const building = project?.buildings.find(b => b.id === buildingId);
 
   if (!project || !building) notFound();
 
@@ -30,6 +31,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
   return (
     <FloorPlanWrapper
       building={building}
+      units={project.units}
       projectSlug={slug}
       initialFloor={initialFloor}
     />

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1024" viewBox="0 0 2048 1024" font-family="Montserrat, sans-serif">
+  <defs>
+    <linearGradient id="ceil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#83978c"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cbb89a"/>
+      <stop offset="100%" stop-color="#5b4c3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="2048" height="1024" fill="#83978c"/>
+  <rect x="0" y="0" width="2048" height="143.36" fill="url(#ceil)"/>
+  <rect x="0" y="778.24" width="2048" height="245.76" fill="url(#floor)"/>
+  <line x1="512" y1="143.36" x2="512" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/><line x1="1024" y1="143.36" x2="1024" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/><line x1="1536" y1="143.36" x2="1536" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/>
+  <rect x="120" y="618.24" width="420" height="160" rx="14" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="220" y="578.24" width="220" height="40" rx="6" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="650" y="718.24" width="160" height="60" rx="8" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><circle cx="1150" cy="738.24" r="26" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><circle cx="1250" cy="738.24" r="26" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><circle cx="1350" cy="738.24" r="26" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><circle cx="1450" cy="738.24" r="26" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="1120" y="688.24" width="380" height="50" rx="6" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="1650" y="263.36" width="260" height="140" rx="4" fill="#ffffff15" stroke="#ffffff90" stroke-width="2"/>
+  
+    <g>
+      <rect x="106" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="256" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">LIVING COMEDOR</text>
+    </g>
+    <g>
+      <rect x="618" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="768" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">LIVING COMEDOR</text>
+    </g>
+    <g>
+      <rect x="1130" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="1280" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">LIVING COMEDOR</text>
+    </g>
+    <g>
+      <rect x="1642" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="1792" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">LIVING COMEDOR</text>
+    </g>
+  <text x="1024" y="1008" text-anchor="middle" font-size="16" fill="#ffffffaa" letter-spacing="2">UNIDAD A01-01 · MAQUETA DE PROTOTIPO</text>
+</svg>

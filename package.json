@@ -2,15 +2,20 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:seed": "node --env-file=.env.local scripts/seed-supabase.ts",
+    "admin:create-user": "node --env-file=.env.local scripts/create-admin-user.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.2",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.28.0",
     "marzipano": "^0.10.2",
@@ -18,6 +23,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-zoom-pan-pinch": "^4.0.3",
+    "server-only": "^0.0.1",
     "swiper": "^14.0.7",
     "three": "^0.185.1"
   },

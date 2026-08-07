@@ -230,7 +230,7 @@ export default function AerialView({ project }: AerialViewProps) {
           </div>
         </motion.div>
 
-        {/* Right pills removed per request */}
+
       </motion.div>
 
       {/* ── Slide navigation arrows ────────────────────────────── */}

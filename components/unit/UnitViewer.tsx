@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
@@ -8,8 +8,9 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import dynamic from 'next/dynamic';
 import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
-import type { Unit, UnitViewTab } from '@/types';
+import type { Unit, UnitViewTab, Room } from '@/types';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
+import RoomPlanViewer from './RoomPlanViewer';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
@@ -70,7 +71,9 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [planView, setPlanView] = useState<'3d' | '2d'>('3d');
+  const hasRooms = !!unit.rooms && unit.rooms.length > 0;
+  const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
+  const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const thumbsRef = useRef<HTMLDivElement>(null);
   
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -129,6 +132,12 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
   const scrollThumbs = (dir: 'left' | 'right') => {
     thumbsRef.current?.scrollBy({ left: dir === 'right' ? 220 : -220, behavior: 'smooth' });
   };
+
+  const handleSelectRoom = useCallback((room: Room) => {
+    if (!room.tourNodeId) return;
+    setFocusNodeId(room.tourNodeId);
+    setActiveTab('tour360');
+  }, []);
 
   const statusColor = getStatusColor(unit.status);
   const statusLabel = getStatusLabel(unit.status);
@@ -361,7 +370,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 className={isFullscreen ? "fixed inset-0 z-[100] bg-black animate-in zoom-in duration-300" : "absolute inset-0 pt-16"}
               >
                 <div className="relative w-full h-full overflow-hidden shadow-inner">
-                  <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} />
+                  <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} focusNodeId={focusNodeId} />
                   {isFullscreen ? (
                     <button
                       onClick={() => setIsFullscreen(false)}
@@ -399,6 +408,14 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                 {/* Toggle bar */}
                 <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2">
                   <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+                    {hasRooms && (
+                      <button
+                        onClick={() => setPlanView('ambientes')}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+                      >
+                        Ambientes
+                      </button>
+                    )}
                     <button
                       onClick={() => setPlanView('3d')}
                       className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
@@ -416,6 +433,13 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
 
                 {/* Plan image with zoom */}
                 <div className="flex-1 relative overflow-hidden">
+                  {planView === 'ambientes' && hasRooms ? (
+                    <RoomPlanViewer
+                      planImage={unit.roomPlanImage || unit.technicalPlanUrl || ''}
+                      rooms={unit.rooms!}
+                      onSelectRoom={handleSelectRoom}
+                    />
+                  ) : (
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={planView}
@@ -445,6 +469,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                               alt={planView === '3d' ? 'Plano 3D' : 'Plano técnico'}
                               width={1200}
                               height={1200}
+                              unoptimized={(planView === '2d' ? unit.technicalPlanUrl : unit.plan3dUrl)?.endsWith('.svg')}
                               className="max-w-full max-h-[80vh] object-contain"
                               draggable={false}
                             />
@@ -453,6 +478,7 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
                       )}
                     </motion.div>
                   </AnimatePresence>
+                  )}
                 </div>
               </motion.div>
             )}
