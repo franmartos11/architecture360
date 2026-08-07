@@ -82,10 +82,6 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     setPoints(prev => ({ ...prev, [id]: [] }));
   };
 
-  const handleUndo = (id: string) => {
-    setPoints(prev => ({ ...prev, [id]: (prev[id] ?? []).slice(0, -1) }));
-  };
-
   if (loading) return <div className="text-gray-500">Cargando plano...</div>;
 
   return (
@@ -94,7 +90,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar deptos en el plano</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Elegí un depto de la lista. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra y listo. En <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — sirve para ambientes con más de 4 lados, incluso arrancando de un rectángulo ya hecho. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo.
+          Elegí un depto de la lista. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra y listo. En <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — sirve para ambientes con más de 4 lados, incluso arrancando de un rectángulo ya hecho. Arrastrá cualquier punto para ajustarlo (incluso mientras lo estás dibujando), doble click para borrarlo. Si te equivocás, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás.
         </p>
       </div>
 
@@ -147,13 +143,6 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
                     </button>
                     {isActive && (
                       <div className="flex items-center gap-2 pl-5">
-                        <button
-                          onClick={() => handleUndo(u.id)}
-                          disabled={pointCount === 0}
-                          className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors"
-                        >
-                          Deshacer
-                        </button>
                         <button
                           onClick={() => handleClear(u.id)}
                           disabled={pointCount === 0}

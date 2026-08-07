@@ -41,9 +41,11 @@ export interface TourData {
 // ─── Hotspot on an aerial image ────────────────────────────────────
 export interface AerialHotspot {
   buildingId: string;
-  /** Percentage position on the image (0–100) */
+  /** Percentage position on the image (0–100) — centro/pin, siempre presente */
   x: number;
   y: number;
+  /** Silueta de la torre en la foto (% sobre la imagen) — opcional */
+  polygon?: { x: number; y: number }[];
 }
 
 // ─── Aerial view slide ─────────────────────────────────────────────

@@ -98,8 +98,13 @@ create table if not exists aerial_hotspots (
   slide_id uuid not null references aerial_slides(id) on delete cascade,
   building_id uuid not null references buildings(id) on delete cascade,
   x numeric not null,
-  y numeric not null
+  y numeric not null,
+  polygon jsonb -- [{x,y}, ...] en % sobre la imagen del slide — silueta de la torre (opcional, si no está se usa el punto x/y)
 );
+
+-- Para bases que ya tenían aerial_hotspots creada antes de que existiera
+-- la columna polygon (el CREATE TABLE de arriba no la agrega retroactivamente).
+alter table aerial_hotspots add column if not exists polygon jsonb;
 
 -- ─── Leads (ya existía en db.json, se migra tal cual) ───────────────
 create table if not exists leads (

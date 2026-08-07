@@ -131,7 +131,6 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   };
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
-  const handleUndo = (id: string) => setPoints(prev => ({ ...prev, [id]: (prev[id] ?? []).slice(0, -1) }));
 
   const shapes: PolygonShape[] = useMemo(
     () => rooms.map((r, i) => ({
@@ -152,7 +151,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
           <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Volver a unidades</Link>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Ambientes — {unitCode}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Delimitá cada ambiente sobre el plano de la unidad. El "Tour node id" es opcional y sirve para que, al tocar el ambiente en el sitio, salte directo a ese nodo del recorrido 360°.
+            Delimitá cada ambiente sobre el plano de la unidad — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. El "Tour node id" es opcional y sirve para que, al tocar el ambiente en el sitio, salte directo a ese nodo del recorrido 360°.
           </p>
         </div>
         <Link
@@ -234,9 +233,6 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
 
                       {isActive && (
                         <div className="flex items-center gap-2">
-                          <button onClick={() => handleUndo(r.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
-                            Deshacer
-                          </button>
                           <button onClick={() => handleClear(r.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
                             Vaciar
                           </button>

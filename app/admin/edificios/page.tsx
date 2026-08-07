@@ -13,18 +13,21 @@ interface BuildingRow {
 
 export default function AdminBuildingsPage() {
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
+  const [firstSlideId, setFirstSlideId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ slug: '', name: '', totalFloors: 1 });
   const [error, setError] = useState('');
 
   const load = () => {
-    fetch('/api/admin/buildings')
-      .then(res => res.json())
-      .then(data => {
-        setBuildings(Array.isArray(data) ? data : []);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch('/api/admin/buildings').then(res => res.json()),
+      fetch('/api/admin/project').then(res => res.json()),
+    ]).then(([buildingsData, projectData]) => {
+      setBuildings(Array.isArray(buildingsData) ? buildingsData : []);
+      setFirstSlideId(projectData.slides?.[0]?.id ?? null);
+      setLoading(false);
+    });
   };
 
   useEffect(load, []);
@@ -56,6 +59,12 @@ export default function AdminBuildingsPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Edificios</h2>
         <p className="text-sm text-gray-500 mt-1">Torres del proyecto. Entrá a cada uno para gestionar sus pisos.</p>
+        {!firstSlideId && (
+          <p className="text-sm text-amber-600 mt-2">
+            Para poder delimitar la silueta de una torre en la foto aérea, primero cargá al menos una vista aérea en{' '}
+            <Link href="/admin/proyecto" className="underline hover:text-amber-700">Proyecto</Link>.
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -81,7 +90,15 @@ export default function AdminBuildingsPage() {
                     <span className="text-amber-600 ml-1.5">· faltan {b.total_floors - b.floors_loaded}</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
+                  {firstSlideId && (
+                    <Link
+                      href={`/admin/proyecto/aereas/${firstSlideId}?building=${b.id}`}
+                      className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                    >
+                      Foto aérea →
+                    </Link>
+                  )}
                   <Link href={`/admin/edificios/${b.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
                     Gestionar pisos →
                   </Link>

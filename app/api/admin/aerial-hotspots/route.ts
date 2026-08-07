@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       building_id: body.buildingId,
       x: body.x,
       y: body.y,
+      polygon: body.polygon ?? null,
     })
     .select()
     .single();

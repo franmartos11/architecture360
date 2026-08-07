@@ -14,6 +14,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.buildingId !== undefined) updates.building_id = body.buildingId;
   if (body.x !== undefined) updates.x = body.x;
   if (body.y !== undefined) updates.y = body.y;
+  if (body.polygon !== undefined) updates.polygon = body.polygon;
 
   const { data, error } = await admin.from('aerial_hotspots').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

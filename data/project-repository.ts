@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import type { AerialSlide, Building, Floor, Project, Unit } from '@/types';
+import type { AerialHotspot, AerialSlide, Building, Floor, Project, Unit } from '@/types';
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -71,6 +71,7 @@ interface AerialHotspotRow {
   building_id: string;
   x: number;
   y: number;
+  polygon: AerialHotspot['polygon'] | null;
 }
 
 // ─── Mapea las filas de Supabase a los tipos que ya consume el sitio ─
@@ -144,6 +145,7 @@ function mapProject(
           buildingId: buildingSlugById.get(h.building_id) ?? '',
           x: Number(h.x),
           y: Number(h.y),
+          polygon: h.polygon ?? undefined,
         })),
     }));
 
