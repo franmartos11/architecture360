@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
-import { getProjectBySlug, getBuildingById, getUnitById } from '@/data/mockData';
+import { getProjectBySlug, getUnitById } from '@/data/project-repository';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string; unitId: string }>;
@@ -9,7 +9,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { unitId } = await params;
-  const unit = getUnitById(unitId);
+  const unit = await getUnitById(unitId);
   return {
     title: unit ? `Unidad ${unit.name} | Interior` : 'Unidad no encontrada',
   };
@@ -18,9 +18,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function UnitPage({ params }: PageProps) {
   const { slug, buildingId, unitId } = await params;
 
-  const project = getProjectBySlug(slug);
-  const building = getBuildingById(slug, buildingId);
-  const unit = getUnitById(unitId);
+  const project = await getProjectBySlug(slug);
+  const building = project?.buildings.find(b => b.id === buildingId);
+  const unit = await getUnitById(unitId);
 
   if (!project || !building || !unit) notFound();
 

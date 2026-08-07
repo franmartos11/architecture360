@@ -10,7 +10,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/units').then(res => res.json()),
+      fetch('/api/admin/units').then(res => res.json()),
       fetch('/api/leads').then(res => res.json())
     ]).then(([unitsData, leadsData]) => {
       setUnits(unitsData);

@@ -1,10 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Unit } from '@/types';
+
+interface UnitRow {
+  id: string;
+  code: string;
+  model_name: string | null;
+  total_area: number | null;
+  status: 'available' | 'reserved' | 'sold';
+  price: number | null;
+  building_name: string | null;
+  floor_number: number | null;
+}
 
 export default function AdminInventory() {
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -14,9 +24,9 @@ export default function AdminInventory() {
 
   const fetchUnits = async () => {
     try {
-      const res = await fetch('/api/units');
+      const res = await fetch('/api/admin/units');
       const data = await res.json();
-      setUnits(data);
+      setUnits(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -24,11 +34,11 @@ export default function AdminInventory() {
     }
   };
 
-  const handleUpdateUnit = async (id: string, updates: Partial<Unit>) => {
+  const handleUpdateUnit = async (id: string, updates: Partial<Pick<UnitRow, 'status' | 'price'>>) => {
     setSavingId(id);
     try {
-      const res = await fetch(`/api/units/${id}`, {
-        method: 'PUT',
+      const res = await fetch(`/api/admin/units/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
@@ -52,7 +62,7 @@ export default function AdminInventory() {
       <div className="flex justify-between items-end mb-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Inventario</h2>
-          <p className="text-gray-500 mt-1">Actualizá estados y precios de las unidades</p>
+          <p className="text-gray-500 mt-1">Actualizá estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.</p>
         </div>
       </div>
 
@@ -72,16 +82,16 @@ export default function AdminInventory() {
               {units.map(unit => (
                 <tr key={unit.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{unit.name}</div>
-                    <div className="text-xs text-gray-500">{unit.totalArea} m² total</div>
+                    <div className="font-medium text-gray-900">{unit.code}</div>
+                    <div className="text-xs text-gray-500">{unit.total_area ?? '—'} m² total</div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    <span className="capitalize">{unit.buildingId.replace('-', ' ')}</span>
+                    <span>{unit.building_name ?? '—'}</span>
                     <span className="mx-2 text-gray-300">|</span>
-                    Planta {unit.floor}
+                    Planta {unit.floor_number ?? '—'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 uppercase tracking-wide">
-                    {unit.modelName}
+                    {unit.model_name}
                   </td>
                   <td className="px-6 py-4">
                     <select
@@ -119,6 +129,9 @@ export default function AdminInventory() {
                   </td>
                 </tr>
               ))}
+              {units.length === 0 && (
+                <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades cargadas.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

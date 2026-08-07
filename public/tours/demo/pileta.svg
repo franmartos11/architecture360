@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1024" viewBox="0 0 2048 1024" font-family="Montserrat, sans-serif">
+  <defs>
+    <linearGradient id="ceil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#6fa8c9"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d8d2c0"/>
+      <stop offset="100%" stop-color="#5b4c3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="2048" height="1024" fill="#6fa8c9"/>
+  <rect x="0" y="0" width="2048" height="143.36" fill="url(#ceil)"/>
+  <rect x="0" y="778.24" width="2048" height="245.76" fill="url(#floor)"/>
+  <line x1="512" y1="143.36" x2="512" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/><line x1="1024" y1="143.36" x2="1024" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/><line x1="1536" y1="143.36" x2="1536" y2="778.24" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/>
+  <rect x="300" y="738.24" width="1450" height="40" rx="2" fill="#2e7ea6cc" stroke="#ffffff90" stroke-width="2"/><rect x="200" y="688.24" width="120" height="40" rx="8" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="500" y="688.24" width="120" height="40" rx="8" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="1600" y="688.24" width="120" height="40" rx="8" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><rect x="1900" y="688.24" width="120" height="40" rx="8" fill="#00000030" stroke="#ffffff90" stroke-width="2"/><line x1="560" y1="518.24" x2="560" y2="688.24" stroke="#ffffffaa" stroke-width="6"/><path d="M 460 518.24 A 100 60 0 0 1 660 518.24" fill="#ffffff30"/><line x1="1660" y1="518.24" x2="1660" y2="688.24" stroke="#ffffffaa" stroke-width="6"/><path d="M 1560 518.24 A 100 60 0 0 1 1760 518.24" fill="#ffffff30"/>
+  
+    <g>
+      <rect x="106" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="256" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">PILETA</text>
+    </g>
+    <g>
+      <rect x="618" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="768" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">PILETA</text>
+    </g>
+    <g>
+      <rect x="1130" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="1280" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">PILETA</text>
+    </g>
+    <g>
+      <rect x="1642" y="161.36" width="300" height="54" rx="8" fill="#00000055"/>
+      <text x="1792" y="195.36" text-anchor="middle" font-size="26" font-weight="700" fill="#ffffff" letter-spacing="1">PILETA</text>
+    </g>
+  <text x="1024" y="1008" text-anchor="middle" font-size="16" fill="#ffffffaa" letter-spacing="2">ÁREAS COMUNES · MAQUETA DE PROTOTIPO</text>
+</svg>

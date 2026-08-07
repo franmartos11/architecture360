@@ -11,15 +11,17 @@ interface VirtualTourProps {
     pitch: number;
     fov: number;
   };
+  /** Nodo por el que arrancar el tour (ej. al entrar desde el plano de ambientes) */
+  focusNodeId?: string;
 }
 
-export default function VirtualTour({ imageUrl, tourData, initialView }: VirtualTourProps) {
+export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId }: VirtualTourProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
   const scenesRef = useRef<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentNodeId, setCurrentNodeId] = useState<string | null>(tourData?.initialNodeId || null);
+  const [currentNodeId, setCurrentNodeId] = useState<string | null>(focusNodeId || tourData?.initialNodeId || null);
 
   useEffect(() => {
     let viewer: any = null;
@@ -113,10 +115,12 @@ export default function VirtualTour({ imageUrl, tourData, initialView }: Virtual
             scenesRef.current[node.id] = scene;
           });
 
-          // Switch to initial scene
-          const initialScene = scenesRef.current[tourData.initialNodeId];
+          // Switch to initial scene (respeta el nodo pedido por el llamador, si existe)
+          const startNodeId = focusNodeId && scenesRef.current[focusNodeId] ? focusNodeId : tourData.initialNodeId;
+          const initialScene = scenesRef.current[startNodeId];
           if (initialScene) {
             initialScene.switchTo({ transitionDuration: 0 });
+            setCurrentNodeId(startNodeId);
           }
 
         } else if (imageUrl) {
@@ -169,7 +173,16 @@ export default function VirtualTour({ imageUrl, tourData, initialView }: Virtual
       viewerRef.current = null;
       scenesRef.current = {};
     };
-  }, [imageUrl, tourData, initialView]);
+  }, [imageUrl, tourData, initialView, focusNodeId]);
+
+  const zoomBy = (delta: number) => {
+    const view = viewerRef.current?.view?.();
+    if (!view) return;
+    const MIN_FOV = 0.35; // ~20° — máximo acercamiento
+    const MAX_FOV = 2.0;  // ~115° — máximo alejamiento
+    const next = Math.min(MAX_FOV, Math.max(MIN_FOV, view.fov() + delta));
+    view.setFov(next);
+  };
 
   return (
     <div className="relative w-full h-full">
@@ -222,6 +235,30 @@ export default function VirtualTour({ imageUrl, tourData, initialView }: Virtual
         </div>
       )}
 
+      {/* Zoom controls */}
+      {!isLoading && !error && (
+        <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-1.5">
+          <button
+            onClick={() => zoomBy(-0.15)}
+            title="Acercar"
+            className="w-10 h-10 rounded-full bg-gray-900/50 hover:bg-gray-900/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM21 21l-5.197-5.197M7.5 10.5h6" />
+            </svg>
+          </button>
+          <button
+            onClick={() => zoomBy(0.15)}
+            title="Alejar"
+            className="w-10 h-10 rounded-full bg-gray-900/50 hover:bg-gray-900/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM21 21l-5.197-5.197M7.5 10.5h6" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Drag hint */}
       {!isLoading && !error && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-in fade-in zoom-in duration-700 delay-1000">
@@ -229,7 +266,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView }: Virtual
             <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
             </svg>
-            <span className="text-xs text-white/70 font-medium">Arrastrá para explorar</span>
+            <span className="text-xs text-white/70 font-medium">Arrastrá para explorar · scroll o pellizcá para zoom</span>
           </div>
         </div>
       )}

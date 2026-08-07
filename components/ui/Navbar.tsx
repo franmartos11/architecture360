@@ -27,8 +27,11 @@ export default function Navbar() {
             <NavLink href="/" active={pathname === '/'}>
               Inicio
             </NavLink>
-            <NavLink href="/proyecto/demo" active={pathname.startsWith('/proyecto')}>
+            <NavLink href="/proyecto/demo" active={pathname === '/proyecto/demo'}>
               Masterplan
+            </NavLink>
+            <NavLink href="/proyecto/demo/recorrido" active={pathname === '/proyecto/demo/recorrido'}>
+              Recorrido
             </NavLink>
           </div>
 
@@ -68,8 +71,11 @@ export default function Navbar() {
           <MobileNavLink href="/" active={pathname === '/'} onClick={() => setIsMobileMenuOpen(false)}>
             Inicio
           </MobileNavLink>
-          <MobileNavLink href="/proyecto/demo" active={pathname.startsWith('/proyecto')} onClick={() => setIsMobileMenuOpen(false)}>
+          <MobileNavLink href="/proyecto/demo" active={pathname === '/proyecto/demo'} onClick={() => setIsMobileMenuOpen(false)}>
             Masterplan
+          </MobileNavLink>
+          <MobileNavLink href="/proyecto/demo/recorrido" active={pathname === '/proyecto/demo/recorrido'} onClick={() => setIsMobileMenuOpen(false)}>
+            Recorrido
           </MobileNavLink>
           <Link
             href="/proyecto/demo"
