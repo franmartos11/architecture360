@@ -3,6 +3,11 @@
 import { useState, useEffect, use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
 
 interface BuildingRow {
   id: string;
@@ -23,16 +28,23 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [building, setBuilding] = useState<BuildingRow | null>(null);
   const [floors, setFloors] = useState<FloorRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [newFloor, setNewFloor] = useState({ number: '', label: '', planImage: '' });
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     fetch(`/api/admin/buildings/${id}`)
       .then(res => res.json())
       .then(data => {
         setBuilding(data.building);
         setFloors(data.floors ?? []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
         setLoading(false);
       });
   };
@@ -101,7 +113,8 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     if (res.ok) load();
   };
 
-  if (loading || !building) return <div className="text-gray-500">Cargando edificio...</div>;
+  if (loading) return <LoadingSpinner text="Cargando edificio..." tone="light" />;
+  if (loadError || !building) return <ErrorState message="No se pudo cargar el edificio." onRetry={load} />;
 
   return (
     <div className="space-y-6">
@@ -111,46 +124,41 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         <p className="text-sm text-gray-500 mt-1 font-mono">{building.slug}</p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">Datos del edificio</h3>
-        </div>
+        </CardHeader>
         <form onSubmit={handleSaveBuilding} className="p-6 flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-            <input
+            <Input
+              label="Nombre"
               value={building.name}
               onChange={e => setBuilding({ ...building, name: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
             />
           </div>
           <div className="w-full sm:w-40">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Pisos declarados</label>
-            <input
+            <Input
+              label="Pisos declarados"
               type="number" min={1}
               value={building.total_floors}
               onChange={e => setBuilding({ ...building, total_floors: Number(e.target.value) })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
             />
           </div>
-          <button
-            type="submit" disabled={saving}
-            className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
+          <Button type="submit" disabled={saving} className="w-full sm:w-auto">
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
           {message && <span className="text-sm font-medium text-green-600">{message}</span>}
         </form>
         <p className="px-6 pb-4 text-xs text-gray-500">
           "Pisos declarados" es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo.
         </p>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader className="block">
           <h3 className="text-lg font-semibold text-gray-900">Pisos</h3>
           <p className="text-sm text-gray-500">Cada piso necesita su plano para que el sitio pueda mostrar los deptos.</p>
-        </div>
+        </CardHeader>
 
         <table className="w-full text-left border-collapse">
           <thead>
@@ -195,21 +203,25 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
 
         <form onSubmit={handleAddFloor} className="p-6 bg-gray-50/50 space-y-3">
           <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="number" placeholder="N°"
-              value={newFloor.number}
-              onChange={e => setNewFloor({ ...newFloor, number: e.target.value })}
-              className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-            />
-            <input
-              placeholder="Etiqueta (ej: Planta 1)"
-              value={newFloor.label}
-              onChange={e => setNewFloor({ ...newFloor, label: e.target.value })}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-            />
-            <button type="submit" className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
+            <div className="w-full sm:w-24 shrink-0">
+              <Input
+                type="number" placeholder="N°"
+                value={newFloor.number}
+                onChange={e => setNewFloor({ ...newFloor, number: e.target.value })}
+                aria-label="Número de piso"
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                placeholder="Etiqueta (ej: Planta 1)"
+                value={newFloor.label}
+                onChange={e => setNewFloor({ ...newFloor, label: e.target.value })}
+                aria-label="Etiqueta del piso"
+              />
+            </div>
+            <Button type="submit" className="w-full sm:w-auto">
               + Agregar piso
-            </button>
+            </Button>
           </div>
           <ImageUploader
             value={newFloor.planImage}
@@ -217,7 +229,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             folder="floorplans"
           />
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

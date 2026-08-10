@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -38,40 +40,32 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
-              placeholder="vos@ejemplo.com"
-              autoComplete="email"
-              required
-            />
-          </div>
+          <Input
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="vos@ejemplo.com"
+            autoComplete="email"
+            required
+          />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-            <input
+            <Input
+              label="Contraseña"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
               placeholder="••••••••"
               autoComplete="current-password"
               required
             />
-            {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+            {error && <p className="text-red-500 text-sm mt-2" role="alert">{error}</p>}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 bg-gray-900 hover:bg-gray-800 disabled:opacity-60 text-white font-medium rounded-xl transition-colors shadow-lg shadow-gray-900/20"
-          >
+          <Button type="submit" disabled={loading} className="w-full py-3">
             {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

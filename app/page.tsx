@@ -150,10 +150,10 @@ export default function HomePage() {
       <section className="py-24 bg-trevo-green relative overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
           <div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-thin text-white leading-tight mb-6 text-center md:text-left">
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-thin text-white leading-tight mb-6 text-center md:text-left">
               Trevoluciona <br/>
               <span className="font-medium">tu forma de vivir</span>
-            </h1>
+            </h2>
           </div>
           
           <div className="bg-white/5 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-white/10">

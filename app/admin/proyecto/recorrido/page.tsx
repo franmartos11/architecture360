@@ -4,19 +4,30 @@ import { useState, useEffect, useCallback } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
 import type { TourData } from '@/types';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminCommonAreasTourPage() {
   const [tourData, setTourData] = useState<TourData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
         setTourData(data.project?.common_areas_tour ?? null);
         setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
+        setLoading(false);
       });
   }, []);
+
+  useEffect(load, [load]);
 
   const handlePersist = useCallback(async (next: TourData) => {
     const res = await fetch('/api/admin/project', {
@@ -27,7 +38,8 @@ export default function AdminCommonAreasTourPage() {
     return res.ok;
   }, []);
 
-  if (loading) return <div className="text-gray-500">Cargando recorrido...</div>;
+  if (loading) return <LoadingSpinner text="Cargando recorrido..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;
 
   return (
     <div className="space-y-6">

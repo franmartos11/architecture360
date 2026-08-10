@@ -4,6 +4,8 @@ import { useState, useEffect, use, useMemo } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 interface Room {
   id: string;
@@ -32,12 +34,15 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'point' | 'rectangle'>('rectangle');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [savingShape, setSavingShape] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [message, setMessage] = useState('');
   const [newRoomName, setNewRoomName] = useState('');
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     fetch(`/api/admin/units/${unitId}`)
       .then(res => res.json())
       .then(unit => {
@@ -47,6 +52,10 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
         setRooms(list);
         setPoints(Object.fromEntries(list.map(r => [r.id, r.polygon ?? []])));
         setActiveId(prev => prev ?? list[0]?.id ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
         setLoading(false);
       });
   };
@@ -142,7 +151,8 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
     [rooms, points]
   );
 
-  if (loading) return <div className="text-gray-500">Cargando unidad...</div>;
+  if (loading) return <LoadingSpinner text="Cargando unidad..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudo cargar la unidad." onRetry={load} />;
 
   return (
     <div className="space-y-6">

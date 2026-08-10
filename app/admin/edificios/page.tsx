@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
 
 interface BuildingRow {
   id: string;
@@ -15,17 +20,23 @@ export default function AdminBuildingsPage() {
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [firstSlideId, setFirstSlideId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ slug: '', name: '', totalFloors: 1 });
   const [error, setError] = useState('');
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       fetch('/api/admin/buildings').then(res => res.json()),
       fetch('/api/admin/project').then(res => res.json()),
     ]).then(([buildingsData, projectData]) => {
       setBuildings(Array.isArray(buildingsData) ? buildingsData : []);
       setFirstSlideId(projectData.slides?.[0]?.id ?? null);
+      setLoading(false);
+    }).catch(() => {
+      setLoadError(true);
       setLoading(false);
     });
   };
@@ -52,7 +63,8 @@ export default function AdminBuildingsPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-500">Cargando edificios...</div>;
+  if (loading) return <LoadingSpinner text="Cargando edificios..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudieron cargar los edificios." onRetry={load} />;
 
   return (
     <div className="space-y-6">
@@ -67,7 +79,7 @@ export default function AdminBuildingsPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <Card>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -110,52 +122,46 @@ export default function AdminBuildingsPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">Nuevo edificio</h3>
-        </div>
+        </CardHeader>
         <form onSubmit={handleCreate} className="p-6 flex flex-col sm:flex-row gap-3 items-end">
           <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-            <input
+            <Input
+              label="Nombre"
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Torre D"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               required
             />
           </div>
           <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Slug (para la URL)</label>
-            <input
+            <Input
+              label="Slug (para la URL)"
               value={form.slug}
               onChange={e => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
               placeholder="torre-d"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm"
+              className="font-mono text-sm"
               required
             />
           </div>
           <div className="w-full sm:w-32">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Pisos</label>
-            <input
+            <Input
+              label="Pisos"
               type="number" min={1}
               value={form.totalFloors}
               onChange={e => setForm({ ...form, totalFloors: Number(e.target.value) })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
             />
           </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
+          <Button type="submit" disabled={creating} className="w-full sm:w-auto">
             {creating ? 'Creando...' : '+ Crear edificio'}
-          </button>
+          </Button>
         </form>
         {error && <p className="px-6 pb-4 text-sm text-red-500">{error}</p>}
-      </div>
+      </Card>
     </div>
   );
 }

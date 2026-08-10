@@ -109,6 +109,7 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
               {/* Close button for mobile */}
               <button
                 onClick={handleClosePanel}
+                aria-label="Cerrar panel de la unidad"
                 className="md:hidden absolute top-4 left-4 w-10 h-10 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow z-10"
               >
                 <svg className="w-5 h-5 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -126,8 +127,9 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
                 />
               )}
               {/* Share button */}
-              <button 
+              <button
                 onClick={handleShare}
+                aria-label="Compartir esta unidad"
                 className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-colors"
               >
                 <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -447,6 +449,8 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
             <button
               key={num}
               onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); }}
+              aria-label={num === 0 ? 'Planta baja' : `Piso ${num}`}
+              aria-current={activeFloor === num ? 'true' : undefined}
               className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
                 activeFloor === num
                   ? 'w-10 h-10 bg-gray-900 text-white shadow-lg'
@@ -534,6 +538,7 @@ function ContactBtn({ title, children, onClick }: { title: string; children: Rea
   return (
     <button
       title={title}
+      aria-label={title}
       onClick={onClick}
       className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
     >

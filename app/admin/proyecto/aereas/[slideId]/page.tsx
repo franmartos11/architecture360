@@ -4,6 +4,8 @@ import { useState, useEffect, use, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 interface BuildingRow {
   id: string;
@@ -46,10 +48,13 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'point' | 'rectangle' | 'pin'>('rectangle');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -73,6 +78,10 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
             : b[0].id;
           setActiveId(prev => prev ?? preselected);
         }
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
         setLoading(false);
       });
   };
@@ -129,8 +138,9 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
 
-  if (loading) return <div className="text-gray-500">Cargando vista aérea...</div>;
-  if (!slide) return <div className="text-gray-500">Vista aérea no encontrada.</div>;
+  if (loading) return <LoadingSpinner text="Cargando vista aérea..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudo cargar la vista aérea." onRetry={load} />;
+  if (!slide) return <ErrorState message="Vista aérea no encontrada." />;
 
   return (
     <div className="space-y-6">

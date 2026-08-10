@@ -202,9 +202,10 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
                   setCurrentNodeId(node.id);
                 }
               }}
+              aria-current={currentNodeId === node.id ? 'true' : undefined}
               className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${
-                currentNodeId === node.id 
-                  ? 'bg-white text-gray-900 shadow-md scale-105' 
+                currentNodeId === node.id
+                  ? 'bg-white text-gray-900 shadow-md scale-105'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -241,6 +242,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
           <button
             onClick={() => zoomBy(-0.15)}
             title="Acercar"
+            aria-label="Acercar"
             className="w-10 h-10 rounded-full bg-gray-900/50 hover:bg-gray-900/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -250,6 +252,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
           <button
             onClick={() => zoomBy(0.15)}
             title="Alejar"
+            aria-label="Alejar"
             className="w-10 h-10 rounded-full bg-gray-900/50 hover:bg-gray-900/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

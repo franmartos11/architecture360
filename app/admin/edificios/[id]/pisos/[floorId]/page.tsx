@@ -5,6 +5,12 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import type { UnitStatus, UnitType } from '@/types';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import Input from '@/components/ui/Input';
+import Select from '@/components/ui/Select';
+import Button from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
 
 interface UnitRow {
   id: string;
@@ -46,12 +52,15 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
   const [floorLabel, setFloorLabel] = useState('');
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       fetch(`/api/admin/buildings/${buildingId}`).then(res => res.json()),
       fetch(`/api/admin/units?floorId=${floorId}`).then(res => res.json()),
@@ -60,6 +69,9 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       const floor = (buildingData.floors ?? []).find((f: { id: string }) => f.id === floorId);
       setFloorLabel(floor?.label ?? '');
       setUnits(Array.isArray(unitsData) ? unitsData : []);
+      setLoading(false);
+    }).catch(() => {
+      setLoadError(true);
       setLoading(false);
     });
   };
@@ -158,7 +170,8 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
     }
   };
 
-  if (loading) return <div className="text-gray-500">Cargando unidades...</div>;
+  if (loading) return <LoadingSpinner text="Cargando unidades..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudieron cargar las unidades." onRetry={load} />;
 
   return (
     <div className="space-y-6">
@@ -175,7 +188,7 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <Card>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -214,51 +227,43 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">{editingId ? `Editando ${form.code}` : 'Nueva unidad'}</h3>
-        </div>
+        </CardHeader>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Field label="Código">
-              <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="A01-01" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" required />
-            </Field>
-            <Field label="Modelo">
-              <input value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" />
-            </Field>
-            <Field label="Tipología">
-              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
-                {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Estado">
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
-                <option value="available">Disponible</option>
-                <option value="reserved">Reservado</option>
-                <option value="sold">Vendido</option>
-              </select>
-            </Field>
+            <Input label="Código" id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="A01-01" required />
+            <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
+            <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
+              {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Select label="Estado" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
+              <option value="available">Disponible</option>
+              <option value="reserved">Reservado</option>
+              <option value="sold">Vendido</option>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Field label="Área total (m²)"><input type="number" step="0.01" value={form.totalArea} onChange={e => setForm({ ...form, totalArea: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Área interna (m²)"><input type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Balcón (m²)"><input type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Área externa (m²)"><input type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
+            <Input label="Área total (m²)" id="totalArea" type="number" step="0.01" value={form.totalArea} onChange={e => setForm({ ...form, totalArea: e.target.value })} />
+            <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
+            <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
+            <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Field label="Dormitorios"><input type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Baños"><input type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Precio (USD)"><input type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
-            <Field label="Orientación"><input value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all" /></Field>
+            <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
+            <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
+            <Input label="Precio (USD)" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
+            <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300" />
+            <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
             Tiene cuarto de servicio
           </label>
 
@@ -278,26 +283,17 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="pt-4 border-t border-gray-100 flex items-center gap-3">
-            <button type="submit" disabled={saving} className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
+            <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : '+ Crear unidad'}
-            </button>
+            </Button>
             {editingId && (
-              <button type="button" onClick={cancelEdit} className="px-6 py-2 text-gray-600 hover:text-gray-900 font-medium">
+              <Button type="button" variant="ghost" onClick={cancelEdit} className="bg-transparent hover:bg-gray-100">
                 Cancelar
-              </button>
+              </Button>
             )}
           </div>
         </form>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      {children}
+      </Card>
     </div>
   );
 }

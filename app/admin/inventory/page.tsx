@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 interface UnitRow {
   id: string;
@@ -16,19 +18,30 @@ interface UnitRow {
 export default function AdminInventory() {
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetchUnits();
   }, []);
 
+  const flash = (text: string) => {
+    setMessage(text);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
   const fetchUnits = async () => {
+    setLoading(true);
+    setError(false);
     try {
       const res = await fetch('/api/admin/units');
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       setUnits(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -44,18 +57,20 @@ export default function AdminInventory() {
       });
       if (res.ok) {
         setUnits(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+        flash('Guardado.');
       } else {
-        alert("Error al actualizar la unidad");
+        flash('Error al actualizar la unidad.');
       }
     } catch (error) {
       console.error(error);
-      alert("Error al actualizar la unidad");
+      flash('Error al actualizar la unidad.');
     } finally {
       setSavingId(null);
     }
   };
 
-  if (loading) return <div className="text-gray-500">Cargando inventario...</div>;
+  if (loading) return <LoadingSpinner text="Cargando inventario..." tone="light" />;
+  if (error) return <ErrorState message="No se pudo cargar el inventario." onRetry={fetchUnits} />;
 
   return (
     <div>
@@ -64,6 +79,7 @@ export default function AdminInventory() {
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Inventario</h2>
           <p className="text-gray-500 mt-1">Actualizá estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.</p>
         </div>
+        {message && <span className="text-sm font-medium text-green-600">{message}</span>}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
