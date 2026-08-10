@@ -3,27 +3,34 @@
 import { usePathname } from 'next/navigation';
 import { TransitionLink } from '@/components/ui/TransitionUtils';
 import { m as motion } from 'framer-motion';
+import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
 export default function Breadcrumbs({ projectName = "Residencias del Mar" }) {
   const pathname = usePathname();
-  
-  if (pathname === '/' || pathname === '/proyecto/demo') return null;
 
   // Split and clean path segments
   const segments = pathname.split('/').filter(Boolean);
-  
+
+  // El slug real es el segmento después de "proyecto" en la URL actual
+  // (no siempre DEFAULT_PROJECT_SLUG — eso es solo el fallback si por
+  // algún motivo estamos parados en una ruta sin ese segmento).
+  const slug = segments[0] === 'proyecto' && segments[1] ? segments[1] : DEFAULT_PROJECT_SLUG;
+  const projectHref = `/proyecto/${slug}`;
+
+  if (pathname === '/' || pathname === projectHref) return null;
+
   // Custom logic to parse /proyecto/[slug]/edificio/[id]/unidad/[unitId]
   const paths: { label: string; href: string }[] = [];
-  
+
   // Home/Project
-  paths.push({ label: projectName, href: '/proyecto/demo' });
-  
+  paths.push({ label: projectName, href: projectHref });
+
   // Find building
   const buildingIndex = segments.indexOf('edificio');
   if (buildingIndex !== -1 && segments.length > buildingIndex + 1) {
-    paths.push({ 
-      label: 'Torre ' + segments[buildingIndex + 1].toUpperCase(), 
-      href: `/proyecto/demo/edificio/${segments[buildingIndex + 1]}` 
+    paths.push({
+      label: 'Torre ' + segments[buildingIndex + 1].toUpperCase(),
+      href: `${projectHref}/edificio/${segments[buildingIndex + 1]}`
     });
   }
   

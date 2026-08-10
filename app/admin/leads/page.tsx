@@ -1,23 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function AdminLeads() {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchLeads();
   }, []);
 
   const fetchLeads = async () => {
+    setLoading(true);
+    setError(false);
     try {
       const res = await fetch('/api/leads');
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       // Sort newest first
       setLeads(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error(error);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -41,7 +49,8 @@ export default function AdminLeads() {
     }
   };
 
-  if (loading) return <div className="text-gray-500">Cargando leads...</div>;
+  if (loading) return <LoadingSpinner text="Cargando leads..." tone="light" />;
+  if (error) return <ErrorState message="No se pudieron cargar los leads." onRetry={fetchLeads} />;
 
   const columns = [
     { id: 'nuevo', label: 'Nuevos', color: 'bg-brand-100 text-brand-700' },
@@ -59,6 +68,9 @@ export default function AdminLeads() {
         </div>
       </div>
 
+      {leads.length === 0 ? (
+        <EmptyState title="Todavía no hay leads." description="Van a aparecer acá apenas alguien complete el formulario de contacto en el sitio." />
+      ) : (
       <div className="flex-1 overflow-x-auto pb-4">
         <div className="flex gap-6 h-full min-w-max">
           {columns.map(column => {
@@ -120,6 +132,7 @@ export default function AdminLeads() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
+import { Card, CardHeader } from '@/components/ui/Card';
 
 interface ProjectRow {
   id: string;
@@ -40,12 +45,15 @@ export default function AdminProjectPage() {
   const [hotspots, setHotspots] = useState<HotspotRow[]>([]);
   const [amenityDraft, setAmenityDraft] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [newSlide, setNewSlide] = useState({ imageUrl: '', label: '' });
   const [newHotspot, setNewHotspot] = useState<Record<string, { buildingId: string; x: string; y: string }>>({});
 
   const load = () => {
+    setLoading(true);
+    setLoadError(false);
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -53,6 +61,10 @@ export default function AdminProjectPage() {
         setBuildings(data.buildings);
         setSlides(data.slides);
         setHotspots(data.hotspots);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
         setLoading(false);
       });
   };
@@ -136,7 +148,8 @@ export default function AdminProjectPage() {
     if (res.ok) load();
   };
 
-  if (loading || !project) return <div className="text-gray-500">Cargando proyecto...</div>;
+  if (loading) return <LoadingSpinner text="Cargando proyecto..." tone="light" />;
+  if (loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={load} />;
 
   return (
     <div className="space-y-6">
@@ -154,29 +167,23 @@ export default function AdminProjectPage() {
       </div>
 
       {/* Datos generales */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">Datos generales</h3>
-        </div>
+        </CardHeader>
         <form onSubmit={handleSaveProject} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nombre</label>
-              <input
-                value={project.name}
-                onChange={e => setProject({ ...project, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ubicación</label>
-              <input
-                value={project.location ?? ''}
-                onChange={e => setProject({ ...project, location: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
-              />
-            </div>
+            <Input
+              label="Nombre"
+              value={project.name}
+              onChange={e => setProject({ ...project, name: e.target.value })}
+              required
+            />
+            <Input
+              label="Ubicación"
+              value={project.location ?? ''}
+              onChange={e => setProject({ ...project, location: e.target.value })}
+            />
           </div>
 
           <div>
@@ -207,38 +214,36 @@ export default function AdminProjectPage() {
               ))}
             </div>
             <div className="flex gap-2">
-              <input
-                value={amenityDraft}
-                onChange={e => setAmenityDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }}
-                placeholder="Ej: Piscina infinita"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
-              />
-              <button type="button" onClick={addAmenity} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors">
+              <div className="flex-1">
+                <Input
+                  value={amenityDraft}
+                  onChange={e => setAmenityDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }}
+                  placeholder="Ej: Piscina infinita"
+                  aria-label="Nuevo amenity"
+                />
+              </div>
+              <Button type="button" variant="ghost" onClick={addAmenity}>
                 Agregar
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
             <span className="text-sm font-medium text-green-600">{message}</span>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
+            <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar Cambios'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       {/* Vistas aéreas */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <Card>
+        <CardHeader className="block">
           <h3 className="text-lg font-semibold text-gray-900">Vistas aéreas</h3>
           <p className="text-sm text-gray-500">El carrusel que ve el visitante al entrar al proyecto, con los hotspots de cada edificio.</p>
-        </div>
+        </CardHeader>
 
         <div className="divide-y divide-gray-100">
           {slides.map(slide => (
@@ -312,15 +317,17 @@ export default function AdminProjectPage() {
 
         <form onSubmit={handleAddSlide} className="p-6 bg-gray-50/50 space-y-3">
           <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              value={newSlide.label}
-              onChange={e => setNewSlide({ ...newSlide, label: e.target.value })}
-              placeholder="Etiqueta (ej: Vista Norte)"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-            />
-            <button type="submit" className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
+            <div className="flex-1">
+              <Input
+                value={newSlide.label}
+                onChange={e => setNewSlide({ ...newSlide, label: e.target.value })}
+                placeholder="Etiqueta (ej: Vista Norte)"
+                aria-label="Etiqueta de la vista aérea"
+              />
+            </div>
+            <Button type="submit" className="w-full sm:w-auto">
               + Agregar vista
-            </button>
+            </Button>
           </div>
           <ImageUploader
             value={newSlide.imageUrl}
@@ -328,7 +335,7 @@ export default function AdminProjectPage() {
             folder="aerial"
           />
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

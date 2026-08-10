@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
+import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
 export default function Navbar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const projectHref = `/proyecto/${DEFAULT_PROJECT_SLUG}`;
+  const tourHref = `${projectHref}/recorrido`;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -27,10 +30,10 @@ export default function Navbar() {
             <NavLink href="/" active={pathname === '/'}>
               Inicio
             </NavLink>
-            <NavLink href="/proyecto/demo" active={pathname === '/proyecto/demo'}>
+            <NavLink href={projectHref} active={pathname === projectHref}>
               Masterplan
             </NavLink>
-            <NavLink href="/proyecto/demo/recorrido" active={pathname === '/proyecto/demo/recorrido'}>
+            <NavLink href={tourHref} active={pathname === tourHref}>
               Recorrido
             </NavLink>
           </div>
@@ -38,7 +41,7 @@ export default function Navbar() {
           {/* CTA & Mobile Menu Toggle */}
           <div className="flex items-center gap-2">
             <Link
-              href="/proyecto/demo"
+              href={projectHref}
               className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -49,9 +52,11 @@ export default function Navbar() {
             </Link>
 
             {/* Mobile menu button */}
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden p-2 text-white/80 hover:text-white rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              aria-label={isMobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+              aria-expanded={isMobileMenuOpen}
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {isMobileMenuOpen ? (
@@ -71,14 +76,14 @@ export default function Navbar() {
           <MobileNavLink href="/" active={pathname === '/'} onClick={() => setIsMobileMenuOpen(false)}>
             Inicio
           </MobileNavLink>
-          <MobileNavLink href="/proyecto/demo" active={pathname === '/proyecto/demo'} onClick={() => setIsMobileMenuOpen(false)}>
+          <MobileNavLink href={projectHref} active={pathname === projectHref} onClick={() => setIsMobileMenuOpen(false)}>
             Masterplan
           </MobileNavLink>
-          <MobileNavLink href="/proyecto/demo/recorrido" active={pathname === '/proyecto/demo/recorrido'} onClick={() => setIsMobileMenuOpen(false)}>
+          <MobileNavLink href={tourHref} active={pathname === tourHref} onClick={() => setIsMobileMenuOpen(false)}>
             Recorrido
           </MobileNavLink>
           <Link
-            href="/proyecto/demo"
+            href={projectHref}
             onClick={() => setIsMobileMenuOpen(false)}
             className="sm:hidden flex items-center justify-center gap-2 mt-4 px-4 py-3 w-full rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
           >

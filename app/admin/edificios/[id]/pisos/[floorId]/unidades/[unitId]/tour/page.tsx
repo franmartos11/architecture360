@@ -4,6 +4,8 @@ import { useState, useEffect, use, useCallback } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
 import type { TourData } from '@/types';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminUnitTourPage({ params }: { params: Promise<{ id: string; floorId: string; unitId: string }> }) {
   const { id: buildingId, floorId, unitId } = use(params);
@@ -11,16 +13,25 @@ export default function AdminUnitTourPage({ params }: { params: Promise<{ id: st
   const [unitCode, setUnitCode] = useState('');
   const [tourData, setTourData] = useState<TourData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     fetch(`/api/admin/units/${unitId}`)
       .then(res => res.json())
       .then(unit => {
         setUnitCode(unit.code ?? '');
         setTourData(unit.tour_data ?? null);
         setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
+        setLoading(false);
       });
   }, [unitId]);
+
+  useEffect(load, [load]);
 
   const handlePersist = useCallback(async (next: TourData) => {
     const res = await fetch(`/api/admin/units/${unitId}`, {
@@ -31,7 +42,8 @@ export default function AdminUnitTourPage({ params }: { params: Promise<{ id: st
     return res.ok;
   }, [unitId]);
 
-  if (loading) return <div className="text-gray-500">Cargando recorrido...</div>;
+  if (loading) return <LoadingSpinner text="Cargando recorrido..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;
 
   return (
     <div className="space-y-6">

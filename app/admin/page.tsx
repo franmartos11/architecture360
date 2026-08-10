@@ -1,14 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Unit } from '@/types';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function AdminDashboard() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
     Promise.all([
       fetch('/api/admin/units').then(res => res.json()),
       fetch('/api/leads').then(res => res.json())
@@ -16,15 +22,33 @@ export default function AdminDashboard() {
       setUnits(unitsData);
       setLeads(leadsData);
       setLoading(false);
+    }).catch(() => {
+      setError(true);
+      setLoading(false);
     });
   }, []);
 
-  if (loading) return <div className="text-gray-500">Cargando dashboard...</div>;
+  useEffect(load, [load]);
+
+  if (loading) return <LoadingSpinner text="Cargando dashboard..." tone="light" />;
+  if (error) return <ErrorState message="No se pudo cargar el dashboard." onRetry={load} />;
 
   const totalUnits = units.length;
   const available = units.filter(u => u.status === 'available').length;
   const reserved = units.filter(u => u.status === 'reserved').length;
   const sold = units.filter(u => u.status === 'sold').length;
+
+  if (totalUnits === 0) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-gray-500 mt-1">Visión general del proyecto</p>
+        </div>
+        <EmptyState title="Todavía no hay unidades cargadas." description="Cargá edificios, pisos y unidades para ver las métricas acá." />
+      </div>
+    );
+  }
 
   const availablePercent = (available / totalUnits) * 100;
   const reservedPercent = (reserved / totalUnits) * 100;

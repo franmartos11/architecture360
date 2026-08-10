@@ -65,7 +65,16 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
               if (file) handleFile(file);
             }}
             onClick={() => inputRef.current?.click()}
-            className={`px-3 py-2.5 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors text-xs
+            role="button"
+            tabIndex={0}
+            aria-label="Subir imagen: arrastrá un archivo o hacé click para elegirlo"
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
+            className={`px-3 py-2.5 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500
               ${dragOver ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 hover:border-gray-300 text-gray-500'}`}
           >
             {uploading ? 'Subiendo...' : 'Arrastrá una imagen o hacé click para elegir un archivo'}
@@ -74,6 +83,8 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
               type="file"
               accept="image/*"
               className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
               onChange={e => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);

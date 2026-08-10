@@ -3,6 +3,8 @@
 import { useState, useEffect, use, useMemo } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorState from '@/components/ui/ErrorState';
 
 interface UnitRow {
   id: string;
@@ -24,10 +26,13 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'point' | 'rectangle'>('rectangle');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       fetch(`/api/admin/buildings/${buildingId}`).then(res => res.json()),
       fetch(`/api/admin/units?floorId=${floorId}`).then(res => res.json()),
@@ -42,8 +47,13 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       setPoints(Object.fromEntries(list.map(u => [u.id, u.polygon ?? []])));
       if (list.length > 0) setActiveId(list[0].id);
       setLoading(false);
+    }).catch(() => {
+      setLoadError(true);
+      setLoading(false);
     });
-  }, [buildingId, floorId]);
+  };
+
+  useEffect(load, [buildingId, floorId]);
 
   const shapes: PolygonShape[] = useMemo(
     () => units.map((u, i) => ({
@@ -82,7 +92,8 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     setPoints(prev => ({ ...prev, [id]: [] }));
   };
 
-  if (loading) return <div className="text-gray-500">Cargando plano...</div>;
+  if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
+  if (loadError) return <ErrorState message="No se pudo cargar el plano." onRetry={load} />;
 
   return (
     <div className="space-y-6">

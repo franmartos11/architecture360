@@ -14,6 +14,29 @@
   --color-trevo-brown: #968676;
   --color-trevo-light: #f5f5f5;
   --color-trevo-dark: #1b1e1c;
+
+  /* Brand scale — anclada a la paleta trevo (trevo-lightgreen = brand-400,
+     trevo-green = brand-700, trevo-dark = brand-900) para que el admin y
+     el sitio público compartan una única identidad de color. */
+  --color-brand-50: #f3f5f4;
+  --color-brand-100: #e4e9e6;
+  --color-brand-200: #c9d3cd;
+  --color-brand-300: #a8b7af;
+  --color-brand-400: #83978c;
+  --color-brand-500: #647a6d;
+  --color-brand-600: #4c5f54;
+  --color-brand-700: #37463f;
+  --color-brand-800: #283530;
+  --color-brand-900: #1b1e1c;
+
+  /* Surfaces oscuras — para paneles sobre fondos glass/inmersivos (navbar, tour) */
+  --color-surface-50: #1c2032;
+  --color-surface-100: #262b40;
+
+  /* Estados de unidad — mismos colores que las clases .badge- y .unit-polygon.status- */
+  --color-status-available: #51cf66;
+  --color-status-reserved: #fcc419;
+  --color-status-sold: #ff6b6b;
 }
 
 /* ─── Base tokens ──────────────────────────────────────────────── */
