@@ -17,6 +17,7 @@ interface CommonAreasTourProps {
   /** A dónde vuelve el botón "Volver" — por default, a la vista aérea del proyecto */
   backHref?: string;
   backLabel?: string;
+  embed?: boolean;
 }
 
 export default function CommonAreasTour({
@@ -27,6 +28,7 @@ export default function CommonAreasTour({
   label,
   backHref,
   backLabel = 'Volver a la vista aérea',
+  embed = false,
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
 
@@ -34,24 +36,26 @@ export default function CommonAreasTour({
     <div className="relative w-full h-screen bg-black overflow-hidden">
       <VirtualTour tourData={tourData} focusNodeId={focusNodeId} />
 
-      <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between pointer-events-none">
-        <button
-          onClick={() => router.push(backHref ?? `/proyecto/${projectSlug}`)}
-          className="glass rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors hover:bg-white/10 pointer-events-auto"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-          </svg>
-          {backLabel}
-        </button>
+      {!embed && (
+        <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between pointer-events-none">
+          <button
+            onClick={() => router.push(backHref ?? `/proyecto/${projectSlug}`)}
+            className="glass rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors hover:bg-white/10 pointer-events-auto"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            {backLabel}
+          </button>
 
-        <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-sm font-medium text-white/90">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+          <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-sm font-medium text-white/90">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

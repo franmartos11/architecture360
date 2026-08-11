@@ -13,6 +13,7 @@ interface CommonAreasTourWrapperProps {
   label?: string;
   backHref?: string;
   backLabel?: string;
+  embed?: boolean;
 }
 
 export default function CommonAreasTourWrapper(props: CommonAreasTourWrapperProps) {

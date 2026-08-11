@@ -20,7 +20,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BuildingTourPage({ params, searchParams }: PageProps) {
   const { slug, buildingId } = await params;
-  const { focus } = await searchParams;
+  const { focus, embed } = await searchParams;
+  const isEmbed = embed === 'true';
   const building = await getBuildingById(slug, buildingId);
   if (!building || !building.amenitiesTour) notFound();
 
@@ -33,6 +34,7 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
       label={`Recorrido — ${building.name}`}
       backHref={`/proyecto/${slug}/edificio/${buildingId}`}
       backLabel={`Volver a ${building.name}`}
+      embed={isEmbed}
     />
   );
 }
