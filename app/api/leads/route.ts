@@ -1,46 +1,38 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from '@/lib/supabase/server';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
-
-function getDb() {
-  const file = fs.readFileSync(DB_PATH, 'utf-8');
-  return JSON.parse(file);
-}
-
-function saveDb(data: any) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-export async function GET() {
-  try {
-    const db = getDb();
-    return NextResponse.json(db.leads || []);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
-  }
-}
+// Único proyecto servido hoy (ver DEFAULT_PROJECT_SLUG) — igual que el
+// resto de las rutas API, que también lo hardcodean.
+const PROJECT_SLUG = 'demo';
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const db = getDb();
-    
-    if (!db.leads) db.leads = [];
-    
-    const newLead = {
-      id: Date.now().toString(),
-      ...body,
-      status: 'nuevo',
-      createdAt: new Date().toISOString()
-    };
-    
-    db.leads.push(newLead);
-    saveDb(db);
-    
-    return NextResponse.json({ success: true, lead: newLead });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 });
+  const body = await request.json();
+  if (!body.name || !body.email || !body.phone) {
+    return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
   }
+
+  const supabase = await createClient();
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('slug', PROJECT_SLUG)
+    .maybeSingle();
+
+  // Insert público (policy RLS "public insert leads") — sin .select()
+  // a propósito: no hay policy de SELECT para anon en leads, así que
+  // pedir la fila de vuelta con RETURNING la filtraría a cero filas.
+  const { error } = await supabase.from('leads').insert({
+    project_id: project?.id ?? null,
+    name: body.name,
+    email: body.email,
+    phone: body.phone,
+    message: body.message ?? null,
+    unit_name: body.unitName ?? null,
+    method: body.method ?? null,
+    source: body.source ?? null,
+  });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

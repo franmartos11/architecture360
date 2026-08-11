@@ -1,6 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+
+// Mezcla el valor configurado por el admin en las opciones fijas del
+// select, para que quede seleccionable aunque no coincida con ninguna
+// de las predefinidas (ej. una tasa de 5.5% con opciones 6.5/7/8).
+function withValue(options: number[], value: number) {
+  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
+}
 
 export default function Calculator() {
   const [modelo, setModelo] = useState(195000);
@@ -9,6 +17,33 @@ export default function Calculator() {
   const [plazo, setPlazo] = useState(25);
   const [monto, setMonto] = useState(0);
   const [resultado, setResultado] = useState(0);
+  const [primaOptions, setPrimaOptions] = useState([15, 20, 25, 30]);
+  const [tasaOptions, setTasaOptions] = useState([6.5, 7, 8]);
+  const [plazoOptions, setPlazoOptions] = useState([20, 25, 30]);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        if (data.interestRate != null) {
+          setTasaOptions(prev => withValue(prev, data.interestRate));
+          setTasa(data.interestRate);
+        }
+        if (data.maxYears != null) {
+          setPlazoOptions(prev => withValue(prev, data.maxYears));
+          setPlazo(data.maxYears);
+        }
+        if (data.minDownPayment != null) {
+          setPrimaOptions(prev => withValue(prev, data.minDownPayment));
+          setPrima(data.minDownPayment);
+        }
+      })
+      .catch(() => {
+        // Si falla, se queda con los valores por defecto — no bloquea la calculadora.
+      });
+  }, []);
 
   useEffect(() => {
     // Fórmula monto: modelo - (modelo * prima / 100)
@@ -35,7 +70,7 @@ export default function Calculator() {
   };
 
   return (
-    <div className="w-full bg-trevo-light py-20 px-6">
+    <div id="cotizador" className="w-full bg-trevo-light py-20 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12 items-center">
         {/* Formulario */}
         <div className="w-full md:w-1/2 space-y-6">
@@ -57,41 +92,34 @@ export default function Calculator() {
 
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-trevo-dark">Prima</label>
-            <select 
-              value={prima} 
+            <select
+              value={prima}
               onChange={(e) => setPrima(Number(e.target.value))}
               className="p-3 border border-trevo-lightgreen/30 rounded bg-white text-trevo-dark focus:outline-none focus:border-trevo-lightgreen"
             >
-              <option value="15">15%</option>
-              <option value="20">20%</option>
-              <option value="25">25%</option>
-              <option value="30">30%</option>
+              {primaOptions.map(p => <option key={p} value={p}>{p}%</option>)}
             </select>
           </div>
 
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-trevo-dark">Tasa de interés</label>
-            <select 
-              value={tasa} 
+            <select
+              value={tasa}
               onChange={(e) => setTasa(Number(e.target.value))}
               className="p-3 border border-trevo-lightgreen/30 rounded bg-white text-trevo-dark focus:outline-none focus:border-trevo-lightgreen"
             >
-              <option value="6.5">6.5%</option>
-              <option value="7">7.0%</option>
-              <option value="8">8.0%</option>
+              {tasaOptions.map(t => <option key={t} value={t}>{t}%</option>)}
             </select>
           </div>
 
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-trevo-dark">Años plazo</label>
-            <select 
-              value={plazo} 
+            <select
+              value={plazo}
               onChange={(e) => setPlazo(Number(e.target.value))}
               className="p-3 border border-trevo-lightgreen/30 rounded bg-white text-trevo-dark focus:outline-none focus:border-trevo-lightgreen"
             >
-              <option value="20">20</option>
-              <option value="25">25</option>
-              <option value="30">30</option>
+              {plazoOptions.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           
@@ -109,15 +137,22 @@ export default function Calculator() {
         <div className="w-full md:w-1/2 bg-trevo-green p-6 sm:p-8 md:p-10 rounded-xl flex flex-col items-center justify-center space-y-4 md:space-y-6 shadow-2xl">
           <div className="text-white/80 text-base md:text-lg text-center">Cuota mensual aproximada</div>
           <h2 className="text-white text-4xl sm:text-5xl font-light text-center break-all">{formatUSD(resultado)}</h2>
-          <button className="btn-solid-brown w-full mt-2 md:mt-4">
+          <button onClick={() => setIsLeadModalOpen(true)} className="btn-solid-brown w-full mt-2 md:mt-4">
             SOLICITAR INFORMACIÓN
           </button>
         </div>
       </div>
-      
+
       <p className="max-w-6xl mx-auto text-xs text-trevo-dark/50 mt-12 text-center">
         *IMPORTANTE: Este servicio solo para uso de consulta y no representa ninguna obligación para el proyecto. El cálculo corresponde al valor de una cuota mensual. La información puede ser cambiada sin previo aviso. El cálculo solo comprende valor a capital más intereses. No incluye seguros, comisiones, ni otros recargos relacionados.
       </p>
+
+      <LeadCaptureModal
+        isOpen={isLeadModalOpen}
+        onClose={() => setIsLeadModalOpen(false)}
+        unit={null}
+        initialMessage={`Hola, me interesa recibir información sobre financiación. Cuota mensual estimada: ${formatUSD(resultado)} (monto a financiar: ${formatUSD(monto)}, ${plazo} años, ${tasa}% de interés).`}
+      />
     </div>
   );
 }

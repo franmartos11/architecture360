@@ -1,6 +1,7 @@
 import Navbar from '@/components/ui/Navbar';
 import { TabsSection } from '@/components/TabsSection';
 import Calculator from '@/components/Calculator';
+import HomeContactForm from '@/components/HomeContactForm';
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -15,7 +16,7 @@ const CAROUSEL_LOADING = <div className="w-full max-w-6xl mx-auto h-[400px] roun
 const AmenitiesCarousel = dynamic(() => import('@/components/SwiperCarousels').then(m => m.AmenitiesCarousel), {
   loading: () => CAROUSEL_LOADING,
 });
-const ZonesCarousel = dynamic(() => import('@/components/SwiperCarousels').then(m => m.ZonesCarousel), {
+const PointsOfInterestCarousel = dynamic(() => import('@/components/SwiperCarousels').then(m => m.PointsOfInterestCarousel), {
   loading: () => CAROUSEL_LOADING,
 });
 
@@ -139,7 +140,7 @@ export default async function HomePage() {
       </section>
 
       {/* Typologies Section */}
-      <section className="py-24 bg-trevo-green">
+      <section id="modelos" className="py-24 bg-trevo-green">
         <div className="max-w-6xl mx-auto px-6">
           <Reveal className="mb-16 space-y-4">
             <div className="text-white/70 tracking-widest text-sm font-semibold">MODELOS DISPONIBLES</div>
@@ -158,16 +159,20 @@ export default async function HomePage() {
       </section>
 
       {/* Zone / Location Section */}
-      <section className="py-24 bg-trevo-dark">
-        <Reveal className="max-w-6xl mx-auto px-4 md:px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <h2 className="text-3xl md:text-4xl font-light text-white max-w-lg leading-tight">
-            UBICACIÓN PRIVILEGIADA EN EL CORAZÓN DE LA CIUDAD
-          </h2>
-          <button className="btn-outline-white whitespace-nowrap w-full md:w-auto">DESCUBRIR LA ZONA</button>
-        </Reveal>
+      {project && project.pointsOfInterest.some(p => p.image) && (
+        <section className="py-24 bg-trevo-dark">
+          <Reveal className="max-w-6xl mx-auto px-4 md:px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+            <h2 className="text-3xl md:text-4xl font-light text-white max-w-lg leading-tight">
+              UBICACIÓN PRIVILEGIADA EN EL CORAZÓN DE LA CIUDAD
+            </h2>
+            <a href={`/proyecto/${project.slug}/ubicacion`} className="btn-outline-white whitespace-nowrap w-full md:w-auto">
+              DESCUBRIR LA ZONA
+            </a>
+          </Reveal>
 
-        <ZonesCarousel />
-      </section>
+          <PointsOfInterestCarousel pointsOfInterest={project.pointsOfInterest} projectSlug={project.slug} />
+        </section>
+      )}
 
       {/* Calculator Section */}
       <Calculator />
@@ -184,13 +189,7 @@ export default async function HomePage() {
 
           <Reveal delay={0.15} className="bg-white/5 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-white/10">
             <div className="text-white mb-6 md:mb-8 font-light text-center md:text-left">Completa el formulario para obtener más información.</div>
-            {/* Placeholder form */}
-            <form className="space-y-4">
-              <input type="text" placeholder="Nombre completo" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
-              <input type="email" placeholder="Correo electrónico" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
-              <input type="tel" placeholder="Teléfono" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
-              <button type="button" className="btn-solid-brown w-full mt-2 py-4 rounded-lg">ENVIAR</button>
-            </form>
+            <HomeContactForm />
           </Reveal>
         </div>
       </section>
@@ -200,10 +199,10 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-2xl font-bold tracking-widest">RESIDENCIAS NATURA</div>
           <div className="flex gap-6 text-sm font-light text-white/70">
-            <a href="#" className="hover:text-white transition-colors">Inicio</a>
-            <a href="#" className="hover:text-white transition-colors">Nosotros</a>
-            <a href="#" className="hover:text-white transition-colors">Modelos</a>
-            <a href="#" className="hover:text-white transition-colors">Cotizador</a>
+            <a href="/" className="hover:text-white transition-colors">Inicio</a>
+            <a href="#next" className="hover:text-white transition-colors">Nosotros</a>
+            <a href="#modelos" className="hover:text-white transition-colors">Modelos</a>
+            <a href="#cotizador" className="hover:text-white transition-colors">Cotizador</a>
           </div>
         </div>
       </footer>

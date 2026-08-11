@@ -5,7 +5,7 @@ import { Navigation, Pagination, Autoplay } from 'swiper/modules';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import type { Amenity } from '@/types';
+import type { Amenity, PointOfInterest } from '@/types';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -72,15 +72,15 @@ export function AmenitiesCarousel({ amenities, projectSlug }: AmenitiesCarouselP
   );
 }
 
-const zones = [
-  { id: 1, name: 'Comercios', desc: 'Compras y servicios en tu radio inmediato.', image: 'https://images.unsplash.com/photo-1519999482648-25049ddd37b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { id: 2, name: 'Restaurantes', desc: 'Buena oferta gastronómica, sin desplazarte.', image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { id: 3, name: 'Conveniencia', desc: 'Lo esencial, en el camino.', image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { id: 4, name: 'Salud', desc: 'Atención médica cerca, cuando se necesita.', image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-  { id: 5, name: 'Educación', desc: 'Oferta académica sólida en el entorno.', image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80' },
-];
+interface PointsOfInterestCarouselProps {
+  pointsOfInterest: PointOfInterest[];
+  projectSlug: string;
+}
 
-export function ZonesCarousel() {
+export function PointsOfInterestCarousel({ pointsOfInterest, projectSlug }: PointsOfInterestCarouselProps) {
+  const slides = pointsOfInterest.filter(p => p.image);
+  if (slides.length === 0) return null;
+
   return (
     <div className="relative w-full max-w-6xl mx-auto">
       <Swiper
@@ -96,21 +96,23 @@ export function ZonesCarousel() {
         autoplay={{ delay: 5000, disableOnInteraction: false }}
         className="w-full h-auto rounded-xl overflow-hidden pb-12"
       >
-        {zones.map((item) => (
+        {slides.map((item) => (
           <SwiperSlide key={item.id} className="group relative rounded-xl overflow-hidden h-[500px]">
-            <Image
-              src={item.image}
-              alt={item.name}
-              fill
-              sizes="(min-width: 1152px) 1152px, 100vw"
-              placeholder="blur"
-              blurDataURL={shimmerDataUrl()}
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-10">
-              <h3 className="text-white text-3xl mb-2">{item.name}</h3>
-              <p className="text-white/80">{item.desc}</p>
-            </div>
+            <Link href={`/proyecto/${projectSlug}/ubicacion`} className="block w-full h-full">
+              <Image
+                src={item.image!}
+                alt={item.name}
+                fill
+                sizes="(min-width: 1152px) 1152px, 100vw"
+                placeholder="blur"
+                blurDataURL={shimmerDataUrl()}
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-10">
+                <h3 className="text-white text-3xl mb-2">{item.name}</h3>
+                {item.description && <p className="text-white/80">{item.description}</p>}
+              </div>
+            </Link>
           </SwiperSlide>
         ))}
       </Swiper>

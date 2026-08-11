@@ -19,7 +19,12 @@ export default function AerialView({ project }: AerialViewProps) {
   const [hoveredBuildingId, setHoveredBuildingId] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(true);
+
+  // ── Bloqueo de interacción hasta que cargue el medio y la animación ──
+  // Ambas condiciones deben cumplirse para habilitar hover/click en hotspots.
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+  const [animationDone, setAnimationDone] = useState(false);
+  const isReady = mediaLoaded && animationDone;
 
   const slide: AerialSlide = project.aerialSlides[currentSlide];
   const building = activeHotspot
@@ -50,11 +55,13 @@ export default function AerialView({ project }: AerialViewProps) {
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    setMediaLoaded(true);
   }, []);
 
   const handleVideoLoad = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     setNaturalSize({ w: video.videoWidth, h: video.videoHeight });
+    setMediaLoaded(true);
   }, []);
 
   const mapPoint = useCallback((px: number, py: number) => {
@@ -77,6 +84,13 @@ export default function AerialView({ project }: AerialViewProps) {
     return { x: (pixelX / cw) * 100, y: (pixelY / ch) * 100 };
   }, [containerSize, naturalSize]);
 
+  // Reset interacción al cambiar de slide
+  useEffect(() => {
+    setMediaLoaded(false);
+    setAnimationDone(false);
+    setHoveredBuildingId(null);
+  }, [currentSlide]);
+
   // Autoplay carousel
   useEffect(() => {
     if (userInteracted || activeHotspot) return;
@@ -85,16 +99,6 @@ export default function AerialView({ project }: AerialViewProps) {
     }, 5000);
     return () => clearInterval(interval);
   }, [userInteracted, activeHotspot, project.aerialSlides.length]);
-
-  // Hide tutorial after a few seconds or on interaction
-  useEffect(() => {
-    if (userInteracted || activeHotspot) {
-      setShowTutorial(false);
-      return;
-    }
-    const timeout = setTimeout(() => setShowTutorial(false), 8000);
-    return () => clearTimeout(timeout);
-  }, [userInteracted, activeHotspot]);
 
   // Close popup on click outside
   const handleBackgroundClick = useCallback(() => {
@@ -149,6 +153,12 @@ export default function AerialView({ project }: AerialViewProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.6 }}
           className="absolute inset-0"
+          onAnimationComplete={(def) => {
+            // Solo en la animación de entrada (animate), no en exit
+            if (def === 'animate' || (typeof def === 'object' && 'opacity' in (def as object))) {
+              setAnimationDone(true);
+            }
+          }}
         >
           {slide.videoUrl ? (
             <video
@@ -191,10 +201,11 @@ export default function AerialView({ project }: AerialViewProps) {
           className="absolute inset-0 w-full h-full z-10"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
+          style={{ pointerEvents: isReady ? 'auto' : 'none' }}
         >
           {slide.hotspots.filter(h => h.polygon && h.polygon.length > 0).map(hotspot => {
             const isActive = activeHotspot?.buildingId === hotspot.buildingId;
-            const isHovered = hoveredBuildingId === hotspot.buildingId;
+            const isHovered = isReady && hoveredBuildingId === hotspot.buildingId;
             return (
               <polygon
                 key={hotspot.buildingId}
@@ -203,10 +214,11 @@ export default function AerialView({ project }: AerialViewProps) {
                 stroke={isActive || isHovered ? 'rgba(255,255,255,0.85)' : 'transparent'}
                 strokeWidth={isActive ? 1.5 : 1}
                 vectorEffect="non-scaling-stroke"
-                style={{ cursor: 'pointer', transition: 'fill 0.25s ease-out, stroke 0.25s ease-out, stroke-width 0.25s ease-out' }}
-                onMouseEnter={() => setHoveredBuildingId(hotspot.buildingId)}
-                onMouseLeave={() => setHoveredBuildingId(null)}
+                style={{ cursor: isReady ? 'pointer' : 'default', transition: 'fill 0.25s ease-out, stroke 0.25s ease-out, stroke-width 0.25s ease-out' }}
+                onMouseEnter={() => { if (isReady) setHoveredBuildingId(hotspot.buildingId); }}
+                onMouseLeave={() => { if (isReady) setHoveredBuildingId(null); }}
                 onClick={e => {
+                  if (!isReady) return;
                   e.stopPropagation();
                   setActiveHotspot(isActive ? null : hotspot);
                 }}
@@ -228,8 +240,14 @@ export default function AerialView({ project }: AerialViewProps) {
           <button
             key={hotspot.buildingId}
             className="absolute z-20 group"
-            style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
+            style={{
+              left: `${pos.x}%`,
+              top: `${pos.y}%`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: isReady ? 'auto' : 'none',
+            }}
             onClick={e => {
+              if (!isReady) return;
               e.stopPropagation();
               setActiveHotspot(isActive ? null : hotspot);
             }}
@@ -238,7 +256,7 @@ export default function AerialView({ project }: AerialViewProps) {
             {/* Outer pulse ring */}
             <span className={`absolute inset-0 rounded-full animate-ping opacity-40 ${isActive ? 'bg-white scale-150' : 'bg-white/70'}`} />
             {/* Dot */}
-            <span className={`relative flex w-5 h-5 rounded-full border-2 transition-all duration-200 ${isActive ? 'bg-white border-white scale-125' : 'bg-black/70 border-white group-hover:bg-white/80 group-hover:scale-110'}`} />
+            <span className={`relative flex w-5 h-5 rounded-full border-2 transition-all duration-200 ${isActive ? 'bg-white border-white scale-125' : isReady ? 'bg-black/70 border-white group-hover:bg-white/80 group-hover:scale-110' : 'bg-black/70 border-white'}`} />
           </button>
         );
       })}
@@ -302,27 +320,6 @@ export default function AerialView({ project }: AerialViewProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Tutorial Hint ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {showTutorial && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5, delay: 1 }}
-            className="absolute top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-          >
-            <div className="bg-white/90 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-2xl font-medium text-sm flex items-center gap-3 border border-white/40">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-              </span>
-              Selecciona un edificio para explorar
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Top bar ────────────────────────────────────────────── */}
       <motion.div
         initial="hidden"
@@ -350,12 +347,13 @@ export default function AerialView({ project }: AerialViewProps) {
           </div>
         </motion.div>
 
-        {/* Right: Amenities */}
-        {project.amenities.length > 0 && (
-          <motion.div
-            variants={{ hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } }}
-            onClick={e => e.stopPropagation()}
-          >
+        {/* Right: Amenities / Ubicación */}
+        <motion.div
+          variants={{ hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } }}
+          onClick={e => e.stopPropagation()}
+          className="flex items-center gap-3"
+        >
+          {project.amenities.length > 0 && (
             <Link
               href={`/proyecto/${project.slug}/amenities`}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shadow-lg"
@@ -365,8 +363,20 @@ export default function AerialView({ project }: AerialViewProps) {
               </svg>
               Amenities
             </Link>
-          </motion.div>
-        )}
+          )}
+          {project.pointsOfInterest.length > 0 && (
+            <Link
+              href={`/proyecto/${project.slug}/ubicacion`}
+              className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shadow-lg"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              </svg>
+              Ubicación
+            </Link>
+          )}
+        </motion.div>
       </motion.div>
 
       {/* ── Slide navigation arrows ────────────────────────────── */}

@@ -1,11 +1,10 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getProjectBySlug } from '@/data/project-repository';
-import AmenitiesView from '@/components/amenities/AmenitiesView';
+import LocationView from '@/components/location/LocationView';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ edificio?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -13,16 +12,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const project = await getProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
-    title: `${project.name} | Amenities`,
-    description: `Conocé y recorré en 360° las amenities de ${project.name}.`,
+    title: `${project.name} | Ubicación`,
+    description: `Ubicación y puntos de interés cercanos a ${project.name}.`,
   };
 }
 
-export default async function AmenitiesPage({ params, searchParams }: PageProps) {
+export default async function UbicacionPage({ params }: PageProps) {
   const { slug } = await params;
-  const { edificio } = await searchParams;
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
-  return <AmenitiesView project={project} initialBuildingFilter={edificio} />;
+  return <LocationView project={project} />;
 }

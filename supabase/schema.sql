@@ -22,12 +22,18 @@ create table if not exists projects (
   name text not null,
   description text,
   location text,
+  latitude numeric,                 -- centro del mapa de ubicación (Sprint "Ubicación y Puntos de Interés")
+  longitude numeric,
   masterplan_image text,
   amenities text[] not null default '{}',
   common_areas_tour jsonb,          -- { initialNodeId, nodes: [...] }
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Para bases que ya tenían projects creada antes de que existieran lat/lng.
+alter table projects add column if not exists latitude numeric;
+alter table projects add column if not exists longitude numeric;
 
 -- ─── Edificios (torres) ─────────────────────────────────────────────
 create table if not exists buildings (
@@ -131,18 +137,45 @@ create table if not exists amenities (
   created_at timestamptz not null default now()
 );
 
--- ─── Leads (ya existía en db.json, se migra tal cual) ───────────────
+-- ─── Puntos de interés (colegios, salud, comercios, etc.) ────────────
+-- Georreferencian el entorno del proyecto para la sección de Ubicación.
+create table if not exists points_of_interest (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  name text not null,
+  category text not null default 'otro' check (category in ('colegio', 'salud', 'comercio', 'transporte', 'entretenimiento', 'otro')),
+  description text,
+  distance_label text,              -- ej. "5 min caminando"
+  image text,
+  latitude numeric,
+  longitude numeric,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- ─── Leads (antes vivía en data/db.json, migrado a Supabase) ─────────
+-- unit_id queda sin usar desde el sitio público: el Unit.id que
+-- maneja el front es el código legible (ej. "N01-07"), no el uuid
+-- real de la fila — se guarda como texto libre en unit_name en su lugar.
 create table if not exists leads (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects(id) on delete set null,
   unit_id uuid references units(id) on delete set null,
+  unit_name text,
   name text,
   email text,
   phone text,
   method text,
   message text,
+  source text,
+  status text not null default 'nuevo',
   created_at timestamptz not null default now()
 );
+
+-- Para bases que ya tenían leads creada antes de que existieran estas columnas.
+alter table leads add column if not exists unit_name text;
+alter table leads add column if not exists source text;
+alter table leads add column if not exists status text not null default 'nuevo';
 
 -- ─── Configuración de la calculadora hipotecaria ────────────────────
 create table if not exists calculator_settings (
@@ -169,6 +202,7 @@ alter table units enable row level security;
 alter table aerial_slides enable row level security;
 alter table aerial_hotspots enable row level security;
 alter table amenities enable row level security;
+alter table points_of_interest enable row level security;
 alter table leads enable row level security;
 alter table calculator_settings enable row level security;
 
@@ -192,6 +226,9 @@ create policy "public read aerial_hotspots" on aerial_hotspots for select to ano
 
 drop policy if exists "public read amenities" on amenities;
 create policy "public read amenities" on amenities for select to anon, authenticated using (true);
+
+drop policy if exists "public read points_of_interest" on points_of_interest;
+create policy "public read points_of_interest" on points_of_interest for select to anon, authenticated using (true);
 
 drop policy if exists "public read calculator_settings" on calculator_settings;
 create policy "public read calculator_settings" on calculator_settings for select to anon, authenticated using (true);
@@ -229,4 +266,5 @@ create index if not exists idx_aerial_slides_project on aerial_slides(project_id
 create index if not exists idx_aerial_hotspots_slide on aerial_hotspots(slide_id);
 create index if not exists idx_amenities_project on amenities(project_id);
 create index if not exists idx_amenities_building on amenities(building_id);
+create index if not exists idx_points_of_interest_project on points_of_interest(project_id);
 create index if not exists idx_leads_project on leads(project_id);

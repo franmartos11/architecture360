@@ -9,6 +9,8 @@ interface LeadCaptureModalProps {
   onClose: () => void;
   unit: Unit | null;
   defaultMethod?: 'email' | 'whatsapp' | 'phone';
+  /** Sobreescribe el mensaje pre-cargado (ej. desde la calculadora, con la cuota estimada) */
+  initialMessage?: string;
 }
 
 export default function LeadCaptureModal({
@@ -16,6 +18,7 @@ export default function LeadCaptureModal({
   onClose,
   unit,
   defaultMethod = 'email',
+  initialMessage,
 }: LeadCaptureModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -24,9 +27,11 @@ export default function LeadCaptureModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const defaultMessage = unit 
-    ? `Hola, me interesa recibir más información sobre la unidad ${unit.name} (${unit.modelName}) en el piso ${unit.floor}.`
-    : 'Hola, me interesa recibir más información sobre el proyecto.';
+  const defaultMessage = initialMessage
+    ? initialMessage
+    : unit
+      ? `Hola, me interesa recibir más información sobre la unidad ${unit.name} (${unit.modelName}) en el piso ${unit.floor}.`
+      : 'Hola, me interesa recibir más información sobre el proyecto.';
 
   useEffect(() => {
     if (isOpen) {

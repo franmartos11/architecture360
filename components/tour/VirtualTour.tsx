@@ -66,8 +66,12 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
 
             // Create Link Hotspots
             node.linkHotspots?.forEach((hotspot) => {
+              const targetName = tourData.nodes.find(n => n.id === hotspot.targetNodeId)?.name;
               const el = document.createElement('div');
               el.className = 'link-hotspot';
+              el.setAttribute('role', 'button');
+              el.setAttribute('tabindex', '0');
+              el.setAttribute('aria-label', hotspot.label || `Ir a ${targetName ?? 'siguiente ambiente'}`);
               el.innerHTML = `
                 <div class="hotspot-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -76,14 +80,14 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
                 </div>
                 ${hotspot.label ? `<div class="hotspot-label">${hotspot.label}</div>` : ''}
               `;
-              
-              el.addEventListener('click', () => {
+
+              const activate = () => {
                 const targetScene = scenesRef.current[hotspot.targetNodeId];
                 if (targetScene) {
                   // Switch scene
                   targetScene.switchTo({ transitionDuration: 1000 });
                   setCurrentNodeId(hotspot.targetNodeId);
-                  
+
                   // Update view if targets specified
                   if (hotspot.targetYaw !== undefined || hotspot.targetPitch !== undefined) {
                     const targetView = targetScene.view();
@@ -93,8 +97,16 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
                     });
                   }
                 }
+              };
+
+              el.addEventListener('click', activate);
+              el.addEventListener('keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  activate();
+                }
               });
-              
+
               scene.hotspotContainer().createHotspot(el, { yaw: hotspot.yaw, pitch: hotspot.pitch });
             });
 
@@ -102,6 +114,9 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
             node.infoHotspots?.forEach((hotspot) => {
               const el = document.createElement('div');
               el.className = 'info-hotspot group';
+              el.setAttribute('role', 'button');
+              el.setAttribute('tabindex', '0');
+              el.setAttribute('aria-label', hotspot.description ? `${hotspot.title}: ${hotspot.description}` : hotspot.title);
               el.innerHTML = `
                 <div class="info-icon">i</div>
                 <div class="info-tooltip group-hover:opacity-100 group-hover:visible">
