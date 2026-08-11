@@ -22,6 +22,9 @@ interface PoiRow {
   image: string | null;
   latitude: number | null;
   longitude: number | null;
+  walk_minutes: number | null;
+  drive_minutes: number | null;
+  bike_minutes: number | null;
   sort_order: number;
 }
 
@@ -42,6 +45,9 @@ const EMPTY_FORM = {
   image: '',
   latitude: '',
   longitude: '',
+  walkMinutes: '',
+  driveMinutes: '',
+  bikeMinutes: '',
 };
 
 export default function AdminUbicacionPage() {
@@ -80,6 +86,9 @@ export default function AdminUbicacionPage() {
       image: p.image ?? '',
       latitude: p.latitude != null ? String(p.latitude) : '',
       longitude: p.longitude != null ? String(p.longitude) : '',
+      walkMinutes: p.walk_minutes != null ? String(p.walk_minutes) : '',
+      driveMinutes: p.drive_minutes != null ? String(p.drive_minutes) : '',
+      bikeMinutes: p.bike_minutes != null ? String(p.bike_minutes) : '',
     });
   };
 
@@ -101,6 +110,9 @@ export default function AdminUbicacionPage() {
       image: form.image || null,
       latitude: form.latitude === '' ? null : Number(form.latitude),
       longitude: form.longitude === '' ? null : Number(form.longitude),
+      walkMinutes: form.walkMinutes === '' ? null : Number(form.walkMinutes),
+      driveMinutes: form.driveMinutes === '' ? null : Number(form.driveMinutes),
+      bikeMinutes: form.bikeMinutes === '' ? null : Number(form.bikeMinutes),
     };
 
     const res = editingId
@@ -258,6 +270,32 @@ export default function AdminUbicacionPage() {
                 value={form.longitude}
                 onChange={e => setForm({ ...form, longitude: e.target.value })}
                 placeholder="Longitud"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tiempos de viaje (minutos, opcional)
+            </label>
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                type="number"
+                value={form.driveMinutes}
+                onChange={e => setForm({ ...form, driveMinutes: e.target.value })}
+                placeholder="En auto"
+              />
+              <Input
+                type="number"
+                value={form.walkMinutes}
+                onChange={e => setForm({ ...form, walkMinutes: e.target.value })}
+                placeholder="Caminando"
+              />
+              <Input
+                type="number"
+                value={form.bikeMinutes}
+                onChange={e => setForm({ ...form, bikeMinutes: e.target.value })}
+                placeholder="En bici"
               />
             </div>
           </div>

@@ -2,7 +2,7 @@
 export type UnitStatus = 'available' | 'reserved' | 'sold';
 
 // ─── View tabs inside unit ─────────────────────────────────────────
-export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria';
+export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
 
 // ─── Unit type ─────────────────────────────────────────────────────
 export type UnitType = 'monoambiente' | '1 dormitorio' | '2 dormitorios' | '3 dormitorios' | 'penthouse';
@@ -152,6 +152,10 @@ export interface PointOfInterest {
   image?: string;
   latitude?: number;
   longitude?: number;
+  /** Tiempos de viaje calculados via Distance Matrix API (en minutos) */
+  walkMinutes?: number;
+  driveMinutes?: number;
+  bikeMinutes?: number;
 }
 
 // ─── Project ───────────────────────────────────────────────────────

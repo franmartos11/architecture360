@@ -45,6 +45,9 @@ interface PointOfInterestRow {
   image: string | null;
   latitude: number | null;
   longitude: number | null;
+  walk_minutes: number | null;
+  drive_minutes: number | null;
+  bike_minutes: number | null;
   sort_order: number;
 }
 interface FloorRow {
@@ -200,6 +203,9 @@ function mapProject(
       image: p.image ?? undefined,
       latitude: p.latitude != null ? Number(p.latitude) : undefined,
       longitude: p.longitude != null ? Number(p.longitude) : undefined,
+      walkMinutes: p.walk_minutes != null ? Number(p.walk_minutes) : undefined,
+      driveMinutes: p.drive_minutes != null ? Number(p.drive_minutes) : undefined,
+      bikeMinutes: p.bike_minutes != null ? Number(p.bike_minutes) : undefined,
     }));
 
   return {

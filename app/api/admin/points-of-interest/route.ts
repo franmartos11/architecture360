@@ -34,6 +34,9 @@ export async function POST(request: Request) {
       image: body.image ?? null,
       latitude: body.latitude ?? null,
       longitude: body.longitude ?? null,
+      walk_minutes: body.walkMinutes != null ? Number(body.walkMinutes) : null,
+      drive_minutes: body.driveMinutes != null ? Number(body.driveMinutes) : null,
+      bike_minutes: body.bikeMinutes != null ? Number(body.bikeMinutes) : null,
       sort_order: body.sortOrder ?? 0,
     })
     .select()
