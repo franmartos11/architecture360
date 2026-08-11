@@ -19,6 +19,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.latitude !== undefined) updates.latitude = body.latitude;
   if (body.longitude !== undefined) updates.longitude = body.longitude;
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;
+  if (body.walkMinutes !== undefined) updates.walk_minutes = body.walkMinutes != null ? Number(body.walkMinutes) : null;
+  if (body.driveMinutes !== undefined) updates.drive_minutes = body.driveMinutes != null ? Number(body.driveMinutes) : null;
+  if (body.bikeMinutes !== undefined) updates.bike_minutes = body.bikeMinutes != null ? Number(body.bikeMinutes) : null;
 
   const { data, error } = await admin.from('points_of_interest').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

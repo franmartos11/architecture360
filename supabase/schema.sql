@@ -149,9 +149,17 @@ create table if not exists points_of_interest (
   image text,
   latitude numeric,
   longitude numeric,
+  walk_minutes  int,                -- tiempo caminando (calculado via Distance Matrix)
+  drive_minutes int,                -- tiempo en auto
+  bike_minutes  int,                -- tiempo en bicicleta
   sort_order int not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Para bases que ya tenían points_of_interest sin columnas de tiempo.
+alter table points_of_interest add column if not exists walk_minutes  int;
+alter table points_of_interest add column if not exists drive_minutes int;
+alter table points_of_interest add column if not exists bike_minutes  int;
 
 -- ─── Leads (antes vivía en data/db.json, migrado a Supabase) ─────────
 -- unit_id queda sin usar desde el sitio público: el Unit.id que

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
@@ -11,11 +11,11 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
 import RoomPlanViewer from './RoomPlanViewer';
+import { POI_CATEGORY_LABELS, PoiCategoryIcon } from '@/lib/poiCategories';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import AmenitiesModal from './AmenitiesModal';
-import LocationModal from './LocationModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface UnitViewerProps {
@@ -95,13 +95,28 @@ export default function UnitViewer({
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const thumbsRef = useRef<HTMLDivElement>(null);
-  
+  // Amenity detail state (inline tab)
+  const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
+  const [amenityImageIndex, setAmenityImageIndex] = useState(0);
+
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
-  const [isAmenitiesModalOpen, setIsAmenitiesModalOpen] = useState(false);
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  // Amenities relevant to this building
+  const relevantAmenities = useMemo(
+    () => amenities.filter(a => !a.buildingId || a.buildingId === buildingId),
+    [amenities, buildingId]
+  );
+
+  useEffect(() => {
+    if (activeTab === 'amenities' && !activeAmenity && relevantAmenities.length > 0) {
+      setActiveAmenity(relevantAmenities[0]);
+      setAmenityImageIndex(0);
+    }
+  }, [activeTab, activeAmenity, relevantAmenities]);
 
   // Keyboard navigation for gallery and lightbox
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeTab !== 'galeria') return;
@@ -284,12 +299,12 @@ export default function UnitViewer({
             {unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
           </motion.div>
 
-          {/* Amenities / Ubicación */}
+          {/* Accesos rápidos a tabs de Amenities / Ubicación */}
           {(amenities.length > 0 || pointsOfInterest.length > 0) && (
             <div className="grid grid-cols-2 gap-2 mt-5">
               {amenities.length > 0 && (
                 <button
-                  onClick={() => setIsAmenitiesModalOpen(true)}
+                  onClick={() => setActiveTab('amenities')}
                   className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -300,7 +315,7 @@ export default function UnitViewer({
               )}
               {pointsOfInterest.length > 0 && (
                 <button
-                  onClick={() => setIsLocationModalOpen(true)}
+                  onClick={() => setActiveTab('ubicacion')}
                   className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -663,6 +678,139 @@ export default function UnitViewer({
                 </div>
               </motion.div>
             )}
+            {/* ── Amenities tab ── */}
+            {activeTab === 'amenities' && (
+              <motion.div
+                key="amenities"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white"
+              >
+                {/* ── Left Sidebar: Amenities Grid ── */}
+                <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col order-2 lg:order-1 bg-white border-r border-gray-100 z-10 relative h-[50vh] lg:h-auto overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+                  <div className="p-6 border-b border-gray-100 bg-white shrink-0 relative z-20">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Amenities</h2>
+                    <p className="text-sm text-gray-500">Espacios del proyecto y de esta torre</p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+                    {relevantAmenities.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-8">Todavía no hay amenities cargadas.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4 pb-8">
+                        {relevantAmenities.map(a => {
+                          const isSelected = activeAmenity?.id === a.id;
+                          return (
+                            <button
+                              key={a.id}
+                              onClick={() => { setActiveAmenity(a); setAmenityImageIndex(0); }}
+                              className={`group text-left rounded-xl overflow-hidden border transition-all shadow-sm ${
+                                isSelected
+                                  ? 'border-brand-500 ring-1 ring-brand-500 scale-[1.02]'
+                                  : 'border-gray-200 hover:border-brand-300 hover:shadow-md'
+                              }`}
+                            >
+                              <div className="relative aspect-[4/3] bg-gray-100">
+                                {a.images[0] ? (
+                                  <Image src={a.images[0]} alt={a.name} fill sizes="320px" placeholder="blur" blurDataURL={shimmerDataUrl()} className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[11px]">Sin foto</div>
+                                )}
+                                {a.tourNodeId && <span className="absolute top-2 right-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm z-10">360°</span>}
+                              </div>
+                              <p className={`text-[13px] font-semibold px-3 py-2.5 truncate transition-colors ${
+                                isSelected ? 'text-brand-700 bg-brand-50' : 'text-gray-900 bg-white'
+                              }`}>
+                                {a.name}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Right Side: Detail ── */}
+                <div className="flex-1 relative order-1 lg:order-2 bg-white z-0 h-[50vh] lg:h-auto overflow-y-auto">
+                  {activeAmenity ? (
+                    <div className="min-h-full flex flex-col bg-white">
+                      <div className="relative w-full aspect-[4/3] sm:aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
+                        {activeAmenity.images.length > 0 ? (
+                          <>
+                            <Image
+                              src={activeAmenity.images[amenityImageIndex]}
+                              alt={`${activeAmenity.name} ${amenityImageIndex + 1}`}
+                              fill sizes="(max-width: 1024px) 100vw, 1200px"
+                              placeholder="blur" blurDataURL={shimmerDataUrl()}
+                              className="object-cover"
+                            />
+                            {activeAmenity.images.length > 1 && (
+                              <>
+                                <button onClick={() => setAmenityImageIndex(i => (i - 1 + activeAmenity.images.length) % activeAmenity.images.length)} aria-label="Anterior" className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
+                                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                                </button>
+                                <button onClick={() => setAmenityImageIndex(i => (i + 1) % activeAmenity.images.length)} aria-label="Siguiente" className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
+                                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                                </button>
+                                {/* Pagination dots */}
+                                <div className="absolute bottom-4 inset-x-0 flex justify-center gap-1.5 z-10">
+                                  {activeAmenity.images.map((_, i) => (
+                                    <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === amenityImageIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/50'}`} />
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Sin renders todavía</div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                      </div>
+                      
+                      <div className="p-6 lg:p-12 max-w-4xl w-full flex-1">
+                        <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 tracking-tight">{activeAmenity.name}</h2>
+                        {activeAmenity.description && <p className="text-base lg:text-lg text-gray-600 leading-relaxed mb-8">{activeAmenity.description}</p>}
+                        
+                        {activeAmenity.tourNodeId && (
+                          <Link
+                            href={activeAmenity.buildingId
+                              ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}`
+                              : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}`
+                            }
+                            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[15px] font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            Recorrer espacio en 360°
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
+                      <div className="text-center">
+                        <svg className="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                        <p className="text-sm font-medium">Seleccioná un amenity para ver los detalles</p>
+                      </div>
+                    </div>
+                  )}
+                  {/* Gradient shadow for depth */}
+                  <div className="absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-black/[0.03] to-transparent pointer-events-none hidden lg:block" />
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── Ubicación tab ── */}
+            {activeTab === 'ubicacion' && (
+              <UbicacionTabRenderer
+                projectLocation={projectLocation}
+                projectLatitude={projectLatitude}
+                projectLongitude={projectLongitude}
+                pointsOfInterest={pointsOfInterest}
+              />
+            )}
           </AnimatePresence>
         </div>
 
@@ -772,23 +920,185 @@ export default function UnitViewer({
         unitPrice={unit.price || 150000}
       />
 
-      <AmenitiesModal
-        isOpen={isAmenitiesModalOpen}
-        onClose={() => setIsAmenitiesModalOpen(false)}
-        amenities={amenities}
-        buildingId={buildingId}
-        projectSlug={projectSlug}
-      />
-
-      <LocationModal
-        isOpen={isLocationModalOpen}
-        onClose={() => setIsLocationModalOpen(false)}
-        location={projectLocation}
-        latitude={projectLatitude}
-        longitude={projectLongitude}
-        pointsOfInterest={pointsOfInterest}
-      />
     </div>
+  );
+}
+
+// ─── Transport mode toggle + POI list ─────────────────────────────────
+type TransportMode = 'drive' | 'walk' | 'bike';
+
+const TRANSPORT_MODES: { id: TransportMode; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'drive',
+    label: 'Auto',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+      </svg>
+    ),
+  },
+  {
+    id: 'walk',
+    label: 'Caminando',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 11-6 0 3 3 0 016 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'bike',
+    label: 'Bicicleta',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zM3.75 10.5a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zm16.5 0a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zM6.75 10.5l1.5-4.5h7.5l1.5 4.5" />
+      </svg>
+    ),
+  },
+];
+
+function getPoiMinutes(poi: PointOfInterest, mode: TransportMode): number | undefined {
+  if (mode === 'drive') return poi.driveMinutes;
+  if (mode === 'walk') return poi.walkMinutes;
+  return poi.bikeMinutes;
+}
+
+function UbicacionTabRenderer({
+  projectLocation,
+  projectLatitude,
+  projectLongitude,
+  pointsOfInterest,
+}: {
+  projectLocation: string;
+  projectLatitude?: number;
+  projectLongitude?: number;
+  pointsOfInterest: PointOfInterest[];
+}) {
+  const [mode, setMode] = useState<TransportMode>('drive');
+  const [selectedPoi, setSelectedPoi] = useState<PointOfInterest | null>(null);
+  
+  const hasCoords = projectLatitude != null && projectLongitude != null;
+  
+  let mapSrc = null;
+  if (hasCoords) {
+    if (selectedPoi && selectedPoi.latitude != null && selectedPoi.longitude != null) {
+      // Directions embed
+      const dirflg = mode === 'drive' ? 'd' : mode === 'walk' ? 'w' : 'b';
+      mapSrc = `https://maps.google.com/maps?saddr=${projectLatitude},${projectLongitude}&daddr=${selectedPoi.latitude},${selectedPoi.longitude}&dirflg=${dirflg}&output=embed`;
+    } else {
+      // Regular view embed
+      mapSrc = `https://maps.google.com/maps?q=${projectLatitude},${projectLongitude}&z=15&output=embed`;
+    }
+  }
+
+  return (
+    <motion.div
+      key="ubicacion"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white"
+    >
+      {/* ── Left Sidebar: POI List ── */}
+      <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col order-2 lg:order-1 bg-white border-r border-gray-100 z-10 relative h-[50vh] lg:h-auto overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <div className="p-6 border-b border-gray-100 bg-white shrink-0 relative z-20">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Ubicación</h2>
+          <p className="text-sm text-gray-500">{projectLocation || 'Puntos de interés cercanos'}</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+          {pointsOfInterest.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Todavía no hay puntos de interés cargados.</p>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center bg-gray-200/50 rounded-xl p-1 w-full shadow-inner">
+                {TRANSPORT_MODES.map((tm) => (
+                  <button
+                    key={tm.id}
+                    onClick={() => setMode(tm.id)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                      mode === tm.id
+                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5 scale-[1.02]'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                    }`}
+                  >
+                    {tm.icon}
+                    <span>{tm.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-2.5 pb-8">
+                {pointsOfInterest.map((poi) => {
+                  const minutes = getPoiMinutes(poi, mode);
+                  const isSelected = selectedPoi?.id === poi.id;
+                  
+                  return (
+                    <div
+                      key={poi.id}
+                      onClick={() => setSelectedPoi(isSelected ? null : poi)}
+                      className={`group flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'border-brand-500 bg-brand-50 shadow-md ring-1 ring-brand-500 scale-[1.01]' 
+                          : 'border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors shadow-sm ${
+                        isSelected ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-brand-100 group-hover:text-brand-600'
+                      }`}>
+                        <PoiCategoryIcon category={poi.category} className="w-5 h-5" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[15px] font-bold truncate transition-colors ${isSelected ? 'text-brand-900' : 'text-gray-900'}`}>{poi.name}</p>
+                        <p className={`text-[13px] font-medium transition-colors ${isSelected ? 'text-brand-600/80' : 'text-gray-400'}`}>
+                          {POI_CATEGORY_LABELS[poi.category]}
+                          {poi.distanceLabel ? ` · ${poi.distanceLabel}` : ''}
+                        </p>
+                      </div>
+
+                      {minutes != null ? (
+                        <span className={`shrink-0 flex items-center gap-1 text-[13px] font-bold rounded-xl px-3 py-1.5 min-w-[56px] justify-center transition-colors shadow-sm ${
+                          isSelected ? 'bg-brand-500 text-white' : 'text-gray-700 bg-gray-100 group-hover:bg-gray-200'
+                        }`}>
+                          {minutes} min
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-xs text-gray-300 min-w-[56px] text-center">—</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Right Side: Map ── */}
+      <div className="flex-1 relative order-1 lg:order-2 bg-gray-100 z-0 h-[50vh] lg:h-auto">
+        {mapSrc ? (
+          <iframe
+            key={mapSrc}
+            src={mapSrc}
+            title="Mapa de ubicación"
+            className="absolute inset-0 w-full h-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
+            <div className="text-center">
+              <svg className="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+              <p className="text-sm font-medium">Mapa no disponible</p>
+            </div>
+          </div>
+        )}
+        {/* Gradient shadow for depth */}
+        <div className="absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-black/[0.03] to-transparent pointer-events-none hidden lg:block" />
+      </div>
+    </motion.div>
   );
 }
 

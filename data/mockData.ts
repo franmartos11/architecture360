@@ -324,6 +324,9 @@ export const demoProject: Project = {
       image: '/aerial/view-1.png',
       latitude: -34.9469,
       longitude: -54.9511,
+      walkMinutes: 5,
+      driveMinutes: 2,
+      bikeMinutes: 3,
     },
     {
       id: 'poi-salud',
@@ -334,6 +337,9 @@ export const demoProject: Project = {
       image: '/aerial/view-2.png',
       latitude: -34.9605,
       longitude: -54.9331,
+      walkMinutes: 28,
+      driveMinutes: 8,
+      bikeMinutes: 14,
     },
     {
       id: 'poi-comercio',
@@ -344,6 +350,9 @@ export const demoProject: Project = {
       image: '/aerial/view-3.png',
       latitude: -34.9058,
       longitude: -54.9295,
+      walkMinutes: 45,
+      driveMinutes: 10,
+      bikeMinutes: 22,
     },
     {
       id: 'poi-club',
@@ -354,6 +363,9 @@ export const demoProject: Project = {
       image: '/aerial/view-4.png',
       latitude: -34.9276,
       longitude: -54.9425,
+      walkMinutes: 38,
+      driveMinutes: 12,
+      bikeMinutes: 18,
     },
     {
       id: 'poi-playa',
@@ -363,6 +375,9 @@ export const demoProject: Project = {
       distanceLabel: '3 min caminando',
       latitude: -34.9557,
       longitude: -54.9482,
+      walkMinutes: 3,
+      driveMinutes: 1,
+      bikeMinutes: 2,
     },
     {
       id: 'poi-transporte',
@@ -372,6 +387,9 @@ export const demoProject: Project = {
       distanceLabel: '15 min en auto',
       latitude: -34.9127,
       longitude: -54.9243,
+      walkMinutes: 55,
+      driveMinutes: 15,
+      bikeMinutes: 28,
     },
   ],
   commonAreasTour: {
