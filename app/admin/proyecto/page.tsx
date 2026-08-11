@@ -8,6 +8,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface ProjectRow {
   id: string;
@@ -47,8 +48,8 @@ export default function AdminProjectPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [newSlide, setNewSlide] = useState({ imageUrl: '', label: '' });
+  const toast = useToast();
   const [newHotspot, setNewHotspot] = useState<Record<string, { buildingId: string; x: string; y: string }>>({});
 
   const load = () => {
@@ -71,11 +72,6 @@ export default function AdminProjectPage() {
 
   useEffect(load, []);
 
-  const flash = (text: string) => {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
   const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
@@ -92,7 +88,7 @@ export default function AdminProjectPage() {
       }),
     });
     setSaving(false);
-    flash(res.ok ? 'Guardado.' : 'Error al guardar.');
+    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
   const addAmenity = () => {
@@ -117,7 +113,7 @@ export default function AdminProjectPage() {
       setNewSlide({ imageUrl: '', label: '' });
       load();
     } else {
-      flash('Error al crear la vista aérea.');
+      toast('Error al crear la vista aérea.', 'error');
     }
   };
 
@@ -139,7 +135,7 @@ export default function AdminProjectPage() {
       setNewHotspot({ ...newHotspot, [slideId]: { buildingId: '', x: '', y: '' } });
       load();
     } else {
-      flash('Error al crear el hotspot.');
+      toast('Error al crear el hotspot.', 'error');
     }
   };
 
@@ -229,8 +225,7 @@ export default function AdminProjectPage() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-medium text-green-600">{message}</span>
+          <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
             <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </Button>

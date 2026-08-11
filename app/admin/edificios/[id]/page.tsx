@@ -8,6 +8,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface BuildingRow {
   id: string;
@@ -30,8 +31,8 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [newFloor, setNewFloor] = useState({ number: '', label: '', planImage: '' });
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -51,11 +52,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
 
   useEffect(load, [id]);
 
-  const flash = (text: string) => {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
   const handleSaveBuilding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!building) return;
@@ -66,7 +62,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       body: JSON.stringify({ name: building.name, totalFloors: building.total_floors }),
     });
     setSaving(false);
-    flash(res.ok ? 'Guardado.' : 'Error al guardar.');
+    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
   const handleAddFloor = async (e: React.FormEvent) => {
@@ -87,7 +83,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       load();
     } else {
       const data = await res.json().catch(() => ({}));
-      flash(data.error ?? 'Error al crear el piso.');
+      toast(data.error ?? 'Error al crear el piso.', 'error');
     }
   };
 
@@ -103,7 +99,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     if (res.ok) {
       setFloors(prev => prev.map(f => (f.id === floorId ? { ...f, ...updates } : f)));
     } else {
-      flash('Error al actualizar el piso.');
+      toast('Error al actualizar el piso.', 'error');
     }
   };
 
@@ -147,7 +143,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           <Button type="submit" disabled={saving} className="w-full sm:w-auto">
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
-          {message && <span className="text-sm font-medium text-green-600">{message}</span>}
         </form>
         <p className="px-6 pb-4 text-xs text-gray-500">
           "Pisos declarados" es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo.

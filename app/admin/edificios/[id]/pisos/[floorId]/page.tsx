@@ -11,6 +11,7 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface UnitRow {
   id: string;
@@ -57,6 +58,7 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -153,6 +155,7 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
 
     setSaving(false);
     if (res.ok) {
+      toast(editingId ? 'Cambios guardados.' : 'Unidad creada.');
       cancelEdit();
       load();
     } else {
@@ -165,8 +168,11 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
     if (!confirm('¿Borrar esta unidad?')) return;
     const res = await fetch(`/api/admin/units/${id}`, { method: 'DELETE' });
     if (res.ok) {
+      toast('Unidad borrada.');
       if (editingId === id) cancelEdit();
       load();
+    } else {
+      toast('Error al borrar la unidad.', 'error');
     }
   };
 

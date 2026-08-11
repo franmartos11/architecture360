@@ -3,6 +3,7 @@
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay } from 'swiper/modules';
 import Image from 'next/image';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -40,10 +41,13 @@ export function AmenitiesCarousel() {
       >
         {amenities.map((item) => (
           <SwiperSlide key={item.id} className="group relative rounded-xl overflow-hidden h-[400px]">
-            <Image 
-              src={item.image} 
-              alt={item.name} 
-              fill 
+            <Image
+              src={item.image}
+              alt={item.name}
+              fill
+              sizes="(min-width: 1024px) 576px, (min-width: 640px) 66vw, 100vw"
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl()}
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end p-8">
@@ -91,10 +95,13 @@ export function ZonesCarousel() {
       >
         {zones.map((item) => (
           <SwiperSlide key={item.id} className="group relative rounded-xl overflow-hidden h-[500px]">
-            <Image 
-              src={item.image} 
-              alt={item.name} 
-              fill 
+            <Image
+              src={item.image}
+              alt={item.name}
+              fill
+              sizes="(min-width: 1152px) 1152px, 100vw"
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl()}
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-10">

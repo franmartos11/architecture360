@@ -5,6 +5,7 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { Project, AerialSlide, AerialHotspot } from '@/types';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface AerialViewProps {
   project: Project;
@@ -149,6 +150,8 @@ export default function AerialView({ project }: AerialViewProps) {
             fill
             sizes="100vw"
             priority
+            placeholder="blur"
+            blurDataURL={shimmerDataUrl(1920, 1080)}
             className="object-cover"
             draggable={false}
             onLoad={handleImageLoad}
@@ -359,7 +362,6 @@ export default function AerialView({ project }: AerialViewProps) {
           ))}
         </div>
       </div>
-
 
     </div>
   );

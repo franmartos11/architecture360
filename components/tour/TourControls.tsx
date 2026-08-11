@@ -5,8 +5,6 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 interface TourControlsProps {
   unitName: string;
   projectSlug: string;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
 }
 
 export default function TourControls({

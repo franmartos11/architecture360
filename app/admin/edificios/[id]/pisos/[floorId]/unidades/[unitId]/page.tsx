@@ -6,6 +6,7 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import ImageUploader from '@/components/admin/ImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface Room {
   id: string;
@@ -37,8 +38,8 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   const [loadError, setLoadError] = useState(false);
   const [savingShape, setSavingShape] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
-  const [message, setMessage] = useState('');
   const [newRoomName, setNewRoomName] = useState('');
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -62,11 +63,6 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
 
   useEffect(load, [unitId]);
 
-  const flash = (text: string) => {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
   const persistRooms = async (nextRooms: Room[]) => {
     const res = await fetch(`/api/admin/units/${unitId}`, {
       method: 'PATCH',
@@ -77,7 +73,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
       setRooms(nextRooms);
       return true;
     }
-    flash('Error al guardar.');
+    toast('Error al guardar.', 'error');
     return false;
   };
 
@@ -90,14 +86,14 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
       body: JSON.stringify({ roomPlanImage: url || null }),
     });
     setSavingImage(false);
-    flash(res.ok ? 'Guardado.' : 'Error al guardar.');
+    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
   const handleAddRoom = async () => {
     if (!newRoomName.trim()) return;
     const id = slugify(newRoomName);
     if (rooms.some(r => r.id === id)) {
-      flash('Ya existe un ambiente con ese nombre.');
+      toast('Ya existe un ambiente con ese nombre.', 'error');
       return;
     }
     const newRoom: Room = { id, name: newRoomName.trim(), polygon: [] };
@@ -136,7 +132,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
     const next = rooms.map(r => (r.id === id ? { ...r, polygon: points[id] ?? [] } : r));
     const ok = await persistRooms(next);
     setSavingShape(false);
-    flash(ok ? 'Guardado.' : 'Error al guardar.');
+    if (ok) toast('Guardado.');
   };
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
@@ -209,7 +205,6 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 text-sm">Ambientes</h3>
-              {message && <span className="text-xs font-medium text-green-600">{message}</span>}
             </div>
 
             <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
