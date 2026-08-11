@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
+import VideoUploader from '@/components/admin/VideoUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
@@ -17,7 +18,6 @@ interface ProjectRow {
   description: string | null;
   location: string | null;
   masterplan_image: string | null;
-  amenities: string[] | null;
 }
 interface BuildingRow {
   id: string;
@@ -28,6 +28,7 @@ interface BuildingRow {
 interface SlideRow {
   id: string;
   image_url: string;
+  video_url: string | null;
   label: string;
   sort_order: number;
 }
@@ -44,11 +45,10 @@ export default function AdminProjectPage() {
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [hotspots, setHotspots] = useState<HotspotRow[]>([]);
-  const [amenityDraft, setAmenityDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [newSlide, setNewSlide] = useState({ imageUrl: '', label: '' });
+  const [newSlide, setNewSlide] = useState({ imageUrl: '', videoUrl: '', label: '' });
   const toast = useToast();
   const [newHotspot, setNewHotspot] = useState<Record<string, { buildingId: string; x: string; y: string }>>({});
 
@@ -84,21 +84,10 @@ export default function AdminProjectPage() {
         description: project.description,
         location: project.location,
         masterplanImage: project.masterplan_image,
-        amenities: project.amenities ?? [],
       }),
     });
     setSaving(false);
     if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
-  };
-
-  const addAmenity = () => {
-    if (!project || !amenityDraft.trim()) return;
-    setProject({ ...project, amenities: [...(project.amenities ?? []), amenityDraft.trim()] });
-    setAmenityDraft('');
-  };
-  const removeAmenity = (i: number) => {
-    if (!project) return;
-    setProject({ ...project, amenities: (project.amenities ?? []).filter((_, idx) => idx !== i) });
   };
 
   const handleAddSlide = async (e: React.FormEvent) => {
@@ -110,11 +99,25 @@ export default function AdminProjectPage() {
       body: JSON.stringify({ ...newSlide, sortOrder: slides.length }),
     });
     if (res.ok) {
-      setNewSlide({ imageUrl: '', label: '' });
+      setNewSlide({ imageUrl: '', videoUrl: '', label: '' });
       load();
     } else {
       toast('Error al crear la vista aérea.', 'error');
     }
+  };
+
+  const handleUpdateSlide = async (id: string, updates: { imageUrl?: string; videoUrl?: string }) => {
+    setSlides(prev => prev.map(s => (
+      s.id === id
+        ? { ...s, ...(updates.imageUrl !== undefined ? { image_url: updates.imageUrl } : {}), ...(updates.videoUrl !== undefined ? { video_url: updates.videoUrl || null } : {}) }
+        : s
+    )));
+    const res = await fetch(`/api/admin/aerial-slides/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
   const handleDeleteSlide = async (id: string) => {
@@ -154,12 +157,20 @@ export default function AdminProjectPage() {
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Proyecto</h2>
           <p className="text-sm text-gray-500 mt-1">Datos generales y vistas aéreas del sitio público.</p>
         </div>
-        <Link
-          href="/admin/proyecto/recorrido"
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
-        >
-          Recorrido de áreas comunes →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/proyecto/amenities"
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+          >
+            Amenities →
+          </Link>
+          <Link
+            href="/admin/proyecto/recorrido"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+          >
+            Recorrido de áreas comunes →
+          </Link>
+        </div>
       </div>
 
       {/* Datos generales */}
@@ -199,32 +210,6 @@ export default function AdminProjectPage() {
             folder="masterplan"
           />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Amenities</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {(project.amenities ?? []).map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full">
-                  {a}
-                  <button type="button" onClick={() => removeAmenity(i)} className="text-gray-400 hover:text-red-500">×</button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  value={amenityDraft}
-                  onChange={e => setAmenityDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }}
-                  placeholder="Ej: Piscina infinita"
-                  aria-label="Nuevo amenity"
-                />
-              </div>
-              <Button type="button" variant="ghost" onClick={addAmenity}>
-                Agregar
-              </Button>
-            </div>
-          </div>
-
           <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
             <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar Cambios'}
@@ -244,10 +229,7 @@ export default function AdminProjectPage() {
           {slides.map(slide => (
             <div key={slide.id} className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium text-gray-900">{slide.label}</p>
-                  <p className="text-xs text-gray-500 break-all">{slide.image_url}</p>
-                </div>
+                <p className="font-medium text-gray-900">{slide.label}</p>
                 <div className="flex items-center gap-3 shrink-0">
                   <Link
                     href={`/admin/proyecto/aereas/${slide.id}`}
@@ -262,6 +244,21 @@ export default function AdminProjectPage() {
                     Borrar vista
                   </button>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ImageUploader
+                  label="Foto (poster / respaldo)"
+                  value={slide.image_url}
+                  onChange={url => handleUpdateSlide(slide.id, { imageUrl: url })}
+                  folder="aerial"
+                />
+                <VideoUploader
+                  label="Video (opcional — reemplaza la foto si está)"
+                  value={slide.video_url ?? ''}
+                  onChange={url => handleUpdateSlide(slide.id, { videoUrl: url })}
+                  folder="aerial"
+                />
               </div>
 
               {/* Hotspots de este slide */}
@@ -324,11 +321,20 @@ export default function AdminProjectPage() {
               + Agregar vista
             </Button>
           </div>
-          <ImageUploader
-            value={newSlide.imageUrl}
-            onChange={url => setNewSlide({ ...newSlide, imageUrl: url })}
-            folder="aerial"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ImageUploader
+              label="Foto (poster / respaldo)"
+              value={newSlide.imageUrl}
+              onChange={url => setNewSlide({ ...newSlide, imageUrl: url })}
+              folder="aerial"
+            />
+            <VideoUploader
+              label="Video (opcional)"
+              value={newSlide.videoUrl}
+              onChange={url => setNewSlide({ ...newSlide, videoUrl: url })}
+              folder="aerial"
+            />
+          </div>
         </form>
       </Card>
     </div>

@@ -11,12 +11,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const admin = createAdminClient();
 
   const updates: Record<string, unknown> = {};
-  if (body.imageUrl !== undefined) updates.image_url = body.imageUrl;
-  if (body.videoUrl !== undefined) updates.video_url = body.videoUrl || null;
-  if (body.label !== undefined) updates.label = body.label;
+  if (body.buildingId !== undefined) updates.building_id = body.buildingId;
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.description !== undefined) updates.description = body.description;
+  if (body.images !== undefined) updates.images = body.images;
+  if (body.tourNodeId !== undefined) updates.tour_node_id = body.tourNodeId;
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;
 
-  const { data, error } = await admin.from('aerial_slides').update(updates).eq('id', id).select().single();
+  const { data, error } = await admin.from('amenities').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
@@ -28,8 +30,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id } = await params;
   const admin = createAdminClient();
 
-  // Cascade se lleva los hotspots de este slide.
-  const { error } = await admin.from('aerial_slides').delete().eq('id', id);
+  const { error } = await admin.from('amenities').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

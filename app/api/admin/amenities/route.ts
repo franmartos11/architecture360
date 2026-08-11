@@ -9,8 +9,8 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body = await request.json();
-  if (!body.imageUrl || !body.label) {
-    return NextResponse.json({ error: 'Faltan imageUrl y/o label' }, { status: 400 });
+  if (!body.name) {
+    return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -24,12 +24,14 @@ export async function POST(request: Request) {
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
   const { data, error } = await admin
-    .from('aerial_slides')
+    .from('amenities')
     .insert({
       project_id: project.id,
-      image_url: body.imageUrl,
-      video_url: body.videoUrl || null,
-      label: body.label,
+      building_id: body.buildingId ?? null,
+      name: body.name,
+      description: body.description ?? null,
+      images: body.images ?? [],
+      tour_node_id: body.tourNodeId ?? null,
       sort_order: body.sortOrder ?? 0,
     })
     .select()

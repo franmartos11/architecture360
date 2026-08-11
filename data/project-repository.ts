@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import type { AerialHotspot, AerialSlide, Building, Floor, Project, Unit } from '@/types';
+import type { AerialHotspot, AerialSlide, Amenity, Building, Floor, Project, Unit } from '@/types';
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -13,7 +13,6 @@ interface ProjectRow {
   description: string | null;
   location: string | null;
   masterplan_image: string | null;
-  amenities: string[] | null;
   common_areas_tour: Project['commonAreasTour'] | null;
 }
 interface BuildingRow {
@@ -22,6 +21,17 @@ interface BuildingRow {
   slug: string;
   name: string;
   total_floors: number;
+  amenities_tour: Building['amenitiesTour'] | null;
+}
+interface AmenityRow {
+  id: string;
+  project_id: string;
+  building_id: string | null;
+  name: string;
+  description: string | null;
+  images: string[] | null;
+  tour_node_id: string | null;
+  sort_order: number;
 }
 interface FloorRow {
   id: string;
@@ -62,6 +72,7 @@ interface AerialSlideRow {
   id: string;
   project_id: string;
   image_url: string;
+  video_url: string | null;
   label: string;
   sort_order: number;
 }
@@ -81,7 +92,8 @@ function mapProject(
   floorRows: FloorRow[],
   unitRows: UnitRow[],
   slideRows: AerialSlideRow[],
-  hotspotRows: AerialHotspotRow[]
+  hotspotRows: AerialHotspotRow[],
+  amenityRows: AmenityRow[]
 ): Project {
   const buildingSlugById = new Map(buildingRows.map(b => [b.id, b.slug]));
 
@@ -122,6 +134,7 @@ function mapProject(
     id: b.slug,
     name: b.name,
     totalFloors: b.total_floors,
+    amenitiesTour: b.amenities_tour ?? undefined,
     floors: floorRows
       .filter(f => f.building_id === b.id)
       .sort((a, c) => a.number - c.number)
@@ -133,11 +146,23 @@ function mapProject(
       })),
   }));
 
+  const amenities: Amenity[] = amenityRows
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(a => ({
+      id: a.id,
+      name: a.name,
+      description: a.description ?? undefined,
+      images: a.images ?? [],
+      buildingId: a.building_id ? buildingSlugById.get(a.building_id) : undefined,
+      tourNodeId: a.tour_node_id ?? undefined,
+    }));
+
   const aerialSlides: AerialSlide[] = slideRows
     .sort((a, b) => a.sort_order - b.sort_order)
     .map(s => ({
       id: s.id,
       imageUrl: s.image_url,
+      videoUrl: s.video_url ?? undefined,
       label: s.label,
       hotspots: hotspotRows
         .filter(h => h.slide_id === s.id)
@@ -159,7 +184,7 @@ function mapProject(
     aerialSlides,
     buildings,
     units,
-    amenities: project.amenities ?? [],
+    amenities,
     commonAreasTour: project.common_areas_tour ?? undefined,
   };
 }
@@ -199,7 +224,14 @@ export async function getProjectBySlug(slug: string): Promise<Project | undefine
     : { data: [] };
   const hotspots = (hotspotRows ?? []) as AerialHotspotRow[];
 
-  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots);
+  const { data: amenityRows } = await supabase
+    .from('amenities')
+    .select('*')
+    .eq('project_id', project.id)
+    .order('sort_order');
+  const amenities = (amenityRows ?? []) as AmenityRow[];
+
+  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities);
 }
 
 export async function getBuildingById(slug: string, buildingId: string): Promise<Building | undefined> {

@@ -140,6 +140,16 @@ const buildings: Building[] = [
     id: 'torre-a',
     name: 'Torre A',
     totalFloors: 15,
+    amenitiesTour: {
+      initialNodeId: 'cancha-tenis',
+      nodes: [
+        {
+          id: 'cancha-tenis', name: 'Cancha de Tenis', imageUrl: '/tours/demo/jardines.svg',
+          initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 },
+          infoHotspots: [{ yaw: 0, pitch: -0.15, title: 'Cancha de tenis', description: 'Exclusiva de Torre A, superficie sintética' }],
+        },
+      ],
+    },
     floors: [
       { number: 0, label: 'L', planImage: '/floorplans/floor-1-render.png', unitDots: [] },
       { number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1-render.png', unitDots: floorADots },
@@ -247,7 +257,61 @@ export const demoProject: Project = {
   ],
   buildings,
   units,
-  amenities: ['Piscina infinita', 'Gimnasio equipado', 'Cancha de tenis', 'SUM', 'Seguridad 24hs', 'Cocheras cubiertas', 'Jardines', 'Área de parrillas'],
+  amenities: [
+    {
+      id: 'amenity-pileta',
+      name: 'Piscina infinita',
+      description: 'Deck con reposeras y solárium, vista panorámica.',
+      images: ['/aerial/view-1.png', '/aerial/view-2.png'],
+      tourNodeId: 'pileta',
+    },
+    {
+      id: 'amenity-gimnasio',
+      name: 'Gimnasio equipado',
+      description: 'Equipamiento cardio y de musculación.',
+      images: ['/aerial/view-3.png'],
+      tourNodeId: 'gimnasio',
+    },
+    {
+      id: 'amenity-parrilla',
+      name: 'Área de parrillas',
+      description: 'Quincho techado con mesa para 8 personas.',
+      images: ['/aerial/view-4.png'],
+      tourNodeId: 'parrilla',
+    },
+    {
+      id: 'amenity-jardines',
+      name: 'Jardines',
+      description: 'Espacios verdes de uso común entre las tres torres.',
+      images: ['/aerial/view-1.png'],
+      tourNodeId: 'jardines',
+    },
+    {
+      id: 'amenity-sum',
+      name: 'SUM',
+      description: 'Salón de usos múltiples para eventos.',
+      images: [],
+    },
+    {
+      id: 'amenity-seguridad',
+      name: 'Seguridad 24hs',
+      description: 'Vigilancia y control de acceso permanente.',
+      images: [],
+    },
+    {
+      id: 'amenity-cocheras',
+      name: 'Cocheras cubiertas',
+      images: [],
+    },
+    {
+      id: 'amenity-tenis',
+      name: 'Cancha de tenis',
+      description: 'Exclusiva de Torre A, superficie sintética.',
+      images: ['/aerial/view-2.png'],
+      buildingId: 'torre-a',
+      tourNodeId: 'cancha-tenis',
+    },
+  ],
   commonAreasTour: {
     initialNodeId: 'hall-ingreso',
     nodes: [

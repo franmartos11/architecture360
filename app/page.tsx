@@ -4,6 +4,8 @@ import Calculator from '@/components/Calculator';
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
+import { getProjectBySlug } from '@/data/project-repository';
 import dynamic from 'next/dynamic';
 
 // Swiper (carrusel + CSS + módulos) pesa bastante y estas secciones están
@@ -17,7 +19,9 @@ const ZonesCarousel = dynamic(() => import('@/components/SwiperCarousels').then(
   loading: () => CAROUSEL_LOADING,
 });
 
-export default function HomePage() {
+export default async function HomePage() {
+  const project = await getProjectBySlug(DEFAULT_PROJECT_SLUG);
+
   return (
     <div className="bg-trevo-light min-h-screen">
       <Navbar />
@@ -103,7 +107,7 @@ export default function HomePage() {
           </div>
         </Reveal>
 
-        <AmenitiesCarousel />
+        {project && <AmenitiesCarousel amenities={project.amenities} projectSlug={project.slug} />}
       </section>
 
       {/* 360 Tour Section */}
@@ -126,7 +130,7 @@ export default function HomePage() {
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
               <h3 className="text-white text-3xl font-light tracking-widest mb-6">RESIDENCIAS NATURA</h3>
-              <a href="/proyecto/demo" className="btn-outline-white bg-white/10 backdrop-blur-md hover:bg-white text-white hover:text-trevo-dark">
+              <a href={`/proyecto/${project?.slug ?? DEFAULT_PROJECT_SLUG}`} className="btn-outline-white bg-white/10 backdrop-blur-md hover:bg-white text-white hover:text-trevo-dark">
                 ENTRAR AL MASTERPLAN
               </a>
             </div>

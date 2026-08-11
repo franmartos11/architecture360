@@ -114,10 +114,18 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← Edificios</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{building.name}</h2>
-        <p className="text-sm text-gray-500 mt-1 font-mono">{building.slug}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← Edificios</Link>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{building.name}</h2>
+          <p className="text-sm text-gray-500 mt-1 font-mono">{building.slug}</p>
+        </div>
+        <Link
+          href={`/admin/edificios/${id}/recorrido`}
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+        >
+          Recorrido 360° de la torre →
+        </Link>
       </div>
 
       <Card>

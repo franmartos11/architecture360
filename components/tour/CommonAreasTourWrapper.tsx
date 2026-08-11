@@ -9,6 +9,10 @@ interface CommonAreasTourWrapperProps {
   projectName: string;
   projectSlug: string;
   tourData: TourData;
+  focusNodeId?: string;
+  label?: string;
+  backHref?: string;
+  backLabel?: string;
 }
 
 export default function CommonAreasTourWrapper(props: CommonAreasTourWrapperProps) {

@@ -34,6 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.name !== undefined) updates.name = body.name;
   if (body.slug !== undefined) updates.slug = body.slug;
   if (body.totalFloors !== undefined) updates.total_floors = body.totalFloors;
+  if (body.amenitiesTour !== undefined) updates.amenities_tour = body.amenitiesTour;
 
   const { data, error } = await admin.from('buildings').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

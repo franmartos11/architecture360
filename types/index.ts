@@ -51,7 +51,8 @@ export interface AerialHotspot {
 // ─── Aerial view slide ─────────────────────────────────────────────
 export interface AerialSlide {
   id: string;
-  imageUrl: string;
+  imageUrl: string; // poster/fallback — siempre presente
+  videoUrl?: string; // opcional — si está, se reproduce en loop en vez de la foto fija
   label: string; // e.g. "Vista Norte"
   hotspots: AerialHotspot[];
 }
@@ -118,6 +119,25 @@ export interface Building {
   name: string;         // e.g. "Torre A", "TREVO"
   floors: Floor[];
   totalFloors: number;
+  /** Recorrido 360° exclusivo de esta torre (además del commonAreasTour general) */
+  amenitiesTour?: TourData;
+}
+
+// ─── Amenity (pileta, gym, SUM, etc.) ───────────────────────────────
+export interface Amenity {
+  id: string;
+  name: string;
+  description?: string;
+  /** Galería de renders — se muestra como carrusel */
+  images: string[];
+  /** undefined = amenity de todo el complejo; con valor, exclusiva de esa torre (Building.id) */
+  buildingId?: string;
+  /**
+   * Nodo dentro del tour correspondiente para el botón "Recorrer en 360°":
+   * si buildingId está definido, es un nodo de Building.amenitiesTour;
+   * si no, es un nodo de Project.commonAreasTour.
+   */
+  tourNodeId?: string;
 }
 
 // ─── Project ───────────────────────────────────────────────────────
@@ -131,7 +151,7 @@ export interface Project {
   aerialSlides: AerialSlide[];
   buildings: Building[];
   units: Unit[];
-  amenities: string[];
+  amenities: Amenity[];
   /** Recorrido 360° de espacios comunes: pasillos, pileta, parrilla, etc. */
   commonAreasTour?: TourData;
 }
