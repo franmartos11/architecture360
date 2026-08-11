@@ -11,6 +11,7 @@ export default function Navbar() {
   const projectHref = `/proyecto/${DEFAULT_PROJECT_SLUG}`;
   const tourHref = `${projectHref}/recorrido`;
   const amenitiesHref = `${projectHref}/amenities`;
+  const locationHref = `${projectHref}/ubicacion`;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -39,6 +40,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink href={amenitiesHref} active={pathname === amenitiesHref}>
               Amenities
+            </NavLink>
+            <NavLink href={locationHref} active={pathname === locationHref}>
+              Ubicación
             </NavLink>
           </div>
 
@@ -88,6 +92,9 @@ export default function Navbar() {
           </MobileNavLink>
           <MobileNavLink href={amenitiesHref} active={pathname === amenitiesHref} onClick={() => setIsMobileMenuOpen(false)}>
             Amenities
+          </MobileNavLink>
+          <MobileNavLink href={locationHref} active={pathname === locationHref} onClick={() => setIsMobileMenuOpen(false)}>
+            Ubicación
           </MobileNavLink>
           <Link
             href={projectHref}

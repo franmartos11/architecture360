@@ -6,29 +6,50 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import type { Building, Unit, Floor } from '@/types';
+import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
 import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/data/mockData';
 import { useFloorFilters } from '@/hooks/useFloorFilters';
 import FloorFilters from './FloorFilters';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import AmenitiesModal from '@/components/unit/AmenitiesModal';
+import LocationModal from '@/components/unit/LocationModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface FloorPlanViewerProps {
   building: Building;
   units: Unit[];
   projectSlug: string;
+  projectName: string;
+  amenities?: Amenity[];
+  pointsOfInterest?: PointOfInterest[];
+  projectLocation?: string;
+  projectLatitude?: number;
+  projectLongitude?: number;
   initialFloor?: number;
 }
 
-export default function FloorPlanViewer({ building, units: allUnits, projectSlug, initialFloor = 1 }: FloorPlanViewerProps) {
+export default function FloorPlanViewer({
+  building,
+  units: allUnits,
+  projectSlug,
+  projectName,
+  amenities = [],
+  pointsOfInterest = [],
+  projectLocation = '',
+  projectLatitude,
+  projectLongitude,
+  initialFloor = 1,
+}: FloorPlanViewerProps) {
   const router = useTransitionRouter();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
-  
+
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
+  const [isAmenitiesModalOpen, setIsAmenitiesModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   const openContact = (method: 'email' | 'whatsapp' | 'phone' = 'email') => {
     setContactMethod(method);
@@ -212,6 +233,35 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
                 )}
               </motion.div>
 
+              {/* Amenities / Ubicación */}
+              {(amenities.length > 0 || pointsOfInterest.length > 0) && (
+                <div className="grid grid-cols-2 gap-2 mt-5">
+                  {amenities.length > 0 && (
+                    <button
+                      onClick={() => setIsAmenitiesModalOpen(true)}
+                      className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5" />
+                      </svg>
+                      Amenities
+                    </button>
+                  )}
+                  {pointsOfInterest.length > 0 && (
+                    <button
+                      onClick={() => setIsLocationModalOpen(true)}
+                      className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                      </svg>
+                      Ubicación
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Contact */}
               <div className="mt-auto pt-4 border-t border-gray-100">
                 <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
@@ -316,7 +366,7 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
         {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-5 pointer-events-none">
           <div className="flex items-center gap-2 pointer-events-auto">
-            <Breadcrumbs />
+            <Breadcrumbs projectName={projectName} />
           </div>
 
 
@@ -360,9 +410,18 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
                         className="unit-hover-zone pointer-events-auto"
                         onMouseEnter={() => setHoveredUnit(unit.id)}
                         onMouseLeave={() => setHoveredUnit(null)}
+                        onFocus={() => setHoveredUnit(unit.id)}
+                        onBlur={() => setHoveredUnit(null)}
                         onClick={() => handleSelectUnit(unit)}
                         role="button"
+                        tabIndex={0}
                         aria-label={`Seleccionar ${unit.name}`}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSelectUnit(unit);
+                          }
+                        }}
                       />
                     ))}
                   </svg>
@@ -476,6 +535,23 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
         onClose={() => setIsContactModalOpen(false)}
         unit={selectedUnit}
         defaultMethod={contactMethod}
+      />
+
+      <AmenitiesModal
+        isOpen={isAmenitiesModalOpen}
+        onClose={() => setIsAmenitiesModalOpen(false)}
+        amenities={amenities}
+        buildingId={building.id}
+        projectSlug={projectSlug}
+      />
+
+      <LocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        location={projectLocation}
+        latitude={projectLatitude}
+        longitude={projectLongitude}
+        pointsOfInterest={pointsOfInterest}
       />
     </div>
   );

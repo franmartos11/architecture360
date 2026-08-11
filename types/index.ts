@@ -140,6 +140,20 @@ export interface Amenity {
   tourNodeId?: string;
 }
 
+// ─── Point of interest (colegio, salud, comercio, etc.) ─────────────
+export type PoiCategory = 'colegio' | 'salud' | 'comercio' | 'transporte' | 'entretenimiento' | 'otro';
+
+export interface PointOfInterest {
+  id: string;
+  name: string;
+  category: PoiCategory;
+  description?: string;
+  distanceLabel?: string; // ej. "5 min caminando"
+  image?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 // ─── Project ───────────────────────────────────────────────────────
 export interface Project {
   id: string;
@@ -147,11 +161,15 @@ export interface Project {
   name: string;
   description: string;
   location: string;
+  /** Coordenadas para centrar el mapa de la sección Ubicación */
+  latitude?: number;
+  longitude?: number;
   masterplanImage: string;
   aerialSlides: AerialSlide[];
   buildings: Building[];
   units: Unit[];
   amenities: Amenity[];
+  pointsOfInterest: PointOfInterest[];
   /** Recorrido 360° de espacios comunes: pasillos, pileta, parrilla, etc. */
   commonAreasTour?: TourData;
 }

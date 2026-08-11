@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import type { AerialHotspot, AerialSlide, Amenity, Building, Floor, Project, Unit } from '@/types';
+import type { AerialHotspot, AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, Unit } from '@/types';
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -12,6 +12,8 @@ interface ProjectRow {
   name: string;
   description: string | null;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
   masterplan_image: string | null;
   common_areas_tour: Project['commonAreasTour'] | null;
 }
@@ -31,6 +33,18 @@ interface AmenityRow {
   description: string | null;
   images: string[] | null;
   tour_node_id: string | null;
+  sort_order: number;
+}
+interface PointOfInterestRow {
+  id: string;
+  project_id: string;
+  name: string;
+  category: PointOfInterest['category'];
+  description: string | null;
+  distance_label: string | null;
+  image: string | null;
+  latitude: number | null;
+  longitude: number | null;
   sort_order: number;
 }
 interface FloorRow {
@@ -93,7 +107,8 @@ function mapProject(
   unitRows: UnitRow[],
   slideRows: AerialSlideRow[],
   hotspotRows: AerialHotspotRow[],
-  amenityRows: AmenityRow[]
+  amenityRows: AmenityRow[],
+  poiRows: PointOfInterestRow[]
 ): Project {
   const buildingSlugById = new Map(buildingRows.map(b => [b.id, b.slug]));
 
@@ -174,17 +189,33 @@ function mapProject(
         })),
     }));
 
+  const pointsOfInterest: PointOfInterest[] = poiRows
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      description: p.description ?? undefined,
+      distanceLabel: p.distance_label ?? undefined,
+      image: p.image ?? undefined,
+      latitude: p.latitude != null ? Number(p.latitude) : undefined,
+      longitude: p.longitude != null ? Number(p.longitude) : undefined,
+    }));
+
   return {
     id: project.id,
     slug: project.slug,
     name: project.name,
     description: project.description ?? '',
     location: project.location ?? '',
+    latitude: project.latitude != null ? Number(project.latitude) : undefined,
+    longitude: project.longitude != null ? Number(project.longitude) : undefined,
     masterplanImage: project.masterplan_image ?? '',
     aerialSlides,
     buildings,
     units,
     amenities,
+    pointsOfInterest,
     commonAreasTour: project.common_areas_tour ?? undefined,
   };
 }
@@ -231,7 +262,14 @@ export async function getProjectBySlug(slug: string): Promise<Project | undefine
     .order('sort_order');
   const amenities = (amenityRows ?? []) as AmenityRow[];
 
-  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities);
+  const { data: poiRows } = await supabase
+    .from('points_of_interest')
+    .select('*')
+    .eq('project_id', project.id)
+    .order('sort_order');
+  const pointsOfInterest = (poiRows ?? []) as PointOfInterestRow[];
+
+  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest);
 }
 
 export async function getBuildingById(slug: string, buildingId: string): Promise<Building | undefined> {

@@ -10,8 +10,17 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { unitId } = await params;
   const unit = await getUnitById(unitId);
+  if (!unit) return { title: 'Unidad no encontrada' };
+
+  const title = `Unidad ${unit.name} | Interior`;
+  const description = `${unit.modelName || unit.type} · ${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`;
+  const image = unit.interiorImageUrl || unit.galleryImages?.[0] || undefined;
+
   return {
-    title: unit ? `Unidad ${unit.name} | Interior` : 'Unidad no encontrada',
+    title,
+    description,
+    openGraph: { title, description, images: image ? [image] : undefined },
+    twitter: { card: 'summary_large_image', title, description, images: image ? [image] : undefined },
   };
 }
 
@@ -28,8 +37,14 @@ export default async function UnitPage({ params }: PageProps) {
     <UnitViewerWrapper
       unit={unit}
       projectSlug={slug}
+      projectName={project.name}
       buildingId={building.id}
       floorNumber={unit.floor}
+      amenities={project.amenities}
+      pointsOfInterest={project.pointsOfInterest}
+      projectLocation={project.location}
+      projectLatitude={project.latitude}
+      projectLongitude={project.longitude}
     />
   );
 }

@@ -18,11 +18,10 @@ export default function AdminLeads() {
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch('/api/leads');
+      const res = await fetch('/api/admin/leads');
       if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
-      // Sort newest first
-      setLeads(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setLeads(data);
     } catch (error) {
       console.error(error);
       setError(true);
@@ -32,16 +31,16 @@ export default function AdminLeads() {
   };
 
   const handleWhatsApp = (phone: string, name: string) => {
-    const text = encodeURIComponent(`Hola ${name}, me comunico de Residencias del Mar...`);
+    const text = encodeURIComponent(`Hola ${name}, te escribo por tu consulta sobre el proyecto...`);
     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
   };
 
   const updateLeadStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/leads/${id}`, { 
-        method: 'PUT', 
+      await fetch(`/api/admin/leads/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }) 
+        body: JSON.stringify({ status }),
       });
       setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
     } catch (error) {
@@ -90,7 +89,7 @@ export default function AdminLeads() {
                       <div className="flex justify-between items-start mb-3">
                         <h4 className="font-bold text-gray-900">{lead.name}</h4>
                         <div className="text-[10px] text-gray-400 font-medium">
-                          {new Date(lead.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                          {new Date(lead.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
                         </div>
                       </div>
 
@@ -101,9 +100,11 @@ export default function AdminLeads() {
                           </svg>
                           {lead.phone}
                         </div>
-                        <div className="text-xs font-medium bg-gray-50 px-2 py-1 rounded text-gray-700">
-                          Interés: {lead.unitName}
-                        </div>
+                        {lead.unit_name && (
+                          <div className="text-xs font-medium bg-gray-50 px-2 py-1 rounded text-gray-700">
+                            Interés: {lead.unit_name}
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-auto flex items-center justify-between gap-2 pt-3 border-t border-gray-50">

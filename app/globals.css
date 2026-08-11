@@ -201,10 +201,16 @@ body {
   cursor: pointer;
 }
 
-.unit-hover-zone:hover {
+.unit-hover-zone:hover,
+.unit-hover-zone:focus-visible {
   fill: rgba(60, 60, 60, 0.4);
   stroke: rgba(255, 255, 255, 0.7);
   stroke-width: 1.5;
+}
+
+.unit-hover-zone:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
 }
 
 .room-polygon {
@@ -214,10 +220,16 @@ body {
   stroke: #37463f;
 }
 
-.room-polygon:hover {
+.room-polygon:hover,
+.room-polygon:focus-visible {
   fill: rgba(150, 134, 118, 0.45);
   stroke: #968676;
   filter: drop-shadow(0 0 6px rgba(150, 134, 118, 0.5));
+}
+
+.room-polygon:focus-visible {
+  outline: 2px solid #968676;
+  outline-offset: 2px;
 }
 
 /* ─── Marzipano container ──────────────────────────────────────── */
@@ -242,8 +254,14 @@ body {
   transition: transform 0.2s;
   pointer-events: auto;
 }
-.link-hotspot:hover {
+.link-hotspot:hover,
+.link-hotspot:focus-visible {
   transform: scale(1.1);
+}
+.link-hotspot:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 4px;
+  border-radius: 9999px;
 }
 .link-hotspot .hotspot-icon {
   width: 40px;
@@ -307,6 +325,15 @@ body {
   visibility: hidden;
   transition: all 0.2s;
   pointer-events: none;
+}
+.info-hotspot:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
+.info-hotspot:focus-visible .info-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 .info-hotspot .info-tooltip h4 {
   font-weight: 700;

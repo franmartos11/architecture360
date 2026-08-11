@@ -42,12 +42,19 @@ export async function GET() {
     .eq('project_id', project.id)
     .order('sort_order');
 
+  const { data: pointsOfInterest } = await admin
+    .from('points_of_interest')
+    .select('*')
+    .eq('project_id', project.id)
+    .order('sort_order');
+
   return NextResponse.json({
     project,
     buildings: buildings ?? [],
     slides: slides ?? [],
     hotspots: hotspots ?? [],
     amenities: amenities ?? [],
+    pointsOfInterest: pointsOfInterest ?? [],
   });
 }
 
@@ -62,6 +69,8 @@ export async function PATCH(request: Request) {
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
   if (body.location !== undefined) updates.location = body.location;
+  if (body.latitude !== undefined) updates.latitude = body.latitude;
+  if (body.longitude !== undefined) updates.longitude = body.longitude;
   if (body.masterplanImage !== undefined) updates.masterplan_image = body.masterplanImage;
   if (body.commonAreasTour !== undefined) updates.common_areas_tour = body.commonAreasTour;
   updates.updated_at = new Date().toISOString();

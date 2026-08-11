@@ -17,6 +17,8 @@ interface ProjectRow {
   name: string;
   description: string | null;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
   masterplan_image: string | null;
 }
 interface BuildingRow {
@@ -83,6 +85,8 @@ export default function AdminProjectPage() {
         name: project.name,
         description: project.description,
         location: project.location,
+        latitude: project.latitude,
+        longitude: project.longitude,
         masterplanImage: project.masterplan_image,
       }),
     });
@@ -165,6 +169,12 @@ export default function AdminProjectPage() {
             Amenities →
           </Link>
           <Link
+            href="/admin/proyecto/ubicacion"
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+          >
+            Ubicación →
+          </Link>
+          <Link
             href="/admin/proyecto/recorrido"
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
           >
@@ -191,6 +201,41 @@ export default function AdminProjectPage() {
               value={project.location ?? ''}
               onChange={e => setProject({ ...project, location: e.target.value })}
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Coordenadas (centro del mapa de Ubicación)</label>
+              <a
+                href="https://www.google.com/maps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-brand-600 hover:text-brand-700"
+              >
+                Buscar en Google Maps →
+              </a>
+            </div>
+            <p className="text-xs text-gray-400 mb-2">
+              En Google Maps: click derecho sobre la ubicación → click en las coordenadas para copiarlas (lat, lng).
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Latitud"
+                type="number"
+                step="any"
+                value={project.latitude ?? ''}
+                onChange={e => setProject({ ...project, latitude: e.target.value === '' ? null : Number(e.target.value) })}
+                placeholder="-34.6037"
+              />
+              <Input
+                label="Longitud"
+                type="number"
+                step="any"
+                value={project.longitude ?? ''}
+                onChange={e => setProject({ ...project, longitude: e.target.value === '' ? null : Number(e.target.value) })}
+                placeholder="-58.3816"
+              />
+            </div>
           </div>
 
           <div>

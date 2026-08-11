@@ -9,10 +9,16 @@ import type { Project, Amenity } from '@/types';
 
 interface AmenitiesViewProps {
   project: Project;
+  /** Preselecciona el filtro por torre, ej. al llegar desde la unidad de un edificio específico */
+  initialBuildingFilter?: string;
 }
 
-export default function AmenitiesView({ project }: AmenitiesViewProps) {
-  const [buildingFilter, setBuildingFilter] = useState<string>('all');
+export default function AmenitiesView({ project, initialBuildingFilter }: AmenitiesViewProps) {
+  const [buildingFilter, setBuildingFilter] = useState<string>(
+    initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
+      ? initialBuildingFilter
+      : 'all'
+  );
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
 
   const filtered = useMemo(() => {

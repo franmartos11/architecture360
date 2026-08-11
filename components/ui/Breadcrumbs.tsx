@@ -5,7 +5,7 @@ import { TransitionLink } from '@/components/ui/TransitionUtils';
 import { m as motion } from 'framer-motion';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
-export default function Breadcrumbs({ projectName = "Residencias del Mar" }) {
+export default function Breadcrumbs({ projectName }: { projectName: string }) {
   const pathname = usePathname();
 
   // Split and clean path segments
@@ -49,7 +49,7 @@ export default function Breadcrumbs({ projectName = "Residencias del Mar" }) {
     <motion.div 
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
-      className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-200/50"
+      className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-gray-200/50 max-w-[calc(100vw-2.5rem)] overflow-x-auto"
     >
       {paths.map((path, index) => (
         <div key={path.href} className="flex items-center">

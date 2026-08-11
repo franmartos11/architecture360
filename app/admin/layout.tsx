@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="p-6 flex items-center justify-between md:block">
           <div>
             <h1 className="text-xl font-bold tracking-wide">Admin Panel</h1>
-            <p className="text-gray-400 text-sm mt-1">{userEmail ?? 'Residencias del Mar'}</p>
+            <p className="text-gray-400 text-sm mt-1">{userEmail ?? 'Panel de administración'}</p>
           </div>
           <button
             onClick={() => setMobileNavOpen(open => !open)}
