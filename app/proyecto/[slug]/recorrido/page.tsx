@@ -20,7 +20,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function RecorridoPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const { focus } = await searchParams;
+  const { focus, embed } = await searchParams;
+  const isEmbed = embed === 'true';
   const project = await getProjectBySlug(slug);
   if (!project || !project.commonAreasTour) notFound();
 
@@ -30,6 +31,7 @@ export default async function RecorridoPage({ params, searchParams }: PageProps)
       projectSlug={slug}
       tourData={project.commonAreasTour}
       focusNodeId={focus}
+      embed={isEmbed}
     />
   );
 }

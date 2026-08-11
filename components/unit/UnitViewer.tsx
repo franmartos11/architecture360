@@ -98,6 +98,7 @@ export default function UnitViewer({
   // Amenity detail state (inline tab)
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
   const [amenityImageIndex, setAmenityImageIndex] = useState(0);
+  const [amenityViewMode, setAmenityViewMode] = useState<'fotos' | '360'>('fotos');
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
@@ -112,6 +113,7 @@ export default function UnitViewer({
     if (activeTab === 'amenities' && !activeAmenity && relevantAmenities.length > 0) {
       setActiveAmenity(relevantAmenities[0]);
       setAmenityImageIndex(0);
+      setAmenityViewMode('fotos');
     }
   }, [activeTab, activeAmenity, relevantAmenities]);
 
@@ -705,7 +707,7 @@ export default function UnitViewer({
                           return (
                             <button
                               key={a.id}
-                              onClick={() => { setActiveAmenity(a); setAmenityImageIndex(0); }}
+                              onClick={() => { setActiveAmenity(a); setAmenityImageIndex(0); setAmenityViewMode('fotos'); }}
                               className={`group text-left rounded-xl overflow-hidden border transition-all shadow-sm ${
                                 isSelected
                                   ? 'border-brand-500 ring-1 ring-brand-500 scale-[1.02]'
@@ -738,7 +740,43 @@ export default function UnitViewer({
                   {activeAmenity ? (
                     <div className="min-h-full flex flex-col bg-white">
                       <div className="relative w-full aspect-[4/3] sm:aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
-                        {activeAmenity.images.length > 0 ? (
+                        {activeAmenity.tourNodeId && (
+                          <div className="absolute top-4 right-4 z-20 flex bg-black/40 backdrop-blur-md rounded-xl p-1 border border-white/10 shadow-lg">
+                            <button
+                              onClick={() => setAmenityViewMode('fotos')}
+                              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                amenityViewMode === 'fotos' ? 'bg-white text-gray-900 shadow-sm' : 'text-white hover:text-white/80'
+                              }`}
+                            >
+                              Fotos
+                            </button>
+                            <button
+                              onClick={() => setAmenityViewMode('360')}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                                amenityViewMode === '360' ? 'bg-white text-gray-900 shadow-sm' : 'text-white hover:text-white/80'
+                              }`}
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" />
+                              </svg>
+                              Recorrido 360°
+                            </button>
+                          </div>
+                        )}
+
+                        {amenityViewMode === '360' && activeAmenity.tourNodeId ? (
+                          <iframe
+                            key={activeAmenity.tourNodeId}
+                            src={activeAmenity.buildingId
+                              ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
+                              : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
+                            }
+                            className="absolute inset-0 w-full h-full border-0"
+                            allowFullScreen
+                            loading="lazy"
+                          />
+                        ) : activeAmenity.images.length > 0 ? (
                           <>
                             <Image
                               src={activeAmenity.images[amenityImageIndex]}
@@ -767,7 +805,9 @@ export default function UnitViewer({
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Sin renders todavía</div>
                         )}
-                        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                        {amenityViewMode === 'fotos' && (
+                          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                        )}
                       </div>
                       
                       <div className="p-6 lg:p-12 max-w-4xl w-full flex-1">
@@ -783,7 +823,7 @@ export default function UnitViewer({
                             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[15px] font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                           >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            Recorrer espacio en 360°
+                            Ver en pantalla completa
                           </Link>
                         )}
                       </div>
