@@ -4,12 +4,19 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import ToastProvider from '@/components/ui/ToastProvider';
+import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount();
+
+  useEffect(() => {
+    if (pathname === '/admin/leads') markLeadsSeen();
+  }, [pathname, markLeadsSeen]);
 
   useEffect(() => {
     if (pathname === '/admin/login') {
@@ -46,6 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   return (
+    <ToastProvider>
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-gray-900 text-white flex-shrink-0 md:min-h-screen flex flex-col">
@@ -73,15 +81,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-4 py-4 flex-col gap-2`}>
           {navItems.map(item => {
             const isActive = pathname === item.href;
+            const showBadge = item.href === '/admin/leads' && newLeadsCount > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`block px-4 py-2 rounded-lg transition-colors ${
+                className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
                   isActive ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
                 }`}
               >
                 {item.label}
+                {showBadge && (
+                  <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                    {newLeadsCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -108,5 +122,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </main>
     </div>
+    </ToastProvider>
   );
 }

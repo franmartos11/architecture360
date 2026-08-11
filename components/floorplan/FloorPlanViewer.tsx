@@ -11,6 +11,7 @@ import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/da
 import { useFloorFilters } from '@/hooks/useFloorFilters';
 import FloorFilters from './FloorFilters';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface FloorPlanViewerProps {
   building: Building;
@@ -123,6 +124,8 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
                   fill
                   sizes="(max-width: 768px) 100vw, 300px"
                   priority
+                  placeholder="blur"
+                  blurDataURL={shimmerDataUrl(300, 176)}
                   className="object-cover"
                 />
               )}
@@ -243,6 +246,8 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
                   fill
                   sizes="(max-width: 768px) 100vw, 300px"
                   priority
+                  placeholder="blur"
+                  blurDataURL={shimmerDataUrl(300, 176)}
                   className="object-cover opacity-30 blur-sm scale-110"
                 />
               )}
@@ -466,7 +471,7 @@ export default function FloorPlanViewer({ building, units: allUnits, projectSlug
         <div className="w-8 h-8" />
       </div>
 
-      <LeadCaptureModal 
+      <LeadCaptureModal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
         unit={selectedUnit}

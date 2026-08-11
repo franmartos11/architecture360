@@ -14,6 +14,7 @@ import RoomPlanViewer from './RoomPlanViewer';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface UnitViewerProps {
   unit: Unit;
@@ -175,7 +176,9 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
               fill
               sizes="(max-width: 768px) 100vw, 300px"
               priority
-              className="object-cover" 
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl(300, 176)}
+              className="object-cover"
             />
           )}
           <button
@@ -713,10 +716,10 @@ export default function UnitViewer({ unit, projectSlug, buildingId, floorNumber 
         defaultMethod={contactMethod}
       />
       
-      <MortgageCalculatorModal 
-        isOpen={isCalculatorOpen} 
-        onClose={() => setIsCalculatorOpen(false)} 
-        unitPrice={unit.price || 150000} 
+      <MortgageCalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        unitPrice={unit.price || 150000}
       />
     </div>
   );

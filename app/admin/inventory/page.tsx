@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface UnitRow {
   id: string;
@@ -20,16 +21,11 @@ export default function AdminInventory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
+  const toast = useToast();
 
   useEffect(() => {
     fetchUnits();
   }, []);
-
-  const flash = (text: string) => {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 3000);
-  };
 
   const fetchUnits = async () => {
     setLoading(true);
@@ -57,13 +53,13 @@ export default function AdminInventory() {
       });
       if (res.ok) {
         setUnits(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
-        flash('Guardado.');
+        toast('Guardado.');
       } else {
-        flash('Error al actualizar la unidad.');
+        toast('Error al actualizar la unidad.', 'error');
       }
     } catch (error) {
       console.error(error);
-      flash('Error al actualizar la unidad.');
+      toast('Error al actualizar la unidad.', 'error');
     } finally {
       setSavingId(null);
     }
@@ -79,7 +75,6 @@ export default function AdminInventory() {
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Inventario</h2>
           <p className="text-gray-500 mt-1">Actualizá estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.</p>
         </div>
-        {message && <span className="text-sm font-medium text-green-600">{message}</span>}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

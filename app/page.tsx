@@ -1,8 +1,21 @@
 import Navbar from '@/components/ui/Navbar';
-import { AmenitiesCarousel, ZonesCarousel } from '@/components/SwiperCarousels';
 import { TabsSection } from '@/components/TabsSection';
 import Calculator from '@/components/Calculator';
 import Image from 'next/image';
+import Reveal from '@/components/ui/Reveal';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import dynamic from 'next/dynamic';
+
+// Swiper (carrusel + CSS + módulos) pesa bastante y estas secciones están
+// debajo del fold — se cargan solo cuando el bundle del cliente las necesita,
+// en vez de sumarse al JS inicial que bloquea el hero.
+const CAROUSEL_LOADING = <div className="w-full max-w-6xl mx-auto h-[400px] rounded-xl bg-gray-100 animate-pulse" />;
+const AmenitiesCarousel = dynamic(() => import('@/components/SwiperCarousels').then(m => m.AmenitiesCarousel), {
+  loading: () => CAROUSEL_LOADING,
+});
+const ZonesCarousel = dynamic(() => import('@/components/SwiperCarousels').then(m => m.ZonesCarousel), {
+  loading: () => CAROUSEL_LOADING,
+});
 
 export default function HomePage() {
   return (
@@ -13,10 +26,13 @@ export default function HomePage() {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Background video/image placeholder */}
         <div className="absolute inset-0 z-0">
-          <Image 
-            src="https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80" 
-            alt="Hero background" 
-            fill 
+          <Image
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80"
+            alt="Hero background"
+            fill
+            sizes="100vw"
+            placeholder="blur"
+            blurDataURL={shimmerDataUrl(1920, 1080)}
             className="object-cover"
             priority
           />
@@ -39,14 +55,14 @@ export default function HomePage() {
       {/* Intro Section */}
       <section id="next" className="py-24 bg-trevo-light">
         <div className="max-w-7xl mx-auto px-4 md:px-6">
-          <div className="text-center mb-12 md:mb-16">
+          <Reveal className="text-center mb-12 md:mb-16">
             <h2 className="text-2xl font-light text-trevo-dark tracking-wide">
               Donde el diseño contemporáneo y la vida se encuentran
             </h2>
-          </div>
-          
+          </Reveal>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
-            <div className="space-y-6">
+            <Reveal className="space-y-6">
               <h2 className="text-3xl font-light text-trevo-dark leading-tight">
                 NACE DE UNA VISIÓN ÚNICA, DONDE ARQUITECTURA Y CONFORT EVOLUCIONAN JUNTOS
               </h2>
@@ -57,23 +73,26 @@ export default function HomePage() {
                 <button className="btn-outline">MÁS SOBRE EL PROYECTO</button>
                 <button className="btn-solid-green">TOUR 360°</button>
               </div>
-            </div>
-            
-            <div className="relative h-[600px] w-full rounded-2xl overflow-hidden">
-              <Image 
-                src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
-                alt="Arquitectura" 
-                fill 
+            </Reveal>
+
+            <Reveal delay={0.15} className="relative h-[600px] w-full rounded-2xl overflow-hidden">
+              <Image
+                src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
+                alt="Arquitectura"
+                fill
+                sizes="(min-width: 768px) 50vw, 100vw"
+                placeholder="blur"
+                blurDataURL={shimmerDataUrl()}
                 className="object-cover"
               />
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
       {/* Amenities Section */}
       <section className="py-24 bg-trevo-light">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 mb-12">
+        <Reveal className="max-w-7xl mx-auto px-4 md:px-6 mb-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-end">
             <h2 className="text-3xl font-medium text-trevo-dark">
               AMENIDADES INTEGRADAS PARA TU DÍA A DÍA
@@ -82,24 +101,27 @@ export default function HomePage() {
               Espacios exclusivos pensados como extensión de tu hogar: para disfrutar, relajarte y conectar.
             </p>
           </div>
-        </div>
-        
+        </Reveal>
+
         <AmenitiesCarousel />
       </section>
 
       {/* 360 Tour Section */}
       <section id="tour-360" className="py-24 bg-trevo-light">
-        <div className="max-w-6xl mx-auto px-6 text-center space-y-4 mb-12">
+        <Reveal className="max-w-6xl mx-auto px-6 text-center space-y-4 mb-12">
           <h2 className="text-3xl font-light text-trevo-dark tracking-widest">MASTERPLAN INTERACTIVO</h2>
           <p className="text-trevo-dark/70 font-light">Explora el proyecto desde cualquier ángulo con nuestro visor 3D interactivo.</p>
-        </div>
-        
-        <div className="max-w-4xl mx-auto px-6 text-center">
+        </Reveal>
+
+        <Reveal delay={0.15} className="max-w-4xl mx-auto px-6 text-center">
           <div className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden bg-trevo-dark group mb-8 shadow-2xl">
-            <Image 
-              src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
-              alt="Vista previa del masterplan" 
-              fill 
+            <Image
+              src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
+              alt="Vista previa del masterplan"
+              fill
+              sizes="(min-width: 896px) 896px, 100vw"
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl()}
               className="object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-500"
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
@@ -109,13 +131,13 @@ export default function HomePage() {
               </a>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* Typologies Section */}
       <section className="py-24 bg-trevo-green">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="mb-16 space-y-4">
+          <Reveal className="mb-16 space-y-4">
             <div className="text-white/70 tracking-widest text-sm font-semibold">MODELOS DISPONIBLES</div>
             <h2 className="text-4xl md:text-5xl font-light text-white leading-tight max-w-3xl">
               DISEÑADOS PARA INSPIRAR Y ADAPTARSE A TU RUTINA
@@ -123,23 +145,23 @@ export default function HomePage() {
             <p className="text-white/80 font-light max-w-xl">
               Espacios funcionales con excelente iluminación natural, amplias terrazas y distribuciones inteligentes que priorizan tu comodidad.
             </p>
-          </div>
-          
-          <div className="bg-trevo-light rounded-2xl p-8 md:p-12">
+          </Reveal>
+
+          <Reveal delay={0.15} className="bg-trevo-light rounded-2xl p-8 md:p-12">
             <TabsSection />
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* Zone / Location Section */}
       <section className="py-24 bg-trevo-dark">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <Reveal className="max-w-6xl mx-auto px-4 md:px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <h2 className="text-3xl md:text-4xl font-light text-white max-w-lg leading-tight">
             UBICACIÓN PRIVILEGIADA EN EL CORAZÓN DE LA CIUDAD
           </h2>
           <button className="btn-outline-white whitespace-nowrap w-full md:w-auto">DESCUBRIR LA ZONA</button>
-        </div>
-        
+        </Reveal>
+
         <ZonesCarousel />
       </section>
 
@@ -149,14 +171,14 @@ export default function HomePage() {
       {/* Contact Section */}
       <section className="py-24 bg-trevo-green relative overflow-hidden">
         <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
-          <div>
+          <Reveal>
             <h2 className="text-4xl sm:text-5xl md:text-6xl font-thin text-white leading-tight mb-6 text-center md:text-left">
               Trevoluciona <br/>
               <span className="font-medium">tu forma de vivir</span>
             </h2>
-          </div>
-          
-          <div className="bg-white/5 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-white/10">
+          </Reveal>
+
+          <Reveal delay={0.15} className="bg-white/5 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-white/10">
             <div className="text-white mb-6 md:mb-8 font-light text-center md:text-left">Completa el formulario para obtener más información.</div>
             {/* Placeholder form */}
             <form className="space-y-4">
@@ -165,7 +187,7 @@ export default function HomePage() {
               <input type="tel" placeholder="Teléfono" className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors" />
               <button type="button" className="btn-solid-brown w-full mt-2 py-4 rounded-lg">ENVIAR</button>
             </form>
-          </div>
+          </Reveal>
         </div>
       </section>
 

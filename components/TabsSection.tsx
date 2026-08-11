@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 const typologies = [
   {
@@ -93,6 +94,9 @@ export function TabsSection() {
               src={activeData.image}
               alt={activeData.label}
               fill
+              sizes="(min-width: 768px) 50vw, 100vw"
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl()}
               className="object-cover"
             />
           </div>

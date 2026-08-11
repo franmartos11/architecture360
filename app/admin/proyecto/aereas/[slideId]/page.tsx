@@ -6,6 +6,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface BuildingRow {
   id: string;
@@ -50,7 +51,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -98,11 +99,6 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     [buildings, points]
   );
 
-  const flash = (text: string) => {
-    setMessage(text);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
   const handlePointsChange = (id: string, newPoints: { x: number; y: number }[]) => {
     setPoints(prev => ({ ...prev, [id]: newPoints }));
   };
@@ -132,7 +128,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
         });
 
     setSavingId(null);
-    flash(res.ok ? 'Guardado.' : 'Error al guardar.');
+    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
     if (res.ok) load();
   };
 
@@ -194,7 +190,6 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 text-sm">Edificios</h3>
-              {message && <span className="text-xs font-medium text-green-600">{message}</span>}
             </div>
             <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
               {buildings.map((b, i) => {

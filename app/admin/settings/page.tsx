@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { useToast } from '@/components/ui/ToastProvider';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -14,7 +15,7 @@ export default function SettingsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const toast = useToast();
 
   useEffect(() => {
     fetch('/api/settings')
@@ -31,8 +32,7 @@ export default function SettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setMessage('');
-    
+
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -40,15 +40,14 @@ export default function SettingsPage() {
         body: JSON.stringify(settings),
       });
       if (res.ok) {
-        setMessage('Configuración guardada exitosamente.');
+        toast('Configuración guardada exitosamente.');
       } else {
-        setMessage('Error al guardar.');
+        toast('Error al guardar.', 'error');
       }
     } catch (err) {
-      setMessage('Error de conexión.');
+      toast('Error de conexión.', 'error');
     } finally {
       setSaving(false);
-      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -110,8 +109,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-medium text-green-600">{message}</span>
+          <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
             <Button type="submit" disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </Button>
