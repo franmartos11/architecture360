@@ -36,9 +36,13 @@ create table if not exists buildings (
   slug text not null,               -- usado en la URL: /edificio/[slug]
   name text not null,
   total_floors int not null default 1,
+  amenities_tour jsonb,              -- { initialNodeId, nodes: [...] } — recorrido 360° exclusivo de esta torre
   created_at timestamptz not null default now(),
   unique (project_id, slug)
 );
+
+-- Para bases que ya tenían buildings creada antes de que existiera amenities_tour.
+alter table buildings add column if not exists amenities_tour jsonb;
 
 -- ─── Pisos ──────────────────────────────────────────────────────────
 create table if not exists floors (
@@ -88,10 +92,14 @@ create table if not exists units (
 create table if not exists aerial_slides (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references projects(id) on delete cascade,
-  image_url text not null,
+  image_url text not null, -- se usa siempre como poster/fallback, incluso si hay video
+  video_url text, -- opcional — si está, se reproduce en loop en vez de mostrar la foto fija
   label text not null,
   sort_order int not null default 0
 );
+
+-- Para bases que ya tenían aerial_slides creada antes de que existiera video_url.
+alter table aerial_slides add column if not exists video_url text;
 
 create table if not exists aerial_hotspots (
   id uuid primary key default gen_random_uuid(),
@@ -105,6 +113,23 @@ create table if not exists aerial_hotspots (
 -- Para bases que ya tenían aerial_hotspots creada antes de que existiera
 -- la columna polygon (el CREATE TABLE de arriba no la agrega retroactivamente).
 alter table aerial_hotspots add column if not exists polygon jsonb;
+
+-- ─── Amenities (pileta, gym, SUM, etc.) ──────────────────────────────
+-- building_id nulo = amenity de todo el complejo; con valor = exclusiva
+-- de esa torre. tour_node_id apunta a un nodo dentro del recorrido que
+-- corresponda (common_areas_tour del proyecto si building_id es nulo,
+-- o amenities_tour de esa torre si no) — se resuelve en la app, no acá.
+create table if not exists amenities (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  building_id uuid references buildings(id) on delete cascade,
+  name text not null,
+  description text,
+  images text[] not null default '{}',
+  tour_node_id text,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
 
 -- ─── Leads (ya existía en db.json, se migra tal cual) ───────────────
 create table if not exists leads (
@@ -143,6 +168,7 @@ alter table floors enable row level security;
 alter table units enable row level security;
 alter table aerial_slides enable row level security;
 alter table aerial_hotspots enable row level security;
+alter table amenities enable row level security;
 alter table leads enable row level security;
 alter table calculator_settings enable row level security;
 
@@ -163,6 +189,9 @@ create policy "public read aerial_slides" on aerial_slides for select to anon, a
 
 drop policy if exists "public read aerial_hotspots" on aerial_hotspots;
 create policy "public read aerial_hotspots" on aerial_hotspots for select to anon, authenticated using (true);
+
+drop policy if exists "public read amenities" on amenities;
+create policy "public read amenities" on amenities for select to anon, authenticated using (true);
 
 drop policy if exists "public read calculator_settings" on calculator_settings;
 create policy "public read calculator_settings" on calculator_settings for select to anon, authenticated using (true);
@@ -198,4 +227,6 @@ create index if not exists idx_floors_building on floors(building_id);
 create index if not exists idx_units_floor on units(floor_id);
 create index if not exists idx_aerial_slides_project on aerial_slides(project_id);
 create index if not exists idx_aerial_hotspots_slide on aerial_hotspots(slide_id);
+create index if not exists idx_amenities_project on amenities(project_id);
+create index if not exists idx_amenities_building on amenities(building_id);
 create index if not exists idx_leads_project on leads(project_id);

@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const MAX_SIZE = 15 * 1024 * 1024; // 15MB — las panorámicas 360° pesan bastante
-const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/gif'];
+const MAX_IMAGE_SIZE = 15 * 1024 * 1024; // 15MB — las panorámicas 360° pesan bastante
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB — clips cortos en loop, no hay que subir un documental
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const BUCKET = 'project-media';
 
 export async function POST(request: Request) {
@@ -17,11 +19,15 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Falta el archivo' }, { status: 400 });
   }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: 'El archivo pesa más de 15MB' }, { status: 400 });
-  }
-  if (!ALLOWED_TYPES.includes(file.type)) {
+
+  const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+  const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+  if (!isVideo && !isImage) {
     return NextResponse.json({ error: `Tipo de archivo no permitido: ${file.type}` }, { status: 400 });
+  }
+  const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+  if (file.size > maxSize) {
+    return NextResponse.json({ error: `El archivo pesa más de ${maxSize / (1024 * 1024)}MB` }, { status: 400 });
   }
 
   const safeFolder = folder.replace(/[^a-z0-9-]/gi, '-');

@@ -5,6 +5,7 @@ import { getProjectBySlug } from '@/data/project-repository';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ focus?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -17,8 +18,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function RecorridoPage({ params }: PageProps) {
+export default async function RecorridoPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const { focus } = await searchParams;
   const project = await getProjectBySlug(slug);
   if (!project || !project.commonAreasTour) notFound();
 
@@ -27,6 +29,7 @@ export default async function RecorridoPage({ params }: PageProps) {
       projectName={project.name}
       projectSlug={slug}
       tourData={project.commonAreasTour}
+      focusNodeId={focus}
     />
   );
 }

@@ -36,11 +36,18 @@ export async function GET() {
     ? await admin.from('aerial_hotspots').select('*').in('slide_id', slideIds)
     : { data: [] };
 
+  const { data: amenities } = await admin
+    .from('amenities')
+    .select('*')
+    .eq('project_id', project.id)
+    .order('sort_order');
+
   return NextResponse.json({
     project,
     buildings: buildings ?? [],
     slides: slides ?? [],
     hotspots: hotspots ?? [],
+    amenities: amenities ?? [],
   });
 }
 
@@ -56,7 +63,6 @@ export async function PATCH(request: Request) {
   if (body.description !== undefined) updates.description = body.description;
   if (body.location !== undefined) updates.location = body.location;
   if (body.masterplanImage !== undefined) updates.masterplan_image = body.masterplanImage;
-  if (body.amenities !== undefined) updates.amenities = body.amenities;
   if (body.commonAreasTour !== undefined) updates.common_areas_tour = body.commonAreasTour;
   updates.updated_at = new Date().toISOString();
 

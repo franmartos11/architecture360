@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { Project, AerialSlide, AerialHotspot } from '@/types';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 
 interface AerialViewProps {
   project: Project;
@@ -49,6 +50,11 @@ export default function AerialView({ project }: AerialViewProps) {
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+  }, []);
+
+  const handleVideoLoad = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    setNaturalSize({ w: video.videoWidth, h: video.videoHeight });
   }, []);
 
   const mapPoint = useCallback((px: number, py: number) => {
@@ -144,18 +150,32 @@ export default function AerialView({ project }: AerialViewProps) {
           transition={{ duration: 0.6 }}
           className="absolute inset-0"
         >
-          <Image
-            src={slide.imageUrl}
-            alt={slide.label}
-            fill
-            sizes="100vw"
-            priority
-            placeholder="blur"
-            blurDataURL={shimmerDataUrl(1920, 1080)}
-            className="object-cover"
-            draggable={false}
-            onLoad={handleImageLoad}
-          />
+          {slide.videoUrl ? (
+            <video
+              key={slide.videoUrl}
+              src={slide.videoUrl}
+              poster={slide.imageUrl}
+              className="absolute inset-0 w-full h-full object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+              onLoadedMetadata={handleVideoLoad}
+            />
+          ) : (
+            <Image
+              src={slide.imageUrl}
+              alt={slide.label}
+              fill
+              sizes="100vw"
+              priority
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl(1920, 1080)}
+              className="object-cover"
+              draggable={false}
+              onLoad={handleImageLoad}
+            />
+          )}
           {/* Gradient vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/20 pointer-events-none" />
         </motion.div>
@@ -252,7 +272,17 @@ export default function AerialView({ project }: AerialViewProps) {
                   {building.name}
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  {building.totalFloors} pisos · {project.amenities.slice(0, 2).join(' · ')}
+                  {building.totalFloors} pisos
+                  {project.amenities.length > 0 && (
+                    <>
+                      {' · '}
+                      {project.amenities
+                        .filter(a => !a.buildingId || a.buildingId === building.id)
+                        .slice(0, 2)
+                        .map(a => a.name)
+                        .join(' · ')}
+                    </>
+                  )}
                 </p>
               </div>
               {/* Ingresar button */}
@@ -320,7 +350,23 @@ export default function AerialView({ project }: AerialViewProps) {
           </div>
         </motion.div>
 
-
+        {/* Right: Amenities */}
+        {project.amenities.length > 0 && (
+          <motion.div
+            variants={{ hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } }}
+            onClick={e => e.stopPropagation()}
+          >
+            <Link
+              href={`/proyecto/${project.slug}/amenities`}
+              className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shadow-lg"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5" />
+              </svg>
+              Amenities
+            </Link>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* ── Slide navigation arrows ────────────────────────────── */}
