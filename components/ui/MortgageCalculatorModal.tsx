@@ -54,18 +54,18 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
             onClick={onClose}
             className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
           />
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-md max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Calculadora Financiera</h3>
                 <p className="text-xs text-gray-500">Proyección estimada de pagos</p>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors"
               >
@@ -75,7 +75,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
               </button>
             </div>
 
-            <div className="p-5 space-y-6">
+            <div className="p-5 space-y-6 overflow-y-auto">
               {/* Unit Price Display */}
               <div className="flex justify-between items-end pb-4 border-b border-gray-100">
                 <span className="text-sm font-medium text-gray-500">Precio de la unidad</span>
