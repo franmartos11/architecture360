@@ -11,8 +11,6 @@ import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/da
 import { useFloorFilters } from '@/hooks/useFloorFilters';
 import FloorFilters from './FloorFilters';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import AmenitiesModal from '@/components/unit/AmenitiesModal';
-import LocationModal from '@/components/unit/LocationModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
 interface FloorPlanViewerProps {
@@ -22,9 +20,6 @@ interface FloorPlanViewerProps {
   projectName: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
-  projectLocation?: string;
-  projectLatitude?: number;
-  projectLongitude?: number;
   initialFloor?: number;
 }
 
@@ -35,9 +30,6 @@ export default function FloorPlanViewer({
   projectName,
   amenities = [],
   pointsOfInterest = [],
-  projectLocation = '',
-  projectLatitude,
-  projectLongitude,
   initialFloor = 1,
 }: FloorPlanViewerProps) {
   const router = useTransitionRouter();
@@ -48,8 +40,6 @@ export default function FloorPlanViewer({
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
-  const [isAmenitiesModalOpen, setIsAmenitiesModalOpen] = useState(false);
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   const openContact = (method: 'email' | 'whatsapp' | 'phone' = 'email') => {
     setContactMethod(method);
@@ -102,13 +92,23 @@ export default function FloorPlanViewer({
   }, []);
 
   const handleClosePanel = useCallback(() => {
+    // No limpiamos selectedUnit acá: el efecto de arriba auto-selecciona
+    // la primera unidad del piso en cuanto detecta que no hay ninguna
+    // seleccionada, lo que reabría este mismo panel apenas se cerraba.
     setPanelOpen(false);
-    setTimeout(() => setSelectedUnit(null), 300);
   }, []);
 
   const handleEnterUnit = useCallback(() => {
     if (!selectedUnit) return;
     router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}`);
+  }, [selectedUnit, projectSlug, building.id, router]);
+
+  // Entra a la unidad directo en el tab de Amenities/Ubicación — misma
+  // experiencia inmersiva que ya tiene el visor de la unidad, en vez de
+  // un popup aparte acá.
+  const handleEnterUnitTab = useCallback((tab: 'amenities' | 'ubicacion') => {
+    if (!selectedUnit) return;
+    router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}?tab=${tab}`);
   }, [selectedUnit, projectSlug, building.id, router]);
 
   const floorNumbers = building.floors
@@ -238,7 +238,7 @@ export default function FloorPlanViewer({
                 <div className="grid grid-cols-2 gap-2 mt-5">
                   {amenities.length > 0 && (
                     <button
-                      onClick={() => setIsAmenitiesModalOpen(true)}
+                      onClick={() => handleEnterUnitTab('amenities')}
                       className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -249,7 +249,7 @@ export default function FloorPlanViewer({
                   )}
                   {pointsOfInterest.length > 0 && (
                     <button
-                      onClick={() => setIsLocationModalOpen(true)}
+                      onClick={() => handleEnterUnitTab('ubicacion')}
                       className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -535,23 +535,6 @@ export default function FloorPlanViewer({
         onClose={() => setIsContactModalOpen(false)}
         unit={selectedUnit}
         defaultMethod={contactMethod}
-      />
-
-      <AmenitiesModal
-        isOpen={isAmenitiesModalOpen}
-        onClose={() => setIsAmenitiesModalOpen(false)}
-        amenities={amenities}
-        buildingId={building.id}
-        projectSlug={projectSlug}
-      />
-
-      <LocationModal
-        isOpen={isLocationModalOpen}
-        onClose={() => setIsLocationModalOpen(false)}
-        location={projectLocation}
-        latitude={projectLatitude}
-        longitude={projectLongitude}
-        pointsOfInterest={pointsOfInterest}
       />
     </div>
   );

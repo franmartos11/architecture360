@@ -195,44 +195,46 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       </div>
 
       <Card>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50/50 border-b border-gray-100">
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>
-              <th className="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {units.map(u => (
-              <tr key={u.id} className={`hover:bg-gray-50/50 transition-colors ${editingId === u.id ? 'bg-brand-50/50' : ''}`}>
-                <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
-                <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
-                <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
-                <td className="px-6 py-3 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium
-                    ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
-                    ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
-                    ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
-                    {u.status}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-sm text-gray-600">{u.price ? `$${u.price.toLocaleString()}` : '—'}</td>
-                <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
-                  <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
-                  <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
-                  <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>
+                <th className="px-6 py-3"></th>
               </tr>
-            ))}
-            {units.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades en este piso.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {units.map(u => (
+                <tr key={u.id} className={`hover:bg-gray-50/50 transition-colors ${editingId === u.id ? 'bg-brand-50/50' : ''}`}>
+                  <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
+                  <td className="px-6 py-3 text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium
+                      ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
+                      ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
+                      ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
+                      {u.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{u.price ? `$${u.price.toLocaleString()}` : '—'}</td>
+                  <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
+                    <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
+                    <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
+                    <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
+                  </td>
+                </tr>
+              ))}
+              {units.length === 0 && (
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades en este piso.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card>

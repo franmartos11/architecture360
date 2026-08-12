@@ -331,6 +331,7 @@ body {
   outline-offset: 4px;
   border-radius: 9999px;
 }
+.info-hotspot.info-hotspot-active .info-tooltip,
 .info-hotspot:focus-visible .info-tooltip {
   opacity: 1;
   visibility: visible;

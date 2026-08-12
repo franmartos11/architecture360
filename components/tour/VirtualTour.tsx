@@ -124,6 +124,19 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
                   ${hotspot.description ? `<p>${hotspot.description}</p>` : ''}
                 </div>
               `;
+              // En touch no hay :hover confiable — un tap alterna la
+              // misma clase que ya controla la visibilidad del tooltip.
+              const toggleTooltip = (e: Event) => {
+                e.stopPropagation();
+                el.classList.toggle('info-hotspot-active');
+              };
+              el.addEventListener('click', toggleTooltip);
+              el.addEventListener('keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleTooltip(e);
+                }
+              });
               scene.hotspotContainer().createHotspot(el, { yaw: hotspot.yaw, pitch: hotspot.pitch });
             });
 

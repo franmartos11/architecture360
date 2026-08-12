@@ -5,7 +5,7 @@ import { getBuildingById } from '@/data/project-repository';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
-  searchParams: Promise<{ focus?: string }>;
+  searchParams: Promise<{ focus?: string; embed?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

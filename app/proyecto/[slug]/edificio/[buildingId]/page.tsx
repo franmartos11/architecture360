@@ -45,9 +45,6 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
       projectName={project.name}
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
-      projectLocation={project.location}
-      projectLatitude={project.latitude}
-      projectLongitude={project.longitude}
       initialFloor={initialFloor}
     />
   );

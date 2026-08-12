@@ -2,9 +2,13 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
 import { getProjectBySlug, getUnitById } from '@/data/project-repository';
+import type { UnitViewTab } from '@/types';
+
+const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'amenities', 'ubicacion'];
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string; unitId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -24,14 +28,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function UnitPage({ params }: PageProps) {
+export default async function UnitPage({ params, searchParams }: PageProps) {
   const { slug, buildingId, unitId } = await params;
+  const { tab } = await searchParams;
 
   const project = await getProjectBySlug(slug);
   const building = project?.buildings.find(b => b.id === buildingId);
   const unit = await getUnitById(unitId);
 
   if (!project || !building || !unit) notFound();
+
+  const initialTab = VALID_TABS.includes(tab as UnitViewTab) ? (tab as UnitViewTab) : undefined;
 
   return (
     <UnitViewerWrapper
@@ -45,6 +52,7 @@ export default async function UnitPage({ params }: PageProps) {
       projectLocation={project.location}
       projectLatitude={project.latitude}
       projectLongitude={project.longitude}
+      initialTab={initialTab}
     />
   );
 }

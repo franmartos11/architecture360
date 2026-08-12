@@ -12,9 +12,6 @@ export default function FloorPlanWrapper({
   projectName,
   amenities,
   pointsOfInterest,
-  projectLocation,
-  projectLatitude,
-  projectLongitude,
   initialFloor,
 }: {
   building: Building;
@@ -23,9 +20,6 @@ export default function FloorPlanWrapper({
   projectName: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
-  projectLocation?: string;
-  projectLatitude?: number;
-  projectLongitude?: number;
   initialFloor?: number;
 }) {
   return (
@@ -36,9 +30,6 @@ export default function FloorPlanWrapper({
       projectName={projectName}
       amenities={amenities}
       pointsOfInterest={pointsOfInterest}
-      projectLocation={projectLocation}
-      projectLatitude={projectLatitude}
-      projectLongitude={projectLongitude}
       initialFloor={initialFloor}
     />
   );

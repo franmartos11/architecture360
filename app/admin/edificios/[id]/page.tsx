@@ -163,46 +163,48 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           <p className="text-sm text-gray-500">Cada piso necesita su plano para que el sitio pueda mostrar los deptos.</p>
         </CardHeader>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50/50 border-b border-gray-100">
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900 w-24">Número</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Etiqueta</th>
-              <th className="px-6 py-3 text-sm font-semibold text-gray-900">Plano (URL)</th>
-              <th className="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {floors.sort((a, b) => a.number - b.number).map(f => (
-              <tr key={f.id}>
-                <td className="px-6 py-3 text-sm text-gray-600">{f.number}</td>
-                <td className="px-6 py-3">
-                  <input
-                    defaultValue={f.label}
-                    onBlur={e => e.target.value !== f.label && handleUpdateFloor(f.id, { label: e.target.value })}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                  />
-                </td>
-                <td className="px-6 py-3 min-w-[280px]">
-                  <ImageUploader
-                    value={f.plan_image ?? ''}
-                    onChange={url => handleUpdateFloor(f.id, { plan_image: url })}
-                    folder="floorplans"
-                  />
-                </td>
-                <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
-                  <Link href={`/admin/edificios/${id}/pisos/${f.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                    Unidades →
-                  </Link>
-                  <button onClick={() => handleDeleteFloor(f.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900 w-24">Número</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Etiqueta</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Plano (URL)</th>
+                <th className="px-6 py-3"></th>
               </tr>
-            ))}
-            {floors.length === 0 && (
-              <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {floors.sort((a, b) => a.number - b.number).map(f => (
+                <tr key={f.id}>
+                  <td className="px-6 py-3 text-sm text-gray-600">{f.number}</td>
+                  <td className="px-6 py-3">
+                    <input
+                      defaultValue={f.label}
+                      onBlur={e => e.target.value !== f.label && handleUpdateFloor(f.id, { label: e.target.value })}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
+                    />
+                  </td>
+                  <td className="px-6 py-3 min-w-[280px]">
+                    <ImageUploader
+                      value={f.plan_image ?? ''}
+                      onChange={url => handleUpdateFloor(f.id, { plan_image: url })}
+                      folder="floorplans"
+                    />
+                  </td>
+                  <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
+                    <Link href={`/admin/edificios/${id}/pisos/${f.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
+                      Unidades →
+                    </Link>
+                    <button onClick={() => handleDeleteFloor(f.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
+                  </td>
+                </tr>
+              ))}
+              {floors.length === 0 && (
+                <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         <form onSubmit={handleAddFloor} className="p-6 bg-gray-50/50 space-y-3">
           <div className="flex flex-col sm:flex-row gap-3">
