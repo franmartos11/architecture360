@@ -105,14 +105,17 @@ export default function AmenityDetailModal({ amenity, building, projectSlug, onC
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                           </svg>
                         </button>
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1">
                           {amenity.images.map((_, i) => (
                             <button
                               key={i}
                               onClick={() => setIndex(i)}
                               aria-label={`Ver foto ${i + 1}`}
-                              className={`rounded-full transition-all duration-200 ${i === index ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/80'}`}
-                            />
+                              className="p-2 flex items-center justify-center"
+                            >
+                              <span className={`block rounded-full transition-all duration-200 ${i === index ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/80'}`} />
+                            </button>
                           ))}
                         </div>
                       </>

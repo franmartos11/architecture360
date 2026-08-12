@@ -105,6 +105,7 @@ export default function UnitViewer({
   const [amenitiesListOpen, setAmenitiesListOpen] = useState(true);
   const [amenityLightboxOpen, setAmenityLightboxOpen] = useState(false);
   const amenityThumbsRef = useRef<HTMLDivElement>(null);
+  const amenityDetailRef = useRef<HTMLDivElement>(null);
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
@@ -398,25 +399,27 @@ export default function UnitViewer({
           </button>
         )}
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-4 pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-between gap-2 px-4 pt-4 pointer-events-none">
+          <div className="flex items-center gap-2 pointer-events-auto min-w-0">
             <Breadcrumbs projectName={projectName} />
           </div>
 
           {/* Floor badge + Cambiar planta */}
           <div className="flex items-center gap-2 pointer-events-auto">
-            <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5">
+            <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5 whitespace-nowrap">
               Planta {floorNumber}
             </span>
             <button
               onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}`)}
-              className="px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
             >
               Cambiar planta
             </button>
           </div>
-        </div>        {/* Right tab selector (Desktop only, or hidden on very small if overlapping) */}
-        <div className="hidden sm:flex absolute right-4 top-20 z-20 flex-col gap-2">
+        </div>        {/* Right tab selector (hidden below md — redundant with the sidebar's own
+             tab row while the sidebar renders as a full overlay drawer; from md up
+             the sidebar sits in-flow and this floating strip has room of its own) */}
+        <div className="hidden md:flex absolute right-4 top-20 z-20 flex-col gap-2">
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -726,7 +729,7 @@ export default function UnitViewer({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden"
+                className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
               >
                 {/* ── Left Sidebar: Amenities Grid ── */}
                 <div
@@ -743,7 +746,7 @@ export default function UnitViewer({
                       onClick={() => setAmenitiesListOpen(false)}
                       aria-label="Ocultar lista de amenities"
                       title="Ocultar lista"
-                      className="hidden lg:flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
+                      className="flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -761,7 +764,13 @@ export default function UnitViewer({
                           return (
                             <button
                               key={a.id}
-                              onClick={() => { setActiveAmenity(a); setAmenityImageIndex(0); setAmenityViewMode('fotos'); setAmenityLightboxOpen(false); }}
+                              onClick={() => {
+                                setActiveAmenity(a);
+                                setAmenityImageIndex(0);
+                                setAmenityViewMode('fotos');
+                                setAmenityLightboxOpen(false);
+                                amenityDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
                               aria-current={isSelected ? 'true' : undefined}
                               className={`group flex items-center gap-3 text-left rounded-xl overflow-hidden border transition-all shadow-sm p-2 ${
                                 isSelected
@@ -808,7 +817,7 @@ export default function UnitViewer({
                       onClick={() => setAmenitiesListOpen(true)}
                       aria-label="Mostrar lista de amenities"
                       title="Mostrar lista"
-                      className="hidden lg:flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
+                      className="flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
@@ -817,8 +826,8 @@ export default function UnitViewer({
                     </button>
                   )}
                   {activeAmenity ? (
-                    <div className="min-h-full flex flex-col bg-white">
-                      <div className="relative w-full aspect-[4/3] sm:aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
+                    <div ref={amenityDetailRef} className="min-h-full flex flex-col bg-white">
+                      <div className="relative w-full aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
                         {amenityViewMode === '360' && activeAmenity.tourNodeId ? (
                           <iframe
                             key={activeAmenity.tourNodeId}
@@ -992,7 +1001,9 @@ export default function UnitViewer({
         {activeTab !== 'galeria' && (
           <button
             onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}?piso=${floorNumber}`)}
-            className="absolute bottom-5 right-16 z-20 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow"
+            className={`absolute right-16 z-20 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow ${
+              sidebarCollapsed ? 'bottom-24 md:bottom-5' : 'bottom-5'
+            }`}
           >
             <div className="relative w-24 h-16">
               <Image
@@ -1213,6 +1224,7 @@ function UbicacionTabRenderer({
   const [mode, setMode] = useState<TransportMode>('drive');
   const [selectedPoi, setSelectedPoi] = useState<PointOfInterest | null>(null);
   const [poiListOpen, setPoiListOpen] = useState(true);
+  const poiMapRef = useRef<HTMLDivElement>(null);
 
   const hasCoords = projectLatitude != null && projectLongitude != null;
   
@@ -1235,7 +1247,7 @@ function UbicacionTabRenderer({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden"
+      className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
     >
       {/* ── Left Sidebar: POI List ── */}
       <div
@@ -1252,7 +1264,7 @@ function UbicacionTabRenderer({
             onClick={() => setPoiListOpen(false)}
             aria-label="Ocultar lista de puntos de interés"
             title="Ocultar lista"
-            className="hidden lg:flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
+            className="flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -1290,7 +1302,10 @@ function UbicacionTabRenderer({
                   return (
                     <div
                       key={poi.id}
-                      onClick={() => setSelectedPoi(isSelected ? null : poi)}
+                      onClick={() => {
+                        setSelectedPoi(isSelected ? null : poi);
+                        poiMapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
                       className={`group flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all cursor-pointer ${
                         isSelected 
                           ? 'border-brand-500 bg-brand-50 shadow-md ring-1 ring-brand-500 scale-[1.01]' 
@@ -1330,13 +1345,13 @@ function UbicacionTabRenderer({
       </div>
 
       {/* ── Right Side: Map ── */}
-      <div className="flex-none lg:flex-1 relative order-1 lg:order-2 bg-gray-100 z-0 h-[45vh] lg:h-auto">
+      <div ref={poiMapRef} className="flex-none lg:flex-1 relative order-1 lg:order-2 bg-gray-100 z-0 h-[45vh] lg:h-auto">
         {!poiListOpen && (
           <button
             onClick={() => setPoiListOpen(true)}
             aria-label="Mostrar lista de puntos de interés"
             title="Mostrar lista"
-            className="hidden lg:flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
+            className="flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />

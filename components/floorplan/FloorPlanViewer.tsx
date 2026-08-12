@@ -8,8 +8,6 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
 import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/data/mockData';
-import { useFloorFilters } from '@/hooks/useFloorFilters';
-import FloorFilters from './FloorFilters';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 
@@ -68,7 +66,6 @@ export default function FloorPlanViewer({
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
   const unitsOnFloor = getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor);
-  const { filters, setFilters, filteredUnits, totalUnits, filteredCount } = useFloorFilters(unitsOnFloor);
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.
@@ -319,7 +316,7 @@ export default function FloorPlanViewer({
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                   <span className="text-sm text-gray-500">Unidades Totales</span>
-                  <span className="text-sm font-semibold text-gray-900">{totalUnits}</span>
+                  <span className="text-sm font-semibold text-gray-900">{unitsOnFloor.length}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                   <span className="text-sm text-gray-500">Unidades Disponibles</span>
@@ -475,12 +472,10 @@ export default function FloorPlanViewer({
                         technicalPlanUrl: '/floorplans/floor-1-2d.png',
                       };
                     }
-                    const isFilteredOut = !filteredUnits.some(u => u.id === unit.id);
                     return (
                       <UnitDotMarker
                         key={dot.unitId} dot={dot} unit={unit}
                         isSelected={selectedUnit?.id === dot.unitId}
-                        isFilteredOut={isFilteredOut}
                         onSelect={handleSelectUnit}
                       />
                     );
@@ -492,18 +487,11 @@ export default function FloorPlanViewer({
             <div className="text-gray-400 text-sm">Plano no disponible</div>
           )}
         </div>
-
-        <FloorFilters
-          filters={filters}
-          setFilters={setFilters}
-          filteredCount={filteredCount}
-          totalUnits={totalUnits}
-        />
       </div>
 
 
       {/* ── Right floor selector ──────────────────────────── */}
-      <div className="w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-white border-l border-gray-100 z-20">
+      <div className="w-11 sm:w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-white border-l border-gray-100 z-20">
         {/* Top: fullscreen icon placeholder */}
         <div className="w-8 h-8" />
 
@@ -517,8 +505,8 @@ export default function FloorPlanViewer({
               aria-current={activeFloor === num ? 'true' : undefined}
               className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
                 activeFloor === num
-                  ? 'w-10 h-10 bg-gray-900 text-white shadow-lg'
-                  : 'w-9 h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                  ? 'w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 text-white shadow-lg'
+                  : 'w-8 h-8 sm:w-9 sm:h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               {num === 0 ? 'L' : num}
@@ -542,12 +530,11 @@ export default function FloorPlanViewer({
 
 // ── Unit dot marker ─────────────────────────────────────────────
 function UnitDotMarker({
-  dot, unit, isSelected, isFilteredOut, onSelect,
+  dot, unit, isSelected, onSelect,
 }: {
   dot: { x: number; y: number };
   unit: Unit;
   isSelected: boolean;
-  isFilteredOut?: boolean;
   onSelect: (unit: Unit) => void;
 }) {
   const color = getStatusColor(unit.status);
@@ -557,7 +544,7 @@ function UnitDotMarker({
         hidden: { opacity: 0, scale: 0 },
         visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } }
       }}
-      className={`absolute group pointer-events-auto ${isFilteredOut ? 'opacity-30 grayscale' : 'opacity-100'}`}
+      className="absolute group pointer-events-auto"
       style={{ left: `${dot.x}%`, top: `${dot.y}%`, transform: 'translate(-50%, -50%)' }}
       onClick={() => onSelect(unit)}
       aria-label={`Seleccionar ${unit.name}`}

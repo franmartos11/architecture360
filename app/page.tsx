@@ -80,7 +80,7 @@ export default async function HomePage() {
               </div>
             </Reveal>
 
-            <Reveal delay={0.15} className="relative h-[600px] w-full rounded-2xl overflow-hidden">
+            <Reveal delay={0.15} className="relative h-[320px] sm:h-[420px] md:h-[600px] w-full rounded-2xl overflow-hidden">
               <Image
                 src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
                 alt="Arquitectura"
@@ -119,7 +119,7 @@ export default async function HomePage() {
         </Reveal>
 
         <Reveal delay={0.15} className="max-w-4xl mx-auto px-6 text-center">
-          <div className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden bg-trevo-dark group mb-8 shadow-2xl">
+          <div className="relative w-full aspect-[4/3] sm:aspect-[21/9] rounded-2xl overflow-hidden bg-trevo-dark group mb-8 shadow-2xl">
             <Image
               src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
               alt="Vista previa del masterplan"
@@ -130,7 +130,7 @@ export default async function HomePage() {
               className="object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-500"
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-              <h3 className="text-white text-3xl font-light tracking-widest mb-6">RESIDENCIAS NATURA</h3>
+              <h3 className="text-white text-2xl sm:text-3xl font-light tracking-widest mb-6 text-center">RESIDENCIAS NATURA</h3>
               <a href={`/proyecto/${project?.slug ?? DEFAULT_PROJECT_SLUG}`} className="btn-outline-white bg-white/10 backdrop-blur-md hover:bg-white text-white hover:text-trevo-dark">
                 ENTRAR AL MASTERPLAN
               </a>
@@ -198,7 +198,7 @@ export default async function HomePage() {
       <footer className="bg-trevo-dark text-white py-12 border-t border-white/10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-2xl font-bold tracking-widest">RESIDENCIAS NATURA</div>
-          <div className="flex gap-6 text-sm font-light text-white/70">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-light text-white/70">
             <a href="/" className="hover:text-white transition-colors">Inicio</a>
             <a href="#next" className="hover:text-white transition-colors">Nosotros</a>
             <a href="#modelos" className="hover:text-white transition-colors">Modelos</a>

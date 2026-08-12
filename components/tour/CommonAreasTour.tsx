@@ -37,21 +37,22 @@ export default function CommonAreasTour({
       <VirtualTour tourData={tourData} focusNodeId={focusNodeId} />
 
       {!embed && (
-        <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-20 p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
           <button
             onClick={() => router.push(backHref ?? `/proyecto/${projectSlug}`)}
-            className="glass rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors hover:bg-white/10 pointer-events-auto"
+            aria-label={backLabel}
+            className="glass rounded-xl px-3 py-2.5 sm:px-4 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors hover:bg-white/10 pointer-events-auto shrink-0"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
-            {backLabel}
+            <span className="hidden sm:inline">{backLabel}</span>
           </button>
 
-          <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-sm font-medium text-white/90">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+          <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto min-w-0 max-w-[75vw] sm:max-w-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-sm font-medium text-white/90 truncate">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
             </div>
           </div>
         </div>
