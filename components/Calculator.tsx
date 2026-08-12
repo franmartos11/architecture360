@@ -136,7 +136,7 @@ export default function Calculator() {
         {/* Resultado */}
         <div className="w-full md:w-1/2 bg-trevo-green p-6 sm:p-8 md:p-10 rounded-xl flex flex-col items-center justify-center space-y-4 md:space-y-6 shadow-2xl">
           <div className="text-white/80 text-base md:text-lg text-center">Cuota mensual aproximada</div>
-          <h2 className="text-white text-4xl sm:text-5xl font-light text-center break-all">{formatUSD(resultado)}</h2>
+          <h2 className="text-white text-3xl sm:text-4xl md:text-5xl font-light text-center">{formatUSD(resultado)}</h2>
           <button onClick={() => setIsLeadModalOpen(true)} className="btn-solid-brown w-full mt-2 md:mt-4">
             SOLICITAR INFORMACIÓN
           </button>

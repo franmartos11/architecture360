@@ -10,8 +10,10 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const projectHref = `/proyecto/${DEFAULT_PROJECT_SLUG}`;
   const tourHref = `${projectHref}/recorrido`;
+  const unitsHref = `${projectHref}/unidades`;
   const amenitiesHref = `${projectHref}/amenities`;
   const locationHref = `${projectHref}/ubicacion`;
+  const calculatorHref = '/#cotizador';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -28,7 +30,7 @@ export default function Navbar() {
           </Link>
 
           {/* Navigation Links - Desktop */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-0.5 lg:gap-1">
             <NavLink href="/" active={pathname === '/'}>
               Inicio
             </NavLink>
@@ -37,6 +39,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink href={tourHref} active={pathname === tourHref}>
               Recorrido
+            </NavLink>
+            <NavLink href={unitsHref} active={pathname === unitsHref}>
+              Unidades
             </NavLink>
             <NavLink href={amenitiesHref} active={pathname === amenitiesHref}>
               Amenities
@@ -50,13 +55,14 @@ export default function Navbar() {
           <div className="flex items-center gap-2">
             <Link
               href={projectHref}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
+              aria-label="Explorar Proyecto"
+              className="hidden sm:inline-flex items-center gap-2 px-2.5 md:px-3 lg:px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
               </svg>
-              Explorar Proyecto
+              <span className="hidden lg:inline">Explorar Proyecto</span>
             </Link>
 
             {/* Mobile menu button */}
@@ -80,7 +86,7 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {isMobileMenuOpen && (
-        <div className="md:hidden px-4 pt-2 pb-4 space-y-1 bg-surface-50/95 border-t border-white/10 backdrop-blur-md">
+        <div className="md:hidden px-4 pt-2 pb-4 space-y-1 bg-surface-50/95 border-t border-white/10 backdrop-blur-md max-h-[calc(100vh-4rem)] overflow-y-auto">
           <MobileNavLink href="/" active={pathname === '/'} onClick={() => setIsMobileMenuOpen(false)}>
             Inicio
           </MobileNavLink>
@@ -90,11 +96,17 @@ export default function Navbar() {
           <MobileNavLink href={tourHref} active={pathname === tourHref} onClick={() => setIsMobileMenuOpen(false)}>
             Recorrido
           </MobileNavLink>
+          <MobileNavLink href={unitsHref} active={pathname === unitsHref} onClick={() => setIsMobileMenuOpen(false)}>
+            Unidades
+          </MobileNavLink>
           <MobileNavLink href={amenitiesHref} active={pathname === amenitiesHref} onClick={() => setIsMobileMenuOpen(false)}>
             Amenities
           </MobileNavLink>
           <MobileNavLink href={locationHref} active={pathname === locationHref} onClick={() => setIsMobileMenuOpen(false)}>
             Ubicación
+          </MobileNavLink>
+          <MobileNavLink href={calculatorHref} active={false} onClick={() => setIsMobileMenuOpen(false)}>
+            Cotizador
           </MobileNavLink>
           <Link
             href={projectHref}
@@ -121,7 +133,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+      className={`px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
         active
           ? 'text-white bg-white/10'
           : 'text-white/60 hover:text-white hover:bg-white/5'

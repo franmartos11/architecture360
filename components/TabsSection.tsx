@@ -51,7 +51,7 @@ export function TabsSection() {
   return (
     <div className="w-full">
       {/* Tab headers */}
-      <div className="flex overflow-x-auto no-scrollbar gap-8 border-b border-trevo-lightgreen/30 mb-12">
+      <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-trevo-lightgreen/30 mb-12">
         {typologies.map((tab) => (
           <button
             key={tab.id}
