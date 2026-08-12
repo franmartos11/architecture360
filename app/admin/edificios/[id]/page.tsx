@@ -15,6 +15,7 @@ interface BuildingRow {
   slug: string;
   name: string;
   total_floors: number;
+  cover_image: string | null;
 }
 interface FloorRow {
   id: string;
@@ -59,7 +60,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     const res = await fetch(`/api/admin/buildings/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: building.name, totalFloors: building.total_floors }),
+      body: JSON.stringify({ name: building.name, totalFloors: building.total_floors, coverImage: building.cover_image }),
     });
     setSaving(false);
     if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
@@ -132,28 +133,36 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">Datos del edificio</h3>
         </CardHeader>
-        <form onSubmit={handleSaveBuilding} className="p-6 flex flex-col sm:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <Input
-              label="Nombre"
-              value={building.name}
-              onChange={e => setBuilding({ ...building, name: e.target.value })}
-            />
+        <form onSubmit={handleSaveBuilding} className="p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 w-full">
+              <Input
+                label="Nombre"
+                value={building.name}
+                onChange={e => setBuilding({ ...building, name: e.target.value })}
+              />
+            </div>
+            <div className="w-full sm:w-40">
+              <Input
+                label="Pisos declarados"
+                type="number" min={1}
+                value={building.total_floors}
+                onChange={e => setBuilding({ ...building, total_floors: Number(e.target.value) })}
+              />
+            </div>
+            <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+              {saving ? 'Guardando...' : 'Guardar'}
+            </Button>
           </div>
-          <div className="w-full sm:w-40">
-            <Input
-              label="Pisos declarados"
-              type="number" min={1}
-              value={building.total_floors}
-              onChange={e => setBuilding({ ...building, total_floors: Number(e.target.value) })}
-            />
-          </div>
-          <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
+          <ImageUploader
+            label="Foto del edificio"
+            value={building.cover_image ?? ''}
+            onChange={url => setBuilding({ ...building, cover_image: url })}
+            folder="buildings"
+          />
         </form>
         <p className="px-6 pb-4 text-xs text-gray-500">
-          "Pisos declarados" es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo.
+          "Pisos declarados" es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en "Guardar".
         </p>
       </Card>
 

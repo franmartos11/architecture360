@@ -16,13 +16,18 @@ export default function AdminDashboard() {
     setLoading(true);
     setError(false);
     Promise.all([
-      fetch('/api/admin/units').then(res => res.json()),
-      fetch('/api/leads').then(res => res.json())
+      fetch('/api/admin/units').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
+      fetch('/api/admin/leads').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
     ]).then(([unitsData, leadsData]) => {
-      setUnits(unitsData);
-      setLeads(leadsData);
+      setUnits(Array.isArray(unitsData) ? unitsData : []);
+      setLeads(Array.isArray(leadsData) ? leadsData : []);
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      // If unauthorized, redirect to login
+      if (err?.message === '401') {
+        window.location.href = '/admin/login';
+        return;
+      }
       setError(true);
       setLoading(false);
     });

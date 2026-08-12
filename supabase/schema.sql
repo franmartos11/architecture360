@@ -50,6 +50,9 @@ create table if not exists buildings (
 -- Para bases que ya tenían buildings creada antes de que existiera amenities_tour.
 alter table buildings add column if not exists amenities_tour jsonb;
 
+-- Foto de portada del edificio (opcional), para el admin y futuros usos en el sitio público.
+alter table buildings add column if not exists cover_image text;
+
 -- ─── Pisos ──────────────────────────────────────────────────────────
 create table if not exists floors (
   id uuid primary key default gen_random_uuid(),

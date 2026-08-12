@@ -121,6 +121,7 @@ export interface Building {
   totalFloors: number;
   /** Recorrido 360° exclusivo de esta torre (además del commonAreasTour general) */
   amenitiesTour?: TourData;
+  coverImage?: string;
 }
 
 // ─── Amenity (pileta, gym, SUM, etc.) ───────────────────────────────
