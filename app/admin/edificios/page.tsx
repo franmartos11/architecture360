@@ -7,6 +7,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { useToast } from '@/components/ui/ToastProvider';
 
 interface BuildingRow {
   id: string;
@@ -24,6 +25,8 @@ export default function AdminBuildingsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ slug: '', name: '', totalFloors: 1 });
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -60,6 +63,20 @@ export default function AdminBuildingsPage() {
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? 'Error al crear el edificio.');
+    }
+  };
+
+  const handleDelete = async (b: BuildingRow) => {
+    if (!confirm(`¿Borrar "${b.name}"? Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la vista aérea. Esta acción no se puede deshacer.`)) return;
+    setDeletingId(b.id);
+    const res = await fetch(`/api/admin/buildings/${b.id}`, { method: 'DELETE' });
+    setDeletingId(null);
+    if (res.ok) {
+      toast('Edificio borrado.');
+      load();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'Error al borrar el edificio.', 'error');
     }
   };
 
@@ -115,6 +132,13 @@ export default function AdminBuildingsPage() {
                     <Link href={`/admin/edificios/${b.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
                       Gestionar pisos →
                     </Link>
+                    <button
+                      onClick={() => handleDelete(b)}
+                      disabled={deletingId === b.id}
+                      className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
+                    >
+                      {deletingId === b.id ? 'Borrando...' : 'Borrar'}
+                    </button>
                   </td>
                 </tr>
               ))}

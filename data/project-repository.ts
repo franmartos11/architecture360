@@ -24,6 +24,7 @@ interface BuildingRow {
   name: string;
   total_floors: number;
   amenities_tour: Building['amenitiesTour'] | null;
+  cover_image: string | null;
 }
 interface AmenityRow {
   id: string;
@@ -153,6 +154,7 @@ function mapProject(
     name: b.name,
     totalFloors: b.total_floors,
     amenitiesTour: b.amenities_tour ?? undefined,
+    coverImage: b.cover_image ?? undefined,
     floors: floorRows
       .filter(f => f.building_id === b.id)
       .sort((a, c) => a.number - c.number)

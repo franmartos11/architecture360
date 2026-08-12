@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -35,6 +35,14 @@ export default function FloorPlanViewer({
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
+  const [mobilePreviewUnit, setMobilePreviewUnit] = useState<Unit | null>(null);
+  const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const checkMobile = () => { isMobileRef.current = window.innerWidth < 768; };
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
@@ -78,15 +86,37 @@ export default function FloorPlanViewer({
     if (unitsOnFloor.length > 0) {
       if (!selectedUnit || selectedUnit.floor !== activeFloor) {
         setSelectedUnit(unitsOnFloor[0]);
-        setPanelOpen(true);
+        // On mobile: don't auto-open the full panel, just pre-select silently
+        if (!isMobileRef.current) {
+          setPanelOpen(true);
+        } else {
+          setMobilePreviewUnit(null);
+        }
       }
     }
   }, [activeFloor, unitsOnFloor, selectedUnit]);
 
   const handleSelectUnit = useCallback((unit: Unit) => {
-    setSelectedUnit(unit);
-    setPanelOpen(true);
+    if (isMobileRef.current) {
+      // On mobile: tap pin → show compact bottom preview, not full panel
+      setMobilePreviewUnit(prev => prev?.id === unit.id ? null : unit);
+      setSelectedUnit(unit);
+    } else {
+      setSelectedUnit(unit);
+      setPanelOpen(true);
+    }
   }, []);
+
+  const handleOpenFullPanel = useCallback((unit: Unit) => {
+    if (isMobileRef.current) {
+      // On mobile: go directly to the unit page, no intermediate panel
+      router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${unit.id}`);
+    } else {
+      setSelectedUnit(unit);
+      setMobilePreviewUnit(null);
+      setPanelOpen(true);
+    }
+  }, [router, projectSlug, building.id]);
 
   const handleClosePanel = useCallback(() => {
     // No limpiamos selectedUnit acá: el efecto de arriba auto-selecciona
@@ -500,7 +530,7 @@ export default function FloorPlanViewer({
           {floorNumbers.map(num => (
             <button
               key={num}
-              onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); }}
+              onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); setMobilePreviewUnit(null); }}
               aria-label={num === 0 ? 'Planta baja' : `Piso ${num}`}
               aria-current={activeFloor === num ? 'true' : undefined}
               className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
@@ -524,6 +554,94 @@ export default function FloorPlanViewer({
         unit={selectedUnit}
         defaultMethod={contactMethod}
       />
+
+      {/* ── Mobile: tap-outside overlay for full panel ── */}
+      {panelOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-sm"
+          onClick={handleClosePanel}
+        />
+      )}
+
+      {/* ── Mobile bottom sheet unit preview ── */}
+      <AnimatePresence>
+        {mobilePreviewUnit && !panelOpen && (
+          <motion.div
+            key="mobile-preview"
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+            className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-gray-100 overflow-hidden"
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+
+            <div className="flex gap-4 px-5 py-4">
+              {/* Thumbnail */}
+              {mobilePreviewUnit.interiorImageUrl ? (
+                <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100">
+                  <Image
+                    src={mobilePreviewUnit.interiorImageUrl}
+                    alt="Interior"
+                    fill sizes="96px"
+                    className="object-cover"
+                    placeholder="blur"
+                    blurDataURL={shimmerDataUrl(96, 96)}
+                  />
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-xl flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                  </svg>
+                </div>
+              )}
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5">
+                  <h3 className="text-lg font-bold text-gray-900 truncate">{mobilePreviewUnit.name}</h3>
+                  <span
+                    className="text-xs font-semibold ml-2 flex-shrink-0"
+                    style={{ color: getStatusColor(mobilePreviewUnit.status) }}
+                  >
+                    {getStatusLabel(mobilePreviewUnit.status).toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{mobilePreviewUnit.modelName}</p>
+                <div className="flex gap-3 text-xs text-gray-600">
+                  <span>🛏 {mobilePreviewUnit.bedrooms}</span>
+                  <span>🚿 {mobilePreviewUnit.bathrooms}</span>
+                  <span>📐 {mobilePreviewUnit.totalArea}m²</span>
+                </div>
+                {mobilePreviewUnit.price && (
+                  <p className="text-sm font-bold text-gray-900 mt-1.5">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(mobilePreviewUnit.price)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 pb-8 pt-1 flex gap-3">
+              <button
+                onClick={() => setMobilePreviewUnit(null)}
+                className="flex-shrink-0 px-4 py-3 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => handleOpenFullPanel(mobilePreviewUnit)}
+                className="flex-1 px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Ver unidad completa →
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

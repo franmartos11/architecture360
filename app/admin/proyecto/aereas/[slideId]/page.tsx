@@ -197,11 +197,16 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
                 const pointCount = points[b.id]?.length ?? 0;
                 return (
                   <div key={b.id} className={`p-4 ${isActive ? 'bg-brand-50/50' : ''}`}>
-                    <button onClick={() => setActiveId(b.id)} className="w-full flex items-center gap-2 text-left mb-2">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                      <span className="font-medium text-gray-900 text-sm">{b.name}</span>
-                      <span className="text-xs text-gray-400 ml-auto">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</span>
-                    </button>
+                    <div className="w-full flex items-center gap-2 mb-2">
+                      <button onClick={() => setActiveId(b.id)} className="flex-1 min-w-0 flex items-center gap-2 text-left">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                        <span className="font-medium text-gray-900 text-sm truncate">{b.name}</span>
+                      </button>
+                      <span className="text-xs text-gray-400 shrink-0">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</span>
+                      <Link href={`/admin/edificios/${b.id}`} className="text-xs font-medium text-brand-600 hover:text-brand-700 shrink-0">
+                        Editar →
+                      </Link>
+                    </div>
                     {isActive && (
                       <div className="flex items-center gap-2 pl-5">
                         <button onClick={() => handleClear(b.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
