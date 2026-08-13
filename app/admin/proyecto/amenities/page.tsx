@@ -12,22 +12,10 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { TourData } from '@/types';
+import type { BuildingRow as DbBuildingRow, AmenityRow as DbAmenityRow } from '@/types/database';
 
-interface BuildingRow {
-  id: string;
-  slug: string;
-  name: string;
-  amenities_tour: TourData | null;
-}
-interface AmenityRow {
-  id: string;
-  building_id: string | null;
-  name: string;
-  description: string | null;
-  images: string[];
-  tour_node_id: string | null;
-  sort_order: number;
-}
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'amenities_tour'>;
+type AmenityRow = Pick<DbAmenityRow, 'id' | 'building_id' | 'name' | 'description' | 'images' | 'tour_node_id' | 'sort_order'>;
 
 const EMPTY_FORM = { buildingId: '', name: '', description: '', images: [] as string[], tourNodeId: '' };
 
@@ -53,7 +41,8 @@ export default function AdminAmenitiesPage() {
         setCommonAreasTour(data.project?.common_areas_tour ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });
@@ -132,6 +121,37 @@ export default function AdminAmenitiesPage() {
     }
   };
 
+  // Las amenities ya vienen ordenadas por sort_order (ver /api/admin/project),
+  // así que mover una es simplemente intercambiar su sort_order con el vecino.
+  const handleReorder = async (index: number, direction: 'up' | 'down') => {
+    const swapWith = direction === 'up' ? index - 1 : index + 1;
+    if (swapWith < 0 || swapWith >= amenities.length) return;
+
+    const a = amenities[index];
+    const b = amenities[swapWith];
+    const reordered = [...amenities];
+    reordered[index] = b;
+    reordered[swapWith] = a;
+    setAmenities(reordered);
+
+    const [resA, resB] = await Promise.all([
+      fetch(`/api/admin/amenities/${a.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sortOrder: b.sort_order }),
+      }),
+      fetch(`/api/admin/amenities/${b.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sortOrder: a.sort_order }),
+      }),
+    ]);
+    if (!resA.ok || !resB.ok) {
+      toast('Error al reordenar.', 'error');
+      load();
+    }
+  };
+
   if (loading) return <LoadingSpinner text="Cargando amenities..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudieron cargar las amenities." onRetry={load} />;
 
@@ -150,10 +170,32 @@ export default function AdminAmenitiesPage() {
       ) : (
         <Card>
           <div className="divide-y divide-gray-100">
-            {amenities.map(a => {
+            {amenities.map((a, i) => {
               const building = buildings.find(b => b.id === a.building_id);
               return (
                 <div key={a.id} className={`p-4 flex items-center gap-4 ${editingId === a.id ? 'bg-brand-50/50' : ''}`}>
+                  <div className="flex flex-col shrink-0">
+                    <button
+                      onClick={() => handleReorder(i, 'up')}
+                      disabled={i === 0}
+                      aria-label="Subir"
+                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:hover:text-gray-400"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleReorder(i, 'down')}
+                      disabled={i === amenities.length - 1}
+                      aria-label="Bajar"
+                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:hover:text-gray-400"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </button>
+                  </div>
                   <div className="w-14 h-14 rounded-lg bg-gray-100 overflow-hidden shrink-0">
                     {a.images?.[0] && (
                       // eslint-disable-next-line @next/next/no-img-element

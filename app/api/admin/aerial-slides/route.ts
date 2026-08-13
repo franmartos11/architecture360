@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const PROJECT_SLUG = 'demo';
+import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
 
 export async function POST(request: Request) {
   const user = await requireAdminUser();

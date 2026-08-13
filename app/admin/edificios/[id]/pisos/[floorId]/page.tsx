@@ -4,7 +4,8 @@ import { useState, useEffect, use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import type { UnitStatus, UnitType } from '@/types';
+import type { UnitType, UnitStatus } from '@/types';
+import type { UnitRow as DbUnitRow } from '@/types/database';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
@@ -13,27 +14,12 @@ import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 
-interface UnitRow {
-  id: string;
-  code: string;
-  model_name: string | null;
-  type: UnitType;
-  total_area: number | null;
-  inner_area: number | null;
-  balcony_area: number;
-  external_area: number;
-  bedrooms: number;
-  bathrooms: number;
-  has_service_room: boolean;
-  price: number | null;
-  status: UnitStatus;
-  orientation: string | null;
-  interior_image_url: string | null;
-  gallery_images: string[] | null;
-  floor_plan_3d_url: string | null;
-  plan_3d_url: string | null;
-  technical_plan_url: string | null;
-}
+type UnitRow = Pick<DbUnitRow,
+  | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
+  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'price' | 'status'
+  | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
+  | 'plan_3d_url' | 'technical_plan_url'
+>;
 
 const UNIT_TYPES: UnitType[] = ['monoambiente', '1 dormitorio', '2 dormitorios', '3 dormitorios', 'penthouse'];
 
@@ -72,7 +58,8 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       setFloorLabel(floor?.label ?? '');
       setUnits(Array.isArray(unitsData) ? unitsData : []);
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      console.error(err);
       setLoadError(true);
       setLoading(false);
     });

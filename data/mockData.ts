@@ -441,35 +441,3 @@ export const demoProject: Project = {
   },
 };
 
-// ─── Helpers (simulating API) ─────────────────────────────────────
-export function getProjectBySlug(slug: string): Project | undefined {
-  if (slug === 'demo') return demoProject;
-  return undefined;
-}
-
-export function getBuildingById(slug: string, buildingId: string): Building | undefined {
-  return getProjectBySlug(slug)?.buildings.find(b => b.id === buildingId);
-}
-
-export function getUnitById(unitId: string): Unit | undefined {
-  return units.find(u => u.id === unitId);
-}
-
-// Nota: recibe la lista de unidades como parámetro (en vez de leer el
-// array del módulo) para poder reusarse tanto con los datos mock como
-// con las unidades ya traídas de Supabase (ver data/project-repository.ts).
-export function getUnitsByBuildingAndFloor(unitList: Unit[], buildingId: string, floor: number): Unit[] {
-  return unitList.filter(u => u.buildingId === buildingId && u.floor === floor);
-}
-
-export function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price);
-}
-
-export function getStatusLabel(status: string): string {
-  return { available: 'Disponible para vender', reserved: 'Reservado', sold: 'Vendido' }[status] || status;
-}
-
-export function getStatusColor(status: string): string {
-  return { available: '#22c55e', reserved: '#eab308', sold: '#ef4444' }[status] || '#94a3b8';
-}

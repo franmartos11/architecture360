@@ -25,7 +25,8 @@ export default function AdminUnitTourPage({ params }: { params: Promise<{ id: st
         setTourData(unit.tour_data ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

@@ -9,20 +9,10 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/types/database';
 
-interface BuildingRow {
-  id: string;
-  slug: string;
-  name: string;
-  total_floors: number;
-  cover_image: string | null;
-}
-interface FloorRow {
-  id: string;
-  number: number;
-  label: string;
-  plan_image: string | null;
-}
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
+type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image'>;
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -45,7 +35,8 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         setFloors(data.floors ?? []);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

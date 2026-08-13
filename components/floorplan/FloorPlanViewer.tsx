@@ -7,9 +7,11 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
-import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/data/mockData';
+import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/lib/units';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { useContactModal } from '@/hooks/useContactModal';
+import { useShareLink } from '@/hooks/useShareLink';
 
 interface FloorPlanViewerProps {
   building: Building;
@@ -44,36 +46,20 @@ export default function FloorPlanViewer({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
-
-  const openContact = (method: 'email' | 'whatsapp' | 'phone' = 'email') => {
-    setContactMethod(method);
-    setIsContactModalOpen(true);
-  };
+  const contactModal = useContactModal();
+  const shareLink = useShareLink();
 
   const handleShare = async () => {
     if (!selectedUnit) return;
     const url = `${window.location.origin}/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}`;
-    const title = `Unidad ${selectedUnit.name} - ${projectSlug}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text: `Mirá esta unidad: ${selectedUnit.name} (${selectedUnit.modelName})`,
-          url,
-        });
-      } catch (err) {
-        console.log('Error sharing', err);
-      }
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('Link copiado al portapapeles');
-    }
+    await shareLink(url, `Unidad ${selectedUnit.name} - ${projectSlug}`, `Mirá esta unidad: ${selectedUnit.name} (${selectedUnit.modelName})`);
   };
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
-  const unitsOnFloor = getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor);
+  const unitsOnFloor = useMemo(
+    () => getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor),
+    [allUnits, building.id, activeFloor]
+  );
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.
@@ -217,7 +203,7 @@ export default function FloorPlanViewer({
                 </div>
               ) : (
                 <button 
-                  onClick={() => openContact()}
+                  onClick={() => contactModal.open()}
                   className="w-full mb-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                 >
                   Consultar precio
@@ -293,17 +279,17 @@ export default function FloorPlanViewer({
               <div className="mt-auto pt-4 border-t border-gray-100">
                 <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
                 <div className="flex items-center gap-3">
-                  <ContactBtn title="Email" onClick={() => openContact('email')}>
+                  <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                     </svg>
                   </ContactBtn>
-                  <ContactBtn title="Teléfono" onClick={() => openContact('phone')}>
+                  <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                     </svg>
                   </ContactBtn>
-                  <ContactBtn title="WhatsApp" onClick={() => openContact('whatsapp')}>
+                  <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                     </svg>
@@ -366,17 +352,17 @@ export default function FloorPlanViewer({
               <div className="mt-auto pt-4 border-t border-gray-100">
                 <p className="text-xs text-gray-400 mb-3">Asesoramiento Comercial</p>
                 <div className="flex items-center gap-3">
-                  <ContactBtn title="Email" onClick={() => openContact('email')}>
+                  <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                     </svg>
                   </ContactBtn>
-                  <ContactBtn title="Teléfono" onClick={() => openContact('phone')}>
+                  <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
                     </svg>
                   </ContactBtn>
-                  <ContactBtn title="WhatsApp" onClick={() => openContact('whatsapp')}>
+                  <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                     </svg>
@@ -488,19 +474,24 @@ export default function FloorPlanViewer({
                   className="absolute inset-0 pointer-events-none"
                 >
                   {floor.unitDots.map(dot => {
-                    let unit = unitsOnFloor.find(u => u.id === dot.unitId);
+                    const unit = unitsOnFloor.find(u => u.id === dot.unitId);
                     if (!unit) {
-                      // Generate a placeholder unit for floors beyond our defined data
-                      unit = {
-                        id: dot.unitId, name: dot.unitId, modelName: 'DUET STANDARD',
-                        buildingId: building.id, floor: activeFloor, type: '2 dormitorios',
-                        totalArea: 95, innerArea: 82, balconyArea: 13, externalArea: 0,
-                        bedrooms: 2, bathrooms: 2, hasServiceRoom: false, status: 'available',
-                        interiorImageUrl: '/units/interior-1.jpg',
-                        tourImageUrl: '/tours/sample-pano.png',
-                        floorPlan3dUrl: '/floorplans/floor-1-3d.png',
-                        technicalPlanUrl: '/floorplans/floor-1-2d.png',
-                      };
+                      // El punto existe en el plano pero no hay ninguna unidad real
+                      // cargada con ese id (dato desincronizado entre el admin y el
+                      // plano) — mostramos un marcador de "falta cargar" en vez de
+                      // inventar precio/specs falsos que un visitante podría creer reales.
+                      return (
+                        <div
+                          key={dot.unitId}
+                          className="absolute pointer-events-auto"
+                          style={{ left: `${dot.x}%`, top: `${dot.y}%`, transform: 'translate(-50%, -50%)' }}
+                          title={`Unidad "${dot.unitId}" sin cargar en el admin`}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-gray-200 border-2 border-dashed border-gray-400 flex items-center justify-center text-gray-500 text-[11px] font-bold shadow-sm">
+                            ?
+                          </div>
+                        </div>
+                      );
                     }
                     return (
                       <UnitDotMarker
@@ -549,10 +540,10 @@ export default function FloorPlanViewer({
       </div>
 
       <LeadCaptureModal
-        isOpen={isContactModalOpen}
-        onClose={() => setIsContactModalOpen(false)}
+        isOpen={contactModal.isOpen}
+        onClose={contactModal.close}
         unit={selectedUnit}
-        defaultMethod={contactMethod}
+        defaultMethod={contactModal.method}
       />
 
       {/* ── Mobile: tap-outside overlay for full panel ── */}

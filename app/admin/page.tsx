@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Unit } from '@/types';
+import type { Unit, Lead } from '@/types';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 
 export default function AdminDashboard() {
   const [units, setUnits] = useState<Unit[]>([]);
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -28,6 +28,7 @@ export default function AdminDashboard() {
         window.location.href = '/admin/login';
         return;
       }
+      console.error(err);
       setError(true);
       setLoading(false);
     });
@@ -150,7 +151,7 @@ export default function AdminDashboard() {
                 <div className="text-xl font-bold text-blue-600">${soldValue.toLocaleString()}</div>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(soldValue / totalValue) * 100}%` }} />
+                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${totalValue > 0 ? (soldValue / totalValue) * 100 : 0}%` }} />
               </div>
             </div>
             <div className="pt-4 border-t border-gray-100">

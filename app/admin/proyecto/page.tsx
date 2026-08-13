@@ -10,37 +10,14 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import type {
+  ProjectRow as DbProjectRow, BuildingRow as DbBuildingRow, AerialSlideRow, AerialHotspotRow,
+} from '@/types/database';
 
-interface ProjectRow {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  masterplan_image: string | null;
-}
-interface BuildingRow {
-  id: string;
-  slug: string;
-  name: string;
-  total_floors: number;
-}
-interface SlideRow {
-  id: string;
-  image_url: string;
-  video_url: string | null;
-  label: string;
-  sort_order: number;
-}
-interface HotspotRow {
-  id: string;
-  slide_id: string;
-  building_id: string;
-  x: number;
-  y: number;
-}
+type ProjectRow = Pick<DbProjectRow, 'id' | 'slug' | 'name' | 'description' | 'location' | 'latitude' | 'longitude' | 'masterplan_image'>;
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'>;
+type SlideRow = Pick<AerialSlideRow, 'id' | 'image_url' | 'video_url' | 'label' | 'sort_order'>;
+type HotspotRow = Pick<AerialHotspotRow, 'id' | 'slide_id' | 'building_id' | 'x' | 'y'>;
 
 export default function AdminProjectPage() {
   const [project, setProject] = useState<ProjectRow | null>(null);
@@ -66,7 +43,8 @@ export default function AdminProjectPage() {
         setHotspots(data.hotspots);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

@@ -25,7 +25,8 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
         setTourData(data.building?.amenities_tour ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

@@ -3,9 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-// Único proyecto servido hoy (ver DEFAULT_PROJECT_SLUG) — igual que el
-// resto de las rutas API, que también lo hardcodean.
-const PROJECT_SLUG = 'demo';
+import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
 const DEFAULTS = { interestRate: 5.5, maxYears: 30, minDownPayment: 20 };
 
 // Pública — la usan las calculadoras del sitio (sin sesión de admin).

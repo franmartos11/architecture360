@@ -1,5 +1,5 @@
 import type { UnitStatus } from '@/types';
-import { getStatusLabel } from '@/data/mockData';
+import { getStatusLabel } from '@/lib/units';
 
 interface BadgeProps {
   status: UnitStatus;

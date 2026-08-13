@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
+import type { Lead } from '@/types';
 
 export default function AdminLeads() {
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -30,8 +31,9 @@ export default function AdminLeads() {
     }
   };
 
-  const handleWhatsApp = (phone: string, name: string) => {
-    const text = encodeURIComponent(`Hola ${name}, te escribo por tu consulta sobre el proyecto...`);
+  const handleWhatsApp = (phone: string | null, name: string | null) => {
+    if (!phone) return;
+    const text = encodeURIComponent(`Hola ${name ?? ''}, te escribo por tu consulta sobre el proyecto...`);
     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
   };
 

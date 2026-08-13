@@ -6,13 +6,9 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import type { UnitRow as DbUnitRow } from '@/types/database';
 
-interface UnitRow {
-  id: string;
-  code: string;
-  status: 'available' | 'reserved' | 'sold';
-  polygon: { x: number; y: number }[] | null;
-}
+type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'>;
 
 const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
@@ -48,7 +44,8 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       setPoints(Object.fromEntries(list.map(u => [u.id, u.polygon ?? []])));
       if (list.length > 0) setActiveId(list[0].id);
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      console.error(err);
       setLoadError(true);
       setLoading(false);
     });

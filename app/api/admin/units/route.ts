@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
 
 // GET /api/admin/units            → todas las unidades del proyecto, con
 //                                    edificio/piso resueltos (para el
@@ -26,8 +27,10 @@ export async function GET(request: Request) {
   }
 
   // Listado global: enriquecer cada unidad con edificio/piso para mostrarlos.
-  const { data: floors } = await admin.from('floors').select('id, number, building_id');
-  const { data: buildings } = await admin.from('buildings').select('id, slug, name');
+  const [{ data: floors }, { data: buildings }] = await Promise.all([
+    admin.from('floors').select('id, number, building_id'),
+    admin.from('buildings').select('id, slug, name'),
+  ]);
   const floorById = new Map((floors ?? []).map(f => [f.id, f]));
   const buildingById = new Map((buildings ?? []).map(b => [b.id, b]));
 
@@ -52,6 +55,9 @@ export async function POST(request: Request) {
   const body = await request.json();
   if (!body.floorId || !body.code || !body.type) {
     return NextResponse.json({ error: 'Faltan floorId, code y/o type' }, { status: 400 });
+  }
+  if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
+    return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
 
   const admin = createAdminClient();

@@ -12,21 +12,12 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { PoiCategory } from '@/types';
+import type { PointOfInterestRow } from '@/types/database';
 
-interface PoiRow {
-  id: string;
-  name: string;
-  category: PoiCategory;
-  description: string | null;
-  distance_label: string | null;
-  image: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  walk_minutes: number | null;
-  drive_minutes: number | null;
-  bike_minutes: number | null;
-  sort_order: number;
-}
+type PoiRow = Pick<PointOfInterestRow,
+  | 'id' | 'name' | 'category' | 'description' | 'distance_label' | 'image'
+  | 'latitude' | 'longitude' | 'walk_minutes' | 'drive_minutes' | 'bike_minutes' | 'sort_order'
+>;
 
 const CATEGORY_LABELS: Record<PoiCategory, string> = {
   colegio: 'Colegio',
@@ -68,7 +59,8 @@ export default function AdminUbicacionPage() {
         setPois(data.pointsOfInterest ?? []);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

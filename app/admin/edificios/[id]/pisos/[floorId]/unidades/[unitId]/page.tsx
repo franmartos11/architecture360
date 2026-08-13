@@ -55,7 +55,8 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
         setActiveId(prev => prev ?? list[0]?.id ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });
