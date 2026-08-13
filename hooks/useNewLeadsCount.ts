@@ -19,11 +19,11 @@ export function useNewLeadsCount() {
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch('/api/leads');
+      const res = await fetch('/api/admin/leads');
       if (!res.ok) return;
-      const leads: { createdAt: string }[] = await res.json();
+      const leads: { created_at: string }[] = await res.json();
       const lastSeenAt = getLastSeenAt();
-      const newOnes = leads.filter(l => new Date(l.createdAt).getTime() > lastSeenAt);
+      const newOnes = leads.filter(l => new Date(l.created_at).getTime() > lastSeenAt);
       setCount(newOnes.length);
     } catch {
       // silencioso — no interrumpir la navegación del admin por esto

@@ -1,22 +1,25 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import dynamic from 'next/dynamic';
 import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
-import { getStatusColor, getStatusLabel } from '@/data/mockData';
-import RoomPlanViewer from './RoomPlanViewer';
-import { POI_CATEGORY_LABELS, PoiCategoryIcon } from '@/lib/poiCategories';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-
-const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
+import { getStatusColor, getStatusLabel } from '@/lib/units';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { useContactModal } from '@/hooks/useContactModal';
+import { useShareLink } from '@/hooks/useShareLink';
+import EyeIcon from '@/components/ui/icons/EyeIcon';
+import ImageLightbox from './ImageLightbox';
+import Planta3DTab from './tabs/Planta3DTab';
+import Tour360Tab from './tabs/Tour360Tab';
+import PlanoTab from './tabs/PlanoTab';
+import GaleriaTab from './tabs/GaleriaTab';
+import AmenitiesTab from './tabs/AmenitiesTab';
+import UbicacionTab from './tabs/UbicacionTab';
 
 interface UnitViewerProps {
   unit: Unit;
@@ -46,12 +49,7 @@ const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
   {
     id: 'tour360',
     label: '360°',
-    icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
+    icon: <EyeIcon />,
   },
   {
     id: 'plano',
@@ -97,18 +95,15 @@ export default function UnitViewer({
   const hasRooms = !!unit.rooms && unit.rooms.length > 0;
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
-  const thumbsRef = useRef<HTMLDivElement>(null);
   // Amenity detail state (inline tab)
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
   const [amenityImageIndex, setAmenityImageIndex] = useState(0);
   const [amenityViewMode, setAmenityViewMode] = useState<'fotos' | '360'>('fotos');
   const [amenitiesListOpen, setAmenitiesListOpen] = useState(true);
   const [amenityLightboxOpen, setAmenityLightboxOpen] = useState(false);
-  const amenityThumbsRef = useRef<HTMLDivElement>(null);
-  const amenityDetailRef = useRef<HTMLDivElement>(null);
 
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'phone'>('email');
+  const contactModal = useContactModal();
+  const shareLink = useShareLink();
 
   // Amenities relevant to this building
   const relevantAmenities = useMemo(
@@ -164,36 +159,8 @@ export default function UnitViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [amenityLightboxOpen, activeAmenity]);
 
-  const openContact = (method: 'email' | 'whatsapp' | 'phone' = 'email') => {
-    setContactMethod(method);
-    setIsContactModalOpen(true);
-  };
-
   const handleShare = async () => {
-    const url = window.location.href;
-    const title = `Unidad ${unit.name} - ${projectSlug}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text: `Mirá esta unidad: ${unit.name} (${unit.modelName})`,
-          url,
-        });
-      } catch (err) {
-        console.log('Error sharing', err);
-      }
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('Link copiado al portapapeles');
-    }
-  };
-
-  const scrollThumbs = (dir: 'left' | 'right') => {
-    thumbsRef.current?.scrollBy({ left: dir === 'right' ? 220 : -220, behavior: 'smooth' });
-  };
-
-  const scrollAmenityThumbs = (dir: 'left' | 'right') => {
-    amenityThumbsRef.current?.scrollBy({ left: dir === 'right' ? 220 : -220, behavior: 'smooth' });
+    await shareLink(window.location.href, `Unidad ${unit.name} - ${projectSlug}`, `Mirá esta unidad: ${unit.name} (${unit.modelName})`);
   };
 
   const handleSelectRoom = useCallback((room: Room) => {
@@ -268,7 +235,7 @@ export default function UnitViewer({
           {/* Price & Calculator */}
           <div className="flex gap-2 mb-4">
             <button 
-              onClick={() => openContact()}
+              onClick={() => contactModal.open()}
               className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
             >
               Consultar precio
@@ -365,7 +332,7 @@ export default function UnitViewer({
               ].map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => openContact(item.type)}
+                  onClick={() => contactModal.open(item.type)}
                   aria-label={
                     item.type === 'email' ? 'Solicitar información por email'
                     : item.type === 'phone' ? 'Solicitar información por teléfono'
@@ -453,552 +420,62 @@ export default function UnitViewer({
         <div className="absolute inset-0 md:top-0 top-[61px] md:bottom-0 bottom-[64px] overflow-hidden">
           <AnimatePresence mode="wait">
             {activeTab === 'planta3d' && (
-              <motion.div
-                key="planta3d"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
-              >
-                <div className="relative w-full h-full">
-                  {unit.floorPlan3dUrl && (
-                    <TransformWrapper
-                      initialScale={1}
-                      minScale={1}
-                      maxScale={4}
-                      centerOnInit={true}
-                      wheel={{ step: 0.1 }}
-                      doubleClick={{ step: 1 }}
-                      panning={{ disabled: false }}
-                    >
-                      <TransformComponent 
-                        wrapperStyle={{ width: '100%', height: '100%' }}
-                        contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Image
-                          src={unit.floorPlan3dUrl}
-                          alt="Planta 3D"
-                          width={1200}
-                          height={1200}
-                          priority
-                          className="max-w-full max-h-[85vh] object-contain"
-                          draggable={false}
-                        />
-                      </TransformComponent>
-                    </TransformWrapper>
-                  )}
-                </div>
-              </motion.div>
+              <Planta3DTab unit={unit} />
             )}
 
             {activeTab === 'tour360' && unit.tourImageUrl && (
-              <motion.div
-                key="tour360"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className={isFullscreen ? "fixed inset-0 z-[100] bg-black animate-in zoom-in duration-300" : "absolute inset-0 pt-16"}
-              >
-                <div className="relative w-full h-full overflow-hidden shadow-inner">
-                  <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} focusNodeId={focusNodeId} />
-                  {isFullscreen ? (
-                    <button
-                      onClick={() => setIsFullscreen(false)}
-                      className="absolute top-6 left-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur z-[110] transition-colors shadow-2xl"
-                      title="Salir de pantalla completa"
-                      aria-label="Salir de pantalla completa"
-                    >
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setIsFullscreen(true)}
-                      className="absolute top-6 left-6 w-12 h-12 rounded-full bg-gray-900/80 hover:bg-gray-900 border border-white/10 flex items-center justify-center text-white backdrop-blur z-[110] transition-colors shadow-lg"
-                      title="Pantalla completa"
-                      aria-label="Pantalla completa"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </motion.div>
+              <Tour360Tab
+                unit={unit}
+                focusNodeId={focusNodeId}
+                isFullscreen={isFullscreen}
+                onFullscreenChange={setIsFullscreen}
+              />
             )}
 
             {activeTab === 'plano' && (
-              <motion.div
-                key="plano"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex flex-col"
-              >
-                {/* Toggle bar */}
-                <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2">
-                  <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
-                    {hasRooms && (
-                      <button
-                        onClick={() => setPlanView('ambientes')}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-                      >
-                        Ambientes
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setPlanView('3d')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Plano 3D
-                    </button>
-                    <button
-                      onClick={() => setPlanView('2d')}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '2d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Plano técnico
-                    </button>
-                  </div>
-                </div>
-
-                {/* Plan image with zoom */}
-                <div className="flex-1 relative overflow-hidden">
-                  {planView === 'ambientes' && hasRooms ? (
-                    <RoomPlanViewer
-                      planImage={unit.roomPlanImage || unit.technicalPlanUrl || ''}
-                      rooms={unit.rooms!}
-                      onSelectRoom={handleSelectRoom}
-                    />
-                  ) : (
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={planView}
-                      initial={{ opacity: 0, x: planView === '3d' ? -20 : 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: planView === '3d' ? 20 : -20 }}
-                      transition={{ duration: 0.25 }}
-                      className="absolute inset-0 flex items-center justify-center p-2 sm:p-4"
-                    >
-                      {(unit.plan3dUrl || unit.technicalPlanUrl) && (
-                        <TransformWrapper
-                          key={planView}
-                          initialScale={1}
-                          minScale={0.5}
-                          maxScale={4}
-                          centerOnInit={true}
-                          wheel={{ step: 0.1 }}
-                          doubleClick={{ step: 1 }}
-                          panning={{ disabled: false }}
-                        >
-                          <TransformComponent
-                            wrapperStyle={{ width: '100%', height: '100%' }}
-                            contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                          >
-                            <Image
-                              src={planView === '3d' ? (unit.plan3dUrl || unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.plan3dUrl || '')}
-                              alt={planView === '3d' ? 'Plano 3D' : 'Plano técnico'}
-                              width={1200}
-                              height={1200}
-                              unoptimized={(planView === '2d' ? unit.technicalPlanUrl : unit.plan3dUrl)?.endsWith('.svg')}
-                              className="max-w-full max-h-[80vh] object-contain"
-                              draggable={false}
-                            />
-                          </TransformComponent>
-                        </TransformWrapper>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                  )}
-                </div>
-              </motion.div>
+              <PlanoTab
+                unit={unit}
+                hasRooms={hasRooms}
+                planView={planView}
+                onPlanViewChange={setPlanView}
+                onSelectRoom={handleSelectRoom}
+              />
             )}
 
             {activeTab === 'galeria' && unit.galleryImages && unit.galleryImages.length > 0 && (
-              <motion.div
-                key="galeria"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 flex flex-col"
-              >
-                {/* ── Main image (fills all space) ── */}
-                <div
-                  className="relative flex-1 overflow-hidden cursor-zoom-in"
-                  onClick={() => { setLightboxIndex(galleryIndex); setLightboxOpen(true); }}
-                >
-                  <AnimatePresence mode="wait">
-                    <motion.img
-                      key={galleryIndex}
-                      src={unit.galleryImages[galleryIndex]}
-                      alt={`Imagen ${galleryIndex + 1}`}
-                      initial={{ opacity: 0, scale: 1.03 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.4 }}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                  </AnimatePresence>
-
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/50 pointer-events-none" />
-
-                  {/* Expand hint */}
-                  <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md rounded-full w-9 h-9 flex items-center justify-center border border-white/20">
-                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                    </svg>
-                  </div>
-
-                  {/* Prev arrow */}
-                  {galleryIndex > 0 && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setGalleryIndex(i => i - 1); }}
-                      aria-label="Imagen anterior"
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                      </svg>
-                    </button>
-                  )}
-
-                  {/* Next arrow */}
-                  {galleryIndex < unit.galleryImages.length - 1 && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setGalleryIndex(i => i + 1); }}
-                      aria-label="Imagen siguiente"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-
-                {/* ── Thumbnails carousel ── */}
-                <div className="relative flex-shrink-0 bg-white/95 backdrop-blur-md border-t border-gray-200">
-
-                  {/* Left scroll button */}
-                  <button
-                    onClick={() => scrollThumbs('left')}
-                    className="absolute left-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-r from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                    aria-label="Desplazar izquierda"
-                  >
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                  </button>
-
-                  {/* Scrollable strip */}
-                  <div
-                    ref={thumbsRef}
-                    className="flex items-center gap-2 px-10 py-3 overflow-x-auto scroll-smooth"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                  >
-                    {unit.galleryImages.map((img, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setGalleryIndex(i)}
-                        aria-label={`Ver foto ${i + 1} de la galería`}
-                        aria-current={i === galleryIndex ? 'true' : undefined}
-                        className={`relative flex-shrink-0 rounded-lg overflow-hidden transition-all duration-200 ${
-                          i === galleryIndex
-                            ? 'ring-2 ring-gray-900 w-24 h-16 opacity-100 shadow-md'
-                            : 'w-20 h-14 opacity-55 hover:opacity-90 hover:scale-105'
-                        }`}
-                      >
-                        <Image src={img} alt={`Thumbnail ${i + 1}`} fill sizes="100px" className="object-cover" />
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Right scroll button */}
-                  <button
-                    onClick={() => scrollThumbs('right')}
-                    className="absolute right-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-l from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                    aria-label="Desplazar derecha"
-                  >
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
-
-                </div>
-              </motion.div>
+              <GaleriaTab
+                images={unit.galleryImages}
+                activeIndex={galleryIndex}
+                onIndexChange={setGalleryIndex}
+                onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+              />
             )}
+
             {/* ── Amenities tab ── */}
             {activeTab === 'amenities' && (
-              <motion.div
-                key="amenities"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
-              >
-                {/* ── Left Sidebar: Amenities Grid ── */}
-                <div
-                  className={`flex-shrink-0 flex flex-col order-2 lg:order-1 bg-white border-r border-gray-100 z-10 relative overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 ${
-                    amenitiesListOpen ? 'w-full lg:w-[420px] lg:h-auto' : 'w-full lg:w-0 h-0 lg:h-auto border-none'
-                  }`}
-                >
-                  <div className="p-6 border-b border-gray-100 bg-white shrink-0 relative z-20 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Amenities</h2>
-                      <p className="text-sm text-gray-500">Espacios del proyecto y de esta torre</p>
-                    </div>
-                    <button
-                      onClick={() => setAmenitiesListOpen(false)}
-                      aria-label="Ocultar lista de amenities"
-                      title="Ocultar lista"
-                      className="flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="lg:flex-1 lg:overflow-y-auto p-4 bg-gray-50/50">
-                    {relevantAmenities.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-8">Todavía no hay amenities cargadas.</p>
-                    ) : (
-                      <div className="flex flex-col gap-3 pb-8">
-                        {relevantAmenities.map(a => {
-                          const isSelected = activeAmenity?.id === a.id;
-                          return (
-                            <button
-                              key={a.id}
-                              onClick={() => {
-                                setActiveAmenity(a);
-                                setAmenityImageIndex(0);
-                                setAmenityViewMode('fotos');
-                                setAmenityLightboxOpen(false);
-                                amenityDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                              }}
-                              aria-current={isSelected ? 'true' : undefined}
-                              className={`group flex items-center gap-3 text-left rounded-xl overflow-hidden border transition-all shadow-sm p-2 ${
-                                isSelected
-                                  ? 'border-brand-500 ring-1 ring-brand-500 bg-brand-50'
-                                  : 'border-gray-200 bg-white hover:border-brand-300 hover:shadow-md'
-                              }`}
-                            >
-                              <div className="relative w-28 aspect-[4/3] shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                                {a.images[0] ? (
-                                  <Image src={a.images[0]} alt={a.name} fill sizes="160px" placeholder="blur" blurDataURL={shimmerDataUrl()} className="object-cover transition-transform duration-300 group-hover:scale-105" />
-                                ) : (
-                                  <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[11px]">Sin foto</div>
-                                )}
-                                {a.tourNodeId && (
-                                  <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm z-10">
-                                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12z" /></svg>
-                                    360°
-                                  </span>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className={`text-sm font-semibold truncate ${isSelected ? 'text-brand-700' : 'text-gray-900'}`}>
-                                  {a.name}
-                                </p>
-                                {a.description && <p className="text-xs text-gray-400 truncate mt-0.5">{a.description}</p>}
-                              </div>
-                              {isSelected && (
-                                <svg className="w-5 h-5 text-brand-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── Right Side: Detail ── */}
-                <div className="flex-1 relative order-1 lg:order-2 bg-white z-0 lg:h-auto lg:overflow-y-auto">
-                  {!amenitiesListOpen && (
-                    <button
-                      onClick={() => setAmenitiesListOpen(true)}
-                      aria-label="Mostrar lista de amenities"
-                      title="Mostrar lista"
-                      className="flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                      </svg>
-                      Amenities
-                    </button>
-                  )}
-                  {activeAmenity ? (
-                    <div ref={amenityDetailRef} className="min-h-full flex flex-col bg-white">
-                      <div className="relative w-full aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
-                        {amenityViewMode === '360' && activeAmenity.tourNodeId ? (
-                          <iframe
-                            key={activeAmenity.tourNodeId}
-                            src={activeAmenity.buildingId
-                              ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
-                              : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
-                            }
-                            className="absolute inset-0 w-full h-full border-0"
-                            allowFullScreen
-                            loading="lazy"
-                          />
-                        ) : activeAmenity.images.length > 0 ? (
-                          <>
-                            <div
-                              className="absolute inset-0 cursor-zoom-in"
-                              onClick={() => setAmenityLightboxOpen(true)}
-                            >
-                              <Image
-                                src={activeAmenity.images[amenityImageIndex]}
-                                alt={`${activeAmenity.name} ${amenityImageIndex + 1}`}
-                                fill sizes="(max-width: 1024px) 100vw, 1200px"
-                                placeholder="blur" blurDataURL={shimmerDataUrl()}
-                                className="object-cover"
-                              />
-                            </div>
-                            {/* Expand hint */}
-                            <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md rounded-full w-9 h-9 flex items-center justify-center border border-white/20 pointer-events-none">
-                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                              </svg>
-                            </div>
-                            {activeAmenity.images.length > 1 && (
-                              <>
-                                <button onClick={() => setAmenityImageIndex(i => (i - 1 + activeAmenity.images.length) % activeAmenity.images.length)} aria-label="Anterior" className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
-                                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-                                </button>
-                                <button onClick={() => setAmenityImageIndex(i => (i + 1) % activeAmenity.images.length)} aria-label="Siguiente" className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
-                                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-                                </button>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Sin renders todavía</div>
-                        )}
-                        {amenityViewMode === 'fotos' && (
-                          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                        )}
-                      </div>
-
-                      {/* ── Thumbnails carousel (igual que en la Galería) ── */}
-                      {amenityViewMode === 'fotos' && activeAmenity.images.length > 1 && (
-                        <div className="relative flex-shrink-0 bg-white/95 backdrop-blur-md border-b border-gray-100">
-                          <button
-                            onClick={() => scrollAmenityThumbs('left')}
-                            className="absolute left-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-r from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                            aria-label="Desplazar izquierda"
-                          >
-                            <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                            </svg>
-                          </button>
-                          <div
-                            ref={amenityThumbsRef}
-                            className="flex items-center gap-2 px-10 py-3 overflow-x-auto scroll-smooth"
-                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                          >
-                            {activeAmenity.images.map((img, i) => (
-                              <button
-                                key={i}
-                                onClick={() => setAmenityImageIndex(i)}
-                                aria-label={`Ver foto ${i + 1} de ${activeAmenity.name}`}
-                                aria-current={i === amenityImageIndex ? 'true' : undefined}
-                                className={`relative flex-shrink-0 rounded-lg overflow-hidden transition-all duration-200 ${
-                                  i === amenityImageIndex
-                                    ? 'ring-2 ring-gray-900 w-24 h-16 opacity-100 shadow-md'
-                                    : 'w-20 h-14 opacity-55 hover:opacity-90 hover:scale-105'
-                                }`}
-                              >
-                                <Image src={img} alt={`Thumbnail ${i + 1}`} fill sizes="100px" className="object-cover" />
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            onClick={() => scrollAmenityThumbs('right')}
-                            className="absolute right-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-l from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                            aria-label="Desplazar derecha"
-                          >
-                            <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="p-6 lg:p-12 max-w-4xl w-full flex-1">
-                        {activeAmenity.tourNodeId && (
-                          <div className="inline-flex bg-gray-100 rounded-xl p-1 mb-6 gap-1">
-                            <button
-                              onClick={() => setAmenityViewMode('fotos')}
-                              aria-current={amenityViewMode === 'fotos' ? 'true' : undefined}
-                              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                                amenityViewMode === 'fotos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                              }`}
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                              </svg>
-                              Fotos
-                            </button>
-                            <button
-                              onClick={() => setAmenityViewMode('360')}
-                              aria-current={amenityViewMode === '360' ? 'true' : undefined}
-                              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                                amenityViewMode === '360' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                              }`}
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" />
-                              </svg>
-                              Recorrido 360°
-                            </button>
-                          </div>
-                        )}
-
-                        <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 tracking-tight">{activeAmenity.name}</h2>
-                        {activeAmenity.description && <p className="text-base lg:text-lg text-gray-600 leading-relaxed mb-8">{activeAmenity.description}</p>}
-
-                        {activeAmenity.tourNodeId && (
-                          <Link
-                            href={activeAmenity.buildingId
-                              ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}`
-                              : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}`
-                            }
-                            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[15px] font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                          >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            Ver en pantalla completa
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="min-h-[40vh] lg:absolute lg:inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
-                      <div className="text-center">
-                        <svg className="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-                        <p className="text-sm font-medium">Seleccioná un amenity para ver los detalles</p>
-                      </div>
-                    </div>
-                  )}
-                  {/* Gradient shadow for depth */}
-                  <div className="absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-black/[0.03] to-transparent pointer-events-none hidden lg:block" />
-                </div>
-              </motion.div>
+              <AmenitiesTab
+                amenities={relevantAmenities}
+                projectSlug={projectSlug}
+                activeAmenity={activeAmenity}
+                onSelectAmenity={(a) => {
+                  setActiveAmenity(a);
+                  setAmenityImageIndex(0);
+                  setAmenityViewMode('fotos');
+                  setAmenityLightboxOpen(false);
+                }}
+                imageIndex={amenityImageIndex}
+                onImageIndexChange={setAmenityImageIndex}
+                viewMode={amenityViewMode}
+                onViewModeChange={setAmenityViewMode}
+                listOpen={amenitiesListOpen}
+                onListOpenChange={setAmenitiesListOpen}
+                onOpenLightbox={() => setAmenityLightboxOpen(true)}
+              />
             )}
 
             {/* ── Ubicación tab ── */}
             {activeTab === 'ubicacion' && (
-              <UbicacionTabRenderer
+              <UbicacionTab
                 projectLocation={projectLocation}
                 projectLatitude={projectLatitude}
                 projectLongitude={projectLongitude}
@@ -1034,142 +511,29 @@ export default function UnitViewer({
 
       </div>
 
-      {/* ── Lightbox ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {lightboxOpen && unit.galleryImages && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center"
-            onClick={() => setLightboxOpen(false)}
-          >
-            {/* Image */}
-            <motion.img
-              key={lightboxIndex}
-              src={unit.galleryImages[lightboxIndex]}
-              alt={`Imagen ${lightboxIndex + 1}`}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ duration: 0.3 }}
-              className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            />
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        images={unit.galleryImages ?? []}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+        altPrefix="Imagen"
+      />
 
-            {/* Close */}
-            <button
-              onClick={() => setLightboxOpen(false)}
-              aria-label="Cerrar galería"
-              className="absolute top-6 right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Prev */}
-            {lightboxIndex > 0 && (
-              <button
-                onClick={e => { e.stopPropagation(); setLightboxIndex(i => i - 1); }}
-                aria-label="Imagen anterior"
-                className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-              </button>
-            )}
-
-            {/* Next */}
-            {lightboxIndex < unit.galleryImages.length - 1 && (
-              <button
-                onClick={e => { e.stopPropagation(); setLightboxIndex(i => i + 1); }}
-                aria-label="Imagen siguiente"
-                className="absolute right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
-              </button>
-            )}
-
-            {/* Counter */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur rounded-full px-4 py-1.5 text-white/80 text-sm font-medium border border-white/20">
-              {lightboxIndex + 1} / {unit.galleryImages.length}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Amenity lightbox ──────────────────────────────── */}
-      <AnimatePresence>
-        {amenityLightboxOpen && activeAmenity && activeAmenity.images.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center"
-            onClick={() => setAmenityLightboxOpen(false)}
-          >
-            <motion.img
-              key={amenityImageIndex}
-              src={activeAmenity.images[amenityImageIndex]}
-              alt={`${activeAmenity.name} ${amenityImageIndex + 1}`}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ duration: 0.3 }}
-              className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            />
-
-            <button
-              onClick={() => setAmenityLightboxOpen(false)}
-              aria-label="Cerrar"
-              className="absolute top-6 right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {activeAmenity.images.length > 1 && (
-              <>
-                <button
-                  onClick={e => { e.stopPropagation(); setAmenityImageIndex(i => (i - 1 + activeAmenity.images.length) % activeAmenity.images.length); }}
-                  aria-label="Imagen anterior"
-                  className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                  </svg>
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setAmenityImageIndex(i => (i + 1) % activeAmenity.images.length); }}
-                  aria-label="Imagen siguiente"
-                  className="absolute right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur rounded-full px-4 py-1.5 text-white/80 text-sm font-medium border border-white/20">
-                  {amenityImageIndex + 1} / {activeAmenity.images.length}
-                </div>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ImageLightbox
+        isOpen={amenityLightboxOpen}
+        images={activeAmenity?.images ?? []}
+        index={amenityImageIndex}
+        onIndexChange={setAmenityImageIndex}
+        onClose={() => setAmenityLightboxOpen(false)}
+        altPrefix={activeAmenity?.name ?? 'Imagen'}
+      />
 
       <LeadCaptureModal
-        isOpen={isContactModalOpen}
-        onClose={() => setIsContactModalOpen(false)}
+        isOpen={contactModal.isOpen}
+        onClose={contactModal.close}
         unit={unit}
-        defaultMethod={contactMethod}
+        defaultMethod={contactModal.method}
       />
       
       <MortgageCalculatorModal
@@ -1241,7 +605,7 @@ export default function UnitViewer({
 
         {/* Contact CTA */}
         <button
-          onClick={() => openContact()}
+          onClick={() => contactModal.open()}
           className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-brand-600"
           aria-label="Contacto"
         >
@@ -1255,218 +619,6 @@ export default function UnitViewer({
       </nav>
 
     </div>
-  );
-}
-
-// ─── Transport mode toggle + POI list ─────────────────────────────────
-type TransportMode = 'drive' | 'walk' | 'bike';
-
-const TRANSPORT_MODES: { id: TransportMode; label: string; icon: React.ReactNode }[] = [
-  {
-    id: 'drive',
-    label: 'Auto',
-    icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-      </svg>
-    ),
-  },
-  {
-    id: 'walk',
-    label: 'Caminando',
-    icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 11-6 0 3 3 0 016 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'bike',
-    label: 'Bicicleta',
-    icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zM3.75 10.5a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zm16.5 0a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5zM6.75 10.5l1.5-4.5h7.5l1.5 4.5" />
-      </svg>
-    ),
-  },
-];
-
-function getPoiMinutes(poi: PointOfInterest, mode: TransportMode): number | undefined {
-  if (mode === 'drive') return poi.driveMinutes;
-  if (mode === 'walk') return poi.walkMinutes;
-  return poi.bikeMinutes;
-}
-
-function UbicacionTabRenderer({
-  projectLocation,
-  projectLatitude,
-  projectLongitude,
-  pointsOfInterest,
-}: {
-  projectLocation: string;
-  projectLatitude?: number;
-  projectLongitude?: number;
-  pointsOfInterest: PointOfInterest[];
-}) {
-  const [mode, setMode] = useState<TransportMode>('drive');
-  const [selectedPoi, setSelectedPoi] = useState<PointOfInterest | null>(null);
-  const [poiListOpen, setPoiListOpen] = useState(true);
-  const poiMapRef = useRef<HTMLDivElement>(null);
-
-  const hasCoords = projectLatitude != null && projectLongitude != null;
-  
-  let mapSrc = null;
-  if (hasCoords) {
-    if (selectedPoi && selectedPoi.latitude != null && selectedPoi.longitude != null) {
-      // Directions embed
-      const dirflg = mode === 'drive' ? 'd' : mode === 'walk' ? 'w' : 'b';
-      mapSrc = `https://maps.google.com/maps?saddr=${projectLatitude},${projectLongitude}&daddr=${selectedPoi.latitude},${selectedPoi.longitude}&dirflg=${dirflg}&output=embed`;
-    } else {
-      // Regular view embed
-      mapSrc = `https://maps.google.com/maps?q=${projectLatitude},${projectLongitude}&z=15&output=embed`;
-    }
-  }
-
-  return (
-    <motion.div
-      key="ubicacion"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
-    >
-      {/* ── Left Sidebar: POI List ── */}
-      <div
-        className={`flex-shrink-0 flex flex-col order-2 lg:order-1 bg-white border-r border-gray-100 z-10 relative overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 ${
-          poiListOpen ? 'w-full lg:w-[420px] lg:h-auto' : 'w-full lg:w-0 h-0 lg:h-auto border-none'
-        }`}
-      >
-        <div className="p-6 border-b border-gray-100 bg-white shrink-0 relative z-20 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Ubicación</h2>
-            <p className="text-sm text-gray-500">{projectLocation || 'Puntos de interés cercanos'}</p>
-          </div>
-          <button
-            onClick={() => setPoiListOpen(false)}
-            aria-label="Ocultar lista de puntos de interés"
-            title="Ocultar lista"
-            className="flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="lg:flex-1 lg:overflow-y-auto p-6 bg-gray-50/50">
-          {pointsOfInterest.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Todavía no hay puntos de interés cargados.</p>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-center bg-gray-200/50 rounded-xl p-1 w-full shadow-inner">
-                {TRANSPORT_MODES.map((tm) => (
-                  <button
-                    key={tm.id}
-                    onClick={() => setMode(tm.id)}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                      mode === tm.id
-                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5 scale-[1.02]'
-                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
-                    }`}
-                  >
-                    {tm.icon}
-                    <span>{tm.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-2.5 pb-8">
-                {pointsOfInterest.map((poi) => {
-                  const minutes = getPoiMinutes(poi, mode);
-                  const isSelected = selectedPoi?.id === poi.id;
-                  
-                  return (
-                    <div
-                      key={poi.id}
-                      onClick={() => {
-                        setSelectedPoi(isSelected ? null : poi);
-                        poiMapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }}
-                      className={`group flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'border-brand-500 bg-brand-50 shadow-md ring-1 ring-brand-500 scale-[1.01]' 
-                          : 'border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors shadow-sm ${
-                        isSelected ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-brand-100 group-hover:text-brand-600'
-                      }`}>
-                        <PoiCategoryIcon category={poi.category} className="w-5 h-5" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[15px] font-bold truncate transition-colors ${isSelected ? 'text-brand-900' : 'text-gray-900'}`}>{poi.name}</p>
-                        <p className={`text-[13px] font-medium transition-colors ${isSelected ? 'text-brand-600/80' : 'text-gray-400'}`}>
-                          {POI_CATEGORY_LABELS[poi.category]}
-                          {poi.distanceLabel ? ` · ${poi.distanceLabel}` : ''}
-                        </p>
-                      </div>
-
-                      {minutes != null ? (
-                        <span className={`shrink-0 flex items-center gap-1 text-[13px] font-bold rounded-xl px-3 py-1.5 min-w-[56px] justify-center transition-colors shadow-sm ${
-                          isSelected ? 'bg-brand-500 text-white' : 'text-gray-700 bg-gray-100 group-hover:bg-gray-200'
-                        }`}>
-                          {minutes} min
-                        </span>
-                      ) : (
-                        <span className="shrink-0 text-xs text-gray-300 min-w-[56px] text-center">—</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Right Side: Map ── */}
-      <div ref={poiMapRef} className="flex-none lg:flex-1 relative order-1 lg:order-2 bg-gray-100 z-0 h-[45vh] lg:h-auto">
-        {!poiListOpen && (
-          <button
-            onClick={() => setPoiListOpen(true)}
-            aria-label="Mostrar lista de puntos de interés"
-            title="Mostrar lista"
-            className="flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            </svg>
-            Ubicación
-          </button>
-        )}
-        {mapSrc ? (
-          <iframe
-            key={mapSrc}
-            src={mapSrc}
-            title="Mapa de ubicación"
-            className="absolute inset-0 w-full h-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
-            <div className="text-center">
-              <svg className="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
-              <p className="text-sm font-medium">Mapa no disponible</p>
-            </div>
-          </div>
-        )}
-        {/* Gradient shadow for depth */}
-        <div className="absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-black/[0.03] to-transparent pointer-events-none hidden lg:block" />
-      </div>
-    </motion.div>
   );
 }
 

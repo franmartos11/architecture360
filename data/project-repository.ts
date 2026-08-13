@@ -1,107 +1,14 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import type { AerialHotspot, AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, Unit } from '@/types';
+import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
+import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, Unit } from '@/types';
+import type {
+  ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
+} from '@/types/database';
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// ─── Filas crudas de Supabase (snake_case) ─────────────────────────
-interface ProjectRow {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  masterplan_image: string | null;
-  common_areas_tour: Project['commonAreasTour'] | null;
-}
-interface BuildingRow {
-  id: string;
-  project_id: string;
-  slug: string;
-  name: string;
-  total_floors: number;
-  amenities_tour: Building['amenitiesTour'] | null;
-  cover_image: string | null;
-}
-interface AmenityRow {
-  id: string;
-  project_id: string;
-  building_id: string | null;
-  name: string;
-  description: string | null;
-  images: string[] | null;
-  tour_node_id: string | null;
-  sort_order: number;
-}
-interface PointOfInterestRow {
-  id: string;
-  project_id: string;
-  name: string;
-  category: PointOfInterest['category'];
-  description: string | null;
-  distance_label: string | null;
-  image: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  walk_minutes: number | null;
-  drive_minutes: number | null;
-  bike_minutes: number | null;
-  sort_order: number;
-}
-interface FloorRow {
-  id: string;
-  building_id: string;
-  number: number;
-  label: string;
-  plan_image: string | null;
-  unit_dots: Floor['unitDots'] | null;
-}
-interface UnitRow {
-  id: string;
-  floor_id: string;
-  code: string;
-  model_name: string | null;
-  type: Unit['type'];
-  total_area: number | null;
-  inner_area: number | null;
-  balcony_area: number;
-  external_area: number;
-  bedrooms: number;
-  bathrooms: number;
-  has_service_room: boolean;
-  price: number | null;
-  status: Unit['status'];
-  orientation: string | null;
-  interior_image_url: string | null;
-  gallery_images: string[] | null;
-  floor_plan_3d_url: string | null;
-  plan_3d_url: string | null;
-  technical_plan_url: string | null;
-  room_plan_image: string | null;
-  polygon: Unit['polygon'] | null;
-  rooms: Unit['rooms'] | null;
-  tour_image_url: string | null;
-  tour_data: Unit['tourData'] | null;
-}
-interface AerialSlideRow {
-  id: string;
-  project_id: string;
-  image_url: string;
-  video_url: string | null;
-  label: string;
-  sort_order: number;
-}
-interface AerialHotspotRow {
-  id: string;
-  slide_id: string;
-  building_id: string;
-  x: number;
-  y: number;
-  polygon: AerialHotspot['polygon'] | null;
-}
 
 // ─── Mapea las filas de Supabase a los tipos que ya consume el sitio ─
 function mapProject(
@@ -228,7 +135,7 @@ function mapProject(
   };
 }
 
-export async function getProjectBySlug(slug: string): Promise<Project | undefined> {
+export const getProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
   if (!SUPABASE_CONFIGURED) {
     return slug === demoProject.slug ? demoProject : undefined;
   }
@@ -238,8 +145,37 @@ export async function getProjectBySlug(slug: string): Promise<Project | undefine
   const { data: project } = await supabase.from('projects').select('*').eq('slug', slug).maybeSingle();
   if (!project) return undefined;
 
-  const { data: buildingRows } = await supabase.from('buildings').select('*').eq('project_id', project.id);
-  const buildings = (buildingRows ?? []) as BuildingRow[];
+  // Todo lo que solo depende de project.id se pide en paralelo — buildings→floors→units
+  // y slides→hotspots son las únicas cadenas de dependencia reales acá adentro.
+  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest] = await Promise.all([
+    supabase.from('buildings').select('*').eq('project_id', project.id),
+    (async () => {
+      const { data: slideRows } = await supabase
+        .from('aerial_slides')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('sort_order');
+      const slides = (slideRows ?? []) as AerialSlideRow[];
+
+      const { data: hotspotRows } = slides.length
+        ? await supabase.from('aerial_hotspots').select('*').in('slide_id', slides.map(s => s.id))
+        : { data: [] };
+      return { slides, hotspots: (hotspotRows ?? []) as AerialHotspotRow[] };
+    })(),
+    supabase
+      .from('amenities')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('sort_order')
+      .then(({ data }) => (data ?? []) as AmenityRow[]),
+    supabase
+      .from('points_of_interest')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('sort_order')
+      .then(({ data }) => (data ?? []) as PointOfInterestRow[]),
+  ]);
+  const buildings = (buildingsResult.data ?? []) as BuildingRow[];
 
   const { data: floorRows } = buildings.length
     ? await supabase.from('floors').select('*').in('building_id', buildings.map(b => b.id))
@@ -251,43 +187,19 @@ export async function getProjectBySlug(slug: string): Promise<Project | undefine
     : { data: [] };
   const units = (unitRows ?? []) as UnitRow[];
 
-  const { data: slideRows } = await supabase
-    .from('aerial_slides')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
-  const slides = (slideRows ?? []) as AerialSlideRow[];
-
-  const { data: hotspotRows } = slides.length
-    ? await supabase.from('aerial_hotspots').select('*').in('slide_id', slides.map(s => s.id))
-    : { data: [] };
-  const hotspots = (hotspotRows ?? []) as AerialHotspotRow[];
-
-  const { data: amenityRows } = await supabase
-    .from('amenities')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
-  const amenities = (amenityRows ?? []) as AmenityRow[];
-
-  const { data: poiRows } = await supabase
-    .from('points_of_interest')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
-  const pointsOfInterest = (poiRows ?? []) as PointOfInterestRow[];
-
   return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest);
-}
+});
 
-export async function getBuildingById(slug: string, buildingId: string): Promise<Building | undefined> {
+export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {
   const project = await getProjectBySlug(slug);
   return project?.buildings.find(b => b.id === buildingId);
-}
+});
 
-export async function getUnitById(unitId: string): Promise<Unit | undefined> {
-  // Hoy el sitio solo sirve un proyecto ('demo'), igual que en el resto
-  // de la app (ver Navbar/homepage, que también lo hardcodean).
-  const project = await getProjectBySlug('demo');
+export const getUnitById = cache(async (unitId: string): Promise<Unit | undefined> => {
+  // Hoy el sitio solo sirve un proyecto (DEFAULT_PROJECT_SLUG), igual que en
+  // el resto de la app (ver Navbar/homepage). getProjectBySlug está cacheado
+  // por request, así que este fetch se comparte con cualquier otra llamada
+  // a getProjectBySlug('demo') en la misma página en vez de repetirse.
+  const project = await getProjectBySlug(DEFAULT_PROJECT_SLUG);
   return project?.units.find(u => u.id === unitId);
-}
+});

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusLabel, getStatusColor } from '@/data/mockData';
+import { formatPrice, getStatusLabel, getStatusColor } from '@/lib/units';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {

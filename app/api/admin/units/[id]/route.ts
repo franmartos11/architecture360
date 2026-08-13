@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
 
 const FIELD_MAP: Record<string, string> = {
   code: 'code',
@@ -47,6 +48,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await request.json();
+  if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
+    return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
+  }
   const admin = createAdminClient();
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

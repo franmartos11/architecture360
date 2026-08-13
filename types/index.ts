@@ -184,3 +184,21 @@ export interface FloorFilterState {
   status: UnitStatus | 'all';
   type: UnitType | 'all';
 }
+
+// ─── Lead (contacto capturado desde el sitio público) ───────────────
+// Fila cruda de la tabla `leads` de Supabase (snake_case), tal como la
+// devuelven /api/admin/leads y /api/admin/leads/[id].
+export interface Lead {
+  id: string;
+  project_id: string | null;
+  unit_id: string | null;
+  unit_name: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  method: string | null;
+  message: string | null;
+  source: string | null;
+  status: string;
+  created_at: string;
+}

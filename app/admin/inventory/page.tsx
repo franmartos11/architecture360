@@ -4,17 +4,14 @@ import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import type { UnitRow as DbUnitRow } from '@/types/database';
 
-interface UnitRow {
-  id: string;
-  code: string;
-  model_name: string | null;
-  total_area: number | null;
-  status: 'available' | 'reserved' | 'sold';
-  price: number | null;
+// building_name/floor_number no son columnas reales de `units` — las agrega
+// /api/admin/units enriqueciendo cada fila para el listado global.
+type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'model_name' | 'total_area' | 'status' | 'price'> & {
   building_name: string | null;
   floor_number: number | null;
-}
+};
 
 export default function AdminInventory() {
   const [units, setUnits] = useState<UnitRow[]>([]);

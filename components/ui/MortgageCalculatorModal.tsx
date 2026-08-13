@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
-import { formatPrice } from '@/data/mockData';
+import { formatPrice } from '@/lib/units';
 
 interface MortgageCalculatorModalProps {
   isOpen: boolean;

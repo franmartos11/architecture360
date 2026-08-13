@@ -8,14 +8,11 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import type { BuildingRow as DbBuildingRow } from '@/types/database';
 
-interface BuildingRow {
-  id: string;
-  slug: string;
-  name: string;
-  total_floors: number;
-  floors_loaded: number;
-}
+// floors_loaded no es una columna real — la agrega /api/admin/buildings
+// enriqueciendo cada fila con el conteo de pisos cargados.
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'> & { floors_loaded: number };
 
 export default function AdminBuildingsPage() {
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
@@ -38,7 +35,8 @@ export default function AdminBuildingsPage() {
       setBuildings(Array.isArray(buildingsData) ? buildingsData : []);
       setFirstSlideId(projectData.slides?.[0]?.id ?? null);
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      console.error(err);
       setLoadError(true);
       setLoading(false);
     });

@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-// Nota: el sitio hoy solo sirve un proyecto ('demo'), igual que el
-// resto de la app (Navbar/homepage también lo hardcodean).
-const PROJECT_SLUG = 'demo';
+import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
 
 export async function GET() {
   const user = await requireAdminUser();
@@ -19,34 +17,23 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const { data: buildings } = await admin
-    .from('buildings')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('slug');
-
-  const { data: slides } = await admin
-    .from('aerial_slides')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
-
-  const slideIds = (slides ?? []).map(s => s.id);
-  const { data: hotspots } = slideIds.length
-    ? await admin.from('aerial_hotspots').select('*').in('slide_id', slideIds)
-    : { data: [] };
-
-  const { data: amenities } = await admin
-    .from('amenities')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
-
-  const { data: pointsOfInterest } = await admin
-    .from('points_of_interest')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('sort_order');
+  const [{ data: buildings }, { slides, hotspots }, { data: amenities }, { data: pointsOfInterest }] = await Promise.all([
+    admin.from('buildings').select('*').eq('project_id', project.id).order('slug'),
+    (async () => {
+      const { data: slides } = await admin
+        .from('aerial_slides')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('sort_order');
+      const slideIds = (slides ?? []).map(s => s.id);
+      const { data: hotspots } = slideIds.length
+        ? await admin.from('aerial_hotspots').select('*').in('slide_id', slideIds)
+        : { data: [] };
+      return { slides: slides ?? [], hotspots: hotspots ?? [] };
+    })(),
+    admin.from('amenities').select('*').eq('project_id', project.id).order('sort_order'),
+    admin.from('points_of_interest').select('*').eq('project_id', project.id).order('sort_order'),
+  ]);
 
   return NextResponse.json({
     project,

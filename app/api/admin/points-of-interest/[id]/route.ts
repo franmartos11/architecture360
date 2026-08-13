@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAdminUser();
@@ -8,6 +9,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await request.json();
+  if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
+    return NextResponse.json({ error: `category debe ser uno de: ${POI_CATEGORIES.join(', ')}` }, { status: 400 });
+  }
   const admin = createAdminClient();
 
   const updates: Record<string, unknown> = {};

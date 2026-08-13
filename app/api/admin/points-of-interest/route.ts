@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 
-const PROJECT_SLUG = 'demo';
+import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
 
 export async function POST(request: Request) {
   const user = await requireAdminUser();
@@ -11,6 +12,9 @@ export async function POST(request: Request) {
   const body = await request.json();
   if (!body.name) {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
+  }
+  if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
+    return NextResponse.json({ error: `category debe ser uno de: ${POI_CATEGORIES.join(', ')}` }, { status: 400 });
   }
 
   const admin = createAdminClient();

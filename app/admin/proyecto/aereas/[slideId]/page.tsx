@@ -7,25 +7,13 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import type {
+  BuildingRow as DbBuildingRow, AerialSlideRow, AerialHotspotRow,
+} from '@/types/database';
 
-interface BuildingRow {
-  id: string;
-  slug: string;
-  name: string;
-}
-interface SlideRow {
-  id: string;
-  image_url: string;
-  label: string;
-}
-interface HotspotRow {
-  id: string;
-  slide_id: string;
-  building_id: string;
-  x: number;
-  y: number;
-  polygon: { x: number; y: number }[] | null;
-}
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name'>;
+type SlideRow = Pick<AerialSlideRow, 'id' | 'image_url' | 'label'>;
+type HotspotRow = Pick<AerialHotspotRow, 'id' | 'slide_id' | 'building_id' | 'x' | 'y' | 'polygon'>;
 
 const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
@@ -81,7 +69,8 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
         }
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });

@@ -21,7 +21,8 @@ export default function AdminCommonAreasTourPage() {
         setTourData(data.project?.common_areas_tour ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error(err);
         setLoadError(true);
         setLoading(false);
       });
