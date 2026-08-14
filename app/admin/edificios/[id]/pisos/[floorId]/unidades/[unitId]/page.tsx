@@ -7,13 +7,13 @@ import ImageUploader from '@/components/admin/ImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import type { TourData, TourNode, Room } from '@/types';
+import type { UnitRow as DbUnitRow } from '@/types/database';
 
-interface Room {
-  id: string;
-  name: string;
-  tourNodeId?: string;
-  polygon: { x: number; y: number }[];
-}
+type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms' | 'tour_image_url' | 'tour_data'> & {
+  building_name: string | null;
+  floor_number: number | null;
+};
 
 const PALETTE = ['#83978c', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
@@ -29,6 +29,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   const { id: buildingId, floorId, unitId } = use(params);
 
   const [unitCode, setUnitCode] = useState('');
+  const [unitTourData, setUnitTourData] = useState<TourData | null>(null);
   const [roomPlanImage, setRoomPlanImage] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [points, setPoints] = useState<Record<string, { x: number; y: number }[]>>({});
@@ -39,6 +40,9 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   const [savingShape, setSavingShape] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
+  const [otherUnits, setOtherUnits] = useState<CopySourceUnit[]>([]);
+  const [copySourceId, setCopySourceId] = useState('');
+  const [copying, setCopying] = useState(false);
   const toast = useToast();
 
   const load = () => {
@@ -48,6 +52,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
       .then(res => res.json())
       .then(unit => {
         setUnitCode(unit.code ?? '');
+        setUnitTourData(unit.tour_data ?? null);
         setRoomPlanImage(unit.room_plan_image ?? '');
         const list: Room[] = unit.rooms ?? [];
         setRooms(list);
@@ -63,6 +68,46 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
   };
 
   useEffect(load, [unitId]);
+
+  // Unidades candidatas para "copiar diseño": cualquier otra unidad del
+  // proyecto que ya tenga ambientes o recorrido 360° cargado.
+  useEffect(() => {
+    fetch('/api/admin/units')
+      .then(res => res.json())
+      .then((data: CopySourceUnit[]) => {
+        setOtherUnits(
+          Array.isArray(data)
+            ? data.filter(u => u.id !== unitId && ((u.rooms?.length ?? 0) > 0 || !!u.room_plan_image))
+            : []
+        );
+      })
+      .catch(() => {});
+  }, [unitId]);
+
+  const handleCopyFromUnit = async () => {
+    const source = otherUnits.find(u => u.id === copySourceId);
+    if (!source) return;
+    if (!confirm(`Esto reemplaza el plano de ambientes y el recorrido 360° actuales por los de "${source.code}". ¿Continuar?`)) return;
+    setCopying(true);
+    const res = await fetch(`/api/admin/units/${unitId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomPlanImage: source.room_plan_image,
+        rooms: source.rooms,
+        tourImageUrl: source.tour_image_url,
+        tourData: source.tour_data,
+      }),
+    });
+    setCopying(false);
+    if (res.ok) {
+      toast('Diseño copiado.');
+      setCopySourceId('');
+      load();
+    } else {
+      toast('Error al copiar el diseño.', 'error');
+    }
+  };
 
   const persistRooms = async (nextRooms: Room[]) => {
     const res = await fetch(`/api/admin/units/${unitId}`, {
@@ -111,6 +156,46 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
     await persistRooms(next);
   };
 
+  const persistRoomsAndTour = async (nextRooms: Room[], nextTour: TourData) => {
+    const res = await fetch(`/api/admin/units/${unitId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rooms: nextRooms, tourData: nextTour }),
+    });
+    if (res.ok) {
+      setRooms(nextRooms);
+      setUnitTourData(nextTour);
+      return true;
+    }
+    toast('Error al guardar.', 'error');
+    return false;
+  };
+
+  // Subir una panorámica directo desde el ambiente crea (o actualiza) su
+  // nodo en el recorrido 360° y lo vincula solo, sin pasar por la pantalla
+  // separada de Recorrido ni por el <select> de sincronización manual.
+  const handleRoomPanoramaUpload = async (room: Room, url: string) => {
+    const currentTour = unitTourData ?? { initialNodeId: '', nodes: [] };
+    const existingIdx = currentTour.nodes.findIndex(n => n.id === room.tourNodeId);
+    let nextNodes: TourNode[];
+    let nodeId = room.tourNodeId;
+
+    if (existingIdx >= 0) {
+      nextNodes = currentTour.nodes.map((n, i) => (i === existingIdx ? { ...n, imageUrl: url } : n));
+    } else {
+      const taken = new Set(currentTour.nodes.map(n => n.id));
+      nodeId = room.id;
+      let n = 2;
+      while (taken.has(nodeId)) { nodeId = `${room.id}-${n}`; n++; }
+      nextNodes = [...currentTour.nodes, { id: nodeId, name: room.name, imageUrl: url, initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 } }];
+    }
+
+    const nextTour: TourData = { initialNodeId: currentTour.initialNodeId || nodeId || '', nodes: nextNodes };
+    const nextRooms = rooms.map(r => (r.id === room.id ? { ...r, tourNodeId: nodeId } : r));
+    const ok = await persistRoomsAndTour(nextRooms, nextTour);
+    if (ok) toast('Panorámica vinculada al ambiente.');
+  };
+
   const handleDeleteRoom = async (id: string) => {
     if (!confirm('¿Borrar este ambiente?')) return;
     const next = rooms.filter(r => r.id !== id);
@@ -138,6 +223,11 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
 
+  const linkedRoomsCount = useMemo(
+    () => rooms.filter(r => r.tourNodeId && unitTourData?.nodes.some(n => n.id === r.tourNodeId)).length,
+    [rooms, unitTourData]
+  );
+
   const shapes: PolygonShape[] = useMemo(
     () => rooms.map((r, i) => ({
       id: r.id,
@@ -156,9 +246,16 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Volver a unidades</Link>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Ambientes — {unitCode}</h2>
+          <div className="flex items-center gap-3 mt-1">
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Ambientes — {unitCode}</h2>
+            {rooms.length > 0 && (
+              <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${linkedRoomsCount === rooms.length ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                {linkedRoomsCount}/{rooms.length} con recorrido 360°
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mt-1">
-            Delimitá cada ambiente sobre el plano de la unidad — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. El "Tour node id" es opcional y sirve para que, al tocar el ambiente en el sitio, salte directo a ese nodo del recorrido 360°.
+            Delimitá cada ambiente sobre el plano de la unidad — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
           </p>
         </div>
         <Link
@@ -168,6 +265,35 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
           Recorrido 360° →
         </Link>
       </div>
+
+      {otherUnits.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="text-sm text-gray-600 flex-1">
+            ¿Esta unidad tiene el mismo diseño que otra ya cargada? Copiá su plano de ambientes y recorrido 360° en vez de rehacerlo.
+          </p>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <select
+              value={copySourceId}
+              onChange={e => setCopySourceId(e.target.value)}
+              className="flex-1 sm:w-64 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
+            >
+              <option value="">Elegir unidad de referencia...</option>
+              {otherUnits.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleCopyFromUnit}
+              disabled={!copySourceId || copying}
+              className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+            >
+              {copying ? 'Copiando...' : 'Copiar diseño'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
@@ -212,6 +338,7 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
               {rooms.map((r, i) => {
                 const isActive = r.id === activeId;
                 const pointCount = points[r.id]?.length ?? 0;
+                const linkedNode = unitTourData?.nodes.find(n => n.id === r.tourNodeId);
                 return (
                   <div key={r.id} className={`p-4 ${isActive ? 'bg-brand-50/50' : ''}`}>
                     <div className="flex items-center gap-2 mb-2">
@@ -229,12 +356,22 @@ export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: s
                         className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
                         placeholder="Nombre"
                       />
-                      <input
-                        defaultValue={r.tourNodeId ?? ''}
-                        onBlur={e => e.target.value !== (r.tourNodeId ?? '') && handleRenameRoom(r.id, { tourNodeId: e.target.value || undefined })}
-                        className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none font-mono"
-                        placeholder="Tour node id (opcional)"
-                      />
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-gray-500">Panorámica 360°</p>
+                        <ImageUploader value={linkedNode?.imageUrl ?? ''} onChange={url => handleRoomPanoramaUpload(r, url)} folder="tours" />
+                      </div>
+                      {(unitTourData?.nodes.length ?? 0) > 0 && (
+                        <select
+                          value={r.tourNodeId ?? ''}
+                          onChange={e => handleRenameRoom(r.id, { tourNodeId: e.target.value || undefined })}
+                          className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
+                        >
+                          <option value="">— o vincular a un nodo ya cargado —</option>
+                          {(unitTourData?.nodes ?? []).map(n => (
+                            <option key={n.id} value={n.id}>{n.name}</option>
+                          ))}
+                        </select>
+                      )}
                       <p className="text-xs text-gray-400">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</p>
 
                       {isActive && (

@@ -29,7 +29,6 @@ export default function AdminProjectPage() {
   const [saving, setSaving] = useState(false);
   const [newSlide, setNewSlide] = useState({ imageUrl: '', videoUrl: '', label: '' });
   const toast = useToast();
-  const [newHotspot, setNewHotspot] = useState<Record<string, { buildingId: string; x: string; y: string }>>({});
 
   const load = () => {
     setLoading(true);
@@ -106,22 +105,6 @@ export default function AdminProjectPage() {
     if (!confirm('¿Borrar esta vista aérea y sus hotspots?')) return;
     const res = await fetch(`/api/admin/aerial-slides/${id}`, { method: 'DELETE' });
     if (res.ok) load();
-  };
-
-  const handleAddHotspot = async (slideId: string) => {
-    const draft = newHotspot[slideId];
-    if (!draft?.buildingId || draft.x === '' || draft.y === '') return;
-    const res = await fetch('/api/admin/aerial-hotspots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slideId, buildingId: draft.buildingId, x: Number(draft.x), y: Number(draft.y) }),
-    });
-    if (res.ok) {
-      setNewHotspot({ ...newHotspot, [slideId]: { buildingId: '', x: '', y: '' } });
-      load();
-    } else {
-      toast('Error al crear el hotspot.', 'error');
-    }
   };
 
   const handleDeleteHotspot = async (id: string) => {
@@ -296,35 +279,13 @@ export default function AdminProjectPage() {
                     </div>
                   );
                 })}
-
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <select
-                    value={newHotspot[slide.id]?.buildingId ?? ''}
-                    onChange={e => setNewHotspot({ ...newHotspot, [slide.id]: { ...(newHotspot[slide.id] ?? { x: '', y: '' }), buildingId: e.target.value } })}
-                    className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                  >
-                    <option value="">Edificio...</option>
-                    {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                  <input
-                    type="number" placeholder="x %"
-                    value={newHotspot[slide.id]?.x ?? ''}
-                    onChange={e => setNewHotspot({ ...newHotspot, [slide.id]: { ...(newHotspot[slide.id] ?? { buildingId: '', y: '' }), x: e.target.value } })}
-                    className="w-20 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                  />
-                  <input
-                    type="number" placeholder="y %"
-                    value={newHotspot[slide.id]?.y ?? ''}
-                    onChange={e => setNewHotspot({ ...newHotspot, [slide.id]: { ...(newHotspot[slide.id] ?? { buildingId: '', x: '' }), y: e.target.value } })}
-                    className="w-20 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                  />
-                  <button
-                    onClick={() => handleAddHotspot(slide.id)}
-                    className="text-sm px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-                  >
-                    + Hotspot
-                  </button>
-                </div>
+                <p className="text-xs text-gray-400">
+                  Para agregar o mover un hotspot, usá{' '}
+                  <Link href={`/admin/proyecto/aereas/${slide.id}`} className="text-brand-600 hover:text-brand-700 font-medium">
+                    Delimitar torres →
+                  </Link>{' '}
+                  y ubicalo con un clic directo sobre la foto.
+                </p>
               </div>
             </div>
           ))}
