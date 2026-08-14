@@ -205,6 +205,20 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
     };
   }, [imageUrl, tourData, initialView, focusNodeId]);
 
+  // Marzipano solo redimensiona su canvas interno cuando cambia la ventana
+  // — si el contenedor cambia de tamaño por CSS/flexbox (ej. al arrastrar
+  // el divisor del comparador) sin que cambie la ventana, hay que avisarle
+  // a mano con updateSize() o la panorámica queda estirada/distorsionada.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const resizeObserver = new ResizeObserver(() => {
+      viewerRef.current?.updateSize?.();
+    });
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   const zoomBy = (delta: number) => {
     const view = viewerRef.current?.view?.();
     if (!view) return;
