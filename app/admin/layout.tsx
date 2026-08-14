@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import ToastProvider from '@/components/ui/ToastProvider';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -53,7 +52,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <ToastProvider>
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-gray-900 text-white flex-shrink-0 md:min-h-screen flex flex-col">
@@ -122,6 +120,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </main>
     </div>
-    </ToastProvider>
   );
 }
