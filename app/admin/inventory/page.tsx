@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
+import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
+import { downloadCsv } from '@/lib/csv';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
 
@@ -23,6 +25,12 @@ export default function AdminInventory() {
   const [buildingFilter, setBuildingFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<UnitType | 'all'>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<UnitStatus>('available');
+  const [bulkPriceMode, setBulkPriceMode] = useState<'pct' | 'fixed'>('pct');
+  const [bulkPriceSign, setBulkPriceSign] = useState<'increase' | 'decrease'>('increase');
+  const [bulkPriceAmount, setBulkPriceAmount] = useState('');
+  const [bulkWorking, setBulkWorking] = useState(false);
   const toast = useToast();
 
   const buildingNames = useMemo(
@@ -87,6 +95,78 @@ export default function AdminInventory() {
     }
   };
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allFilteredSelected = filteredUnits.length > 0 && filteredUnits.every(u => selectedIds.has(u.id));
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filteredUnits.forEach(u => next.delete(u.id));
+        return next;
+      }
+      const next = new Set(prev);
+      filteredUnits.forEach(u => next.add(u.id));
+      return next;
+    });
+  };
+
+  const handleBulkStatus = async () => {
+    setBulkWorking(true);
+    const ids = Array.from(selectedIds);
+    const results = await Promise.all(ids.map(id =>
+      fetch(`/api/admin/units/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: bulkStatus }),
+      }).then(r => r.ok)
+    ));
+    setBulkWorking(false);
+    const okIds = ids.filter((_, i) => results[i]);
+    setUnits(prev => prev.map(u => (okIds.includes(u.id) ? { ...u, status: bulkStatus } : u)));
+    toast(`Estado actualizado en ${okIds.length} unidad${okIds.length === 1 ? '' : 'es'}.`, okIds.length < ids.length ? 'error' : undefined);
+  };
+
+  const handleBulkPrice = async () => {
+    const amount = Number(bulkPriceAmount);
+    if (!bulkPriceAmount || Number.isNaN(amount) || amount <= 0) { toast('Ingresá un monto válido.', 'error'); return; }
+    setBulkWorking(true);
+    const targets = units.filter(u => selectedIds.has(u.id) && u.price != null);
+    const results = await Promise.all(targets.map(u => {
+      const delta = bulkPriceMode === 'pct' ? Math.round((u.price as number) * (amount / 100)) : amount;
+      const newPrice = Math.max(0, bulkPriceSign === 'increase' ? (u.price as number) + delta : (u.price as number) - delta);
+      return fetch(`/api/admin/units/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price: newPrice }),
+      }).then(r => (r.ok ? newPrice : null));
+    }));
+    setBulkWorking(false);
+    setUnits(prev => prev.map(u => {
+      const idx = targets.findIndex(t => t.id === u.id);
+      const result = idx >= 0 ? results[idx] : null;
+      return result != null ? { ...u, price: result } : u;
+    }));
+    const updated = results.filter(r => r != null).length;
+    const skippedNoPrice = selectedIds.size - targets.length;
+    toast(`Precio actualizado en ${updated} unidad${updated === 1 ? '' : 'es'}.${skippedNoPrice > 0 ? ` ${skippedNoPrice} sin precio cargado, omitida${skippedNoPrice === 1 ? '' : 's'}.` : ''}`);
+  };
+
+  const handleExportCsv = () => {
+    const header = ['code', 'modelName', 'type', 'totalArea', 'buildingName', 'floorNumber', 'status', 'price'];
+    const rows = filteredUnits.map(u => [
+      u.code, u.model_name ?? '', u.type, String(u.total_area ?? ''),
+      u.building_name ?? '', String(u.floor_number ?? ''), u.status, u.price != null ? String(u.price) : '',
+    ]);
+    downloadCsv('inventario.csv', [header, ...rows]);
+  };
+
   if (loading) return <LoadingSpinner text="Cargando inventario..." tone="light" />;
   if (error) return <ErrorState message="No se pudo cargar el inventario." onRetry={fetchUnits} />;
 
@@ -137,13 +217,70 @@ export default function AdminInventory() {
           </select>
         )}
         <span className="text-sm text-gray-400 whitespace-nowrap">{filteredUnits.length} de {units.length}</span>
+        <Button type="button" variant="secondary" size="sm" onClick={handleExportCsv} disabled={filteredUnits.length === 0}>
+          Exportar CSV
+        </Button>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="bg-gray-900 rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm text-white font-medium whitespace-nowrap">{selectedIds.size} seleccionada{selectedIds.size === 1 ? '' : 's'}</span>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={bulkStatus}
+              onChange={e => setBulkStatus(e.target.value as UnitStatus)}
+              className="text-sm rounded-lg px-2 py-1.5 border-0 focus:ring-2 focus:ring-brand-500 outline-none"
+            >
+              <option value="available">Disponible</option>
+              <option value="reserved">Reservado</option>
+              <option value="sold">Vendido</option>
+            </select>
+            <Button type="button" size="sm" variant="secondary" disabled={bulkWorking} onClick={handleBulkStatus}>
+              Aplicar estado
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={bulkPriceSign}
+              onChange={e => setBulkPriceSign(e.target.value as 'increase' | 'decrease')}
+              className="text-sm rounded-lg px-2 py-1.5 border-0 focus:ring-2 focus:ring-brand-500 outline-none"
+            >
+              <option value="increase">Subir</option>
+              <option value="decrease">Bajar</option>
+            </select>
+            <input
+              type="number" min={0} value={bulkPriceAmount} onChange={e => setBulkPriceAmount(e.target.value)}
+              placeholder="Monto" className="w-24 text-sm rounded-lg px-2 py-1.5 border-0 focus:ring-2 focus:ring-brand-500 outline-none"
+            />
+            <select
+              value={bulkPriceMode}
+              onChange={e => setBulkPriceMode(e.target.value as 'pct' | 'fixed')}
+              className="text-sm rounded-lg px-2 py-1.5 border-0 focus:ring-2 focus:ring-brand-500 outline-none"
+            >
+              <option value="pct">%</option>
+              <option value="fixed">USD</option>
+            </select>
+            <Button type="button" size="sm" variant="secondary" disabled={bulkWorking} onClick={handleBulkPrice}>
+              Aplicar precio
+            </Button>
+          </div>
+
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-sm text-gray-400 hover:text-white">
+            Deseleccionar todo
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-4 py-4 w-10">
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" aria-label="Seleccionar todas" />
+                </th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900">Unidad</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900">Edificio / Piso</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900">Tipología</th>
@@ -153,7 +290,10 @@ export default function AdminInventory() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUnits.map(unit => (
-                <tr key={unit.id} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={unit.id} className={`hover:bg-gray-50/50 transition-colors ${selectedIds.has(unit.id) ? 'bg-brand-50/40' : ''}`}>
+                  <td className="px-4 py-4">
+                    <input type="checkbox" checked={selectedIds.has(unit.id)} onChange={() => toggleSelected(unit.id)} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" aria-label={`Seleccionar ${unit.code}`} />
+                  </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900">{unit.code}</div>
                     <div className="text-xs text-gray-500">{unit.total_area ?? '—'} m² total</div>
@@ -203,7 +343,7 @@ export default function AdminInventory() {
                 </tr>
               ))}
               {filteredUnits.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400">
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">
                   {units.length === 0 ? 'Todavía no hay unidades cargadas.' : 'Ninguna unidad coincide con el filtro.'}
                 </td></tr>
               )}
