@@ -63,6 +63,10 @@ export interface UnitDot {
   /** Percentage position on the floor plan image */
   x: number;
   y: number;
+  /** Color del marcador — si no está, se usa el color de estado (disponible/reservado/vendido) */
+  color?: string;
+  /** "pill" (pastilla con el nombre, default) o "dot" (punto simple sin texto) */
+  style?: 'pill' | 'dot';
 }
 
 // ─── Room/ambiente dentro de una unidad ────────────────────────────

@@ -641,12 +641,12 @@ export default function FloorPlanViewer({
 function UnitDotMarker({
   dot, unit, isSelected, onSelect,
 }: {
-  dot: { x: number; y: number };
+  dot: { x: number; y: number; color?: string; style?: 'pill' | 'dot' };
   unit: Unit;
   isSelected: boolean;
   onSelect: (unit: Unit) => void;
 }) {
-  const color = getStatusColor(unit.status);
+  const color = dot.color || getStatusColor(unit.status);
   return (
     <motion.button
       variants={{
@@ -658,12 +658,19 @@ function UnitDotMarker({
       onClick={() => onSelect(unit)}
       aria-label={`Seleccionar ${unit.name}`}
     >
-      <div
-        className={`flex items-center gap-1 rounded-full px-2 py-1 text-white text-[11px] font-bold shadow-lg transition-all duration-200 border-2 border-white ${isSelected ? 'scale-125' : 'hover:scale-110'}`}
-        style={{ backgroundColor: color }}
-      >
-        {unit.name}
-      </div>
+      {dot.style === 'dot' ? (
+        <div
+          className={`w-4 h-4 rounded-full shadow-lg transition-all duration-200 border-2 border-white ${isSelected ? 'scale-125' : 'hover:scale-110'}`}
+          style={{ backgroundColor: color }}
+        />
+      ) : (
+        <div
+          className={`flex items-center gap-1 rounded-full px-2 py-1 text-white text-[11px] font-bold shadow-lg transition-all duration-200 border-2 border-white ${isSelected ? 'scale-125' : 'hover:scale-110'}`}
+          style={{ backgroundColor: color }}
+        >
+          {unit.name}
+        </div>
+      )}
     </motion.button>
   );
 }
