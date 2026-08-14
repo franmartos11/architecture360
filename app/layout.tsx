@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import MotionProvider from '@/components/ui/MotionProvider';
+import ToastProvider from '@/components/ui/ToastProvider';
 
 const inter = Inter({
   variable: "--font-inter",
@@ -43,7 +44,9 @@ export default function RootLayout({
     <html lang="es" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <MotionProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </MotionProvider>
       </body>
     </html>
