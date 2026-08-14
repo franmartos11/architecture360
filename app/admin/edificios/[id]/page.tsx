@@ -3,12 +3,15 @@
 import { useState, useEffect, use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
+import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
+import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/types/database';
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
@@ -30,6 +33,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [saving, setSaving] = useState(false);
   const [newFloor, setNewFloor] = useState({ number: '', label: '', planImage: '' });
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -110,33 +114,14 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   };
 
   const handleDeleteFloor = async (floorId: string) => {
-    if (!confirm('¿Borrar este piso y todas sus unidades?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar este piso y todas sus unidades?', confirmLabel: 'Borrar piso', danger: true });
+    if (!ok) return;
     const res = await fetch(`/api/admin/floors/${floorId}`, { method: 'DELETE' });
     if (res.ok) load();
   };
 
-  const handleDuplicateFloor = async (floor: FloorRow) => {
-    const numberStr = prompt('Número del piso nuevo:', String(floor.number + 1));
-    if (numberStr === null || numberStr.trim() === '') return;
-    const number = Number(numberStr);
-    if (Number.isNaN(number)) { toast('Número inválido.', 'error'); return; }
-    const label = prompt('Etiqueta del piso nuevo:', floor.label.replace(String(floor.number), String(number)));
-    if (label === null || label.trim() === '') return;
-
-    const res = await fetch(`/api/admin/floors/${floor.id}/duplicate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number, label }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      toast(`Piso duplicado con ${data.unitsCopied} unidad${data.unitsCopied === 1 ? '' : 'es'}.`);
-      load();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      toast(data.error ?? 'Error al duplicar el piso.', 'error');
-    }
-  };
+  const [duplicateTarget, setDuplicateTarget] = useState<FloorRow | null>(null);
+  const [applyTemplateTarget, setApplyTemplateTarget] = useState<FloorRow | null>(null);
 
   if (loading) return <LoadingSpinner text="Cargando edificio..." tone="light" />;
   if (loadError || !building) return <ErrorState message="No se pudo cargar el edificio." onRetry={load} />;
@@ -251,7 +236,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                     <Link href={`/admin/edificios/${id}/pisos/${f.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
                       Unidades →
                     </Link>
-                    <button onClick={() => handleDuplicateFloor(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
+                    <button onClick={() => setDuplicateTarget(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
+                    {c.total === 0 && floors.length > 1 && (
+                      <button onClick={() => setApplyTemplateTarget(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Aplicar plantilla</button>
+                    )}
                     <button onClick={() => handleDeleteFloor(f.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
                   </td>
                 </tr>
@@ -293,6 +281,23 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           />
         </form>
       </Card>
+
+      {duplicateTarget && (
+        <DuplicateFloorModal
+          floor={duplicateTarget}
+          onClose={() => setDuplicateTarget(null)}
+          onDone={() => { setDuplicateTarget(null); load(); }}
+        />
+      )}
+
+      {applyTemplateTarget && (
+        <ApplyTemplateModal
+          buildingId={id}
+          targetFloor={applyTemplateTarget}
+          onClose={() => setApplyTemplateTarget(null)}
+          onDone={() => { setApplyTemplateTarget(null); load(); }}
+        />
+      )}
     </div>
   );
 }

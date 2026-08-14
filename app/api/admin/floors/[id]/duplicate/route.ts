@@ -30,6 +30,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (floorErr) return NextResponse.json({ error: floorErr.message }, { status: 500 });
   if (!sourceFloor) return NextResponse.json({ error: 'Piso de origen no encontrado' }, { status: 404 });
 
+  const includeUnits = body.includeUnits !== false;
+
+  const oldNumTag = String(sourceFloor.number).padStart(2, '0');
+  const newNumTag = String(body.number).padStart(2, '0');
+  const remapCode = (code: string) =>
+    oldNumTag !== newNumTag && code.includes(oldNumTag) ? code.replace(oldNumTag, newNumTag) : code;
+
+  const sourceDots: { unitId: string; x: number; y: number; color?: string; style?: string }[] = sourceFloor.unit_dots ?? [];
+  const remappedDots = includeUnits ? sourceDots.map(d => ({ ...d, unitId: remapCode(d.unitId) })) : [];
+
   const { data: newFloor, error: newFloorErr } = await admin
     .from('floors')
     .insert({
@@ -37,55 +47,52 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       number: body.number,
       label: body.label,
       plan_image: sourceFloor.plan_image,
-      unit_dots: [],
+      unit_dots: remappedDots,
     })
     .select()
     .single();
   if (newFloorErr) return NextResponse.json({ error: newFloorErr.message }, { status: 500 });
 
-  const { data: sourceUnits, error: unitsErr } = await admin
-    .from('units')
-    .select('*')
-    .eq('floor_id', sourceFloorId);
-  if (unitsErr) return NextResponse.json({ error: unitsErr.message }, { status: 500 });
-
-  const oldNumTag = String(sourceFloor.number).padStart(2, '0');
-  const newNumTag = String(body.number).padStart(2, '0');
-  const remapCode = (code: string) =>
-    oldNumTag !== newNumTag && code.includes(oldNumTag) ? code.replace(oldNumTag, newNumTag) : code;
-
   let unitsCopied = 0;
-  if (sourceUnits && sourceUnits.length > 0) {
-    const clones = sourceUnits.map(u => ({
-      floor_id: newFloor.id,
-      code: remapCode(u.code),
-      model_name: u.model_name,
-      type: u.type,
-      total_area: u.total_area,
-      inner_area: u.inner_area,
-      balcony_area: u.balcony_area,
-      external_area: u.external_area,
-      bedrooms: u.bedrooms,
-      bathrooms: u.bathrooms,
-      has_service_room: u.has_service_room,
-      price: u.price,
-      status: u.status,
-      orientation: u.orientation,
-      interior_image_url: u.interior_image_url,
-      gallery_images: u.gallery_images,
-      floor_plan_3d_url: u.floor_plan_3d_url,
-      plan_3d_url: u.plan_3d_url,
-      technical_plan_url: u.technical_plan_url,
-      room_plan_image: u.room_plan_image,
-      polygon: u.polygon,
-      rooms: u.rooms,
-      tour_image_url: u.tour_image_url,
-      tour_data: u.tour_data,
-    }));
+  if (includeUnits) {
+    const { data: sourceUnits, error: unitsErr } = await admin
+      .from('units')
+      .select('*')
+      .eq('floor_id', sourceFloorId);
+    if (unitsErr) return NextResponse.json({ error: unitsErr.message }, { status: 500 });
 
-    const { error: insertErr } = await admin.from('units').insert(clones);
-    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
-    unitsCopied = clones.length;
+    if (sourceUnits && sourceUnits.length > 0) {
+      const clones = sourceUnits.map(u => ({
+        floor_id: newFloor.id,
+        code: remapCode(u.code),
+        model_name: u.model_name,
+        type: u.type,
+        total_area: u.total_area,
+        inner_area: u.inner_area,
+        balcony_area: u.balcony_area,
+        external_area: u.external_area,
+        bedrooms: u.bedrooms,
+        bathrooms: u.bathrooms,
+        has_service_room: u.has_service_room,
+        price: u.price,
+        status: u.status,
+        orientation: u.orientation,
+        interior_image_url: u.interior_image_url,
+        gallery_images: u.gallery_images,
+        floor_plan_3d_url: u.floor_plan_3d_url,
+        plan_3d_url: u.plan_3d_url,
+        technical_plan_url: u.technical_plan_url,
+        room_plan_image: u.room_plan_image,
+        polygon: u.polygon,
+        rooms: u.rooms,
+        tour_image_url: u.tour_image_url,
+        tour_data: u.tour_data,
+      }));
+
+      const { error: insertErr } = await admin.from('units').insert(clones);
+      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      unitsCopied = clones.length;
+    }
   }
 
   return NextResponse.json({ floor: newFloor, unitsCopied }, { status: 201 });
