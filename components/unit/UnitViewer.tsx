@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
@@ -14,6 +15,7 @@ import { useContactModal } from '@/hooks/useContactModal';
 import { useShareLink } from '@/hooks/useShareLink';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import ImageLightbox from './ImageLightbox';
+import CompareView from './CompareView';
 import Planta3DTab from './tabs/Planta3DTab';
 import Tour360Tab from './tabs/Tour360Tab';
 import PlanoTab from './tabs/PlanoTab';
@@ -23,6 +25,7 @@ import UbicacionTab from './tabs/UbicacionTab';
 
 interface UnitViewerProps {
   unit: Unit;
+  allUnits: Unit[];
   projectSlug: string;
   projectName: string;
   buildingId: string;
@@ -73,6 +76,7 @@ const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
 
 export default function UnitViewer({
   unit,
+  allUnits,
   projectSlug,
   projectName,
   buildingId,
@@ -85,10 +89,14 @@ export default function UnitViewer({
   initialTab,
 }: UnitViewerProps) {
   const router = useTransitionRouter();
-  const [activeTab, setActiveTab] = useState<UnitViewTab>(initialTab ?? 'planta3d');
+  const searchParams = useSearchParams();
+  const initialCompareUnitId = searchParams.get('compare');
+  const [activeTab, setActiveTab] = useState<UnitViewTab>(initialCompareUnitId ? 'tour360' : (initialTab ?? 'planta3d'));
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [comparing, setComparing] = useState(!!initialCompareUnitId);
+  const hasTour = !!(unit.tourImageUrl || unit.tourData);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -110,6 +118,10 @@ export default function UnitViewer({
     () => amenities.filter(a => !a.buildingId || a.buildingId === buildingId),
     [amenities, buildingId]
   );
+
+  useEffect(() => {
+    if (activeTab !== 'tour360') setComparing(false);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'amenities' && !activeAmenity && relevantAmenities.length > 0) {
@@ -366,6 +378,14 @@ export default function UnitViewer({
           </div>
           <p className="text-xs text-gray-400 truncate">{unit.modelName} · {unit.totalArea}m² · P{floorNumber}</p>
         </div>
+        {!comparing && (
+          <button onClick={() => setComparing(true)} aria-label="Comparar con otra unidad" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <rect x="3" y="4" width="7.5" height="16" rx="1" />
+              <rect x="13.5" y="4" width="7.5" height="16" rx="1" />
+            </svg>
+          </button>
+        )}
         <button onClick={handleShare} aria-label="Compartir" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
           <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
@@ -384,6 +404,18 @@ export default function UnitViewer({
 
           {/* Floor badge + Cambiar planta */}
           <div className="flex items-center gap-2 pointer-events-auto">
+            {!isFullscreen && !comparing && (
+              <button
+                onClick={() => setComparing(true)}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <rect x="3" y="4" width="7.5" height="16" rx="1" />
+                  <rect x="13.5" y="4" width="7.5" height="16" rx="1" />
+                </svg>
+                Comparador
+              </button>
+            )}
             <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5 whitespace-nowrap">
               Planta {floorNumber}
             </span>
@@ -423,7 +455,7 @@ export default function UnitViewer({
               <Planta3DTab unit={unit} />
             )}
 
-            {activeTab === 'tour360' && unit.tourImageUrl && (
+            {activeTab === 'tour360' && hasTour && (
               <Tour360Tab
                 unit={unit}
                 focusNodeId={focusNodeId}
@@ -485,7 +517,19 @@ export default function UnitViewer({
           </AnimatePresence>
         </div>
 
-        {/* Bottom-right: "Ubicación en planta" mini map — hidden in gallery mode and on mobile */}
+        <AnimatePresence>
+          {comparing && (
+            <CompareView
+              unit={unit}
+              allUnits={allUnits}
+              initialContentType={activeTab}
+              initialCompareUnitId={initialCompareUnitId}
+              onClose={() => setComparing(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Bottom-right: "Ubicación en planta" mini map — hidden en gallery mode y en mobile */}
         {activeTab !== 'galeria' && (
           <button
             onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}?piso=${floorNumber}`)}

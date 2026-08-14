@@ -43,6 +43,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
   return (
     <UnitViewerWrapper
       unit={unit}
+      allUnits={project.units}
       projectSlug={slug}
       projectName={project.name}
       buildingId={building.id}
