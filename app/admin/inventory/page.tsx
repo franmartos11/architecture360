@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { UnitRow as DbUnitRow } from '@/types/database';
+import type { UnitStatus, UnitType } from '@/types';
 
 // building_name/floor_number no son columnas reales de `units` — las agrega
 // /api/admin/units enriqueciendo cada fila para el listado global.
-type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'model_name' | 'total_area' | 'status' | 'price'> & {
+type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'status' | 'price'> & {
   building_name: string | null;
   floor_number: number | null;
 };
@@ -18,7 +19,31 @@ export default function AdminInventory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [buildingFilter, setBuildingFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<UnitType | 'all'>('all');
   const toast = useToast();
+
+  const buildingNames = useMemo(
+    () => Array.from(new Set(units.map(u => u.building_name).filter((n): n is string => !!n))).sort(),
+    [units]
+  );
+  const typesPresent = useMemo(
+    () => Array.from(new Set(units.map(u => u.type))).sort(),
+    [units]
+  );
+
+  const filteredUnits = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return units.filter(u => {
+      const matchesSearch = !q || u.code.toLowerCase().includes(q) || (u.model_name ?? '').toLowerCase().includes(q);
+      const matchesBuilding = buildingFilter === 'all' || u.building_name === buildingFilter;
+      const matchesStatus = statusFilter === 'all' || u.status === statusFilter;
+      const matchesType = typeFilter === 'all' || u.type === typeFilter;
+      return matchesSearch && matchesBuilding && matchesStatus && matchesType;
+    });
+  }, [units, search, buildingFilter, statusFilter, typeFilter]);
 
   useEffect(() => {
     fetchUnits();
@@ -74,6 +99,46 @@ export default function AdminInventory() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar por código o modelo..."
+          className="flex-1 min-w-[200px] text-sm rounded-lg px-3 py-2 border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+        />
+        {buildingNames.length > 1 && (
+          <select
+            value={buildingFilter}
+            onChange={e => setBuildingFilter(e.target.value)}
+            className="text-sm rounded-lg px-3 py-2 border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+          >
+            <option value="all">Todos los edificios</option>
+            {buildingNames.map(name => <option key={name} value={name}>{name}</option>)}
+          </select>
+        )}
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as UnitStatus | 'all')}
+          className="text-sm rounded-lg px-3 py-2 border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+        >
+          <option value="all">Cualquier estado</option>
+          <option value="available">Disponible</option>
+          <option value="reserved">Reservado</option>
+          <option value="sold">Vendido</option>
+        </select>
+        {typesPresent.length > 1 && (
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as UnitType | 'all')}
+            className="text-sm rounded-lg px-3 py-2 border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+          >
+            <option value="all">Cualquier tipología</option>
+            {typesPresent.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+        <span className="text-sm text-gray-400 whitespace-nowrap">{filteredUnits.length} de {units.length}</span>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -87,7 +152,7 @@ export default function AdminInventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {units.map(unit => (
+              {filteredUnits.map(unit => (
                 <tr key={unit.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900">{unit.code}</div>
@@ -137,8 +202,10 @@ export default function AdminInventory() {
                   </td>
                 </tr>
               ))}
-              {units.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades cargadas.</td></tr>
+              {filteredUnits.length === 0 && (
+                <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400">
+                  {units.length === 0 ? 'Todavía no hay unidades cargadas.' : 'Ninguna unidad coincide con el filtro.'}
+                </td></tr>
               )}
             </tbody>
           </table>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { fixStereoPanorama } from '@/lib/panorama';
 
 interface ImageUploaderProps {
   value: string;
@@ -21,8 +22,9 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
   const handleFile = async (file: File) => {
     setError('');
     setUploading(true);
+    const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', toUpload);
     formData.append('folder', folder);
     try {
       const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
@@ -98,6 +100,9 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
             placeholder="...o pegá una URL directamente"
             className="w-full text-xs px-2.5 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-gray-500"
           />
+          {folder === 'tours' && !error && (
+            <p className="text-[11px] text-gray-400">Si viene en formato estéreo (dos mitades apiladas, una por ojo), la recortamos sola al subir.</p>
+          )}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       </div>

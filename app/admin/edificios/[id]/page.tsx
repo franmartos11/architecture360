@@ -13,12 +13,18 @@ import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/typ
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
 type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image'>;
+interface FloorUnitSummary {
+  floor_id: string;
+  interior_image_url: string | null;
+  price: number | null;
+}
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
 
   const [building, setBuilding] = useState<BuildingRow | null>(null);
   const [floors, setFloors] = useState<FloorRow[]>([]);
+  const [unitSummaries, setUnitSummaries] = useState<FloorUnitSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,6 +39,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       .then(data => {
         setBuilding(data.building);
         setFloors(data.floors ?? []);
+        setUnitSummaries(data.units ?? []);
         setLoading(false);
       })
       .catch((err) => {
@@ -43,6 +50,13 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   };
 
   useEffect(load, [id]);
+
+  const completeness = (floorId: string) => {
+    const floorUnits = unitSummaries.filter(u => u.floor_id === floorId);
+    const missingPhoto = floorUnits.filter(u => !u.interior_image_url).length;
+    const missingPrice = floorUnits.filter(u => u.price == null).length;
+    return { total: floorUnits.length, missingPhoto, missingPrice };
+  };
 
   const handleSaveBuilding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +113,29 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     if (!confirm('¿Borrar este piso y todas sus unidades?')) return;
     const res = await fetch(`/api/admin/floors/${floorId}`, { method: 'DELETE' });
     if (res.ok) load();
+  };
+
+  const handleDuplicateFloor = async (floor: FloorRow) => {
+    const numberStr = prompt('Número del piso nuevo:', String(floor.number + 1));
+    if (numberStr === null || numberStr.trim() === '') return;
+    const number = Number(numberStr);
+    if (Number.isNaN(number)) { toast('Número inválido.', 'error'); return; }
+    const label = prompt('Etiqueta del piso nuevo:', floor.label.replace(String(floor.number), String(number)));
+    if (label === null || label.trim() === '') return;
+
+    const res = await fetch(`/api/admin/floors/${floor.id}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number, label }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      toast(`Piso duplicado con ${data.unitsCopied} unidad${data.unitsCopied === 1 ? '' : 'es'}.`);
+      load();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'Error al duplicar el piso.', 'error');
+    }
   };
 
   if (loading) return <LoadingSpinner text="Cargando edificio..." tone="light" />;
@@ -170,11 +207,14 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900 w-24">Número</th>
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900">Etiqueta</th>
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900">Plano (URL)</th>
+                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Completitud</th>
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {floors.sort((a, b) => a.number - b.number).map(f => (
+              {floors.sort((a, b) => a.number - b.number).map(f => {
+                const c = completeness(f.id);
+                return (
                 <tr key={f.id}>
                   <td className="px-6 py-3 text-sm text-gray-600">{f.number}</td>
                   <td className="px-6 py-3">
@@ -191,16 +231,34 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                       folder="floorplans"
                     />
                   </td>
+                  <td className="px-6 py-3 text-sm">
+                    {c.total === 0 ? (
+                      !f.plan_image ? (
+                        <span className="text-amber-600">Sin unidades ni plano</span>
+                      ) : (
+                        <span className="text-gray-400">Sin unidades</span>
+                      )
+                    ) : (
+                      <div className="space-y-0.5">
+                        <span className="text-gray-600">{c.total} unidad{c.total === 1 ? '' : 'es'}</span>
+                        {c.missingPhoto > 0 && <span className="block text-amber-600">{c.missingPhoto} sin foto</span>}
+                        {c.missingPrice > 0 && <span className="block text-amber-600">{c.missingPrice} sin precio</span>}
+                        {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="block text-green-600">Completo</span>}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
                     <Link href={`/admin/edificios/${id}/pisos/${f.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
                       Unidades →
                     </Link>
+                    <button onClick={() => handleDuplicateFloor(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
                     <button onClick={() => handleDeleteFloor(f.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {floors.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
               )}
             </tbody>
           </table>

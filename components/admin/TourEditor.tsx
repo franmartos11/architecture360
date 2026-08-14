@@ -4,8 +4,10 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TourData, TourNode } from '@/types';
 import ImageUploader from './ImageUploader';
+import BulkImageUploader, { type BulkUploadResult } from './BulkImageUploader';
 
 const TourNodeViewer = dynamic(() => import('./TourNodeViewer'), { ssr: false });
+const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 
 interface TourEditorProps {
   initialTourData: TourData | null;
@@ -24,6 +26,24 @@ function slugify(text: string): string {
   );
 }
 
+function nameFromFileName(fileName: string): string {
+  const base = fileName.replace(/\.[^./]+$/, '');
+  const spaced = base.replace(/[-_]+/g, ' ').trim().replace(/\s+/g, ' ');
+  if (!spaced) return 'Ambiente';
+  return spaced.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function uniqueId(base: string, taken: Set<string>): string {
+  let id = base;
+  let n = 2;
+  while (taken.has(id)) {
+    id = `${base}-${n}`;
+    n++;
+  }
+  taken.add(id);
+  return id;
+}
+
 export default function TourEditor({ initialTourData, onPersist }: TourEditorProps) {
   const [tour, setTour] = useState<TourData>(initialTourData ?? EMPTY_TOUR);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(initialTourData?.nodes[0]?.id ?? null);
@@ -37,8 +57,15 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
   const [newNodeImage, setNewNodeImage] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [previewing, setPreviewing] = useState(false);
 
   const activeNode = tour.nodes.find(n => n.id === activeNodeId) ?? null;
+
+  // Un nodo está "conectado" si es origen o destino de al menos un link hotspot.
+  // Con un solo nodo no aplica: es el único ambiente, no necesita conexión.
+  const connectedIds = new Set<string>();
+  tour.nodes.forEach(n => (n.linkHotspots ?? []).forEach(h => { connectedIds.add(n.id); connectedIds.add(h.targetNodeId); }));
+  const orphanIds = new Set(tour.nodes.length > 1 ? tour.nodes.filter(n => !connectedIds.has(n.id)).map(n => n.id) : []);
 
   const flash = (text: string) => {
     setMessage(text);
@@ -80,6 +107,24 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     }
   };
 
+  const handleBulkAdd = async (files: BulkUploadResult[]) => {
+    const taken = new Set(tour.nodes.map(n => n.id));
+    const newNodes: TourNode[] = files.map(f => {
+      const name = nameFromFileName(f.fileName);
+      const id = uniqueId(slugify(name), taken);
+      return { id, name, imageUrl: f.url, initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 } };
+    });
+    const next: TourData = {
+      initialNodeId: tour.initialNodeId || newNodes[0]?.id || '',
+      nodes: [...tour.nodes, ...newNodes],
+    };
+    const ok = await persist(next);
+    if (ok) {
+      setActiveNodeId(newNodes[0]?.id ?? activeNodeId);
+      flash(`${newNodes.length} ambiente${newNodes.length === 1 ? '' : 's'} agregado${newNodes.length === 1 ? '' : 's'}. Revisá los nombres y armá las conexiones.`);
+    }
+  };
+
   const handleDeleteNode = async (id: string) => {
     if (!confirm('¿Borrar este nodo? Los hotspots de otros nodos que apunten acá van a quedar rotos.')) return;
     const nextNodes = tour.nodes.filter(n => n.id !== id);
@@ -93,6 +138,11 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleSetInitial = async (id: string) => {
     await persist({ ...tour, initialNodeId: id });
+  };
+
+  const handleRenameNode = async (id: string, name: string) => {
+    const nextNodes = tour.nodes.map(n => (n.id === id ? { ...n, name } : n));
+    await persist({ ...tour, nodes: nextNodes });
   };
 
   const handlePlace = (yaw: number, pitch: number) => {
@@ -130,6 +180,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleDeleteLinkHotspot = async (index: number) => {
     if (!activeNode) return;
+    if (!confirm('¿Borrar esta conexión?')) return;
     const nextNodes = tour.nodes.map(n =>
       n.id === activeNode.id ? { ...n, linkHotspots: (n.linkHotspots ?? []).filter((_, i) => i !== index) } : n
     );
@@ -138,6 +189,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleDeleteInfoHotspot = async (index: number) => {
     if (!activeNode) return;
+    if (!confirm('¿Borrar este punto de info?')) return;
     const nextNodes = tour.nodes.map(n =>
       n.id === activeNode.id ? { ...n, infoHotspots: (n.infoHotspots ?? []).filter((_, i) => i !== index) } : n
     );
@@ -148,9 +200,23 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     <div className="space-y-6">
       {/* Nodos */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Ambientes / nodos del recorrido</h3>
-          {message && <span className="text-sm font-medium text-green-600">{message}</span>}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Ambientes / nodos del recorrido</h3>
+            {orphanIds.size > 0 && (
+              <span className="text-xs font-medium text-amber-600">⚠ {orphanIds.size} sin conectar al resto del recorrido</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {message && <span className="text-sm font-medium text-green-600">{message}</span>}
+            <button
+              onClick={() => setPreviewing(true)}
+              disabled={tour.nodes.length === 0}
+              className="text-sm px-3 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg font-medium transition-colors whitespace-nowrap"
+            >
+              ▶ Probar recorrido
+            </button>
+          </div>
         </div>
         <div className="p-4 flex flex-wrap gap-2">
           {tour.nodes.map(n => (
@@ -160,7 +226,20 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
                 ${activeNodeId === n.id ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}
               onClick={() => { setActiveNodeId(n.id); cancelPending(); }}
             >
-              <span className="font-medium">{n.name}</span>
+              {orphanIds.has(n.id) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Sin conectar al resto del recorrido" />
+              )}
+              <input
+                defaultValue={n.name}
+                onClick={e => e.stopPropagation()}
+                onBlur={e => {
+                  const val = e.target.value.trim();
+                  if (val && val !== n.name) handleRenameNode(n.id, val);
+                  else e.target.value = n.name;
+                }}
+                className="font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-brand-500 outline-none w-auto min-w-[4ch]"
+                style={{ width: `${Math.max(n.name.length, 4)}ch` }}
+              />
               {tour.initialNodeId === n.id && (
                 <span className="text-[10px] uppercase tracking-wide bg-gray-900 text-white rounded-full px-2 py-0.5">inicial</span>
               )}
@@ -186,6 +265,17 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
             </button>
           </div>
           <ImageUploader value={newNodeImage} onChange={setNewNodeImage} folder="tours" />
+
+          <div className="flex items-center gap-3 pt-1">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">o subí varias de una</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+          <BulkImageUploader
+            folder="tours"
+            onComplete={handleBulkAdd}
+            hint="El nombre de cada ambiente sale del nombre del archivo — lo podés corregir después haciendo click sobre el nombre arriba. Si vienen en formato estéreo (dos mitades apiladas), las recortamos solas."
+          />
         </div>
       </div>
 
@@ -211,10 +301,16 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
             <TourNodeViewer
               imageUrl={activeNode.imageUrl}
-              linkHotspots={activeNode.linkHotspots ?? []}
-              infoHotspots={activeNode.infoHotspots ?? []}
+              linkHotspots={(activeNode.linkHotspots ?? []).map(h => ({
+                yaw: h.yaw,
+                pitch: h.pitch,
+                label: h.label || tour.nodes.find(n => n.id === h.targetNodeId)?.name || 'Ir a...',
+              }))}
+              infoHotspots={(activeNode.infoHotspots ?? []).map(h => ({ yaw: h.yaw, pitch: h.pitch, label: h.title }))}
               placing={placing}
               onPlace={handlePlace}
+              onDeleteLink={handleDeleteLinkHotspot}
+              onDeleteInfo={handleDeleteInfoHotspot}
             />
 
             {pendingPoint && placing === 'link' && (
@@ -259,39 +355,93 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
           {/* Lista de hotspots del nodo activo */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200">
+            <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 text-sm">Hotspots de "{activeNode.name}"</h3>
+              <span className="text-xs text-gray-400 font-medium">
+                {(activeNode.linkHotspots?.length ?? 0) + (activeNode.infoHotspots?.length ?? 0)}
+              </span>
             </div>
-            <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
-              {(activeNode.linkHotspots ?? []).map((h, i) => (
-                <div key={`link-${i}`} className="p-3 flex items-center gap-2 text-sm">
-                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 truncate">→ {tour.nodes.find(n => n.id === h.targetNodeId)?.name ?? h.targetNodeId}</p>
-                    {h.label && <p className="text-xs text-gray-400 truncate">{h.label}</p>}
+
+            {(activeNode.linkHotspots ?? []).length === 0 && (activeNode.infoHotspots ?? []).length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm space-y-1">
+                <p>Todavía no hay hotspots en este ambiente.</p>
+                <p className="text-xs">Usá los botones de arriba para agregar uno, o clickeá directo sobre la panorámica.</p>
+              </div>
+            ) : (
+              <div className="max-h-[60vh] overflow-y-auto">
+                {(activeNode.linkHotspots ?? []).length > 0 && (
+                  <div>
+                    <p className="px-5 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Ir a otro ambiente</p>
+                    <div className="divide-y divide-gray-100">
+                      {(activeNode.linkHotspots ?? []).map((h, i) => (
+                        <div key={`link-${i}`} className="px-5 py-2.5 flex items-center gap-3 text-sm hover:bg-gray-50/70 transition-colors">
+                          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75" />
+                            </svg>
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-900 font-medium truncate">{tour.nodes.find(n => n.id === h.targetNodeId)?.name ?? h.targetNodeId}</p>
+                            {h.label && <p className="text-xs text-gray-400 truncate">"{h.label}"</p>}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteLinkHotspot(i)}
+                            aria-label="Borrar conexión"
+                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 w-7 h-7 flex items-center justify-center rounded-full transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button onClick={() => handleDeleteLinkHotspot(i)} className="text-gray-400 hover:text-red-500 shrink-0">×</button>
-                </div>
-              ))}
-              {(activeNode.infoHotspots ?? []).map((h, i) => (
-                <div key={`info-${i}`} className="p-3 flex items-center gap-2 text-sm">
-                  <span className="w-6 h-6 rounded-full bg-amber-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">i</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 truncate">{h.title}</p>
-                    {h.description && <p className="text-xs text-gray-400 truncate">{h.description}</p>}
+                )}
+
+                {(activeNode.infoHotspots ?? []).length > 0 && (
+                  <div>
+                    <p className="px-5 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Puntos de info</p>
+                    <div className="divide-y divide-gray-100">
+                      {(activeNode.infoHotspots ?? []).map((h, i) => (
+                        <div key={`info-${i}`} className="px-5 py-2.5 flex items-center gap-3 text-sm hover:bg-gray-50/70 transition-colors">
+                          <span className="w-8 h-8 rounded-full bg-amber-600 text-white font-serif font-bold flex items-center justify-center shrink-0">i</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-900 font-medium truncate">{h.title}</p>
+                            {h.description && <p className="text-xs text-gray-400 truncate">{h.description}</p>}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteInfoHotspot(i)}
+                            aria-label="Borrar punto de info"
+                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 w-7 h-7 flex items-center justify-center rounded-full transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button onClick={() => handleDeleteInfoHotspot(i)} className="text-gray-400 hover:text-red-500 shrink-0">×</button>
-                </div>
-              ))}
-              {(activeNode.linkHotspots ?? []).length === 0 && (activeNode.infoHotspots ?? []).length === 0 && (
-                <div className="p-6 text-center text-gray-400 text-sm">Todavía no hay hotspots en este ambiente.</div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
           Agregá el primer ambiente arriba para empezar a armar el recorrido.
+        </div>
+      )}
+
+      {previewing && (
+        <div className="fixed inset-0 z-[200] bg-black">
+          <button
+            onClick={() => setPreviewing(false)}
+            aria-label="Cerrar vista previa"
+            className="absolute top-4 right-4 z-[210] w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <VirtualTour tourData={tour} focusNodeId={activeNodeId ?? undefined} />
         </div>
       )}
     </div>

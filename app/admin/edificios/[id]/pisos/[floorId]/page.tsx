@@ -97,6 +97,35 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
     setError('');
   };
 
+  // Precarga el formulario de "Nueva unidad" con los datos de una unidad
+  // existente (todo menos el código, que tiene que ser único) — para no
+  // retipear los 18 campos cuando el mismo modelo se repite en el piso.
+  const duplicateUnit = (u: UnitRow) => {
+    setEditingId(null);
+    setForm({
+      code: '',
+      modelName: u.model_name ?? '',
+      type: u.type,
+      totalArea: String(u.total_area ?? ''),
+      innerArea: String(u.inner_area ?? ''),
+      balconyArea: String(u.balcony_area ?? 0),
+      externalArea: String(u.external_area ?? 0),
+      bedrooms: String(u.bedrooms ?? 0),
+      bathrooms: String(u.bathrooms ?? 1),
+      hasServiceRoom: u.has_service_room,
+      price: u.price != null ? String(u.price) : '',
+      status: u.status,
+      orientation: u.orientation ?? '',
+      interiorImageUrl: u.interior_image_url ?? '',
+      galleryImages: u.gallery_images ?? [],
+      floorPlan3dUrl: u.floor_plan_3d_url ?? '',
+      plan3dUrl: u.plan_3d_url ?? '',
+      technicalPlanUrl: u.technical_plan_url ?? '',
+    });
+    setError('');
+    document.getElementById('code')?.focus();
+  };
+
   const buildPayload = () => ({
     code: form.code,
     modelName: form.modelName || null,
@@ -212,6 +241,7 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
                   <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
                     <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
                     <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
+                    <button onClick={() => duplicateUnit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
                     <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
                   </td>
                 </tr>

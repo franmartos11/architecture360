@@ -42,12 +42,14 @@ const EMPTY_FORM = {
 };
 
 export default function AdminUbicacionPage() {
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [pois, setPois] = useState<PoiRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [calculatingTimes, setCalculatingTimes] = useState(false);
   const toast = useToast();
 
   const load = () => {
@@ -56,6 +58,7 @@ export default function AdminUbicacionPage() {
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
+        setProjectId(data.project?.id ?? null);
         setPois(data.pointsOfInterest ?? []);
         setLoading(false);
       })
@@ -67,6 +70,24 @@ export default function AdminUbicacionPage() {
   };
 
   useEffect(load, []);
+
+  const handleCalculateTimes = async () => {
+    if (!projectId) return;
+    setCalculatingTimes(true);
+    const res = await fetch('/api/admin/calculate-travel-times', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setCalculatingTimes(false);
+    if (res.ok) {
+      toast(data.message ?? `Tiempos actualizados para ${data.updated} punto${data.updated === 1 ? '' : 's'} de interés.`);
+      load();
+    } else {
+      toast(data.error ?? 'Error al calcular los tiempos.', 'error');
+    }
+  };
 
   const startEdit = (p: PoiRow) => {
     setEditingId(p.id);
@@ -146,12 +167,22 @@ export default function AdminUbicacionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Ubicación y Puntos de Interés</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Colegios, salud, comercios, transporte y entretenimiento cercanos al proyecto. Las coordenadas del centro del mapa se configuran en "Proyecto → Datos generales".
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Ubicación y Puntos de Interés</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Colegios, salud, comercios, transporte y entretenimiento cercanos al proyecto. Las coordenadas del centro del mapa se configuran en "Proyecto → Datos generales".
+          </p>
+        </div>
+        <button
+          onClick={handleCalculateTimes}
+          disabled={calculatingTimes || !projectId}
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+          title="Calcula los 3 tiempos de viaje para todos los puntos que tengan coordenadas, usando Google Maps"
+        >
+          {calculatingTimes ? 'Calculando...' : '⏱ Calcular tiempos automáticamente'}
+        </button>
       </div>
 
       {pois.length === 0 ? (
@@ -268,7 +299,7 @@ export default function AdminUbicacionPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tiempos de viaje (minutos, opcional)
+              Tiempos de viaje (minutos, opcional — o usá "Calcular tiempos automáticamente" arriba una vez que tenga coordenadas)
             </label>
             <div className="grid grid-cols-3 gap-4">
               <Input

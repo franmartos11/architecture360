@@ -19,7 +19,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .eq('building_id', id)
     .order('number');
 
-  return NextResponse.json({ building, floors: floors ?? [] });
+  // Datos mínimos de las unidades de todos los pisos, solo para poder
+  // mostrar un indicador de completitud (fotos/precio faltantes) por piso.
+  const floorIds = (floors ?? []).map(f => f.id);
+  const { data: units } = floorIds.length
+    ? await admin.from('units').select('floor_id, interior_image_url, price').in('floor_id', floorIds)
+    : { data: [] };
+
+  return NextResponse.json({ building, floors: floors ?? [], units: units ?? [] });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
