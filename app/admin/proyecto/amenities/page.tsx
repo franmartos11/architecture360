@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import type { TourData } from '@/types';
 import type { BuildingRow as DbBuildingRow, AmenityRow as DbAmenityRow } from '@/types/database';
 
@@ -29,6 +30,7 @@ export default function AdminAmenitiesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -110,7 +112,8 @@ export default function AdminAmenitiesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Borrar esta amenity?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar esta amenity?', confirmLabel: 'Borrar amenity', danger: true });
+    if (!ok) return;
     const res = await fetch(`/api/admin/amenities/${id}`, { method: 'DELETE' });
     if (res.ok) {
       toast('Amenity borrada.');

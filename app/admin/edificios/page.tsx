@@ -8,6 +8,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import type { BuildingRow as DbBuildingRow } from '@/types/database';
 
 // floors_loaded no es una columna real — la agrega /api/admin/buildings
@@ -24,6 +25,7 @@ export default function AdminBuildingsPage() {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -65,7 +67,13 @@ export default function AdminBuildingsPage() {
   };
 
   const handleDelete = async (b: BuildingRow) => {
-    if (!confirm(`¿Borrar "${b.name}"? Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la vista aérea. Esta acción no se puede deshacer.`)) return;
+    const ok = await confirmDialog({
+      title: `¿Borrar "${b.name}"?`,
+      message: 'Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la vista aérea. Esta acción no se puede deshacer.',
+      confirmLabel: 'Borrar edificio',
+      danger: true,
+    });
+    if (!ok) return;
     setDeletingId(b.id);
     const res = await fetch(`/api/admin/buildings/${b.id}`, { method: 'DELETE' });
     setDeletingId(null);
