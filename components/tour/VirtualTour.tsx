@@ -13,9 +13,11 @@ interface VirtualTourProps {
   };
   /** Nodo por el que arrancar el tour (ej. al entrar desde el plano de ambientes) */
   focusNodeId?: string;
+  /** Oculta el menú flotante de navegación entre nodos — para cuando el tour vive dentro de otro selector propio (ej. el comparador) */
+  hideNodeNav?: boolean;
 }
 
-export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId }: VirtualTourProps) {
+export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId, hideNodeNav }: VirtualTourProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
   const scenesRef = useRef<Record<string, any>>({});
@@ -218,7 +220,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
       <div ref={containerRef} className="pano-container w-full h-full absolute inset-0" />
 
       {/* Floating navigation menu (only if multi-node) */}
-      {tourData && tourData.nodes.length > 1 && !isLoading && !error && (
+      {!hideNodeNav && tourData && tourData.nodes.length > 1 && !isLoading && !error && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-wrap justify-center gap-2 p-1.5 bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-lg border border-white/10 max-w-[90vw]">
           {tourData.nodes.map(node => (
             <button

@@ -7,6 +7,7 @@ const UnitViewer = dynamic(() => import('./UnitViewer'), { ssr: false });
 
 interface UnitViewerWrapperProps {
   unit: Unit;
+  allUnits: Unit[];
   projectSlug: string;
   projectName: string;
   buildingId: string;
