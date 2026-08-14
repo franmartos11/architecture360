@@ -5,8 +5,9 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
+import ConfirmProvider from '@/components/ui/ConfirmProvider';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
@@ -44,6 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { label: 'Dashboard', href: '/admin' },
+    { label: '🪄 Carga guiada', href: '/admin/wizard' },
     { label: 'Proyecto', href: '/admin/proyecto' },
     { label: 'Edificios', href: '/admin/edificios' },
     { label: 'Inventario', href: '/admin/inventory' },
@@ -120,5 +122,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ConfirmProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </ConfirmProvider>
   );
 }
