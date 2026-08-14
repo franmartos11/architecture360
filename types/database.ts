@@ -38,7 +38,7 @@ export interface FloorRow {
   number: number;
   label: string;
   plan_image: string | null;
-  unit_dots: { unitId: string; x: number; y: number }[];
+  unit_dots: { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' }[];
   created_at: string;
 }
 

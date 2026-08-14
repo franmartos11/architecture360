@@ -23,6 +23,8 @@ interface PolygonCanvasProps {
   /** Posición del pin de la forma activa — se muestra siempre, se puede arrastrar o reubicar en modo "pin" */
   pinPoint?: Point | null;
   onPinPlace?: (point: Point | null) => void;
+  /** Color del ícono del pin — si no está, usa el color de la forma activa (shape.color) */
+  pinColor?: string;
 }
 
 interface HistoryEntry {
@@ -45,7 +47,7 @@ function distance(a: Point, b: Point) {
 //   "point" para agregarle más esquinas si el ambiente no es un rectángulo.
 // En ambos modos: arrastrar un punto existente lo mueve, doble click
 // sobre un punto lo borra.
-export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, pinPoint, onPinPlace }: PolygonCanvasProps) {
+export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, pinPoint, onPinPlace, pinColor }: PolygonCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [draggingPin, setDraggingPin] = useState(false);
@@ -316,7 +318,7 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
           className="absolute pointer-events-none"
           style={{ left: `${pinPoint.x}%`, top: `${pinPoint.y}%`, transform: 'translate(-50%, -100%)' }}
         >
-          <svg className="w-6 h-6 drop-shadow-lg" viewBox="0 0 24 24" fill={activeShape.color} stroke="white" strokeWidth={1}>
+          <svg className="w-6 h-6 drop-shadow-lg" viewBox="0 0 24 24" fill={pinColor || activeShape.color} stroke="white" strokeWidth={1}>
             <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 110-6 3 3 0 010 6z" />
           </svg>
         </div>
