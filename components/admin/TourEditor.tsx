@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import type { TourData, TourNode } from '@/types';
 import ImageUploader from './ImageUploader';
 import BulkImageUploader, { type BulkUploadResult } from './BulkImageUploader';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 
 const TourNodeViewer = dynamic(() => import('./TourNodeViewer'), { ssr: false });
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
@@ -45,6 +46,7 @@ function uniqueId(base: string, taken: Set<string>): string {
 }
 
 export default function TourEditor({ initialTourData, onPersist }: TourEditorProps) {
+  const confirmDialog = useConfirm();
   const [tour, setTour] = useState<TourData>(initialTourData ?? EMPTY_TOUR);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(initialTourData?.nodes[0]?.id ?? null);
   const [placing, setPlacing] = useState<'link' | 'info' | null>(null);
@@ -126,7 +128,8 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
   };
 
   const handleDeleteNode = async (id: string) => {
-    if (!confirm('¿Borrar este nodo? Los hotspots de otros nodos que apunten acá van a quedar rotos.')) return;
+    const confirmed = await confirmDialog({ message: '¿Borrar este nodo? Los hotspots de otros nodos que apunten acá van a quedar rotos.', confirmLabel: 'Borrar nodo', danger: true });
+    if (!confirmed) return;
     const nextNodes = tour.nodes.filter(n => n.id !== id);
     const next: TourData = {
       initialNodeId: tour.initialNodeId === id ? (nextNodes[0]?.id ?? '') : tour.initialNodeId,
@@ -180,7 +183,8 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleDeleteLinkHotspot = async (index: number) => {
     if (!activeNode) return;
-    if (!confirm('¿Borrar esta conexión?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar esta conexión?', confirmLabel: 'Borrar conexión', danger: true });
+    if (!ok) return;
     const nextNodes = tour.nodes.map(n =>
       n.id === activeNode.id ? { ...n, linkHotspots: (n.linkHotspots ?? []).filter((_, i) => i !== index) } : n
     );
@@ -189,7 +193,8 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleDeleteInfoHotspot = async (index: number) => {
     if (!activeNode) return;
-    if (!confirm('¿Borrar este punto de info?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar este punto de info?', confirmLabel: 'Borrar', danger: true });
+    if (!ok) return;
     const nextNodes = tour.nodes.map(n =>
       n.id === activeNode.id ? { ...n, infoHotspots: (n.infoHotspots ?? []).filter((_, i) => i !== index) } : n
     );

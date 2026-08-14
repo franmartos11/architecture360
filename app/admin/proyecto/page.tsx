@@ -10,6 +10,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import type {
   ProjectRow as DbProjectRow, BuildingRow as DbBuildingRow, AerialSlideRow, AerialHotspotRow,
 } from '@/types/database';
@@ -29,6 +30,7 @@ export default function AdminProjectPage() {
   const [saving, setSaving] = useState(false);
   const [newSlide, setNewSlide] = useState({ imageUrl: '', videoUrl: '', label: '' });
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -102,7 +104,8 @@ export default function AdminProjectPage() {
   };
 
   const handleDeleteSlide = async (id: string) => {
-    if (!confirm('¿Borrar esta vista aérea y sus hotspots?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar esta vista aérea y sus hotspots?', confirmLabel: 'Borrar vista', danger: true });
+    if (!ok) return;
     const res = await fetch(`/api/admin/aerial-slides/${id}`, { method: 'DELETE' });
     if (res.ok) load();
   };

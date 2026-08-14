@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import type { PoiCategory } from '@/types';
 import type { PointOfInterestRow } from '@/types/database';
 
@@ -51,6 +52,7 @@ export default function AdminUbicacionPage() {
   const [saving, setSaving] = useState(false);
   const [calculatingTimes, setCalculatingTimes] = useState(false);
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -151,7 +153,8 @@ export default function AdminUbicacionPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Borrar este punto de interés?')) return;
+    const ok = await confirmDialog({ message: '¿Borrar este punto de interés?', confirmLabel: 'Borrar', danger: true });
+    if (!ok) return;
     const res = await fetch(`/api/admin/points-of-interest/${id}`, { method: 'DELETE' });
     if (res.ok) {
       toast('Punto de interés borrado.');

@@ -17,6 +17,7 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -94,12 +95,23 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
               }}
             />
           </div>
-          <input
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder="...o pegá una URL directamente"
-            className="w-full text-xs px-2.5 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-gray-500"
-          />
+          {showUrlInput ? (
+            <input
+              value={value}
+              onChange={e => onChange(e.target.value)}
+              placeholder="Pegá una URL directamente"
+              autoFocus
+              className="w-full text-xs px-2.5 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-gray-500"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowUrlInput(true)}
+              className="text-[11px] text-gray-400 hover:text-gray-600 underline underline-offset-2"
+            >
+              ...o pegar una URL en cambio
+            </button>
+          )}
           {folder === 'tours' && !error && (
             <p className="text-[11px] text-gray-400">Si viene en formato estéreo (dos mitades apiladas, una por ojo), la recortamos sola al subir.</p>
           )}
