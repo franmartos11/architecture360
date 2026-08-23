@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import type { UnitType, UnitStatus } from '@/types';
+import type { UnitType, UnitStatus, TourData, Room } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -15,13 +15,26 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { parseCsv, downloadCsv } from '@/lib/csv';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { formatPrice } from '@/lib/units';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
-  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'price' | 'status'
+  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'price' | 'currency' | 'status'
   | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
   | 'plan_3d_url' | 'technical_plan_url' | 'created_at'
+  | 'room_plan_image' | 'rooms' | 'tour_image_url' | 'tour_data'
 >;
+
+// Lo que "Duplicar" arrastra de la unidad de origen pero que no se ve en el
+// form (los ambientes y el recorrido 360° del depto) — se manda aparte en el
+// payload de creación en vez de mezclarse con los campos visibles.
+type DuplicateExtras = {
+  roomPlanImage: string | null;
+  rooms: Room[] | null;
+  tourImageUrl: string | null;
+  tourData: TourData | null;
+};
 
 type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
   building_name: string | null;
@@ -30,22 +43,27 @@ type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
 
 const UNIT_TYPES: UnitType[] = ['monoambiente', '1 dormitorio', '2 dormitorios', '3 dormitorios', 'penthouse'];
 
+// Mismas monedas que reconoce formatPrice() en lib/units.ts — agregar acá
+// una moneda sin agregarla ahí la deja guardable pero sin formato local
+// específico al mostrarla (cae al genérico).
+const CURRENCIES = ['USD', 'ARS', 'EUR', 'UYU', 'BRL', 'CLP', 'MXN', 'COP', 'PEN'] as const;
+
 const CSV_COLUMNS = [
   'code', 'modelName', 'type', 'totalArea', 'innerArea', 'balconyArea', 'externalArea',
-  'bedrooms', 'bathrooms', 'hasServiceRoom', 'price', 'status', 'orientation',
+  'bedrooms', 'bathrooms', 'hasServiceRoom', 'price', 'currency', 'status', 'orientation',
   'interiorImageUrl', 'floorPlan3dUrl', 'plan3dUrl', 'technicalPlanUrl',
 ] as const;
 
 const CSV_TEMPLATE_ROW = [
   'A01-01', 'SUITE GARDEN', '2 dormitorios', '65.5', '55', '10.5', '0',
-  '2', '2', 'no', '150000', 'available', 'NE', '', '', '', '',
+  '2', '2', 'no', '150000', 'USD', 'available', 'NE', '', '', '', '',
 ];
 
 const EMPTY_FORM = {
   code: '', modelName: '', type: '2 dormitorios' as UnitType,
   totalArea: '', innerArea: '', balconyArea: '0', externalArea: '0',
   bedrooms: '2', bathrooms: '2', hasServiceRoom: false,
-  price: '', status: 'available' as UnitStatus, orientation: '',
+  price: '', currency: 'USD', status: 'available' as UnitStatus, orientation: '',
   interiorImageUrl: '', galleryImages: [] as string[],
   floorPlan3dUrl: '', plan3dUrl: '', technicalPlanUrl: '',
 };
@@ -53,7 +71,7 @@ const EMPTY_FORM = {
 type SourceUnitLike = {
   model_name: string | null; type: UnitType; total_area: number | null; inner_area: number | null;
   balcony_area: number | null; external_area: number | null; bedrooms: number | null; bathrooms: number | null;
-  has_service_room: boolean; price: number | null; status: UnitStatus; orientation: string | null;
+  has_service_room: boolean; price: number | null; currency: string; status: UnitStatus; orientation: string | null;
   interior_image_url: string | null; gallery_images: string[] | null; floor_plan_3d_url: string | null;
   plan_3d_url: string | null; technical_plan_url: string | null;
 };
@@ -73,6 +91,7 @@ function formFieldsFromUnit(u: SourceUnitLike) {
     bathrooms: String(u.bathrooms ?? 1),
     hasServiceRoom: u.has_service_room,
     price: u.price != null ? String(u.price) : '',
+    currency: u.currency || 'USD',
     status: u.status,
     orientation: u.orientation ?? '',
     interiorImageUrl: u.interior_image_url ?? '',
@@ -98,9 +117,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const [otherUnits, setOtherUnits] = useState<OtherUnitRow[]>([]);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [duplicateExtras, setDuplicateExtras] = useState<DuplicateExtras | null>(null);
   const toast = useToast();
   const confirmDialog = useConfirm();
   const inheritedDefaultsApplied = useRef(false);
+  const typeConfig = useProjectTypeConfig();
+  const columnCount = 4 + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
 
   // Unidades de CUALQUIER otro piso/edificio del proyecto — para poder
   // traer el mismo modelo a este piso sin retipear los 18 campos, cuando
@@ -146,20 +168,32 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const startEdit = (u: UnitRow) => {
     setEditingId(u.id);
     setForm({ code: u.code, ...formFieldsFromUnit(u) });
+    setDuplicateExtras(null);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setError('');
+    setDuplicateExtras(null);
   };
 
   // Precarga el formulario de "Nueva unidad" con los datos de una unidad
   // existente (todo menos el código, que tiene que ser único) — para no
   // retipear los 18 campos cuando el mismo modelo se repite en el piso.
+  // Los deptos idénticos también comparten ambientes y recorrido 360°, así
+  // que eso viaja aparte en duplicateExtras y se suma recién al crear —
+  // NO el polígono, que es la posición de este depto en el plano del piso
+  // y por eso es única de cada unidad.
   const duplicateUnit = (u: UnitRow) => {
     setEditingId(null);
     setForm({ code: '', ...formFieldsFromUnit(u) });
+    setDuplicateExtras({
+      roomPlanImage: u.room_plan_image,
+      rooms: u.rooms,
+      tourImageUrl: u.tour_image_url,
+      tourData: u.tour_data,
+    });
     setError('');
     document.getElementById('code')?.focus();
   };
@@ -192,6 +226,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     bathrooms: Number(form.bathrooms || 1),
     hasServiceRoom: form.hasServiceRoom,
     price: form.price === '' ? null : Number(form.price),
+    currency: form.currency || 'USD',
     status: form.status,
     orientation: form.orientation || null,
     interiorImageUrl: form.interiorImageUrl || null,
@@ -199,6 +234,15 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     floorPlan3dUrl: form.floorPlan3dUrl || null,
     plan3dUrl: form.plan3dUrl || null,
     technicalPlanUrl: form.technicalPlanUrl || null,
+    // Solo al crear a partir de "Duplicar" — en una edición normal
+    // (editingId set) nunca hay que pisar los ambientes/tour reales de la
+    // unidad con lo que haya quedado cacheado de un duplicado anterior.
+    ...(!editingId && duplicateExtras ? {
+      roomPlanImage: duplicateExtras.roomPlanImage,
+      rooms: duplicateExtras.rooms,
+      tourImageUrl: duplicateExtras.tourImageUrl,
+      tourData: duplicateExtras.tourData,
+    } : {}),
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -263,7 +307,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     const rows = units.map(u => [
       u.code, u.model_name ?? '', u.type, String(u.total_area ?? ''), String(u.inner_area ?? ''),
       String(u.balcony_area ?? 0), String(u.external_area ?? 0), String(u.bedrooms ?? 0), String(u.bathrooms ?? 0),
-      u.has_service_room ? 'si' : 'no', u.price != null ? String(u.price) : '', u.status, u.orientation ?? '',
+      u.has_service_room ? 'si' : 'no', u.price != null ? String(u.price) : '', u.currency || 'USD', u.status, u.orientation ?? '',
       u.interior_image_url ?? '', u.floor_plan_3d_url ?? '', u.plan_3d_url ?? '', u.technical_plan_url ?? '',
     ]);
     downloadCsv('unidades.csv', [[...CSV_COLUMNS], ...rows]);
@@ -299,6 +343,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         bathrooms: Number(get('bathrooms') || 1),
         hasServiceRoom: ['si', 'sí', 'true', '1', 'yes'].includes(get('hasServiceRoom').toLowerCase()),
         price: get('price') === '' ? null : Number(get('price')),
+        currency: get('currency') || 'USD',
         status: (get('status') || 'available') as UnitStatus,
         orientation: get('orientation') || null,
         interiorImageUrl: get('interiorImageUrl') || null,
@@ -346,8 +391,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
                 <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
-                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>
-                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>
+                {typeConfig.showStatus && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>}
+                {typeConfig.showPrice && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>}
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
@@ -357,18 +402,31 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
                   <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
                   <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
-                  <td className="px-6 py-3 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium
-                      ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
-                      ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
-                      ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{u.price ? `$${u.price.toLocaleString()}` : '—'}</td>
+                  {typeConfig.showStatus && (
+                    <td className="px-6 py-3 text-sm">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium
+                        ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
+                        ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
+                        ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
+                        {u.status}
+                      </span>
+                    </td>
+                  )}
+                  {typeConfig.showPrice && (
+                    <td className="px-6 py-3 text-sm text-gray-600">{u.price ? formatPrice(u.price, u.currency) : '—'}</td>
+                  )}
                   <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
                     {buildingId && (
-                      <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
+                      <>
+                        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
+                        <Link
+                          href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/tour`}
+                          className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                          title={u.tour_data?.nodes.length ? `${u.tour_data.nodes.length} panorámica${u.tour_data.nodes.length === 1 ? '' : 's'} cargada${u.tour_data.nodes.length === 1 ? '' : 's'}` : 'Todavía sin recorrido 360°'}
+                        >
+                          Recorrido 360°{u.tour_data?.nodes.length ? ` (${u.tour_data.nodes.length})` : ''}
+                        </Link>
+                      </>
                     )}
                     <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
                     <button onClick={() => duplicateUnit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
@@ -377,7 +435,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </tr>
               ))}
               {units.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades en este piso.</td></tr>
+                <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades en este piso.</td></tr>
               )}
             </tbody>
           </table>
@@ -423,11 +481,13 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
               {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
-            <Select label="Estado" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
-              <option value="available">Disponible</option>
-              <option value="reserved">Reservado</option>
-              <option value="sold">Vendido</option>
-            </Select>
+            {typeConfig.showStatus && (
+              <Select label="Estado" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
+                <option value="available">Disponible</option>
+                <option value="reserved">Reservado</option>
+                <option value="sold">Vendido</option>
+              </Select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -440,7 +500,18 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
             <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
-            <Input label="Precio (USD)" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
+            {typeConfig.showPrice && (
+              <div className="flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <Input label="Precio" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
+                </div>
+                <div className="w-24 shrink-0">
+                  <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+                </div>
+              </div>
+            )}
             <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
           </div>
 

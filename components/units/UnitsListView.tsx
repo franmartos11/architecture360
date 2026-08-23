@@ -5,11 +5,13 @@ import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice, getStatusLabel, getStatusColor } from '@/lib/units';
+import type { ProjectTypeConfig } from '@/lib/project-types';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {
   project: Project;
   initialBuildingFilter?: string;
+  typeConfig: ProjectTypeConfig;
 }
 
 const TYPE_LABELS: Record<UnitType, string> = {
@@ -28,7 +30,7 @@ const STATUS_LABELS: Record<UnitStatus | 'all', string> = {
   sold: 'Vendidos',
 };
 
-export default function UnitsListView({ project, initialBuildingFilter }: UnitsListViewProps) {
+export default function UnitsListView({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
   const [buildingFilter, setBuildingFilter] = useState<string>(
     initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
       ? initialBuildingFilter
@@ -41,6 +43,8 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
     const set = new Set(project.units.map(u => u.type));
     return Array.from(set);
   }, [project.units]);
+  const hasTypeFilterRow = typesPresent.length > 0;
+  const hasStatusFilterRow = typeConfig.showStatus;
 
   const filtered = useMemo(() => {
     return project.units.filter(u => {
@@ -54,6 +58,7 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
   const availableCount = useMemo(() => project.units.filter(u => u.status === 'available').length, [project.units]);
   const pricedUnits = useMemo(() => project.units.filter(u => u.price != null), [project.units]);
   const minPrice = pricedUnits.length > 0 ? Math.min(...pricedUnits.map(u => u.price!)) : null;
+  const minPriceCurrency = pricedUnits.find(u => u.price === minPrice)?.currency;
 
   const heroImage = project.aerialSlides[0]?.imageUrl;
 
@@ -91,9 +96,9 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-6 sm:gap-x-10 gap-y-4 sm:gap-y-3 mt-10">
             <Stat value={project.units.length} label="Unidades" />
-            <Stat value={availableCount} label="Disponibles" />
+            {typeConfig.showStatus && <Stat value={availableCount} label="Disponibles" />}
             {project.buildings.length > 1 && <Stat value={project.buildings.length} label="Edificios" />}
-            {minPrice != null && <Stat value={formatPrice(minPrice)} label="Desde" />}
+            {typeConfig.showPrice && minPrice != null && <Stat value={formatPrice(minPrice, minPriceCurrency)} label="Desde" />}
           </div>
         </div>
       </section>
@@ -102,7 +107,7 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
       <div className="px-4 sm:px-6 -mt-16 sm:-mt-20 relative z-10">
         <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl border border-trevo-dark/5 p-6 sm:p-8 space-y-6">
           {project.buildings.length > 1 && (
-            <FilterRow label="Edificio">
+            <FilterRow label="Edificio" last={!hasTypeFilterRow && !hasStatusFilterRow}>
               <TabTrigger active={buildingFilter === 'all'} onClick={() => setBuildingFilter('all')}>
                 Todos
               </TabTrigger>
@@ -114,8 +119,8 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
             </FilterRow>
           )}
 
-          {typesPresent.length > 0 && (
-            <FilterRow label="Tipología">
+          {hasTypeFilterRow && (
+            <FilterRow label="Tipología" last={!hasStatusFilterRow}>
               <TabTrigger active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>
                 Todas
               </TabTrigger>
@@ -127,13 +132,15 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
             </FilterRow>
           )}
 
-          <FilterRow label="Disponibilidad" last>
-            {STATUS_ORDER.map(s => (
-              <TabTrigger key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)}>
-                {STATUS_LABELS[s]}
-              </TabTrigger>
-            ))}
-          </FilterRow>
+          {hasStatusFilterRow && (
+            <FilterRow label="Disponibilidad" last>
+              {STATUS_ORDER.map(s => (
+                <TabTrigger key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)}>
+                  {STATUS_LABELS[s]}
+                </TabTrigger>
+              ))}
+            </FilterRow>
+          )}
         </div>
       </div>
 
@@ -156,6 +163,8 @@ export default function UnitsListView({ project, initialBuildingFilter }: UnitsL
                   unit={u}
                   projectSlug={project.slug}
                   buildingName={project.buildings.find(b => b.id === u.buildingId)?.name}
+                  showPrice={typeConfig.showPrice}
+                  showStatus={typeConfig.showStatus}
                 />
               ))}
             </div>
@@ -205,10 +214,14 @@ function UnitCard({
   unit,
   buildingName,
   projectSlug,
+  showPrice,
+  showStatus,
 }: {
   unit: Unit;
   buildingName?: string;
   projectSlug: string;
+  showPrice: boolean;
+  showStatus: boolean;
 }) {
   const statusColor = getStatusColor(unit.status);
   return (
@@ -231,10 +244,12 @@ function UnitCard({
           <div className="absolute inset-0 flex items-center justify-center text-trevo-dark/20 text-xs">Sin foto</div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
-        <span className="absolute top-3 right-3 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-trevo-dark shadow-sm">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
-          {getStatusLabel(unit.status)}
-        </span>
+        {showStatus && (
+          <span className="absolute top-3 right-3 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-trevo-dark shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+            {getStatusLabel(unit.status)}
+          </span>
+        )}
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <p className="text-xs text-white/70 tracking-widest uppercase font-medium">
             {[buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`].filter(Boolean).join(' · ')}
@@ -248,9 +263,11 @@ function UnitCard({
           <p className="text-sm text-trevo-dark font-medium">{TYPE_LABELS[unit.type]}</p>
           <p className="text-xs text-trevo-dark/50 font-light mt-0.5">{unit.totalArea} m² · {unit.bedrooms} dorm · {unit.bathrooms} baños</p>
         </div>
-        <p className="text-sm font-semibold text-trevo-dark whitespace-nowrap">
-          {unit.price ? formatPrice(unit.price) : 'Consultar'}
-        </p>
+        {showPrice && (
+          <p className="text-sm font-semibold text-trevo-dark whitespace-nowrap">
+            {unit.price ? formatPrice(unit.price, unit.currency) : 'Consultar'}
+          </p>
+        )}
       </div>
     </Link>
   );

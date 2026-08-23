@@ -102,7 +102,7 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                       </svg>
                     }
                     label="Precio"
-                    value={unit.price ? formatPrice(unit.price) : 'Consultar'}
+                    value={unit.price ? formatPrice(unit.price, unit.currency) : 'Consultar'}
                   />
                   <DetailItem
                     icon={
@@ -121,7 +121,7 @@ export default function UnitModal({ unit, projectSlug, onClose }: UnitModalProps
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white/40">Precio por m²</span>
                   <span className="text-white font-medium">
-                    {unit.price ? formatPrice(Math.round(unit.price / unit.totalArea)) : '-'}/m²
+                    {unit.price ? formatPrice(Math.round(unit.price / unit.totalArea), unit.currency) : '-'}/m²
                   </span>
                 </div>
               </div>

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { Unit, Amenity, PointOfInterest, UnitViewTab } from '@/types';
+import type { ProjectTypeConfig } from '@/lib/project-types';
 
 const UnitViewer = dynamic(() => import('./UnitViewer'), { ssr: false });
 
@@ -18,6 +19,7 @@ interface UnitViewerWrapperProps {
   projectLatitude?: number;
   projectLongitude?: number;
   initialTab?: UnitViewTab;
+  typeConfig: ProjectTypeConfig;
 }
 
 export default function UnitViewerWrapper(props: UnitViewerWrapperProps) {

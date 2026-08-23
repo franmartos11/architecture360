@@ -11,8 +11,25 @@ export function getUnitsByBuildingAndFloor(unitList: Unit[], buildingId: string,
   return unitList.filter(u => u.buildingId === buildingId && u.floor === floor);
 }
 
-export function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price);
+// Locale por moneda para que el separador de miles/decimales y la posición
+// del símbolo salgan como se esperan en cada mercado — USD sigue en
+// 'en-US' (comportamiento de siempre) para no cambiarle el formato a las
+// unidades ya cargadas que no tocaron este campo nuevo.
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  ARS: 'es-AR',
+  EUR: 'de-DE',
+  UYU: 'es-UY',
+  BRL: 'pt-BR',
+  CLP: 'es-CL',
+  MXN: 'es-MX',
+  COP: 'es-CO',
+  PEN: 'es-PE',
+};
+
+export function formatPrice(price: number, currency: string = 'USD'): string {
+  const locale = CURRENCY_LOCALE[currency] ?? 'en-US';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
 }
 
 export function getStatusLabel(status: string): string {

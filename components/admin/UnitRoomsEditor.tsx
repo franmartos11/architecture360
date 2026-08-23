@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { slugify } from '@/lib/slug';
 import type { TourData, TourNode, Room } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
@@ -17,14 +18,6 @@ type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms
 };
 
 const PALETTE = ['#83978c', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
-
-function slugify(text: string): string {
-  return text
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'ambiente';
-}
 
 // Delimitador de ambientes (dormitorio, cocina, baño, etc.) dentro de una
 // unidad — se usa tanto en su propia pantalla standalone
@@ -143,7 +136,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
   const handleAddRoom = async () => {
     if (!newRoomName.trim()) return;
-    const id = slugify(newRoomName);
+    const id = slugify(newRoomName) || 'ambiente';
     if (rooms.some(r => r.id === id)) {
       toast('Ya existe un ambiente con ese nombre.', 'error');
       return;

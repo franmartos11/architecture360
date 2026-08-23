@@ -7,7 +7,9 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
-import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel } from '@/lib/units';
+import type { ProjectTypeConfig } from '@/lib/project-types';
+import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
+import { FLOOR_KIND_LABEL, FLOOR_KIND_ICON } from '@/lib/floorKinds';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
@@ -21,6 +23,7 @@ interface FloorPlanViewerProps {
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   initialFloor?: number;
+  typeConfig: ProjectTypeConfig;
 }
 
 export default function FloorPlanViewer({
@@ -31,7 +34,9 @@ export default function FloorPlanViewer({
   amenities = [],
   pointsOfInterest = [],
   initialFloor = 1,
+  typeConfig,
 }: FloorPlanViewerProps) {
+  const { showPrice, showStatus, showLeads } = typeConfig;
   const router = useTransitionRouter();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -180,34 +185,38 @@ export default function FloorPlanViewer({
               {/* Header */}
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-lg font-bold text-gray-900">{selectedUnit.name}</h2>
-                <span
-                  className="text-xs font-semibold flex items-center gap-1"
-                  style={{ color: getStatusColor(selectedUnit.status) }}
-                >
+                {showStatus && (
                   <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: getStatusColor(selectedUnit.status) }}
-                  />
-                  {getStatusLabel(selectedUnit.status).toUpperCase()}
-                </span>
+                    className="text-xs font-semibold flex items-center gap-1"
+                    style={{ color: getStatusColor(selectedUnit.status) }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: getStatusColor(selectedUnit.status) }}
+                    />
+                    {getStatusLabel(selectedUnit.status).toUpperCase()}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-500 mb-4 uppercase tracking-wide">{selectedUnit.modelName}</p>
 
               {/* Price / Consult */}
-              {selectedUnit.price ? (
-                <div className="mb-4">
-                  <p className="text-xs text-gray-400">Precio</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedUnit.price)}
-                  </p>
-                </div>
-              ) : (
-                <button 
-                  onClick={() => contactModal.open()}
-                  className="w-full mb-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Consultar precio
-                </button>
+              {showPrice && (
+                selectedUnit.price ? (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-400">Precio</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {formatPrice(selectedUnit.price, selectedUnit.currency)}
+                    </p>
+                  </div>
+                ) : showLeads ? (
+                  <button
+                    onClick={() => contactModal.open()}
+                    className="w-full mb-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Consultar precio
+                  </button>
+                ) : null
               )}
 
               {/* Enter button */}
@@ -276,26 +285,28 @@ export default function FloorPlanViewer({
               )}
 
               {/* Contact */}
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
-                <div className="flex items-center gap-3">
-                  <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                    </svg>
-                  </ContactBtn>
-                  <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                    </svg>
-                  </ContactBtn>
-                  <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                  </ContactBtn>
+              {showLeads && (
+                <div className="mt-auto pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
+                  <div className="flex items-center gap-3">
+                    <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                    </ContactBtn>
+                    <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                      </svg>
+                    </ContactBtn>
+                    <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                    </ContactBtn>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         ) : (
@@ -318,57 +329,77 @@ export default function FloorPlanViewer({
                 <h2 className="text-3xl font-bold text-white drop-shadow-lg">{building.name}</h2>
                 <span className="text-sm font-semibold text-gray-900 bg-white/90 px-4 py-1.5 rounded-full mt-3 shadow-md">
                   Planta {activeFloor}
+                  {floor?.floorKind && floor.floorKind !== 'units' && ` · ${FLOOR_KIND_ICON[floor.floorKind]} ${FLOOR_KIND_LABEL[floor.floorKind]}`}
                 </span>
               </div>
             </div>
 
             {/* Floor Summary */}
             <div className="p-5 flex-1 flex flex-col">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Resumen de Planta</h3>
-              <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                Selecciona una unidad en el plano interactivo para ver fotografías interiores, recorrerla en 360° y conocer sus especificaciones completas.
-              </p>
+              {floor?.floorKind && floor.floorKind !== 'units' ? (
+                <>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    {FLOOR_KIND_ICON[floor.floorKind]} {FLOOR_KIND_LABEL[floor.floorKind]}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                    {floor.floorKindDescription || `Este piso no tiene unidades a la venta — es de uso ${FLOOR_KIND_LABEL[floor.floorKind].toLowerCase()}.`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Resumen de Planta</h3>
+                  <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                    Selecciona una unidad en el plano interactivo para ver fotografías interiores, recorrerla en 360° y conocer sus especificaciones completas.
+                  </p>
 
-              <div className="space-y-4 mb-6">
-                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span className="text-sm text-gray-500">Unidades Totales</span>
-                  <span className="text-sm font-semibold text-gray-900">{unitsOnFloor.length}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span className="text-sm text-gray-500">Unidades Disponibles</span>
-                  <span className="text-sm font-semibold text-emerald-600">
-                    {unitsOnFloor.filter(u => u.status === 'available').length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span className="text-sm text-gray-500">Reservadas / Vendidas</span>
-                  <span className="text-sm font-semibold text-amber-600">
-                    {unitsOnFloor.filter(u => u.status !== 'available').length}
-                  </span>
-                </div>
-              </div>
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                      <span className="text-sm text-gray-500">Unidades Totales</span>
+                      <span className="text-sm font-semibold text-gray-900">{unitsOnFloor.length}</span>
+                    </div>
+                    {showStatus && (
+                      <>
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                          <span className="text-sm text-gray-500">Unidades Disponibles</span>
+                          <span className="text-sm font-semibold text-emerald-600">
+                            {unitsOnFloor.filter(u => u.status === 'available').length}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                          <span className="text-sm text-gray-500">Reservadas / Vendidas</span>
+                          <span className="text-sm font-semibold text-amber-600">
+                            {unitsOnFloor.filter(u => u.status !== 'available').length}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* Contact */}
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400 mb-3">Asesoramiento Comercial</p>
-                <div className="flex items-center gap-3">
-                  <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                    </svg>
-                  </ContactBtn>
-                  <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                    </svg>
-                  </ContactBtn>
-                  <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                  </ContactBtn>
+              {showLeads && (
+                <div className="mt-auto pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-3">Asesoramiento Comercial</p>
+                  <div className="flex items-center gap-3">
+                    <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                    </ContactBtn>
+                    <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                      </svg>
+                    </ContactBtn>
+                    <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                    </ContactBtn>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -498,6 +529,7 @@ export default function FloorPlanViewer({
                         key={dot.unitId} dot={dot} unit={unit}
                         isSelected={selectedUnit?.id === dot.unitId}
                         onSelect={handleSelectUnit}
+                        showStatus={showStatus}
                       />
                     );
                   })}
@@ -518,33 +550,42 @@ export default function FloorPlanViewer({
 
         {/* Floor numbers */}
         <div className="flex flex-col items-center gap-1 overflow-y-auto max-h-[calc(100vh-8rem)] py-2 w-full">
-          {floorNumbers.map(num => (
-            <button
-              key={num}
-              onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); setMobilePreviewUnit(null); }}
-              aria-label={num === 0 ? 'Planta baja' : `Piso ${num}`}
-              aria-current={activeFloor === num ? 'true' : undefined}
-              className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
-                activeFloor === num
-                  ? 'w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 text-white shadow-lg'
-                  : 'w-8 h-8 sm:w-9 sm:h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {num === 0 ? 'L' : num}
-            </button>
-          ))}
+          {floorNumbers.map(num => {
+            const kind = building.floors.find(f => f.number === num)?.floorKind;
+            const isSpecial = kind && kind !== 'units';
+            const baseLabel = num === 0 ? 'Planta baja' : `Piso ${num}`;
+            return (
+              <button
+                key={num}
+                onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); setMobilePreviewUnit(null); }}
+                aria-label={isSpecial ? `${baseLabel} — ${FLOOR_KIND_LABEL[kind]}` : baseLabel}
+                aria-current={activeFloor === num ? 'true' : undefined}
+                title={isSpecial ? FLOOR_KIND_LABEL[kind] : undefined}
+                className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
+                  activeFloor === num
+                    ? 'w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 text-white shadow-lg'
+                    : 'w-8 h-8 sm:w-9 sm:h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {isSpecial ? FLOOR_KIND_ICON[kind] : num === 0 ? 'L' : num}
+              </button>
+            );
+          })}
         </div>
 
         {/* Bottom placeholder */}
         <div className="w-8 h-8" />
       </div>
 
-      <LeadCaptureModal
-        isOpen={contactModal.isOpen}
-        onClose={contactModal.close}
-        unit={selectedUnit}
-        defaultMethod={contactModal.method}
-      />
+      {showLeads && (
+        <LeadCaptureModal
+          isOpen={contactModal.isOpen}
+          onClose={contactModal.close}
+          unit={selectedUnit}
+          projectSlug={projectSlug}
+          defaultMethod={contactModal.method}
+        />
+      )}
 
       {/* ── Mobile: tap-outside overlay for full panel ── */}
       {panelOpen && (
@@ -595,12 +636,14 @@ export default function FloorPlanViewer({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
                   <h3 className="text-lg font-bold text-gray-900 truncate">{mobilePreviewUnit.name}</h3>
-                  <span
-                    className="text-xs font-semibold ml-2 flex-shrink-0"
-                    style={{ color: getStatusColor(mobilePreviewUnit.status) }}
-                  >
-                    {getStatusLabel(mobilePreviewUnit.status).toUpperCase()}
-                  </span>
+                  {showStatus && (
+                    <span
+                      className="text-xs font-semibold ml-2 flex-shrink-0"
+                      style={{ color: getStatusColor(mobilePreviewUnit.status) }}
+                    >
+                      {getStatusLabel(mobilePreviewUnit.status).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{mobilePreviewUnit.modelName}</p>
                 <div className="flex gap-3 text-xs text-gray-600">
@@ -608,9 +651,9 @@ export default function FloorPlanViewer({
                   <span>🚿 {mobilePreviewUnit.bathrooms}</span>
                   <span>📐 {mobilePreviewUnit.totalArea}m²</span>
                 </div>
-                {mobilePreviewUnit.price && (
+                {showPrice && mobilePreviewUnit.price && (
                   <p className="text-sm font-bold text-gray-900 mt-1.5">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(mobilePreviewUnit.price)}
+                    {formatPrice(mobilePreviewUnit.price, mobilePreviewUnit.currency)}
                   </p>
                 )}
               </div>
@@ -638,15 +681,21 @@ export default function FloorPlanViewer({
 }
 
 // ── Unit dot marker ─────────────────────────────────────────────
+// Color por defecto del pin: por estado de venta si el tipo de proyecto
+// lo usa; si no (portfolio/showcase), un verde neutro de marca en vez de
+// un semáforo de disponibilidad que no tiene sentido para ese proyecto.
+const NEUTRAL_DOT_COLOR = '#4c5f54';
+
 function UnitDotMarker({
-  dot, unit, isSelected, onSelect,
+  dot, unit, isSelected, onSelect, showStatus,
 }: {
   dot: { x: number; y: number; color?: string; style?: 'pill' | 'dot' };
   unit: Unit;
   isSelected: boolean;
   onSelect: (unit: Unit) => void;
+  showStatus: boolean;
 }) {
-  const color = dot.color || getStatusColor(unit.status);
+  const color = dot.color || (showStatus ? getStatusColor(unit.status) : NEUTRAL_DOT_COLOR);
   return (
     <motion.button
       variants={{

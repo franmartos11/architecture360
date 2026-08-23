@@ -8,18 +8,20 @@ interface MortgageCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   unitPrice: number;
+  currency?: string;
+  projectSlug: string;
 }
 
-export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: MortgageCalculatorModalProps) {
+export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, currency, projectSlug }: MortgageCalculatorModalProps) {
   const [settings, setSettings] = useState({ interestRate: 5.5, maxYears: 30, minDownPayment: 20 });
-  
+
   // User Inputs
   const [downPaymentPct, setDownPaymentPct] = useState(20);
   const [years, setYears] = useState(30);
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/settings')
+      fetch(`/api/settings?projectSlug=${encodeURIComponent(projectSlug)}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.interestRate) {
@@ -29,7 +31,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
           }
         });
     }
-  }, [isOpen]);
+  }, [isOpen, projectSlug]);
 
   // Derived values
   const downPayment = (unitPrice * downPaymentPct) / 100;
@@ -79,7 +81,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
               {/* Unit Price Display */}
               <div className="flex justify-between items-end pb-4 border-b border-gray-100">
                 <span className="text-sm font-medium text-gray-500">Precio de la unidad</span>
-                <span className="text-xl font-bold text-gray-900">{formatPrice(unitPrice)}</span>
+                <span className="text-xl font-bold text-gray-900">{formatPrice(unitPrice, currency)}</span>
               </div>
 
               {/* Sliders */}
@@ -99,7 +101,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
                   />
                   <div className="flex justify-between mt-1">
                     <span className="text-xs text-gray-400">Min: {settings.minDownPayment}%</span>
-                    <span className="text-xs font-medium text-gray-600">{formatPrice(downPayment)}</span>
+                    <span className="text-xs font-medium text-gray-600">{formatPrice(downPayment, currency)}</span>
                   </div>
                 </div>
 
@@ -127,11 +129,11 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice }: 
               <div className="bg-gray-900 rounded-xl p-5 text-white flex justify-between items-center shadow-lg">
                 <div>
                   <p className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-semibold">Cuota Mensual Estimada</p>
-                  <p className="text-3xl font-bold tracking-tight">{formatPrice(monthlyPayment)}</p>
+                  <p className="text-3xl font-bold tracking-tight">{formatPrice(monthlyPayment, currency)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-gray-400">Tasa: {settings.interestRate}% anual</p>
-                  <p className="text-[10px] text-gray-400">Monto: {formatPrice(loanAmount)}</p>
+                  <p className="text-[10px] text-gray-400">Monto: {formatPrice(loanAmount, currency)}</p>
                 </div>
               </div>
               

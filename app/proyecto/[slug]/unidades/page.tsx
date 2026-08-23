@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getProjectBySlug } from '@/data/project-repository';
 import UnitsListView from '@/components/units/UnitsListView';
+import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -24,5 +25,6 @@ export default async function UnidadesPage({ params, searchParams }: PageProps) 
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
-  return <UnitsListView project={project} initialBuildingFilter={edificio} />;
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  return <UnitsListView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;
 }

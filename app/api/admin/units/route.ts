@@ -1,36 +1,46 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
 
-// GET /api/admin/units            → todas las unidades del proyecto, con
-//                                    edificio/piso resueltos (para el
+// GET /api/admin/units            → todas las unidades del proyecto activo,
+//                                    con edificio/piso resueltos (para el
 //                                    listado global de Inventario).
-// GET /api/admin/units?floorId=.. → solo las unidades de ese piso.
+// GET /api/admin/units?floorId=.. → solo las unidades de ese piso (valida
+//                                    que ese piso sea del proyecto activo).
 export async function GET(request: Request) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const { searchParams } = new URL(request.url);
   const floorId = searchParams.get('floorId');
 
-  const admin = createAdminClient();
-  let query = admin.from('units').select('*').order('code');
-  if (floorId) query = query.eq('floor_id', floorId);
-
-  const { data: units, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
   if (floorId) {
-    // El llamador ya sabe el edificio/piso (viene de esa pantalla).
+    const projectId = await resolveProjectIdFromFloor(floorId);
+    if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
+    const access = await requireProjectAccess(projectId);
+    if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+    const { data: units, error } = await access.supabase.from('units').select('*').eq('floor_id', floorId).order('code');
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(units ?? []);
   }
 
-  // Listado global: enriquecer cada unidad con edificio/piso para mostrarlos.
-  const [{ data: floors }, { data: buildings }] = await Promise.all([
-    admin.from('floors').select('id, number, building_id'),
-    admin.from('buildings').select('id, slug, name'),
-  ]);
+  // Listado global: solo unidades del proyecto activo — sin este filtro, el
+  // panel de un proyecto mostraría inventario mezclado con el de otros.
+  const projectId = await resolveRequestedProjectId(request);
+  if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
+
+  const { data: buildings } = await supabase.from('buildings').select('id, slug, name').eq('project_id', projectId);
+  const buildingIds = (buildings ?? []).map(b => b.id);
+  const { data: floors } = buildingIds.length
+    ? await supabase.from('floors').select('id, number, building_id').in('building_id', buildingIds)
+    : { data: [] };
+  const floorIds = (floors ?? []).map(f => f.id);
+  if (floorIds.length === 0) return NextResponse.json([]);
+
+  const { data: units, error } = await supabase.from('units').select('*').in('floor_id', floorIds).order('code');
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
   const floorById = new Map((floors ?? []).map(f => [f.id, f]));
   const buildingById = new Map((buildings ?? []).map(b => [b.id, b]));
 
@@ -49,9 +59,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const body = await request.json();
   if (!body.floorId || !body.code || !body.type) {
     return NextResponse.json({ error: 'Faltan floorId, code y/o type' }, { status: 400 });
@@ -60,8 +67,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
+  const projectId = await resolveProjectIdFromFloor(body.floorId);
+  if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase: sessionClient } = access;
+
+  const { data, error } = await sessionClient
     .from('units')
     .insert({
       floor_id: body.floorId,
@@ -76,6 +88,7 @@ export async function POST(request: Request) {
       bathrooms: body.bathrooms ?? 1,
       has_service_room: body.hasServiceRoom ?? false,
       price: body.price ?? null,
+      currency: body.currency ?? 'USD',
       status: body.status ?? 'available',
       orientation: body.orientation ?? null,
       interior_image_url: body.interiorImageUrl ?? null,
@@ -83,6 +96,12 @@ export async function POST(request: Request) {
       floor_plan_3d_url: body.floorPlan3dUrl ?? null,
       plan_3d_url: body.plan3dUrl ?? null,
       technical_plan_url: body.technicalPlanUrl ?? null,
+      // Solo llegan cuando la unidad se crea a partir de "Duplicar" —
+      // deptos idénticos comparten ambientes y recorrido 360°.
+      room_plan_image: body.roomPlanImage ?? null,
+      rooms: body.rooms ?? null,
+      tour_image_url: body.tourImageUrl ?? null,
+      tour_data: body.tourData ?? null,
     })
     .select()
     .single();

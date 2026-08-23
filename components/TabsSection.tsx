@@ -1,95 +1,119 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { formatPrice } from '@/lib/units';
+import type { Unit } from '@/types';
 
-const typologies = [
-  {
-    id: 'modelo-a',
-    label: 'MODELO A',
-    rooms: '1 habitación',
-    area: '85 m²',
-    price: 'Desde $195,000 USD',
-    desc: 'Ideal para quienes inician una nueva etapa, este apartamento de 85 m² combina amplitud, diseño inteligente y una distribución práctica. Cuenta con 1 habitación, sala / comedor integrados y grandes ventanales. Un espacio moderno pensado para vivir con comodidad.',
-    image: 'https://images.unsplash.com/photo-1502672260266-1c1e5240980c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-  },
-  {
-    id: 'modelo-b',
-    label: 'MODELO B',
-    rooms: '2 habitaciones',
-    area: '105 - 122 m²',
-    price: 'Desde $245,000 USD',
-    desc: 'Este modelo ofrece dos habitaciones y áreas de 105 a 122 m², con una distribución flexible y bien aprovechada. Las vistas panorámicas conectan directamente con la ciudad, brindando una experiencia de vida contemporánea.',
-    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-  },
-  {
-    id: 'modelo-c',
-    label: 'MODELO C',
-    rooms: '3 habitaciones',
-    area: '133 - 159 m²',
-    price: 'Desde $310,000 USD',
-    desc: 'Espacios familiares de tres habitaciones, con una distribución diseñada para separar con claridad las áreas sociales de las privadas. Mayor amplitud, organización óptima y acabados de primera calidad en cada rincón.',
-    image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-  },
-  {
-    id: 'penthouse',
-    label: 'PENTHOUSE',
-    rooms: '3 habitaciones + Estudio',
-    area: '165 - 311 m²',
-    price: 'Desde $450,000 USD',
-    desc: 'Las unidades más exclusivas ocupan los niveles superiores, redefiniendo el concepto de lujo y amplitud. Diseñados para quienes buscan vivir sin límites, incorporan terrazas de dimensiones excepcionales y vistas inigualables.',
-    image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+interface TypologyGroup {
+  id: string;
+  label: string;
+  bedrooms: number;
+  minArea: number;
+  maxArea: number;
+  minPrice: number | null;
+  maxPrice: number | null;
+  image: string | null;
+  sampleUnit: Unit;
+}
+
+function buildTypologies(units: Unit[]): TypologyGroup[] {
+  const groups = new Map<string, Unit[]>();
+  for (const u of units) {
+    const key = u.modelName || u.type;
+    groups.set(key, [...(groups.get(key) ?? []), u]);
   }
-];
 
-export function TabsSection() {
-  const [activeTab, setActiveTab] = useState('modelo-a');
+  return Array.from(groups.entries()).map(([key, groupUnits]) => {
+    const areas = groupUnits.map(u => u.totalArea).filter(a => a > 0);
+    const prices = groupUnits.map(u => u.price).filter((p): p is number => p != null && p > 0);
+    const sampleUnit = groupUnits[0];
+    return {
+      id: key,
+      label: key,
+      bedrooms: sampleUnit.bedrooms,
+      minArea: areas.length ? Math.min(...areas) : 0,
+      maxArea: areas.length ? Math.max(...areas) : 0,
+      minPrice: prices.length ? Math.min(...prices) : null,
+      maxPrice: prices.length ? Math.max(...prices) : null,
+      image: sampleUnit.interiorImageUrl || sampleUnit.floorPlan3dUrl || null,
+      sampleUnit,
+    };
+  });
+}
 
-  const activeData = typologies.find(t => t.id === activeTab);
+function formatArea(min: number, max: number): string {
+  if (!min && !max) return '';
+  if (min === max) return `${min} m²`;
+  return `${min} - ${max} m²`;
+}
+
+function formatPriceRange(min: number | null, currency?: string): string {
+  return min == null ? '' : `Desde ${formatPrice(min, currency)}`;
+}
+
+export function TabsSection({ units, projectSlug, showPrice }: { units: Unit[]; projectSlug: string; showPrice: boolean }) {
+  const typologies = useMemo(() => buildTypologies(units), [units]);
+  const [activeTab, setActiveTab] = useState(typologies[0]?.id ?? '');
+
+  const activeData = typologies.find(t => t.id === activeTab) ?? typologies[0];
+  if (!activeData) return null;
 
   return (
     <div className="w-full">
       {/* Tab headers */}
-      <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-trevo-lightgreen/30 mb-12">
-        {typologies.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            data-state={activeTab === tab.id ? 'active' : 'inactive'}
-            className="tab-trigger pb-4 text-sm font-semibold tracking-widest text-trevo-lightgreen transition-colors hover:text-trevo-dark whitespace-nowrap"
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-[var(--theme-border)] mb-12">
+        {typologies.map((tab) => {
+          const isActive = tab.id === activeData.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="pb-4 text-sm font-semibold tracking-widest transition-colors whitespace-nowrap"
+              style={{
+                color: isActive ? 'var(--theme-text)' : 'var(--theme-text-muted)',
+                borderBottom: isActive ? '2px solid var(--theme-accent)' : '2px solid transparent',
+                marginBottom: '-1px',
+              }}
+            >
+              {tab.label.toUpperCase()}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content */}
-      {activeData && (
-        <div className="grid md:grid-cols-2 gap-12 items-center animate-fade-in-up" key={activeData.id}>
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-4xl font-light text-trevo-dark mb-2">{activeData.label}</h2>
-              <div className="text-trevo-brown tracking-wide">{activeData.rooms}</div>
-            </div>
-            
-            <div className="space-y-1">
-              <h3 className="text-xl font-medium text-trevo-dark">{activeData.area}</h3>
-              <h3 className="text-xl font-medium text-trevo-dark">{activeData.price}</h3>
-            </div>
-            
-            <p className="text-trevo-dark/70 leading-relaxed font-light">
-              {activeData.desc}
-            </p>
-            
-            <div className="pt-4">
-              <button className="btn-solid-brown">
-                CONOCER APARTAMENTO
-              </button>
+      <div className="grid md:grid-cols-2 gap-12 items-center animate-fade-in-up" key={activeData.id}>
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-[family-name:var(--theme-font-heading)] text-4xl font-light text-[var(--theme-text)] mb-2">{activeData.label}</h2>
+            <div className="text-[var(--theme-accent)] tracking-wide">
+              {activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios'}
             </div>
           </div>
-          
-          <div className="relative h-[400px] md:h-[500px] w-full rounded-xl overflow-hidden">
+
+          <div className="space-y-1">
+            {(activeData.minArea > 0 || activeData.maxArea > 0) && (
+              <h3 className="text-xl font-medium text-[var(--theme-text)]">{formatArea(activeData.minArea, activeData.maxArea)}</h3>
+            )}
+            {showPrice && activeData.minPrice != null && (
+              <h3 className="text-xl font-medium text-[var(--theme-text)]">{formatPriceRange(activeData.minPrice, activeData.sampleUnit.currency)}</h3>
+            )}
+          </div>
+
+          <div className="pt-4">
+            <a
+              href={`/proyecto/${projectSlug}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`}
+              className="inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+            >
+              CONOCER {activeData.label.toUpperCase()}
+            </a>
+          </div>
+        </div>
+
+        <div className="relative h-[400px] md:h-[500px] w-full rounded-[var(--theme-radius)] overflow-hidden bg-[var(--theme-border)]">
+          {activeData.image ? (
             <Image
               src={activeData.image}
               alt={activeData.label}
@@ -99,9 +123,11 @@ export function TabsSection() {
               blurDataURL={shimmerDataUrl()}
               className="object-cover"
             />
-          </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[var(--theme-text-muted)] text-sm">Sin imagen todavía</div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

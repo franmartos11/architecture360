@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { Building, Unit, Amenity, PointOfInterest } from '@/types';
+import type { ProjectTypeConfig } from '@/lib/project-types';
 
 const FloorPlanViewer = dynamic(() => import('./FloorPlanViewer'), { ssr: false });
 
@@ -13,6 +14,7 @@ export default function FloorPlanWrapper({
   amenities,
   pointsOfInterest,
   initialFloor,
+  typeConfig,
 }: {
   building: Building;
   units: Unit[];
@@ -21,6 +23,7 @@ export default function FloorPlanWrapper({
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   initialFloor?: number;
+  typeConfig: ProjectTypeConfig;
 }) {
   return (
     <FloorPlanViewer
@@ -31,6 +34,7 @@ export default function FloorPlanWrapper({
       amenities={amenities}
       pointsOfInterest={pointsOfInterest}
       initialFloor={initialFloor}
+      typeConfig={typeConfig}
     />
   );
 }
