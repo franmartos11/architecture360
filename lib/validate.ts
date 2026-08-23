@@ -9,3 +9,7 @@ export function isValidEnum<T extends string>(value: unknown, allowed: readonly 
 
 export const UNIT_STATUSES = ['available', 'reserved', 'sold'] as const;
 export const POI_CATEGORIES = ['colegio', 'salud', 'comercio', 'transporte', 'entretenimiento', 'otro'] as const;
+
+// Handle de perfil público (/portfolio/[handle]) — minúsculas, números y
+// guiones, 3-40 caracteres. Usado por /api/admin/profile.
+export const HANDLE_RE = /^[a-z0-9-]{3,40}$/;

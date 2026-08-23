@@ -215,6 +215,11 @@ export const demoProject: Project = {
   latitude: -34.9497,
   longitude: -54.9522,
   masterplanImage: '/masterplan/render-exterior.png',
+  projectType: 'edificio',
+  saleMode: 'venta',
+  processGallery: [],
+  beforeAfter: [],
+  collaborators: [],
   aerialSlides: [
     {
       id: 'slide-1',

@@ -2,10 +2,15 @@ import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
-import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, Unit } from '@/types';
+import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit } from '@/types';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
+
+interface CollaboratorJoinRow {
+  contribution: string;
+  profile: { handle: string; display_name: string; avatar_image: string | null } | null;
+}
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,7 +24,8 @@ function mapProject(
   slideRows: AerialSlideRow[],
   hotspotRows: AerialHotspotRow[],
   amenityRows: AmenityRow[],
-  poiRows: PointOfInterestRow[]
+  poiRows: PointOfInterestRow[],
+  collaboratorRows: CollaboratorJoinRow[]
 ): Project {
   const buildingSlugById = new Map(buildingRows.map(b => [b.id, b.slug]));
 
@@ -41,6 +47,7 @@ function mapProject(
       bathrooms: Number(u.bathrooms),
       hasServiceRoom: u.has_service_room,
       price: u.price != null ? Number(u.price) : undefined,
+      currency: u.currency ?? undefined,
       status: u.status,
       orientation: u.orientation ?? undefined,
       tourImageUrl: u.tour_image_url ?? undefined,
@@ -62,6 +69,7 @@ function mapProject(
     totalFloors: b.total_floors,
     amenitiesTour: b.amenities_tour ?? undefined,
     coverImage: b.cover_image ?? undefined,
+    tourOrientationDegrees: b.tour_orientation_degrees ?? undefined,
     floors: floorRows
       .filter(f => f.building_id === b.id)
       .sort((a, c) => a.number - c.number)
@@ -70,6 +78,8 @@ function mapProject(
         label: f.label,
         planImage: f.plan_image ?? '',
         unitDots: f.unit_dots ?? [],
+        floorKind: f.floor_kind ?? 'units',
+        floorKindDescription: f.floor_kind_description ?? undefined,
       })),
   }));
 
@@ -82,6 +92,7 @@ function mapProject(
       images: a.images ?? [],
       buildingId: a.building_id ? buildingSlugById.get(a.building_id) : undefined,
       tourNodeId: a.tour_node_id ?? undefined,
+      tour3dUrl: a.tour_3d_url ?? undefined,
     }));
 
   const aerialSlides: AerialSlide[] = slideRows
@@ -117,21 +128,44 @@ function mapProject(
       bikeMinutes: p.bike_minutes != null ? Number(p.bike_minutes) : undefined,
     }));
 
+  const collaborators: ProjectCollaborator[] = collaboratorRows
+    .filter(c => c.profile)
+    .map(c => ({
+      handle: c.profile!.handle,
+      displayName: c.profile!.display_name,
+      avatarImage: c.profile!.avatar_image ?? undefined,
+      contribution: c.contribution,
+    }));
+
   return {
     id: project.id,
     slug: project.slug,
     name: project.name,
     description: project.description ?? '',
+    tagline: project.tagline ?? undefined,
+    sectionConfig: project.section_config ?? undefined,
+    themeConfig: project.theme_config ?? undefined,
     location: project.location ?? '',
     latitude: project.latitude != null ? Number(project.latitude) : undefined,
     longitude: project.longitude != null ? Number(project.longitude) : undefined,
     masterplanImage: project.masterplan_image ?? '',
+    projectType: project.project_type,
+    saleMode: project.sale_mode,
+    academicInstitution: project.academic_institution ?? undefined,
+    academicCareer: project.academic_career ?? undefined,
+    academicTutor: project.academic_tutor ?? undefined,
+    academicYear: project.academic_year ?? undefined,
+    academicTeam: project.academic_team ?? undefined,
+    processGallery: project.process_gallery ?? [],
+    beforeAfter: project.before_after ?? [],
+    collaborators,
     aerialSlides,
     buildings,
     units,
     amenities,
     pointsOfInterest,
     commonAreasTour: project.common_areas_tour ?? undefined,
+    tourOrientationDegrees: project.tour_orientation_degrees ?? undefined,
   };
 }
 
@@ -147,7 +181,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
 
   // Todo lo que solo depende de project.id se pide en paralelo — buildings→floors→units
   // y slides→hotspots son las únicas cadenas de dependencia reales acá adentro.
-  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest] = await Promise.all([
+  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators] = await Promise.all([
     supabase.from('buildings').select('*').eq('project_id', project.id),
     (async () => {
       const { data: slideRows } = await supabase
@@ -174,6 +208,12 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
       .eq('project_id', project.id)
       .order('sort_order')
       .then(({ data }) => (data ?? []) as PointOfInterestRow[]),
+    supabase
+      .from('project_collaborators')
+      .select('contribution, profile:profiles(handle, display_name, avatar_image)')
+      .eq('project_id', project.id)
+      .eq('status', 'accepted')
+      .then(({ data }) => (data ?? []) as unknown as CollaboratorJoinRow[]),
   ]);
   const buildings = (buildingsResult.data ?? []) as BuildingRow[];
 
@@ -187,7 +227,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
     : { data: [] };
   const units = (unitRows ?? []) as UnitRow[];
 
-  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest);
+  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators);
 });
 
 export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {

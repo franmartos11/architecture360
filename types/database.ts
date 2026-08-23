@@ -4,19 +4,65 @@
 // propia copia a mano de estas mismas interfaces — un rename de columna
 // obligaba a cazar N archivos. Las páginas que solo necesitan un
 // subconjunto de columnas usan `Pick<...>` sobre estos tipos completos.
-import type { UnitType, UnitStatus, PoiCategory, TourData, Room } from './index';
+import type { UnitType, UnitStatus, PoiCategory, TourData, Room, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ThemeConfig } from './index';
 
 export interface ProjectRow {
   id: string;
   slug: string;
   name: string;
   description: string | null;
+  tagline: string | null;
+  section_config: { key: string; enabled: boolean }[];
+  theme_config: ThemeConfig;
   location: string | null;
   latitude: number | null;
   longitude: number | null;
   masterplan_image: string | null;
   amenities: string[];
   common_areas_tour: TourData | null;
+  tour_orientation_degrees: number | null;
+  owner_id: string;
+  project_type: ProjectType;
+  sale_mode: ProjectSaleMode;
+  academic_institution: string | null;
+  academic_career: string | null;
+  academic_tutor: string | null;
+  academic_year: string | null;
+  academic_team: string | null;
+  process_gallery: string[];
+  before_after: BeforeAfterPair[];
+  show_in_portfolio: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostRow {
+  id: string;
+  author_id: string;
+  body: string;
+  image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileRow {
+  id: string;
+  handle: string;
+  display_name: string;
+  bio: string | null;
+  avatar_image: string | null;
+  banner_image: string | null;
+  account_type: 'person' | 'company';
+  location: string | null;
+  contact_email: string | null;
+  whatsapp: string | null;
+  linkedin_url: string | null;
+  instagram_url: string | null;
+  website_url: string | null;
+  skills: string[];
+  experiences: ProfileExperience[];
+  education: ProfileEducation[];
+  certifications: ProfileCertification[];
   created_at: string;
   updated_at: string;
 }
@@ -29,8 +75,11 @@ export interface BuildingRow {
   total_floors: number;
   amenities_tour: TourData | null;
   cover_image: string | null;
+  tour_orientation_degrees: number | null;
   created_at: string;
 }
+
+export type FloorKind = 'units' | 'amenity' | 'offices' | 'technical' | 'parking' | 'other';
 
 export interface FloorRow {
   id: string;
@@ -39,6 +88,8 @@ export interface FloorRow {
   label: string;
   plan_image: string | null;
   unit_dots: { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' }[];
+  floor_kind: FloorKind;
+  floor_kind_description: string | null;
   created_at: string;
 }
 
@@ -56,6 +107,7 @@ export interface UnitRow {
   bathrooms: number;
   has_service_room: boolean;
   price: number | null;
+  currency: string;
   status: UnitStatus;
   orientation: string | null;
   interior_image_url: string | null;
@@ -98,6 +150,7 @@ export interface AmenityRow {
   description: string | null;
   images: string[];
   tour_node_id: string | null;
+  tour_3d_url: string | null;
   sort_order: number;
   created_at: string;
 }
@@ -116,5 +169,24 @@ export interface PointOfInterestRow {
   drive_minutes: number | null;
   bike_minutes: number | null;
   sort_order: number;
+  created_at: string;
+}
+
+// Cuenta-scoped (owner_id), no project-scoped — reusables entre todos
+// los proyectos de un mismo dueño. Ver supabase/schema.sql.
+export interface FontRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  file_url: string;
+  format: string;
+  created_at: string;
+}
+
+export interface SavedThemeRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  config: ThemeConfig;
   created_at: string;
 }

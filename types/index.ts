@@ -1,6 +1,16 @@
 // ─── Unit availability status ──────────────────────────────────────
 export type UnitStatus = 'available' | 'reserved' | 'sold';
 
+// ─── Tipo de proyecto: forma + propósito ─────────────────────────────
+// Dos preguntas independientes, no una — ver comentario largo en
+// lib/project-types.ts. ProjectType es la FORMA del desarrollo (define
+// la jerarquía y cómo se llama todo); ProjectSaleMode es para QUÉ es
+// (define qué secciones de venta se muestran). Cualquier forma puede
+// combinarse con cualquier propósito — un loteo puramente ilustrativo
+// es tan válido como un edificio en venta.
+export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casas' | 'unico';
+export type ProjectSaleMode = 'venta' | 'showcase';
+
 // ─── View tabs inside unit ─────────────────────────────────────────
 export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
 
@@ -80,11 +90,17 @@ export interface Room {
 }
 
 // ─── Floor ─────────────────────────────────────────────────────────
+export type FloorKind = 'units' | 'amenity' | 'offices' | 'technical' | 'parking' | 'other';
+
 export interface Floor {
   number: number;
   label: string;        // e.g. "Planta 1", "L" for lobby
   planImage: string;    // floor plan image URL
   unitDots: UnitDot[];
+  /** Vocación del piso — ausente o 'units' es un piso residencial normal. */
+  floorKind?: FloorKind;
+  /** Texto libre para floorKind !== 'units', ej. "Pileta y solárium". */
+  floorKindDescription?: string;
 }
 
 // ─── Real estate unit ──────────────────────────────────────────────
@@ -102,7 +118,8 @@ export interface Unit {
   bedrooms: number;
   bathrooms: number;
   hasServiceRoom: boolean;
-  price?: number;       // USD — undefined means "consultar precio"
+  price?: number;        // undefined means "consultar precio"
+  currency?: string;     // ISO 4217, ej. "USD" — undefined se trata como "USD"
   status: UnitStatus;
   orientation?: string; // N, S, E, O
   tourImageUrl?: string;       // 360 equirectangular (legacy, single node)
@@ -126,6 +143,8 @@ export interface Building {
   /** Recorrido 360° exclusivo de esta torre (además del commonAreasTour general) */
   amenitiesTour?: TourData;
   coverImage?: string;
+  /** Grados (0-359, horario) desde el norte real hacia donde apunta yaw=0 de amenitiesTour — undefined = sin calibrar */
+  tourOrientationDegrees?: number;
 }
 
 // ─── Amenity (pileta, gym, SUM, etc.) ───────────────────────────────
@@ -133,7 +152,7 @@ export interface Amenity {
   id: string;
   name: string;
   description?: string;
-  /** Galería de renders — se muestra como carrusel */
+  /** Galería de renders — la primera es la foto de la fila en la landing */
   images: string[];
   /** undefined = amenity de todo el complejo; con valor, exclusiva de esa torre (Building.id) */
   buildingId?: string;
@@ -143,6 +162,8 @@ export interface Amenity {
    * si no, es un nodo de Project.commonAreasTour.
    */
   tourNodeId?: string;
+  /** Link a un recorrido 3D externo (ej. Matterport) para el botón "Ver recorrido 3D". */
+  tour3dUrl?: string;
 }
 
 // ─── Point of interest (colegio, salud, comercio, etc.) ─────────────
@@ -163,17 +184,187 @@ export interface PointOfInterest {
   bikeMinutes?: number;
 }
 
+// ─── Antes / Después (reciclaje, rehabilitación) ─────────────────────
+export interface BeforeAfterPair {
+  label: string;
+  beforeImage: string;
+  afterImage: string;
+}
+
+// Overrides de color puntuales sobre los tokens del preset elegido — ver
+// ThemePreset['tokens'] en lib/theme-presets.ts (mismas keys, todas
+// opcionales acá: lo que no se pisa sigue viniendo del preset).
+export interface ThemeColorOverrides {
+  bg?: string;
+  bgAlt?: string;
+  bgAccent?: string;
+  surface?: string;
+  text?: string;
+  textOnDark?: string;
+  accent?: string;
+}
+
+// Tema visual de la landing — ver lib/theme-presets.ts. Vacío/sin
+// presetKey = preset "natural" (el look de siempre). headingFont/bodyFont
+// son una key de lib/fonts.ts (curada) o "custom:<fontId>" (ver tabla
+// `fonts`, cuenta-scoped — reusable entre proyectos del mismo dueño).
+// customColors pisa colores puntuales del preset; backgroundImageUrl es
+// el fondo de pantalla general del sitio (no confundir con la foto de
+// fondo del hero, que es aparte — ver PortadaEditor).
+export interface ThemeConfig {
+  presetKey?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  customColors?: ThemeColorOverrides;
+  backgroundImageUrl?: string;
+}
+
+export interface CustomFont {
+  id: string;
+  name: string;
+  fileUrl: string;
+  format: string;
+}
+
+export interface SavedTheme {
+  id: string;
+  name: string;
+  config: ThemeConfig;
+}
+
+// ─── Colaborador acreditado en un proyecto (crédito confirmado) ──────
+export interface ProjectCollaborator {
+  handle: string;
+  displayName: string;
+  avatarImage?: string;
+  contribution: string;
+}
+
+// ─── Post del feed ────────────────────────────────────────────────────
+// Publicar requiere tener perfil — por eso el autor siempre tiene
+// handle/displayName, a diferencia de un comentario de proyecto.
+export interface Post {
+  id: string;
+  body: string;
+  imageUrl?: string;
+  createdAt: string;
+  author: {
+    handle: string;
+    displayName: string;
+    avatarImage?: string;
+  };
+}
+
+export type ProfileAccountType = 'person' | 'company';
+
+// ─── Secciones de perfil profesional ─────────────────────────────────
+export interface ProfileExperience {
+  company: string;
+  role: string;
+  startYear: string;
+  /** Vacío o undefined = "Presente" */
+  endYear?: string;
+  description?: string;
+}
+
+export interface ProfileEducation {
+  institution: string;
+  career: string;
+  startYear: string;
+  endYear?: string;
+}
+
+export interface ProfileCertification {
+  name: string;
+  issuer: string;
+  year: string;
+  url?: string;
+  imageUrl?: string;
+}
+
+// ─── Perfil público (portfolio con varios proyectos agrupados) ───────
+// Opt-in — no toda cuenta tiene uno. Se crea recién cuando el usuario
+// define su handle en /admin/portfolio.
+export interface Profile {
+  id: string;
+  handle: string;
+  displayName: string;
+  accountType: 'person' | 'company';
+  bio: string | null;
+  avatarImage: string | null;
+  bannerImage: string | null;
+  location: string | null;
+  contactEmail?: string;
+  whatsapp?: string;
+  linkedinUrl?: string;
+  instagramUrl?: string;
+  websiteUrl?: string;
+  /** Aptitudes / habilidades — badges en el perfil público */
+  skills?: string[];
+  /** Solo para account_type='person' */
+  experiences?: ProfileExperience[];
+  /** Solo para account_type='person' */
+  education?: ProfileEducation[];
+  /** Solo para account_type='person' */
+  certifications?: ProfileCertification[];
+}
+
+// Fila liviana para /directorio — no la ficha completa de Profile,
+// solo lo que hace falta para una tarjeta de búsqueda.
+export interface DirectoryProfile {
+  id: string;
+  handle: string;
+  displayName: string;
+  accountType: ProfileAccountType;
+  avatarImage?: string;
+  bio?: string;
+  location?: string;
+  projectCount: number;
+}
+
+// Proyecto tal como aparece listado dentro de un portfolio — un
+// subconjunto liviano de Project, no la ficha completa (no hace falta
+// nada de edificios/unidades/tours para una tarjeta en una grilla).
+export interface PortfolioProjectSummary {
+  slug: string;
+  name: string;
+  description: string;
+  masterplanImage: string;
+  projectType: ProjectType;
+  academicYear?: string;
+}
+
 // ─── Project ───────────────────────────────────────────────────────
 export interface Project {
   id: string;
   slug: string;
   name: string;
   description: string;
+  /** Bajada corta del hero — distinta de `description` (el texto largo de "Sobre el proyecto"). */
+  tagline?: string;
+  /** Orden/habilitación de las secciones de la landing — ver lib/project-sections.ts. Vacío = orden por defecto. */
+  sectionConfig?: { key: string; enabled: boolean }[];
+  /** Paleta/tipografía de la landing — ver lib/theme-presets.ts. Vacío = preset "natural". */
+  themeConfig?: ThemeConfig;
   location: string;
   /** Coordenadas para centrar el mapa de la sección Ubicación */
   latitude?: number;
   longitude?: number;
   masterplanImage: string;
+  projectType: ProjectType;
+  saleMode: ProjectSaleMode;
+  /** Ficha académica — solo tiene sentido (y solo se completa) en proyectos showcase. */
+  academicInstitution?: string;
+  academicCareer?: string;
+  academicTutor?: string;
+  academicYear?: string;
+  academicTeam?: string;
+  /** Bocetos, maquetas, diagramas — aparte de las fotos finales. */
+  processGallery: string[];
+  /** Pares antes/después — para reciclaje o rehabilitación. */
+  beforeAfter: BeforeAfterPair[];
+  /** Créditos confirmados — quién trabajó en el proyecto, más allá del dueño. */
+  collaborators: ProjectCollaborator[];
   aerialSlides: AerialSlide[];
   buildings: Building[];
   units: Unit[];
@@ -181,6 +372,8 @@ export interface Project {
   pointsOfInterest: PointOfInterest[];
   /** Recorrido 360° de espacios comunes: pasillos, pileta, parrilla, etc. */
   commonAreasTour?: TourData;
+  /** Grados (0-359, horario) desde el norte real hacia donde apunta yaw=0 de commonAreasTour — undefined = sin calibrar */
+  tourOrientationDegrees?: number;
 }
 
 // ─── Filter state ──────────────────────────────────────────────────
