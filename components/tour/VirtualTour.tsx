@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { TourData, TourNode, TourLinkHotspot, TourInfoHotspot } from '@/types';
+import type { SunAzimuths } from '@/lib/sun-position';
 
 interface VirtualTourProps {
   imageUrl?: string;
@@ -15,15 +16,20 @@ interface VirtualTourProps {
   focusNodeId?: string;
   /** Oculta el menú flotante de navegación entre nodos — para cuando el tour vive dentro de otro selector propio (ej. el comparador) */
   hideNodeNav?: boolean;
+  /** Grados desde el norte real hacia donde apunta yaw=0 del nodo inicial — sin esto no hay indicador de sol (ver TourOrientationControl) */
+  orientationDegrees?: number;
+  sunAzimuths?: SunAzimuths | null;
 }
 
-export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId, hideNodeNav }: VirtualTourProps) {
+export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId, hideNodeNav, orientationDegrees, sunAzimuths }: VirtualTourProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
   const scenesRef = useRef<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(focusNodeId || tourData?.initialNodeId || null);
+  const sunriseMarkerRef = useRef<HTMLDivElement>(null);
+  const sunsetMarkerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let viewer: any = null;
@@ -219,6 +225,44 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
     return () => resizeObserver.disconnect();
   }, []);
 
+  // Reposiciona los marcadores de sol en cada frame según hacia dónde
+  // mira la cámara ahora mismo — orientationDegrees ubica el nodo inicial
+  // respecto al norte real, sunAzimuths de dónde salen/se ponen el sol ese
+  // día; la resta de ambos contra el yaw actual da el ángulo relativo a
+  // "lo que tenés justo enfrente" en este momento.
+  useEffect(() => {
+    if (!sunAzimuths || orientationDegrees == null) return;
+    const RAD = Math.PI / 180;
+    const DIAL_RADIUS = 26;
+    let rafId: number;
+
+    const place = (el: HTMLDivElement | null, azimuth: number, centerBearing: number) => {
+      if (!el) return;
+      const relative = (((azimuth - centerBearing) % 360) + 360) % 360;
+      const rad = relative * RAD;
+      const x = DIAL_RADIUS * Math.sin(rad);
+      const y = -DIAL_RADIUS * Math.cos(rad);
+      el.style.transform = `translate(${x}px, ${y}px)`;
+      // No hay oclusión real (no vemos si hay una pared en el medio), pero
+      // atenuar lo que queda "detrás" ayuda a leer de un vistazo si el sol
+      // está adelante o a espaldas sin tener que interpretar el ángulo.
+      el.style.opacity = relative > 90 && relative < 270 ? '0.35' : '1';
+    };
+
+    const tick = () => {
+      const view = viewerRef.current?.view?.();
+      if (view) {
+        const yawDeg = (view.yaw() * 180) / Math.PI;
+        const centerBearing = ((orientationDegrees + yawDeg) % 360 + 360) % 360;
+        place(sunriseMarkerRef.current, sunAzimuths.sunriseAzimuth, centerBearing);
+        place(sunsetMarkerRef.current, sunAzimuths.sunsetAzimuth, centerBearing);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [sunAzimuths, orientationDegrees]);
+
   const zoomBy = (delta: number) => {
     const view = viewerRef.current?.view?.();
     if (!view) return;
@@ -277,6 +321,30 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           <p className="text-sm text-white/60">{error}</p>
+        </div>
+      )}
+
+      {/* Indicador de sol — hacia dónde salió y se pone el sol hoy, relativo a hacia dónde estás mirando ahora */}
+      {!isLoading && !error && sunAzimuths && orientationDegrees != null && (
+        <div className="absolute bottom-6 left-6 z-20 flex flex-col items-center gap-1.5">
+          <div className="relative w-16 h-16 rounded-full bg-gray-900/50 backdrop-blur-sm border border-white/10">
+            <div
+              ref={sunriseMarkerRef}
+              className="absolute top-1/2 left-1/2 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center text-[10px] leading-none transition-opacity"
+              title="Sale el sol"
+            >
+              🌅
+            </div>
+            <div
+              ref={sunsetMarkerRef}
+              className="absolute top-1/2 left-1/2 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] leading-none transition-opacity"
+              title="Se pone el sol"
+            >
+              🌇
+            </div>
+            <div className="absolute top-1/2 left-1/2 -mt-0.5 -ml-0.5 w-1 h-1 rounded-full bg-white/70" />
+          </div>
+          <span className="text-[10px] text-white/50 font-medium tracking-wide uppercase">Sol</span>
         </div>
       )}
 

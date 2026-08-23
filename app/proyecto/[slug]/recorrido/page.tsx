@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
 import { getProjectBySlug } from '@/data/project-repository';
+import { getSunAzimuths } from '@/lib/sun-position';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -25,6 +26,8 @@ export default async function RecorridoPage({ params, searchParams }: PageProps)
   const project = await getProjectBySlug(slug);
   if (!project || !project.commonAreasTour) notFound();
 
+  const sunAzimuths = project.latitude != null ? getSunAzimuths(project.latitude) : null;
+
   return (
     <CommonAreasTourWrapper
       projectName={project.name}
@@ -32,6 +35,8 @@ export default async function RecorridoPage({ params, searchParams }: PageProps)
       tourData={project.commonAreasTour}
       focusNodeId={focus}
       embed={isEmbed}
+      orientationDegrees={project.tourOrientationDegrees}
+      sunAzimuths={sunAzimuths}
     />
   );
 }

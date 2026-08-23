@@ -82,6 +82,8 @@ declare module 'marzipano' {
   export class Hotspot {
     domElement(): HTMLElement;
     destroy(): void;
+    position(): { yaw: number; pitch: number };
+    setPosition(coords: { yaw: number; pitch: number }): void;
   }
 
   const _default: {

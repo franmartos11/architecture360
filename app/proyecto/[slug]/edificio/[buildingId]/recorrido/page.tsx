@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
-import { getBuildingById } from '@/data/project-repository';
+import { getBuildingById, getProjectBySlug } from '@/data/project-repository';
+import { getSunAzimuths } from '@/lib/sun-position';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -25,6 +26,12 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
   const building = await getBuildingById(slug, buildingId);
   if (!building || !building.amenitiesTour) notFound();
 
+  // La ubicación (lat/lng) es del proyecto, no de la torre — getProjectBySlug
+  // está cacheado por request, así que esto no repite el fetch que ya hizo
+  // getBuildingById por dentro.
+  const project = await getProjectBySlug(slug);
+  const sunAzimuths = project?.latitude != null ? getSunAzimuths(project.latitude) : null;
+
   return (
     <CommonAreasTourWrapper
       projectName={building.name}
@@ -35,6 +42,8 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
       backHref={`/proyecto/${slug}/edificio/${buildingId}`}
       backLabel={`Volver a ${building.name}`}
       embed={isEmbed}
+      orientationDegrees={building.tourOrientationDegrees}
+      sunAzimuths={sunAzimuths}
     />
   );
 }

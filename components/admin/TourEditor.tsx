@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TourData, TourNode } from '@/types';
 import ImageUploader from './ImageUploader';
 import BulkImageUploader, { type BulkUploadResult } from './BulkImageUploader';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { slugify } from '@/lib/slug';
 
 const TourNodeViewer = dynamic(() => import('./TourNodeViewer'), { ssr: false });
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
@@ -16,16 +17,6 @@ interface TourEditorProps {
 }
 
 const EMPTY_TOUR: TourData = { initialNodeId: '', nodes: [] };
-
-function slugify(text: string): string {
-  return (
-    text
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'nodo'
-  );
-}
 
 function nameFromFileName(fileName: string): string {
   const base = fileName.replace(/\.[^./]+$/, '');
@@ -45,6 +36,76 @@ function uniqueId(base: string, taken: Set<string>): string {
   return id;
 }
 
+interface NodeChipProps {
+  node: TourNode;
+  isActive: boolean;
+  isInitial: boolean;
+  isOrphan: boolean;
+  onSelect: () => void;
+  onRename: (id: string, name: string) => void;
+  onSetInitial: () => void;
+  onDelete: () => void;
+}
+
+// Un solo click navega al nodo (via onSelect, que burbujea desde el div de
+// afuera); el nombre solo se vuelve editable con doble click, para que
+// ambas acciones no se pisen entre sí.
+function NodeChip({ node, isActive, isInitial, isOrphan, onSelect, onRename, onSetInitial, onDelete }: NodeChipProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(node.name);
+
+  const commit = () => {
+    setEditing(false);
+    const val = draft.trim();
+    if (val && val !== node.name) onRename(node.id, val);
+    else setDraft(node.name);
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-xl px-3 py-2 border text-sm cursor-pointer transition-colors
+        ${isActive ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}
+      onClick={onSelect}
+    >
+      {isOrphan && (
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Sin conectar al resto del recorrido" />
+      )}
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onClick={e => e.stopPropagation()}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') { setDraft(node.name); setEditing(false); }
+          }}
+          className="font-medium bg-transparent border-b border-brand-500 outline-none w-auto min-w-[4ch]"
+          style={{ width: `${Math.max(draft.length, 4)}ch` }}
+        />
+      ) : (
+        <span
+          onDoubleClick={e => { e.stopPropagation(); setDraft(node.name); setEditing(true); }}
+          className="font-medium select-none"
+          title="Doble clic para renombrar"
+        >
+          {node.name}
+        </span>
+      )}
+      {isInitial && (
+        <span className="text-[10px] uppercase tracking-wide bg-gray-900 text-white rounded-full px-2 py-0.5">inicial</span>
+      )}
+      {!isInitial && (
+        <button onClick={e => { e.stopPropagation(); onSetInitial(); }} className="text-[10px] text-gray-400 hover:text-gray-700">
+          marcar inicial
+        </button>
+      )}
+      <button onClick={e => { e.stopPropagation(); onDelete(); }} className="text-gray-400 hover:text-red-500">×</button>
+    </div>
+  );
+}
+
 export default function TourEditor({ initialTourData, onPersist }: TourEditorProps) {
   const confirmDialog = useConfirm();
   const [tour, setTour] = useState<TourData>(initialTourData ?? EMPTY_TOUR);
@@ -60,8 +121,39 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [previewing, setPreviewing] = useState(false);
+  const [addNodeOpen, setAddNodeOpen] = useState((initialTourData?.nodes.length ?? 0) === 0);
+
+  // La vista previa es un overlay propio (no pasa por CommonAreasTour, que
+  // ya maneja Escape del lado público) — antes la única salida era la X.
+  useEffect(() => {
+    if (!previewing) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewing(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewing]);
 
   const activeNode = tour.nodes.find(n => n.id === activeNodeId) ?? null;
+
+  // Memoizados por referencia de activeNode (que solo cambia cuando tour
+  // realmente se reemplaza vía persist, no en cada render) — si no,
+  // reconstruir estos arrays con .map() en cada render (ej. cuando se
+  // borra solo el cartel de "Guardado." a los 3 segundos) le pasa a
+  // TourNodeViewer una referencia "nueva" y le hace destruir y recrear
+  // todos los pines de Marzipano en medio de un arrastre.
+  const linkHotspotMarkers = useMemo(
+    () => (activeNode?.linkHotspots ?? []).map(h => ({
+      yaw: h.yaw,
+      pitch: h.pitch,
+      label: h.label || tour.nodes.find(n => n.id === h.targetNodeId)?.name || 'Ir a...',
+    })),
+    [activeNode, tour.nodes]
+  );
+  const infoHotspotMarkers = useMemo(
+    () => (activeNode?.infoHotspots ?? []).map(h => ({ yaw: h.yaw, pitch: h.pitch, label: h.title })),
+    [activeNode]
+  );
 
   // Un nodo está "conectado" si es origen o destino de al menos un link hotspot.
   // Con un solo nodo no aplica: es el único ambiente, no necesita conexión.
@@ -89,7 +181,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
 
   const handleAddNode = async () => {
     if (!newNodeName.trim() || !newNodeImage.trim()) return;
-    const id = slugify(newNodeName);
+    const id = slugify(newNodeName) || 'nodo';
     if (tour.nodes.some(n => n.id === id)) {
       flash('Ya existe un nodo con ese nombre.');
       return;
@@ -113,7 +205,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     const taken = new Set(tour.nodes.map(n => n.id));
     const newNodes: TourNode[] = files.map(f => {
       const name = nameFromFileName(f.fileName);
-      const id = uniqueId(slugify(name), taken);
+      const id = uniqueId(slugify(name) || 'nodo', taken);
       return { id, name, imageUrl: f.url, initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 } };
     });
     const next: TourData = {
@@ -201,10 +293,30 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     await persist({ ...tour, nodes: nextNodes });
   };
 
+  // Corregir la posición de un hotspot ya confirmado (arrastrándolo de su
+  // ícono) — sin confirmación, a diferencia de borrar: es reversible con
+  // solo volver a arrastrarlo.
+  const handleMoveLinkHotspot = async (index: number, yaw: number, pitch: number) => {
+    if (!activeNode) return;
+    const nextNodes = tour.nodes.map(n =>
+      n.id === activeNode.id ? { ...n, linkHotspots: (n.linkHotspots ?? []).map((h, i) => (i === index ? { ...h, yaw, pitch } : h)) } : n
+    );
+    await persist({ ...tour, nodes: nextNodes });
+  };
+
+  const handleMoveInfoHotspot = async (index: number, yaw: number, pitch: number) => {
+    if (!activeNode) return;
+    const nextNodes = tour.nodes.map(n =>
+      n.id === activeNode.id ? { ...n, infoHotspots: (n.infoHotspots ?? []).map((h, i) => (i === index ? { ...h, yaw, pitch } : h)) } : n
+    );
+    await persist({ ...tour, nodes: nextNodes });
+  };
+
   return (
     <div className="space-y-6">
-      {/* Nodos */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Nodos — fuente fija en 16px: a 18px (la base del resto del admin)
+          los chips de ambientes se superponen entre sí. */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden" style={{ fontSize: '16px' }}>
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-gray-900">Ambientes / nodos del recorrido</h3>
@@ -225,63 +337,55 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
         </div>
         <div className="p-4 flex flex-wrap gap-2">
           {tour.nodes.map(n => (
-            <div
+            <NodeChip
               key={n.id}
-              className={`flex items-center gap-2 rounded-xl px-3 py-2 border text-sm cursor-pointer transition-colors
-                ${activeNodeId === n.id ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}
-              onClick={() => { setActiveNodeId(n.id); cancelPending(); }}
-            >
-              {orphanIds.has(n.id) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Sin conectar al resto del recorrido" />
-              )}
-              <input
-                defaultValue={n.name}
-                onClick={e => e.stopPropagation()}
-                onBlur={e => {
-                  const val = e.target.value.trim();
-                  if (val && val !== n.name) handleRenameNode(n.id, val);
-                  else e.target.value = n.name;
-                }}
-                className="font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-brand-500 outline-none w-auto min-w-[4ch]"
-                style={{ width: `${Math.max(n.name.length, 4)}ch` }}
-              />
-              {tour.initialNodeId === n.id && (
-                <span className="text-[10px] uppercase tracking-wide bg-gray-900 text-white rounded-full px-2 py-0.5">inicial</span>
-              )}
-              {tour.initialNodeId !== n.id && (
-                <button onClick={e => { e.stopPropagation(); handleSetInitial(n.id); }} className="text-[10px] text-gray-400 hover:text-gray-700">
-                  marcar inicial
-                </button>
-              )}
-              <button onClick={e => { e.stopPropagation(); handleDeleteNode(n.id); }} className="text-gray-400 hover:text-red-500">×</button>
-            </div>
-          ))}
-        </div>
-        <div className="p-4 bg-gray-50/50 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              value={newNodeName}
-              onChange={e => setNewNodeName(e.target.value)}
-              placeholder="Nombre (ej: Living Comedor)"
-              className="flex-1 text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+              node={n}
+              isActive={activeNodeId === n.id}
+              isInitial={tour.initialNodeId === n.id}
+              isOrphan={orphanIds.has(n.id)}
+              onSelect={() => { setActiveNodeId(n.id); cancelPending(); }}
+              onRename={handleRenameNode}
+              onSetInitial={() => handleSetInitial(n.id)}
+              onDelete={() => handleDeleteNode(n.id)}
             />
-            <button onClick={handleAddNode} className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
-              + Agregar nodo
-            </button>
-          </div>
-          <ImageUploader value={newNodeImage} onChange={setNewNodeImage} folder="tours" />
-
-          <div className="flex items-center gap-3 pt-1">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs text-gray-400">o subí varias de una</span>
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
-          <BulkImageUploader
-            folder="tours"
-            onComplete={handleBulkAdd}
-            hint="El nombre de cada ambiente sale del nombre del archivo — lo podés corregir después haciendo click sobre el nombre arriba. Si vienen en formato estéreo (dos mitades apiladas), las recortamos solas."
-          />
+          ))}
+          <button
+            onClick={() => setAddNodeOpen(open => !open)}
+            aria-expanded={addNodeOpen}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 border text-sm font-medium transition-colors ${
+              addNodeOpen ? 'border-gray-900 bg-gray-900 text-white' : 'border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+            }`}
+          >
+            {addNodeOpen ? '– Cerrar' : '+ Agregar ambiente'}
+          </button>
         </div>
+        {addNodeOpen && (
+          <div className="p-4 bg-gray-50/50 space-y-3 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={newNodeName}
+                onChange={e => setNewNodeName(e.target.value)}
+                placeholder="Nombre (ej: Living Comedor)"
+                className="flex-1 text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+              />
+              <button onClick={handleAddNode} className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
+                + Agregar nodo
+              </button>
+            </div>
+            <ImageUploader value={newNodeImage} onChange={setNewNodeImage} folder="tours" />
+
+            <div className="flex items-center gap-3 pt-1">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs text-gray-400">o subí varias de una</span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+            <BulkImageUploader
+              folder="tours"
+              onComplete={handleBulkAdd}
+              hint="El nombre de cada ambiente sale del nombre del archivo — lo podés corregir después con doble clic sobre el nombre arriba. Si vienen en formato estéreo (dos mitades apiladas), las recortamos solas."
+            />
+          </div>
+        )}
       </div>
 
       {/* Editor de la panorámica activa */}
@@ -301,21 +405,19 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
               >
                 + Punto de info
               </button>
-              {placing && <span className="text-xs text-gray-500">Hacé click sobre la panorámica para ubicarlo</span>}
+              {placing && <span className="text-xs text-gray-500">Arrastrá sobre la panorámica para ubicarlo — llevalo a un borde para rotar la cámara</span>}
             </div>
 
             <TourNodeViewer
               imageUrl={activeNode.imageUrl}
-              linkHotspots={(activeNode.linkHotspots ?? []).map(h => ({
-                yaw: h.yaw,
-                pitch: h.pitch,
-                label: h.label || tour.nodes.find(n => n.id === h.targetNodeId)?.name || 'Ir a...',
-              }))}
-              infoHotspots={(activeNode.infoHotspots ?? []).map(h => ({ yaw: h.yaw, pitch: h.pitch, label: h.title }))}
+              linkHotspots={linkHotspotMarkers}
+              infoHotspots={infoHotspotMarkers}
               placing={placing}
               onPlace={handlePlace}
               onDeleteLink={handleDeleteLinkHotspot}
               onDeleteInfo={handleDeleteInfoHotspot}
+              onMoveLink={handleMoveLinkHotspot}
+              onMoveInfo={handleMoveInfoHotspot}
             />
 
             {pendingPoint && placing === 'link' && (
