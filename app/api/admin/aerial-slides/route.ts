@@ -1,32 +1,23 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
-
-import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
+import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 
 export async function POST(request: Request) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const projectId = await resolveRequestedProjectId(request);
+  if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
 
   const body = await request.json();
   if (!body.imageUrl || !body.label) {
     return NextResponse.json({ error: 'Faltan imageUrl y/o label' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-
-  const { data: project, error: projectErr } = await admin
-    .from('projects')
-    .select('id')
-    .eq('slug', PROJECT_SLUG)
-    .maybeSingle();
-  if (projectErr) return NextResponse.json({ error: projectErr.message }, { status: 500 });
-  if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
-
-  const { data, error } = await admin
+  const { data, error } = await supabase
     .from('aerial_slides')
     .insert({
-      project_id: project.id,
+      project_id: projectId,
       image_url: body.imageUrl,
       video_url: body.videoUrl || null,
       label: body.label,

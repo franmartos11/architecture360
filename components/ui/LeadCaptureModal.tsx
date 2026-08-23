@@ -8,6 +8,7 @@ interface LeadCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
   unit: Unit | null;
+  projectSlug: string;
   defaultMethod?: 'email' | 'whatsapp' | 'phone';
   /** Sobreescribe el mensaje pre-cargado (ej. desde la calculadora, con la cuota estimada) */
   initialMessage?: string;
@@ -17,6 +18,7 @@ export default function LeadCaptureModal({
   isOpen,
   onClose,
   unit,
+  projectSlug,
   defaultMethod = 'email',
   initialMessage,
 }: LeadCaptureModalProps) {
@@ -67,7 +69,8 @@ export default function LeadCaptureModal({
           message,
           unitId: unit?.id || null,
           unitName: unit?.name || 'General',
-          source: 'form_modal'
+          source: 'form_modal',
+          projectSlug,
         })
       });
       

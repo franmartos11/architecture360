@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-export default function HomeContactForm() {
+export default function HomeContactForm({ projectSlug }: { projectSlug: string }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -27,6 +27,7 @@ export default function HomeContactForm() {
           unitId: null,
           unitName: 'General',
           source: 'home_contact_form',
+          projectSlug,
         }),
       });
 
@@ -48,13 +49,13 @@ export default function HomeContactForm() {
   if (isSuccess) {
     return (
       <div className="text-center py-6">
-        <div className="w-14 h-14 mx-auto bg-white/10 text-white rounded-full flex items-center justify-center mb-4">
+        <div className="w-14 h-14 mx-auto bg-[var(--theme-text-on-dark)]/10 text-[var(--theme-text-on-dark)] rounded-full flex items-center justify-center mb-4">
           <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-white font-medium">¡Mensaje enviado!</p>
-        <p className="text-white/70 text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
+        <p className="text-[var(--theme-text-on-dark)] font-medium">¡Mensaje enviado!</p>
+        <p className="text-[var(--theme-text-on-dark-muted)] text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
       </div>
     );
   }
@@ -67,7 +68,7 @@ export default function HomeContactForm() {
         value={name}
         onChange={e => setName(e.target.value)}
         placeholder="Nombre completo"
-        className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors"
+        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
       />
       <input
         type="email"
@@ -75,7 +76,7 @@ export default function HomeContactForm() {
         value={email}
         onChange={e => setEmail(e.target.value)}
         placeholder="Correo electrónico"
-        className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors"
+        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
       />
       <input
         type="tel"
@@ -83,10 +84,14 @@ export default function HomeContactForm() {
         value={phone}
         onChange={e => setPhone(e.target.value)}
         placeholder="Teléfono"
-        className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors"
+        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
       />
       {error && <p className="text-sm text-red-200">{error}</p>}
-      <button type="submit" disabled={isSubmitting} className="btn-solid-brown w-full mt-2 py-4 rounded-lg disabled:opacity-70 disabled:cursor-not-allowed">
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full mt-2 py-4 rounded-[var(--theme-radius)] bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity tracking-wider text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+      >
         {isSubmitting ? 'Enviando...' : 'ENVIAR'}
       </button>
     </form>

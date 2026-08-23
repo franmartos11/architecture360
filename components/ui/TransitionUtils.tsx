@@ -8,6 +8,8 @@ interface TransitionLinkProps extends LinkProps {
   children: ReactNode;
   className?: string;
   href: string;
+  title?: string;
+  'aria-label'?: string;
 }
 
 export function TransitionLink({ children, href, className, ...props }: TransitionLinkProps) {

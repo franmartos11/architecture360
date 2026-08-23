@@ -1,33 +1,26 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { slugify, ensureUniqueSlug } from '@/lib/slug';
 
-import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
+export async function GET(request: Request) {
+  const projectId = await resolveRequestedProjectId(request);
+  if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-export async function GET() {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
 
-  const admin = createAdminClient();
-  const { data: project, error: projectErr } = await admin
-    .from('projects')
-    .select('id')
-    .eq('slug', PROJECT_SLUG)
-    .maybeSingle();
-  if (projectErr) return NextResponse.json({ error: projectErr.message }, { status: 500 });
-  if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
-
-  const { data: buildings, error } = await admin
+  const { data: buildings, error } = await supabase
     .from('buildings')
     .select('*')
-    .eq('project_id', project.id)
+    .eq('project_id', projectId)
     .order('slug');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Conteo de pisos y unidades por edificio, para mostrarlo en el listado.
   const buildingIds = (buildings ?? []).map(b => b.id);
   const { data: floors } = buildingIds.length
-    ? await admin.from('floors').select('id, building_id').in('building_id', buildingIds)
+    ? await supabase.from('floors').select('id, building_id').in('building_id', buildingIds)
     : { data: [] };
 
   const floorCountByBuilding = new Map<string, number>();
@@ -41,35 +34,39 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const projectId = await resolveRequestedProjectId(request);
+  if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
 
   const body = await request.json();
-  if (!body.slug || !body.name) {
-    return NextResponse.json({ error: 'Faltan slug y/o name' }, { status: 400 });
+  if (!body.name) {
+    return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  // Slug generado solo a partir del nombre, único dentro de este proyecto
+  // (unique (project_id, slug)) — ver lib/slug.ts.
+  const slug = await ensureUniqueSlug(supabase, {
+    table: 'buildings', column: 'slug', base: slugify(body.name),
+    scope: { column: 'project_id', value: projectId },
+  });
 
-  const { data: project, error: projectErr } = await admin
-    .from('projects')
-    .select('id')
-    .eq('slug', PROJECT_SLUG)
-    .maybeSingle();
-  if (projectErr) return NextResponse.json({ error: projectErr.message }, { status: 500 });
-  if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
-
-  const { data, error } = await admin
+  const { data, error } = await supabase
     .from('buildings')
     .insert({
-      project_id: project.id,
-      slug: body.slug,
+      project_id: projectId,
+      slug,
       name: body.name,
       total_floors: body.totalFloors ?? 1,
     })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Ese slug ya está en uso en este proyecto.' }, { status: 409 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data, { status: 201 });
 }

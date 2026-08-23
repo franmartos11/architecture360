@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
 import { getProjectBySlug } from '@/data/project-repository';
+import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -36,6 +37,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
   if (!project || !building) notFound();
 
   const initialFloor = piso ? parseInt(piso, 10) : 1;
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
 
   return (
     <FloorPlanWrapper
@@ -46,6 +48,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
       initialFloor={initialFloor}
+      typeConfig={typeConfig}
     />
   );
 }

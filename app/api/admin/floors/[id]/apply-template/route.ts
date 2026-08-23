@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
 
 // Aplica el "piso tipo" de un piso de referencia a OTRO piso que ya existe
 // (a diferencia de /duplicate, que siempre crea un piso nuevo) — para
@@ -10,9 +9,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // salvo que ya exista una unidad con ese código en el piso destino, en
 // cuyo caso esa se salta para no pisar datos cargados a mano.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const { id: targetFloorId } = await params;
   const body = await request.json();
   if (!body.sourceFloorId) {
@@ -22,19 +18,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'El piso de origen y destino no pueden ser el mismo' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  const [targetProjectId, sourceProjectId] = await Promise.all([
+    resolveProjectIdFromFloor(targetFloorId),
+    resolveProjectIdFromFloor(body.sourceFloorId),
+  ]);
+  if (!targetProjectId || !sourceProjectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
+  if (targetProjectId !== sourceProjectId) {
+    return NextResponse.json({ error: 'El piso de origen no pertenece a este proyecto' }, { status: 400 });
+  }
+
+  const access = await requireProjectAccess(targetProjectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
 
   const [{ data: sourceFloor, error: sourceErr }, { data: targetFloor, error: targetErr }] = await Promise.all([
-    admin.from('floors').select('*').eq('id', body.sourceFloorId).maybeSingle(),
-    admin.from('floors').select('*').eq('id', targetFloorId).maybeSingle(),
+    supabase.from('floors').select('*').eq('id', body.sourceFloorId).maybeSingle(),
+    supabase.from('floors').select('*').eq('id', targetFloorId).maybeSingle(),
   ]);
   if (sourceErr) return NextResponse.json({ error: sourceErr.message }, { status: 500 });
   if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
   if (!sourceFloor || !targetFloor) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
 
   const [{ data: sourceUnits, error: sourceUnitsErr }, { data: targetUnits, error: targetUnitsErr }] = await Promise.all([
-    admin.from('units').select('*').eq('floor_id', body.sourceFloorId),
-    admin.from('units').select('code').eq('floor_id', targetFloorId),
+    supabase.from('units').select('*').eq('floor_id', body.sourceFloorId),
+    supabase.from('units').select('code').eq('floor_id', targetFloorId),
   ]);
   if (sourceUnitsErr) return NextResponse.json({ error: sourceUnitsErr.message }, { status: 500 });
   if (targetUnitsErr) return NextResponse.json({ error: targetUnitsErr.message }, { status: 500 });
@@ -76,7 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       tour_image_url: u.tour_image_url,
       tour_data: u.tour_data,
     }));
-    const { error: insertErr } = await admin.from('units').insert(clones);
+    const { error: insertErr } = await supabase.from('units').insert(clones);
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
     unitsCreated = clones.length;
   }
@@ -89,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (remappedDots.length > 0) {
     const existingDots: typeof sourceDots = targetFloor.unit_dots ?? [];
     const nextDots = [...existingDots.filter(d => !clonedCodes.has(d.unitId)), ...remappedDots];
-    const { error: floorUpdateErr } = await admin.from('floors').update({ unit_dots: nextDots }).eq('id', targetFloorId);
+    const { error: floorUpdateErr } = await supabase.from('floors').update({ unit_dots: nextDots }).eq('id', targetFloorId);
     if (floorUpdateErr) return NextResponse.json({ error: floorUpdateErr.message }, { status: 500 });
   }
 

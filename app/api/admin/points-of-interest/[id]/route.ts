@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireProjectAccess, resolveProjectIdFromPoi } from '@/lib/supabase/require-project-access';
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const { id } = await params;
+  const projectId = await resolveProjectIdFromPoi(id);
+  if (!projectId) return NextResponse.json({ error: 'Punto de interés no encontrado' }, { status: 404 });
+
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
+
   const body = await request.json();
   if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${POI_CATEGORIES.join(', ')}` }, { status: 400 });
   }
-  const admin = createAdminClient();
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
@@ -27,19 +29,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.driveMinutes !== undefined) updates.drive_minutes = body.driveMinutes != null ? Number(body.driveMinutes) : null;
   if (body.bikeMinutes !== undefined) updates.bike_minutes = body.bikeMinutes != null ? Number(body.bikeMinutes) : null;
 
-  const { data, error } = await admin.from('points_of_interest').update(updates).eq('id', id).select().single();
+  const { data, error } = await supabase.from('points_of_interest').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const { id } = await params;
-  const admin = createAdminClient();
+  const projectId = await resolveProjectIdFromPoi(id);
+  if (!projectId) return NextResponse.json({ error: 'Punto de interés no encontrado' }, { status: 404 });
 
-  const { error } = await admin.from('points_of_interest').delete().eq('id', id);
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
+
+  const { error } = await supabase.from('points_of_interest').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

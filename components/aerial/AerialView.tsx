@@ -26,7 +26,11 @@ export default function AerialView({ project }: AerialViewProps) {
   const [animationDone, setAnimationDone] = useState(false);
   const isReady = mediaLoaded && animationDone;
 
-  const slide: AerialSlide = project.aerialSlides[currentSlide];
+  const slide: AerialSlide | undefined = project.aerialSlides[currentSlide];
+
+  // Si no hay slides (o el índice cayó fuera de rango), no renderizar nada.
+  if (!slide) return null;
+
   const building = activeHotspot
     ? project.buildings.find(b => b.id === activeHotspot.buildingId)
     : null;

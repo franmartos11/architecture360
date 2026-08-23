@@ -36,6 +36,30 @@ const supabase = createClient(url, serviceKey, { auth: { persistSession: false }
 async function main() {
   console.log(`→ Sembrando proyecto '${demoProject.slug}'...`);
 
+  // projects.owner_id es NOT NULL — hace falta una cuenta antes de poder
+  // crear el proyecto. Usa la más antigua si ya hay alguna (caso típico:
+  // ya corriste admin:create-user), o crea una con ADMIN_EMAIL si no hay
+  // ninguna todavía (instalación 100% desde cero).
+  const { data: usersPage, error: usersErr } = await supabase.auth.admin.listUsers();
+  if (usersErr) throw usersErr;
+  let ownerId = usersPage.users.sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.id;
+  if (!ownerId) {
+    const email = process.env.ADMIN_EMAIL;
+    if (!email) {
+      console.error(
+        '✗ No hay ninguna cuenta todavía y no hay ADMIN_EMAIL en .env.local para crear una.\n' +
+        '  Corré primero: npm run admin:create-user <email>'
+      );
+      process.exit(1);
+    }
+    const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+      email, password: crypto.randomUUID().slice(0, 16), email_confirm: true,
+    });
+    if (createErr || !created.user) throw createErr ?? new Error('No se pudo crear la cuenta admin');
+    ownerId = created.user.id;
+    console.log(`  ✓ Cuenta admin creada para ${email} — corré admin:create-user para ponerle contraseña`);
+  }
+
   // Idempotencia: si ya existe, lo borramos (cascade se lleva edificios/pisos/unidades/aéreas).
   await supabase.from('projects').delete().eq('slug', demoProject.slug);
 
@@ -49,6 +73,7 @@ async function main() {
       masterplan_image: demoProject.masterplanImage,
       amenities: demoProject.amenities,
       common_areas_tour: demoProject.commonAreasTour ?? null,
+      owner_id: ownerId,
     })
     .select()
     .single();

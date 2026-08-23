@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminUser } from '@/lib/supabase/require-admin';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
 
 // Duplica un piso entero: crea un piso nuevo (mismo plano por default, ya
 // que en la mayoría de los edificios los pisos repetidos comparten la
@@ -11,18 +10,20 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // de piso de origen por el nuevo (ej. "A01-01" → "A02-01"); si no lo
 // encuentra en el código, lo deja igual (el admin lo ajusta a mano).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdminUser();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
   const { id: sourceFloorId } = await params;
+  const projectId = await resolveProjectIdFromFloor(sourceFloorId);
+  if (!projectId) return NextResponse.json({ error: 'Piso de origen no encontrado' }, { status: 404 });
+
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
+
   const body = await request.json();
   if (body.number === undefined || !body.label) {
     return NextResponse.json({ error: 'Faltan number y/o label para el piso nuevo' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-
-  const { data: sourceFloor, error: floorErr } = await admin
+  const { data: sourceFloor, error: floorErr } = await supabase
     .from('floors')
     .select('*')
     .eq('id', sourceFloorId)
@@ -40,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sourceDots: { unitId: string; x: number; y: number; color?: string; style?: string }[] = sourceFloor.unit_dots ?? [];
   const remappedDots = includeUnits ? sourceDots.map(d => ({ ...d, unitId: remapCode(d.unitId) })) : [];
 
-  const { data: newFloor, error: newFloorErr } = await admin
+  const { data: newFloor, error: newFloorErr } = await supabase
     .from('floors')
     .insert({
       building_id: sourceFloor.building_id,
@@ -48,6 +49,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       label: body.label,
       plan_image: sourceFloor.plan_image,
       unit_dots: remappedDots,
+      floor_kind: sourceFloor.floor_kind,
+      floor_kind_description: sourceFloor.floor_kind_description,
     })
     .select()
     .single();
@@ -55,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   let unitsCopied = 0;
   if (includeUnits) {
-    const { data: sourceUnits, error: unitsErr } = await admin
+    const { data: sourceUnits, error: unitsErr } = await supabase
       .from('units')
       .select('*')
       .eq('floor_id', sourceFloorId);
@@ -89,7 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         tour_data: u.tour_data,
       }));
 
-      const { error: insertErr } = await admin.from('units').insert(clones);
+      const { error: insertErr } = await supabase.from('units').insert(clones);
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
       unitsCopied = clones.length;
     }

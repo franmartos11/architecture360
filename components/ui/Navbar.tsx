@@ -3,38 +3,38 @@
 import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
-import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
-export default function Navbar() {
+export default function Navbar({ projectSlug, showCalculator }: { projectSlug: string; showCalculator: boolean }) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const projectHref = `/proyecto/${DEFAULT_PROJECT_SLUG}`;
+  const projectHref = `/proyecto/${projectSlug}`;
+  const masterplanHref = `${projectHref}/masterplan`;
   const tourHref = `${projectHref}/recorrido`;
   const unitsHref = `${projectHref}/unidades`;
   const amenitiesHref = `${projectHref}/amenities`;
   const locationHref = `${projectHref}/ubicacion`;
-  const calculatorHref = '/#cotizador';
+  const calculatorHref = `${projectHref}#cotizador`;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--theme-bg-alt)]/70 backdrop-blur-xl border-b border-[var(--theme-border-on-dark)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm transition-transform group-hover:scale-110">
+          <Link href={projectHref} className="flex items-center gap-3 group">
+            <div className="w-9 h-9 rounded-lg bg-[var(--theme-accent)] flex items-center justify-center text-[var(--theme-text-on-dark)] font-bold text-sm transition-transform group-hover:scale-110">
               360
             </div>
-            <span className="text-lg font-semibold tracking-tight text-white/90">
+            <span className="font-[family-name:var(--theme-font-heading)] text-lg font-semibold tracking-tight text-[var(--theme-text-on-dark)]/90">
               InteractiveRE
             </span>
           </Link>
 
           {/* Navigation Links - Desktop */}
           <div className="hidden md:flex items-center gap-0.5 lg:gap-1">
-            <NavLink href="/" active={pathname === '/'}>
+            <NavLink href={projectHref} active={pathname === projectHref}>
               Inicio
             </NavLink>
-            <NavLink href={projectHref} active={pathname === projectHref}>
+            <NavLink href={masterplanHref} active={pathname === masterplanHref}>
               Masterplan
             </NavLink>
             <NavLink href={tourHref} active={pathname === tourHref}>
@@ -54,9 +54,9 @@ export default function Navbar() {
           {/* CTA & Mobile Menu Toggle */}
           <div className="flex items-center gap-2">
             <Link
-              href={projectHref}
+              href={masterplanHref}
               aria-label="Explorar Proyecto"
-              className="hidden sm:inline-flex items-center gap-2 px-2.5 md:px-3 lg:px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
+              className="hidden sm:inline-flex items-center gap-2 px-2.5 md:px-3 lg:px-4 py-2 rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-dark)] text-sm font-medium transition-all duration-200"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -68,7 +68,7 @@ export default function Navbar() {
             {/* Mobile menu button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 text-white/80 hover:text-white rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              className="md:hidden p-2 text-[var(--theme-text-on-dark-muted)] hover:text-[var(--theme-text-on-dark)] rounded-lg bg-[var(--theme-text-on-dark)]/5 hover:bg-[var(--theme-text-on-dark)]/10 transition-colors"
               aria-label={isMobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
               aria-expanded={isMobileMenuOpen}
             >
@@ -86,11 +86,11 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {isMobileMenuOpen && (
-        <div className="md:hidden px-4 pt-2 pb-4 space-y-1 bg-surface-50/95 border-t border-white/10 backdrop-blur-md max-h-[calc(100vh-4rem)] overflow-y-auto">
-          <MobileNavLink href="/" active={pathname === '/'} onClick={() => setIsMobileMenuOpen(false)}>
+        <div className="md:hidden px-4 pt-2 pb-4 space-y-1 bg-[var(--theme-bg-alt)]/95 border-t border-[var(--theme-border-on-dark)] backdrop-blur-md max-h-[calc(100vh-4rem)] overflow-y-auto">
+          <MobileNavLink href={projectHref} active={pathname === projectHref} onClick={() => setIsMobileMenuOpen(false)}>
             Inicio
           </MobileNavLink>
-          <MobileNavLink href={projectHref} active={pathname === projectHref} onClick={() => setIsMobileMenuOpen(false)}>
+          <MobileNavLink href={masterplanHref} active={pathname === masterplanHref} onClick={() => setIsMobileMenuOpen(false)}>
             Masterplan
           </MobileNavLink>
           <MobileNavLink href={tourHref} active={pathname === tourHref} onClick={() => setIsMobileMenuOpen(false)}>
@@ -105,13 +105,15 @@ export default function Navbar() {
           <MobileNavLink href={locationHref} active={pathname === locationHref} onClick={() => setIsMobileMenuOpen(false)}>
             Ubicación
           </MobileNavLink>
-          <MobileNavLink href={calculatorHref} active={false} onClick={() => setIsMobileMenuOpen(false)}>
-            Cotizador
-          </MobileNavLink>
+          {showCalculator && (
+            <MobileNavLink href={calculatorHref} active={false} onClick={() => setIsMobileMenuOpen(false)}>
+              Cotizador
+            </MobileNavLink>
+          )}
           <Link
-            href={projectHref}
+            href={masterplanHref}
             onClick={() => setIsMobileMenuOpen(false)}
-            className="sm:hidden flex items-center justify-center gap-2 mt-4 px-4 py-3 w-full rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
+            className="sm:hidden flex items-center justify-center gap-2 mt-4 px-4 py-3 w-full rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-dark)] text-sm font-medium transition-colors"
           >
             Explorar Proyecto
           </Link>
@@ -135,8 +137,8 @@ function NavLink({
       href={href}
       className={`px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
         active
-          ? 'text-white bg-white/10'
-          : 'text-white/60 hover:text-white hover:bg-white/5'
+          ? 'text-[var(--theme-text-on-dark)] bg-[var(--theme-text-on-dark)]/10'
+          : 'text-[var(--theme-text-on-dark-muted)] hover:text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)]/5'
       }`}
     >
       {children}
@@ -161,8 +163,8 @@ function MobileNavLink({
       onClick={onClick}
       className={`block px-4 py-3 rounded-lg text-base font-medium transition-colors ${
         active
-          ? 'text-white bg-white/10'
-          : 'text-white/70 hover:text-white hover:bg-white/5'
+          ? 'text-[var(--theme-text-on-dark)] bg-[var(--theme-text-on-dark)]/10'
+          : 'text-[var(--theme-text-on-dark-muted)] hover:text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)]/5'
       }`}
     >
       {children}
