@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTransitionRouter } from '@/components/ui/TransitionUtils';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useTransitionRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +27,7 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.href = '/admin'; // Force reload para que el proxy lea la sesión nueva
+    window.location.href = '/admin/proyectos'; // Force reload para que el proxy lea la sesión nueva
   };
 
   return (
@@ -60,6 +59,11 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
             />
+            <div className="text-right mt-2">
+              <Link href="/admin/forgot-password" className="text-sm text-gray-500 hover:text-gray-700">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
             {error && <p className="text-red-500 text-sm mt-2" role="alert">{error}</p>}
           </div>
 
@@ -67,6 +71,13 @@ export default function LoginPage() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </Button>
         </form>
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          ¿No tenés cuenta?{' '}
+          <Link href="/admin/signup" className="font-medium text-brand-600 hover:text-brand-700">
+            Registrate
+          </Link>
+        </p>
       </div>
     </div>
   );
