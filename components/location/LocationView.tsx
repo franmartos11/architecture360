@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
+import { Footprints, Bike, Car } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { Project, PointOfInterest, PoiCategory } from '@/types';
@@ -129,6 +130,7 @@ function PoiCard({ poi, href }: { poi: PointOfInterest; href: string }) {
       </div>
       <div className="p-4 space-y-3">
         {poi.description && <p className="text-sm text-white/60">{poi.description}</p>}
+        <TravelTimes poi={poi} />
         <a
           href={href}
           target="_blank"
@@ -141,6 +143,28 @@ function PoiCard({ poi, href }: { poi: PointOfInterest; href: string }) {
           </svg>
         </a>
       </div>
+    </div>
+  );
+}
+
+// Los minutos calculados ("Calcular tiempos automáticamente" en el admin)
+// vivían solo ahí — nunca llegaban a mostrarse acá, en el visor público.
+function TravelTimes({ poi }: { poi: PointOfInterest }) {
+  const items: { Icon: typeof Footprints; minutes: number; label: string }[] = [
+    ...(poi.walkMinutes != null ? [{ Icon: Footprints, minutes: poi.walkMinutes, label: 'caminando' }] : []),
+    ...(poi.bikeMinutes != null ? [{ Icon: Bike, minutes: poi.bikeMinutes, label: 'en bici' }] : []),
+    ...(poi.driveMinutes != null ? [{ Icon: Car, minutes: poi.driveMinutes, label: 'en auto' }] : []),
+  ];
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1">
+      {items.map(({ Icon, minutes, label }) => (
+        <span key={label} className="inline-flex items-center gap-1 text-xs text-white/50" title={`${minutes} min ${label}`}>
+          <Icon className="w-3.5 h-3.5" />
+          {minutes} min
+        </span>
+      ))}
     </div>
   );
 }
