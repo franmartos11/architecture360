@@ -66,8 +66,8 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
       <header className="sticky top-0 z-40 bg-trevo-dark border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
           <Link href="/feed" className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-xs">
-              360
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm">
+              A
             </div>
           </Link>
 

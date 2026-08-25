@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=${RESULT_LIMIT}&q=${encodeURIComponent(q)}`;
   const res = await fetch(url, {
-    headers: { 'User-Agent': '360Proyects-admin-location-picker/1.0' },
+    headers: { 'User-Agent': 'Atrium-admin-location-picker/1.0' },
   });
   if (!res.ok) return NextResponse.json({ results: [] });
 

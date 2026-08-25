@@ -5,6 +5,8 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import GoogleAuthButton from '@/components/ui/GoogleAuthButton';
+import AuthShell from '@/components/auth/AuthShell';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -31,54 +33,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Panel de Administración</h1>
-          <p className="text-gray-500 mt-2">Ingresá con tu cuenta para acceder</p>
-        </div>
+    <AuthShell>
+      <div className="text-center mb-8">
+        <h1 className="font-display text-2xl font-bold text-stone-900">Ingresá a tu cuenta</h1>
+        <p className="text-stone-500 mt-2">Entrá para seguir armando tus proyectos</p>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
+      <GoogleAuthButton />
+
+      <div className="flex items-center gap-3 my-6">
+        <div className="h-px flex-1 bg-stone-200" />
+        <span className="text-xs text-stone-400">o con tu email</span>
+        <div className="h-px flex-1 bg-stone-200" />
+      </div>
+
+      <form onSubmit={handleLogin} className="space-y-6">
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="vos@ejemplo.com"
+          autoComplete="email"
+          required
+        />
+
+        <div>
           <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="vos@ejemplo.com"
-            autoComplete="email"
+            label="Contraseña"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="current-password"
             required
           />
-
-          <div>
-            <Input
-              label="Contraseña"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
-            <div className="text-right mt-2">
-              <Link href="/admin/forgot-password" className="text-sm text-gray-500 hover:text-gray-700">
-                ¿Olvidaste tu contraseña?
-              </Link>
-            </div>
-            {error && <p className="text-red-500 text-sm mt-2" role="alert">{error}</p>}
+          <div className="text-right mt-2">
+            <Link href="/admin/forgot-password" className="text-sm text-stone-500 hover:text-stone-700">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
+          {error && <p className="text-red-500 text-sm mt-2" role="alert">{error}</p>}
+        </div>
 
-          <Button type="submit" disabled={loading} className="w-full py-3">
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </Button>
-        </form>
+        <Button type="submit" disabled={loading} className="w-full py-3">
+          {loading ? 'Ingresando...' : 'Ingresar'}
+        </Button>
+      </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          ¿No tenés cuenta?{' '}
-          <Link href="/admin/signup" className="font-medium text-brand-600 hover:text-brand-700">
-            Registrate
-          </Link>
-        </p>
-      </div>
-    </div>
+      <p className="text-center text-sm text-stone-500 mt-6">
+        ¿No tenés cuenta?{' '}
+        <Link href="/admin/signup" className="font-medium text-brand-600 hover:text-brand-700">
+          Registrate
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

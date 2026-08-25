@@ -88,7 +88,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const PUBLIC_ADMIN_PATHS = ['/admin/login', '/admin/signup', '/admin/forgot-password', '/admin/reset-password'];
+  const PUBLIC_ADMIN_PATHS = ['/admin/login', '/admin/signup', '/admin/forgot-password', '/admin/reset-password', '/admin/auth/callback'];
   const isAdminApiRoute = pathname.startsWith('/api/admin');
   const isAdminPageRoute = pathname.startsWith('/admin') && !PUBLIC_ADMIN_PATHS.includes(pathname);
 

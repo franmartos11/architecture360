@@ -4,8 +4,8 @@ import FeedTabs from '@/components/social/FeedTabs';
 import FeedLeftRail from '@/components/social/FeedLeftRail';
 import PeopleSuggestions from '@/components/social/PeopleSuggestions';
 
-const title = 'Feed — 360Proyects';
-const description = 'Lo que están publicando arquitectos y estudios en 360Proyects.';
+const title = 'Feed — Atrium';
+const description = 'Lo que están publicando arquitectos y estudios en Atrium.';
 
 export const metadata: Metadata = {
   title,

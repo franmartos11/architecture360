@@ -202,7 +202,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!portfolio) return { title: 'Portfolio no encontrado' };
 
   const title = `${portfolio.displayName} — Portfolio`;
-  const description = portfolio.bio || `Proyectos de ${portfolio.displayName} en 360Proyects.`;
+  const description = portfolio.bio || `Proyectos de ${portfolio.displayName} en Atrium.`;
   const ogImage = portfolio.bannerImage || portfolio.avatarImage || undefined;
 
   return {

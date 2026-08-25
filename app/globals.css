@@ -8,6 +8,11 @@
   --font-sans: 'Montserrat', var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 
+  /* Tipografía de marca de Atrium — landing, auth y red social. No se usa
+     por default (el resto del sitio sigue en Montserrat); se aplica solo
+     con la utility font-display en esas zonas puntuales. */
+  --font-display: var(--font-archivo), 'Archivo', system-ui, sans-serif;
+
   /* Tre-vo Palette */
   --color-trevo-green: #37463f;
   --color-trevo-lightgreen: #83978c;
