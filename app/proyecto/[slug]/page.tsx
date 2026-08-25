@@ -11,6 +11,7 @@ import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
+import { formatPrice } from '@/lib/units';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -34,6 +35,21 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const sectionOrder = resolveSectionOrder(project.sectionConfig, typeConfig);
   const theme = resolveTheme(project.themeConfig);
+
+  // Postura del hero: venta apunta a conversión (precio desde + CTA a
+  // disponibilidad), showcase apunta a credencial académica en vez de
+  // ubicación comercial — mismo hero, dos lecturas de los mismos datos.
+  const cheapestAvailable = typeConfig.showPrice
+    ? project.units
+        .filter(u => u.status === 'available' && typeof u.price === 'number' && u.price > 0)
+        .reduce<typeof project.units[number] | null>((min, u) => (!min || u.price! < min.price!) ? u : min, null)
+    : null;
+  const academicLine = [project.academicInstitution, project.academicYear].filter(Boolean).join(' · ');
+  const heroMetaLine = typeConfig.saleMode === 'showcase'
+    ? (academicLine || project.location)
+    : [project.location, cheapestAvailable ? `Desde ${formatPrice(cheapestAvailable.price!, cheapestAvailable.currency)}` : null]
+        .filter(Boolean)
+        .join(' · ');
 
   return (
     <div
@@ -66,8 +82,16 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           {project.tagline && (
             <p className="mt-4 text-white/90 text-xl sm:text-2xl font-light">{project.tagline}</p>
           )}
-          {project.location && (
-            <p className={`text-white/80 text-lg font-light tracking-wide ${project.tagline ? 'mt-2' : 'mt-4'}`}>{project.location}</p>
+          {heroMetaLine && (
+            <p className={`text-white/80 text-lg font-light tracking-wide ${project.tagline ? 'mt-2' : 'mt-4'}`}>{heroMetaLine}</p>
+          )}
+          {typeConfig.saleMode === 'venta' && project.units.length > 0 && (
+            <a
+              href={`/proyecto/${project.slug}/unidades`}
+              className="mt-8 inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+            >
+              VER DISPONIBILIDAD
+            </a>
           )}
         </div>
 

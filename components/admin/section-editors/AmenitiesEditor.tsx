@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
@@ -274,11 +275,26 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
             {availableNodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
           </Select>
           {availableNodes.length === 0 && (
-            <p className="text-xs text-amber-600 -mt-3">
-              {form.buildingId
-                ? 'Esta torre todavía no tiene su recorrido 360° cargado — andá a "Recorrido 360° de la torre" desde el edificio para armarlo.'
-                : 'El proyecto todavía no tiene un recorrido de espacios comunes cargado — andá a "Recorrido de espacios comunes" para armarlo.'}
-            </p>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 -mt-3">
+              <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-amber-800">
+                  {form.buildingId
+                    ? 'Esta torre todavía no tiene su recorrido 360° cargado.'
+                    : 'El proyecto todavía no tiene un recorrido de espacios comunes cargado.'}
+                </p>
+                <Link
+                  href={form.buildingId
+                    ? `/admin/edificios/${form.buildingId}/recorrido`
+                    : '/admin/proyecto/recorrido'}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 hover:text-amber-900 mt-1"
+                >
+                  Ir a cargar recorrido →
+                </Link>
+              </div>
+            </div>
           )}
 
           <Input

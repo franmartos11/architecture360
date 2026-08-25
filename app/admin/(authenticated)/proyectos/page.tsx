@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE, getProjectTypeConfig } from '@/lib/project-types';
 import type { ProjectType, ProjectSaleMode } from '@/types';
 
@@ -34,6 +35,7 @@ export default function MisProyectosPage() {
   });
   const [error, setError] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectRow | null>(null);
   const toast = useToast();
 
   const load = () => {
@@ -120,15 +122,31 @@ export default function MisProyectosPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {projects.map(p => {
               const isActive = p.id === activeProjectId;
+              const isBusy = selectingId !== null || deleteTarget !== null;
               return (
-                <button
+                <div
                   key={p.id}
-                  onClick={() => enterProject(p.id)}
-                  disabled={selectingId !== null}
-                  className={`text-left bg-white rounded-2xl border hover:shadow-md transition-all overflow-hidden disabled:opacity-50 ${
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { if (!isBusy) enterProject(p.id); }}
+                  onKeyDown={e => { if (!isBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); enterProject(p.id); } }}
+                  aria-disabled={isBusy}
+                  className={`relative text-left bg-white rounded-2xl border hover:shadow-md transition-all overflow-hidden cursor-pointer ${isBusy ? 'opacity-50 pointer-events-none' : ''} ${
                     isActive ? 'border-brand-400 ring-1 ring-brand-400' : 'border-gray-200 hover:border-brand-400'
                   }`}
                 >
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setDeleteTarget(p); }}
+                    disabled={isBusy}
+                    aria-label={`Borrar ${p.name}`}
+                    title="Borrar proyecto"
+                    className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/90 text-gray-400 hover:text-red-600 hover:bg-white shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                   <div className="h-32 bg-gray-100 flex items-center justify-center relative">
                     {p.masterplan_image ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -137,7 +155,7 @@ export default function MisProyectosPage() {
                       <span className="text-4xl">🏗️</span>
                     )}
                     {isActive && (
-                      <span className="absolute top-2 right-2 text-[11px] font-medium text-white bg-brand-500 px-2 py-0.5 rounded-full shadow-sm">
+                      <span className="absolute bottom-2 right-2 text-[11px] font-medium text-white bg-brand-500 px-2 py-0.5 rounded-full shadow-sm">
                         Activo
                       </span>
                     )}
@@ -161,7 +179,7 @@ export default function MisProyectosPage() {
                       )}
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -232,6 +250,12 @@ export default function MisProyectosPage() {
           {error && <p className="px-6 pb-4 text-sm text-red-500">{error}</p>}
         </Card>
       </div>
+
+      <DeleteProjectModal
+        project={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => { setDeleteTarget(null); load(); }}
+      />
     </div>
   );
 }
