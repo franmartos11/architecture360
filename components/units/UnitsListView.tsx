@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice, getStatusLabel, getStatusColor } from '@/lib/units';
-import type { ProjectTypeConfig } from '@/lib/project-types';
+import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {
@@ -31,6 +31,9 @@ const STATUS_LABELS: Record<UnitStatus | 'all', string> = {
 };
 
 export default function UnitsListView({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
+  const { hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  const uAgree = unitAgreement(typeConfig);
+  const unitLabelLower = unitLabel.toLowerCase();
   const [buildingFilter, setBuildingFilter] = useState<string>(
     initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
       ? initialBuildingFilter
@@ -95,9 +98,9 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
           </h1>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-6 sm:gap-x-10 gap-y-4 sm:gap-y-3 mt-10">
-            <Stat value={project.units.length} label="Unidades" />
+            <Stat value={project.units.length} label={`${unitLabel}s`} />
             {typeConfig.showStatus && <Stat value={availableCount} label="Disponibles" />}
-            {project.buildings.length > 1 && <Stat value={project.buildings.length} label="Edificios" />}
+            {project.buildings.length > 1 && <Stat value={project.buildings.length} label={`${buildingLabel}s`} />}
             {typeConfig.showPrice && minPrice != null && <Stat value={formatPrice(minPrice, minPriceCurrency)} label="Desde" />}
           </div>
         </div>
@@ -107,7 +110,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
       <div className="px-4 sm:px-6 -mt-16 sm:-mt-20 relative z-10">
         <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl border border-trevo-dark/5 p-6 sm:p-8 space-y-6">
           {project.buildings.length > 1 && (
-            <FilterRow label="Edificio" last={!hasTypeFilterRow && !hasStatusFilterRow}>
+            <FilterRow label={buildingLabel} last={!hasTypeFilterRow && !hasStatusFilterRow}>
               <TabTrigger active={buildingFilter === 'all'} onClick={() => setBuildingFilter('all')}>
                 Todos
               </TabTrigger>
@@ -148,12 +151,14 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
       <section className="px-4 sm:px-6 pt-12 pb-24">
         <div className="max-w-6xl mx-auto">
           <p className="text-sm text-trevo-dark/50 font-light mb-6">
-            {filtered.length} de {project.units.length} unidades
+            {filtered.length} de {project.units.length} {unitLabelLower}s
           </p>
 
           {filtered.length === 0 ? (
             <div className="text-center py-20 text-trevo-dark/40 font-light">
-              {project.units.length === 0 ? 'Todavía no hay unidades cargadas.' : 'No hay unidades para este filtro.'}
+              {project.units.length === 0
+                ? `Todavía no hay ${unitLabelLower}s ${uAgree.cargado}s.`
+                : `No hay ${unitLabelLower}s para este filtro.`}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
@@ -165,6 +170,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
                   buildingName={project.buildings.find(b => b.id === u.buildingId)?.name}
                   showPrice={typeConfig.showPrice}
                   showStatus={typeConfig.showStatus}
+                  hasUnitStep={hasUnitStep}
                 />
               ))}
             </div>
@@ -216,12 +222,14 @@ function UnitCard({
   projectSlug,
   showPrice,
   showStatus,
+  hasUnitStep,
 }: {
   unit: Unit;
   buildingName?: string;
   projectSlug: string;
   showPrice: boolean;
   showStatus: boolean;
+  hasUnitStep: boolean;
 }) {
   const statusColor = getStatusColor(unit.status);
   return (
@@ -252,7 +260,10 @@ function UnitCard({
         )}
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <p className="text-xs text-white/70 tracking-widest uppercase font-medium">
-            {[buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`].filter(Boolean).join(' · ')}
+            {(hasUnitStep
+              ? [buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`]
+              : [buildingName]
+            ).filter(Boolean).join(' · ')}
           </p>
           <h3 className="text-white text-lg font-medium">{unit.name}</h3>
         </div>

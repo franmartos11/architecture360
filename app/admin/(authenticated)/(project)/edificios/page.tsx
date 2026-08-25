@@ -20,7 +20,7 @@ type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'> 
 
 export default function AdminBuildingsPage() {
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -116,7 +116,11 @@ export default function AdminBuildingsPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{buildingLabel}s</h2>
         <p className="text-sm text-gray-500 mt-1">
-          {hasFloorStep ? 'Torres del proyecto. Entrá a cada uno para gestionar sus pisos.' : `${buildingLabel}s del proyecto. Entrá a cada ${agree.uno} para gestionar sus ${unitLabelLower}s.`}
+          {hasFloorStep
+            ? 'Torres del proyecto. Entrá a cada uno para gestionar sus pisos.'
+            : hasUnitStep
+            ? `${buildingLabel}s del proyecto. Entrá a cada ${agree.uno} para gestionar sus ${unitLabelLower}s.`
+            : `${buildingLabel}s del proyecto. Entrá a cada ${agree.uno} para completar sus datos.`}
         </p>
         {!firstSlideId && (
           <p className="text-sm text-amber-600 mt-2">
@@ -162,7 +166,7 @@ export default function AdminBuildingsPage() {
                       </Link>
                     )}
                     <Link href={`/admin/edificios/${b.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                      {hasFloorStep ? 'Gestionar pisos →' : `${unitLabel}s →`}
+                      {hasFloorStep ? 'Gestionar pisos →' : hasUnitStep ? `${unitLabel}s →` : 'Editar →'}
                     </Link>
                     <button
                       onClick={() => handleDelete(b)}
@@ -192,7 +196,9 @@ export default function AdminBuildingsPage() {
         <p className="px-6 pt-4 text-xs text-gray-500">
           {hasFloorStep
             ? 'Este formulario solo crea el edificio. Para cargar pisos, unidades, delimitación y tour de una — paso a paso — usá el asistente.'
-            : `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el plano, ${unitLabelLower}s, delimitación y tour de una — paso a paso — usá el asistente.`}
+            : hasUnitStep
+            ? `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el plano, ${unitLabelLower}s, delimitación y tour de una — paso a paso — usá el asistente.`
+            : `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el resto de los datos, fotos, ambientes y tour — paso a paso — usá el asistente.`}
         </p>
         <form onSubmit={handleCreate} className="p-6 space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-end">
@@ -219,7 +225,7 @@ export default function AdminBuildingsPage() {
               {creating ? 'Creando...' : `+ Crear ${buildingLabel.toLowerCase()}`}
             </Button>
           </div>
-          {!hasFloorStep && (
+          {!hasFloorStep && hasUnitStep && (
             <ImageUploader
               label="Plano de subdivisión (opcional, lo podés subir después)"
               value={form.planImage}

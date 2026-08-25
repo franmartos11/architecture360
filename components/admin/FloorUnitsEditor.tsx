@@ -16,11 +16,13 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { unitAgreement } from '@/lib/project-types';
 import { formatPrice } from '@/lib/units';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
-  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'price' | 'currency' | 'status'
+  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'lot_size' | 'has_garage' | 'hoa_fee' | 'floors_count'
+  | 'price' | 'currency' | 'status'
   | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
   | 'plan_3d_url' | 'technical_plan_url' | 'created_at'
   | 'room_plan_image' | 'rooms' | 'tour_image_url' | 'tour_data'
@@ -42,6 +44,11 @@ type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
 };
 
 const UNIT_TYPES: UnitType[] = ['monoambiente', '1 dormitorio', '2 dormitorios', '3 dormitorios', 'penthouse'];
+// Una casa no es "monoambiente" ni "penthouse" — esos términos son de
+// depto. El resto de los valores (conteo de dormitorios) sí describe bien
+// una casa, así que se reusa el mismo UnitType en vez de inventar uno
+// nuevo que habría que sumar a los filtros del sitio público.
+const HOUSE_TYPES: UnitType[] = ['1 dormitorio', '2 dormitorios', '3 dormitorios'];
 
 // Mismas monedas que reconoce formatPrice() en lib/units.ts — agregar acá
 // una moneda sin agregarla ahí la deja guardable pero sin formato local
@@ -63,6 +70,7 @@ const EMPTY_FORM = {
   code: '', modelName: '', type: '2 dormitorios' as UnitType,
   totalArea: '', innerArea: '', balconyArea: '0', externalArea: '0',
   bedrooms: '2', bathrooms: '2', hasServiceRoom: false,
+  lotSize: '', hasGarage: false, hoaFee: '', floorsCount: '1',
   price: '', currency: 'USD', status: 'available' as UnitStatus, orientation: '',
   interiorImageUrl: '', galleryImages: [] as string[],
   floorPlan3dUrl: '', plan3dUrl: '', technicalPlanUrl: '',
@@ -71,7 +79,8 @@ const EMPTY_FORM = {
 type SourceUnitLike = {
   model_name: string | null; type: UnitType; total_area: number | null; inner_area: number | null;
   balcony_area: number | null; external_area: number | null; bedrooms: number | null; bathrooms: number | null;
-  has_service_room: boolean; price: number | null; currency: string; status: UnitStatus; orientation: string | null;
+  has_service_room: boolean; lot_size: number | null; has_garage: boolean; hoa_fee: number | null; floors_count: number;
+  price: number | null; currency: string; status: UnitStatus; orientation: string | null;
   interior_image_url: string | null; gallery_images: string[] | null; floor_plan_3d_url: string | null;
   plan_3d_url: string | null; technical_plan_url: string | null;
 };
@@ -90,6 +99,10 @@ function formFieldsFromUnit(u: SourceUnitLike) {
     bedrooms: String(u.bedrooms ?? 0),
     bathrooms: String(u.bathrooms ?? 1),
     hasServiceRoom: u.has_service_room,
+    lotSize: u.lot_size != null ? String(u.lot_size) : '',
+    hasGarage: u.has_garage,
+    hoaFee: u.hoa_fee != null ? String(u.hoa_fee) : '',
+    floorsCount: String(u.floors_count ?? 1),
     price: u.price != null ? String(u.price) : '',
     currency: u.currency || 'USD',
     status: u.status,
@@ -106,6 +119,12 @@ function formFieldsFromUnit(u: SourceUnitLike) {
 // pantalla standalone (pisos/[floorId]/page.tsx) como embebido dentro del
 // wizard de carga guiada, para no repetir el formulario de 18 campos en
 // dos lugares distintos.
+//
+// Tipos sin hasUnitStep (hoy: "casas") renderizan un modo distinto: acá el
+// building YA ES la unidad (una casa no tiene "casas" adentro), así que en
+// vez de tabla + alta múltiple se muestra directo el form de la única
+// unidad del piso interno — en modo edición si ya existe, o de alta si
+// todavía no. Sin tabla, sin CSV, sin "Duplicar/Borrar" (no hay lista).
 export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }: { buildingId?: string; floorId: string; onUnitsChange?: (units: UnitRow[]) => void }) {
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +140,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const toast = useToast();
   const confirmDialog = useConfirm();
   const inheritedDefaultsApplied = useRef(false);
+  const singleRecordAutoEdited = useRef(false);
   const typeConfig = useProjectTypeConfig();
+  const { hasUnitStep, unitLabel, buildingLabel } = typeConfig;
+  const uAgree = unitAgreement(typeConfig);
+  const unitLabelLower = unitLabel.toLowerCase();
+  const buildingLabelLower = buildingLabel.toLowerCase();
   const columnCount = 4 + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
 
   // Unidades de CUALQUIER otro piso/edificio del proyecto — para poder
@@ -170,6 +194,15 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     setForm({ code: u.code, ...formFieldsFromUnit(u) });
     setDuplicateExtras(null);
   };
+
+  // Sin paso de unidades propio (una casa ES la unidad): en cuanto se sabe
+  // que ya existe, se entra a editarla derecho — no tiene sentido mostrarle
+  // al usuario un form de "alta" vacío al lado de la única fila posible.
+  useEffect(() => {
+    if (hasUnitStep || singleRecordAutoEdited.current || units.length === 0) return;
+    singleRecordAutoEdited.current = true;
+    startEdit(units[0]);
+  }, [hasUnitStep, units]);
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -225,6 +258,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     bedrooms: Number(form.bedrooms || 0),
     bathrooms: Number(form.bathrooms || 1),
     hasServiceRoom: form.hasServiceRoom,
+    lotSize: form.lotSize === '' ? null : Number(form.lotSize),
+    hasGarage: form.hasGarage,
+    hoaFee: form.hoaFee === '' ? null : Number(form.hoaFee),
+    floorsCount: Number(form.floorsCount || 1),
     price: form.price === '' ? null : Number(form.price),
     currency: form.currency || 'USD',
     status: form.status,
@@ -269,10 +306,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
     setSaving(false);
     if (res.ok) {
-      toast(editingId ? 'Cambios guardados.' : 'Unidad creada.');
+      toast(editingId ? 'Cambios guardados.' : `${unitLabel} creada.`);
       if (editingId) {
         cancelEdit();
-      } else {
+      } else if (hasUnitStep) {
         // Deja cargados los mismos valores para el próximo depto — solo
         // hace falta cambiar el código — en vez de volver al form vacío.
         setForm(prev => ({ ...prev, code: '' }));
@@ -282,20 +319,20 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
       load();
     } else {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? 'Error al guardar la unidad.');
+      setError(data.error ?? `Error al guardar ${uAgree.el} ${unitLabelLower}.`);
     }
   };
 
   const handleDelete = async (id: string) => {
-    const ok = await confirmDialog({ message: '¿Borrar esta unidad?', confirmLabel: 'Borrar unidad', danger: true });
+    const ok = await confirmDialog({ message: `¿Borrar ${uAgree.esta} ${unitLabelLower}?`, confirmLabel: `Borrar ${unitLabelLower}`, danger: true });
     if (!ok) return;
     const res = await fetch(`/api/admin/units/${id}`, { method: 'DELETE' });
     if (res.ok) {
-      toast('Unidad borrada.');
+      toast(`${unitLabel} ${uAgree.borrado}.`);
       if (editingId === id) cancelEdit();
       load();
     } else {
-      toast('Error al borrar la unidad.', 'error');
+      toast(`Error al borrar ${uAgree.el} ${unitLabelLower}.`, 'error');
     }
   };
 
@@ -360,93 +397,97 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
       if (res.ok) created++; else skipped++;
     }
 
-    toast(`${created} unidad${created === 1 ? '' : 'es'} importada${created === 1 ? '' : 's'}${skipped > 0 ? `, ${skipped} con error/omitida${skipped === 1 ? '' : 's'}` : ''}.`, skipped > 0 && created === 0 ? 'error' : undefined);
+    toast(`${created} ${unitLabelLower}${created === 1 ? '' : 's'} importada${created === 1 ? '' : 's'}${skipped > 0 ? `, ${skipped} con error/omitida${skipped === 1 ? '' : 's'}` : ''}.`, skipped > 0 && created === 0 ? 'error' : undefined);
     load();
   };
 
-  if (loading) return <LoadingSpinner text="Cargando unidades..." tone="light" />;
-  if (loadError) return <ErrorState message="No se pudieron cargar las unidades." onRetry={load} />;
+  if (loading) return <LoadingSpinner text={hasUnitStep ? `Cargando ${unitLabelLower}s...` : `Cargando datos ${uAgree.del} ${unitLabelLower}...`} tone="light" />;
+  if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${unitLabelLower}s.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
 
   return (
     <div className="space-y-6">
-      <Card>
-        <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-900">Unidades</h3>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={handleDownloadTemplate} className="text-xs font-medium text-gray-500 hover:text-gray-700">Plantilla CSV</button>
-            <button type="button" onClick={handleExportCsv} disabled={units.length === 0} className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40">Exportar CSV</button>
-            <label className="text-xs font-medium text-brand-600 hover:text-brand-700 cursor-pointer">
-              Importar CSV
-              <input
-                type="file" accept=".csv" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleImportCsv(f); e.target.value = ''; }}
-              />
-            </label>
+      {hasUnitStep && (
+        <Card>
+          <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">{unitLabel}s</h3>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={handleDownloadTemplate} className="text-xs font-medium text-gray-500 hover:text-gray-700">Plantilla CSV</button>
+              <button type="button" onClick={handleExportCsv} disabled={units.length === 0} className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40">Exportar CSV</button>
+              <label className="text-xs font-medium text-brand-600 hover:text-brand-700 cursor-pointer">
+                Importar CSV
+                <input
+                  type="file" accept=".csv" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleImportCsv(f); e.target.value = ''; }}
+                />
+              </label>
+            </div>
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
-                <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
-                <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
-                {typeConfig.showStatus && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>}
-                {typeConfig.showPrice && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>}
-                <th className="px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {units.map(u => (
-                <tr key={u.id} className={`hover:bg-gray-50/50 transition-colors ${editingId === u.id ? 'bg-brand-50/50' : ''}`}>
-                  <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
-                  {typeConfig.showStatus && (
-                    <td className="px-6 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium
-                        ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
-                        ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
-                        ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
-                        {u.status}
-                      </span>
-                    </td>
-                  )}
-                  {typeConfig.showPrice && (
-                    <td className="px-6 py-3 text-sm text-gray-600">{u.price ? formatPrice(u.price, u.currency) : '—'}</td>
-                  )}
-                  <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
-                    {buildingId && (
-                      <>
-                        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
-                        <Link
-                          href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/tour`}
-                          className="text-sm font-medium text-brand-600 hover:text-brand-700"
-                          title={u.tour_data?.nodes.length ? `${u.tour_data.nodes.length} panorámica${u.tour_data.nodes.length === 1 ? '' : 's'} cargada${u.tour_data.nodes.length === 1 ? '' : 's'}` : 'Todavía sin recorrido 360°'}
-                        >
-                          Recorrido 360°{u.tour_data?.nodes.length ? ` (${u.tour_data.nodes.length})` : ''}
-                        </Link>
-                      </>
-                    )}
-                    <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
-                    <button onClick={() => duplicateUnit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
-                    <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
+                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
+                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
+                  {typeConfig.showStatus && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>}
+                  {typeConfig.showPrice && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>}
+                  <th className="px-6 py-3"></th>
                 </tr>
-              ))}
-              {units.length === 0 && (
-                <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-gray-400">Todavía no hay unidades en este piso.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {units.map(u => (
+                  <tr key={u.id} className={`hover:bg-gray-50/50 transition-colors ${editingId === u.id ? 'bg-brand-50/50' : ''}`}>
+                    <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
+                    <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
+                    <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
+                    {typeConfig.showStatus && (
+                      <td className="px-6 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium
+                          ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
+                          ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
+                          ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
+                          {u.status}
+                        </span>
+                      </td>
+                    )}
+                    {typeConfig.showPrice && (
+                      <td className="px-6 py-3 text-sm text-gray-600">{u.price ? formatPrice(u.price, u.currency) : '—'}</td>
+                    )}
+                    <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
+                      {buildingId && (
+                        <>
+                          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
+                          <Link
+                            href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/tour`}
+                            className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                            title={u.tour_data?.nodes.length ? `${u.tour_data.nodes.length} panorámica${u.tour_data.nodes.length === 1 ? '' : 's'} cargada${u.tour_data.nodes.length === 1 ? '' : 's'}` : 'Todavía sin recorrido 360°'}
+                          >
+                            Recorrido 360°{u.tour_data?.nodes.length ? ` (${u.tour_data.nodes.length})` : ''}
+                          </Link>
+                        </>
+                      )}
+                      <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
+                      <button onClick={() => duplicateUnit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
+                      <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
+                    </td>
+                  </tr>
+                ))}
+                {units.length === 0 && (
+                  <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-gray-400">Todavía no hay {unitLabelLower}s en {uAgree.esta} {buildingLabelLower}.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {otherUnits.length > 0 && (
         <Card>
           <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="text-sm text-gray-600 flex-1">
-              ¿Este depto ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.
+              {hasUnitStep
+                ? '¿Este depto ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.'
+                : `¿Ya cargaste ${uAgree.un} ${unitLabelLower} con los mismos datos (ej: la misma planta tipo)? Copiá sus datos en vez de retipearlos.`}
             </p>
             <div className="flex gap-2 w-full sm:w-auto">
               <select
@@ -454,10 +495,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 onChange={e => setCopySourceId(e.target.value)}
                 className="flex-1 sm:w-64 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
               >
-                <option value="">Elegir unidad de referencia...</option>
+                <option value="">{`Elegir ${unitLabelLower} de referencia...`}</option>
                 {otherUnits.map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
+                    {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{hasUnitStep && u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
                   </option>
                 ))}
               </select>
@@ -471,15 +512,23 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
       <Card>
         <CardHeader>
-          <h3 className="text-lg font-semibold text-gray-900">{editingId ? `Editando ${form.code}` : 'Nueva unidad'}</h3>
+          <h3 className="text-lg font-semibold text-gray-900">
+            {hasUnitStep
+              ? (editingId ? `Editando ${form.code}` : `Nueva ${unitLabelLower}`)
+              : (editingId ? `Datos de ${form.code || buildingLabelLower}` : `Datos de ${uAgree.esta} ${buildingLabelLower}`)}
+          </h3>
         </CardHeader>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Input label="Código" id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="A01-01" required />
+            <Input
+              label={hasUnitStep ? 'Código' : 'Código interno'}
+              id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
+              placeholder={hasUnitStep ? 'A01-01' : buildingLabel.toUpperCase() + '-1'} required
+            />
             <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
             <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
-              {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {(hasUnitStep ? UNIT_TYPES : HOUSE_TYPES).map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
             {typeConfig.showStatus && (
               <Select label="Estado" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
@@ -515,10 +564,26 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-            Tiene cuarto de servicio
-          </label>
+          {!hasUnitStep && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
+              <Input label="Cantidad de plantas" id="floorsCount" type="number" min={1} value={form.floorsCount} onChange={e => setForm({ ...form, floorsCount: e.target.value })} />
+              <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-5">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+              Tiene cuarto de servicio
+            </label>
+            {!hasUnitStep && (
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.hasGarage} onChange={e => setForm({ ...form, hasGarage: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                Tiene cochera
+              </label>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ImageUploader label="Foto interior" value={form.interiorImageUrl} onChange={url => setForm({ ...form, interiorImageUrl: url })} folder="units" />
@@ -530,16 +595,18 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <MultiImageUploader label="Galería" values={form.galleryImages} onChange={urls => setForm({ ...form, galleryImages: urls })} folder="units" />
 
           <p className="text-xs text-gray-500">
-            El polígono del depto en el plano, los ambientes y el tour 360° se cargan en los pasos siguientes.
+            {hasUnitStep
+              ? 'El polígono del depto en el plano, los ambientes y el tour 360° se cargan en los pasos siguientes.'
+              : 'Los ambientes (incluida una pileta u otro espacio propio, si tiene) y el tour 360° se cargan en el paso siguiente.'}
           </p>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="pt-4 border-t border-gray-100 flex items-center gap-3">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : '+ Crear unidad'}
+              {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : hasUnitStep ? `+ Crear ${unitLabelLower}` : 'Guardar'}
             </Button>
-            {editingId && (
+            {editingId && hasUnitStep && (
               <Button type="button" variant="ghost" onClick={cancelEdit} className="bg-transparent hover:bg-gray-100">
                 Cancelar
               </Button>

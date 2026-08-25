@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
+import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
 import { useShareLink } from '@/hooks/useShareLink';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
@@ -33,9 +34,11 @@ export default function ProjectAdminShell({
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount();
+  const typeConfig = getProjectTypeConfig(project.project_type, project.sale_mode);
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, showLeads } = typeConfig;
+  const { missing: missingSections } = useProjectCompleteness(typeConfig);
   const shareLink = useShareLink();
   const publicHref = getProjectHref(project.slug);
-  const { hasFloorStep, buildingLabel, unitLabel, showLeads } = getProjectTypeConfig(project.project_type, project.sale_mode);
 
   const handleShare = () => {
     shareLink(getProjectDisplayUrl(project.slug, window.location.origin), project.name, `Mirá el proyecto ${project.name}`);
@@ -82,8 +85,14 @@ export default function ProjectAdminShell({
   // no es un link que expande — es un encabezado de sección con sus
   // hijos siempre visibles, para no esconderlos detrás de un click a una
   // página que no existe.
+  //
+  // Cuando building y unidad son la misma cosa (hasUnitStep false, hoy
+  // "casas"), unitLabel === buildingLabel — este ítem NO puede llamarse
+  // "Casas" igual que el de arriba (línea ~59) o quedan dos entradas
+  // idénticas en el menú sin forma de distinguirlas. Acá se edita precio y
+  // estado en lote, así que ese es el nombre.
   const operacionItems = [
-    { label: hasFloorStep ? 'Inventario' : `${unitLabel}s`, href: '/admin/inventory' },
+    { label: hasFloorStep ? 'Inventario' : hasUnitStep ? `${unitLabel}s` : 'Precios y estados', href: '/admin/inventory' },
     ...(showLeads ? [{ label: 'Leads', href: '/admin/leads' }] : []),
   ];
 
@@ -127,6 +136,20 @@ export default function ProjectAdminShell({
                 </svg>
               </button>
             </div>
+            {missingSections.length > 0 && (
+              <Link
+                href="/admin/sitio"
+                title={`Antes de compartir, te falta cargar: ${missingSections.map(s => s.label).join(', ')}`}
+                className="mt-2 flex items-start gap-1.5 px-2.5 py-1.5 bg-amber-950/40 hover:bg-amber-950/60 border border-amber-800/40 rounded-lg text-xs text-amber-300 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <span className="min-w-0">
+                  Te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`} antes de compartir
+                </span>
+              </Link>
+            )}
           </div>
           <button
             onClick={() => setMobileNavOpen(open => !open)}

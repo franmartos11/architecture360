@@ -7,7 +7,9 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { buildingAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
+import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 
 interface ProjectSummary {
@@ -17,7 +19,10 @@ interface ProjectSummary {
 
 export default function AdminDashboard() {
   const typeConfig = useProjectTypeConfig();
+  const { hasUnitStep } = typeConfig;
+  const agree = buildingAgreement(typeConfig);
   const shareLink = useShareLink();
+  const { missing: missingSections } = useProjectCompleteness(typeConfig);
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [project, setProject] = useState<ProjectSummary | null>(null);
@@ -71,8 +76,12 @@ export default function AdminDashboard() {
           <p className="text-gray-500 mt-1">Visión general del proyecto</p>
         </div>
         <EmptyState
-          title={`Todavía no hay ${typeConfig.unitLabel.toLowerCase()}s cargados.`}
-          description={`Cargá ${typeConfig.buildingLabel.toLowerCase()}s y ${typeConfig.unitLabel.toLowerCase()}s para ver las métricas acá.`}
+          title={hasUnitStep
+            ? `Todavía no hay ${typeConfig.unitLabel.toLowerCase()}s cargados.`
+            : `Todavía no hay ${typeConfig.buildingLabel.toLowerCase()}s ${agree.cargado}s.`}
+          description={hasUnitStep
+            ? `Cargá ${typeConfig.buildingLabel.toLowerCase()}s y ${typeConfig.unitLabel.toLowerCase()}s para ver las métricas acá.`
+            : `Cargá ${typeConfig.buildingLabel.toLowerCase()}s para ver las métricas acá.`}
           action={
             <Link
               href="/admin/wizard"
@@ -94,20 +103,33 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-500 mt-1">Visión general del proyecto</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 ${hasUnitStep ? 'sm:grid-cols-2' : ''} gap-6`}>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.buildingLabel}s cargados</div>
+            <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.buildingLabel}s {agree.cargado}s</div>
             <div className="text-3xl font-bold text-gray-900">{project.buildingCount}</div>
           </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.unitLabel}s cargados</div>
-            <div className="text-3xl font-bold text-gray-900">{totalUnits}</div>
-          </div>
+          {hasUnitStep && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.unitLabel}s cargados</div>
+              <div className="text-3xl font-bold text-gray-900">{totalUnits}</div>
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-900 mb-1">Compartí tu proyecto</h3>
           <p className="text-sm text-gray-500 mb-4">Mandá este link para que lo vean — no hace falta cuenta ni login.</p>
+          {missingSections.length > 0 && (
+            <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-medium text-amber-800">
+                Antes de compartir, te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`}:{' '}
+                {missingSections.map(s => s.label).join(', ')}.
+              </p>
+              <Link href="/admin/sitio" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2">
+                Completar ahora →
+              </Link>
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="font-mono text-sm text-gray-900 bg-gray-50 px-4 py-2.5 rounded-lg truncate flex-1">
               {getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '')}
@@ -147,6 +169,18 @@ export default function AdminDashboard() {
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Dashboard</h2>
         <p className="text-sm text-gray-500 mt-1">Visión general del proyecto</p>
       </div>
+
+      {missingSections.length > 0 && (
+        <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+          <p className="text-sm font-medium text-amber-800">
+            Antes de compartir, te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`}:{' '}
+            {missingSections.map(s => s.label).join(', ')}.
+          </p>
+          <Link href="/admin/sitio" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap">
+            Completar ahora →
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">

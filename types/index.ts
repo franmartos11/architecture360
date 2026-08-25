@@ -89,6 +89,17 @@ export interface Room {
   tourNodeId?: string;
 }
 
+// ─── Nivel adicional de una casa de 2+ plantas ──────────────────────
+// La planta baja de una unidad sigue viviendo en roomPlanImage/rooms (igual
+// que siempre, para no migrar datos existentes) — "levels" solo guarda las
+// plantas de más, una por cada nivel arriba de floorsCount - 1.
+export interface UnitLevel {
+  id: string;
+  label: string;                          // ej. "Piso 1", "Piso 2"
+  planImage: string | null;
+  rooms: Room[];
+}
+
 // ─── Floor ─────────────────────────────────────────────────────────
 export type FloorKind = 'units' | 'amenity' | 'offices' | 'technical' | 'parking' | 'other';
 
@@ -118,6 +129,10 @@ export interface Unit {
   bedrooms: number;
   bathrooms: number;
   hasServiceRoom: boolean;
+  lotSize?: number;      // superficie de terreno (m²) — solo aplica a casas
+  hasGarage?: boolean;   // undefined se trata como false
+  hoaFee?: number;       // expensas mensuales — solo aplica a casas en barrio privado
+  floorsCount?: number;  // cantidad de plantas de la casa — undefined se trata como 1
   price?: number;        // undefined means "consultar precio"
   currency?: string;     // ISO 4217, ej. "USD" — undefined se trata como "USD"
   status: UnitStatus;
@@ -130,8 +145,9 @@ export interface Unit {
   interiorImageUrl?: string;   // thumbnail interior photo
   galleryImages?: string[];    // array of interior/exterior image URLs
   polygon?: { x: number; y: number }[]; // optional polygon for masterplan
-  roomPlanImage?: string;      // plano de ambientes (para delimitar espacios internos)
-  rooms?: Room[];              // ambientes delimitados dentro de la unidad
+  roomPlanImage?: string;      // plano de ambientes de la planta baja/única
+  rooms?: Room[];              // ambientes delimitados de la planta baja/única
+  levels?: UnitLevel[];        // plantas adicionales (casas de 2+ niveles) — ver floorsCount
 }
 
 // ─── Building (tower) ──────────────────────────────────────────────

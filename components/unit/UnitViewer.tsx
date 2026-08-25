@@ -9,7 +9,7 @@ import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
@@ -93,7 +93,7 @@ export default function UnitViewer({
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator } = typeConfig;
+  const { showStatus, showLeads, showCalculator, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const router = useTransitionRouter();
   const searchParams = useSearchParams();
   const initialCompareUnitId = searchParams.get('compare');
@@ -106,7 +106,7 @@ export default function UnitViewer({
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const hasRooms = !!unit.rooms && unit.rooms.length > 0;
+  const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Amenity detail state (inline tab)
@@ -313,9 +313,13 @@ export default function UnitViewer({
             <SpecRow label={`Área interna ${unit.innerArea} m²`} />
             {unit.balconyArea > 0 && <SpecRow label={`Área balcones ${unit.balconyArea} m²`} />}
             {unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
+            {!!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
             <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />
             <SpecRow label={`${unit.bathrooms} Baños`} />
+            {!!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
             {unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
+            {unit.hasGarage && <SpecRow label="Cochera" />}
+            {!!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
 
           {/* Accesos rápidos a tabs de Amenities / Ubicación */}
@@ -417,7 +421,11 @@ export default function UnitViewer({
         {/* Top bar — desktop only */}
         <div className="hidden md:flex absolute top-0 left-0 right-0 z-20 flex-wrap items-center justify-between gap-2 px-4 pt-4 pointer-events-none">
           <div className="flex items-center gap-2 pointer-events-auto min-w-0">
-            <Breadcrumbs projectName={projectName} />
+            <Breadcrumbs
+              projectName={projectName}
+              buildingLabel={!hasUnitStep ? buildingLabel : undefined}
+              unitLabel={!hasUnitStep ? unitLabel : undefined}
+            />
           </div>
 
           {/* Floor badge + Cambiar planta */}
@@ -434,15 +442,19 @@ export default function UnitViewer({
                 Comparador
               </button>
             )}
-            <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5 whitespace-nowrap">
-              Planta {floorNumber}
-            </span>
-            <button
-              onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}`)}
-              className="px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
-            >
-              Cambiar planta
-            </button>
+            {hasUnitStep && (
+              <>
+                <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5 whitespace-nowrap">
+                  Planta {floorNumber}
+                </span>
+                <button
+                  onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}`)}
+                  className="px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                >
+                  Cambiar planta
+                </button>
+              </>
+            )}
           </div>
         </div>        {/* Right tab selector (hidden below md — redundant with the sidebar's own
              tab row while the sidebar renders as a full overlay drawer; from md up
@@ -473,13 +485,25 @@ export default function UnitViewer({
               <Planta3DTab unit={unit} />
             )}
 
-            {activeTab === 'tour360' && hasTour && (
-              <Tour360Tab
-                unit={unit}
-                focusNodeId={focusNodeId}
-                isFullscreen={isFullscreen}
-                onFullscreenChange={setIsFullscreen}
-              />
+            {activeTab === 'tour360' && (
+              hasTour ? (
+                <Tour360Tab
+                  unit={unit}
+                  focusNodeId={focusNodeId}
+                  isFullscreen={isFullscreen}
+                  onFullscreenChange={setIsFullscreen}
+                />
+              ) : (
+                <motion.div
+                  key="tour360-empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 pt-16 flex items-center justify-center text-gray-400 text-sm"
+                >
+                  Todavía no hay recorrido 360° cargado para esta unidad.
+                </motion.div>
+              )
             )}
 
             {activeTab === 'plano' && (
@@ -492,13 +516,25 @@ export default function UnitViewer({
               />
             )}
 
-            {activeTab === 'galeria' && unit.galleryImages && unit.galleryImages.length > 0 && (
-              <GaleriaTab
-                images={unit.galleryImages}
-                activeIndex={galleryIndex}
-                onIndexChange={setGalleryIndex}
-                onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
-              />
+            {activeTab === 'galeria' && (
+              unit.galleryImages && unit.galleryImages.length > 0 ? (
+                <GaleriaTab
+                  images={unit.galleryImages}
+                  activeIndex={galleryIndex}
+                  onIndexChange={setGalleryIndex}
+                  onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+                />
+              ) : (
+                <motion.div
+                  key="galeria-empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 pt-16 flex items-center justify-center text-gray-400 text-sm"
+                >
+                  Todavía no hay fotos cargadas para esta unidad.
+                </motion.div>
+              )
             )}
 
             {/* ── Amenities tab ── */}
@@ -548,7 +584,7 @@ export default function UnitViewer({
         </AnimatePresence>
 
         {/* Bottom-right: "Ubicación en planta" mini map — hidden en gallery mode y en mobile */}
-        {activeTab !== 'galeria' && (
+        {activeTab !== 'galeria' && hasUnitStep && (
           <button
             onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}?piso=${floorNumber}`)}
             className={`hidden md:block absolute right-16 z-20 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow ${

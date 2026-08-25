@@ -9,7 +9,7 @@ import { downloadCsv } from '@/lib/csv';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import { unitAgreement } from '@/lib/project-types';
+import { unitAgreement, buildingAgreement } from '@/lib/project-types';
 
 // building_name/floor_number no son columnas reales de `units` — las agrega
 // /api/admin/units enriqueciendo cada fila para el listado global.
@@ -35,8 +35,9 @@ export default function AdminInventory() {
   const [bulkWorking, setBulkWorking] = useState(false);
   const toast = useToast();
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
+  const bAgree = buildingAgreement(typeConfig);
   const columnCount = 4 + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -186,7 +187,9 @@ export default function AdminInventory() {
           <p className="text-sm text-gray-500 mt-1">
             {hasFloorStep
               ? 'Actualizá estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.'
-              : `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${unitLabelLower}s. Para cargar ${unitLabelLower}s ${uAgree.nuevo}s, entrá por ${buildingLabel}s → la delimitación.`}
+              : hasUnitStep
+              ? `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${unitLabelLower}s. Para cargar ${unitLabelLower}s ${uAgree.nuevo}s, entrá por ${buildingLabel}s → la delimitación.`
+              : `Actualizá estados y precios rápido, en lote. Para cargar el resto de los datos de ${bAgree.un} ${buildingLabelLower} ${bAgree.nuevo}, entrá por ${buildingLabel}s.`}
           </p>
         </div>
       </div>

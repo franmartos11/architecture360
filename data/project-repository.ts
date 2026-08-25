@@ -1,7 +1,6 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit } from '@/types';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
@@ -46,6 +45,10 @@ function mapProject(
       bedrooms: u.bedrooms,
       bathrooms: Number(u.bathrooms),
       hasServiceRoom: u.has_service_room,
+      lotSize: u.lot_size != null ? Number(u.lot_size) : undefined,
+      hasGarage: u.has_garage,
+      hoaFee: u.hoa_fee != null ? Number(u.hoa_fee) : undefined,
+      floorsCount: u.floors_count ?? 1,
       price: u.price != null ? Number(u.price) : undefined,
       currency: u.currency ?? undefined,
       status: u.status,
@@ -60,6 +63,7 @@ function mapProject(
       polygon: u.polygon ?? undefined,
       roomPlanImage: u.room_plan_image ?? undefined,
       rooms: u.rooms ?? undefined,
+      levels: u.levels ?? undefined,
     };
   });
 
@@ -235,11 +239,7 @@ export const getBuildingById = cache(async (slug: string, buildingId: string): P
   return project?.buildings.find(b => b.id === buildingId);
 });
 
-export const getUnitById = cache(async (unitId: string): Promise<Unit | undefined> => {
-  // Hoy el sitio solo sirve un proyecto (DEFAULT_PROJECT_SLUG), igual que en
-  // el resto de la app (ver Navbar/homepage). getProjectBySlug está cacheado
-  // por request, así que este fetch se comparte con cualquier otra llamada
-  // a getProjectBySlug('demo') en la misma página en vez de repetirse.
-  const project = await getProjectBySlug(DEFAULT_PROJECT_SLUG);
+export const getUnitById = cache(async (slug: string, unitId: string): Promise<Unit | undefined> => {
+  const project = await getProjectBySlug(slug);
   return project?.units.find(u => u.id === unitId);
 });

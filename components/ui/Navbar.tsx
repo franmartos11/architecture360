@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
 
-export default function Navbar({ projectSlug, showCalculator }: { projectSlug: string; showCalculator: boolean }) {
+export default function Navbar({ projectSlug, showCalculator, hasTour }: { projectSlug: string; showCalculator: boolean; hasTour: boolean }) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const projectHref = `/proyecto/${projectSlug}`;
@@ -37,9 +37,11 @@ export default function Navbar({ projectSlug, showCalculator }: { projectSlug: s
             <NavLink href={masterplanHref} active={pathname === masterplanHref}>
               Masterplan
             </NavLink>
-            <NavLink href={tourHref} active={pathname === tourHref}>
-              Recorrido
-            </NavLink>
+            {hasTour && (
+              <NavLink href={tourHref} active={pathname === tourHref}>
+                Recorrido
+              </NavLink>
+            )}
             <NavLink href={unitsHref} active={pathname === unitsHref}>
               Unidades
             </NavLink>
@@ -93,9 +95,11 @@ export default function Navbar({ projectSlug, showCalculator }: { projectSlug: s
           <MobileNavLink href={masterplanHref} active={pathname === masterplanHref} onClick={() => setIsMobileMenuOpen(false)}>
             Masterplan
           </MobileNavLink>
-          <MobileNavLink href={tourHref} active={pathname === tourHref} onClick={() => setIsMobileMenuOpen(false)}>
-            Recorrido
-          </MobileNavLink>
+          {hasTour && (
+            <MobileNavLink href={tourHref} active={pathname === tourHref} onClick={() => setIsMobileMenuOpen(false)}>
+              Recorrido
+            </MobileNavLink>
+          )}
           <MobileNavLink href={unitsHref} active={pathname === unitsHref} onClick={() => setIsMobileMenuOpen(false)}>
             Unidades
           </MobileNavLink>

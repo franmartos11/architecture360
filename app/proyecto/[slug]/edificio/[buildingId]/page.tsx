@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
 import { getProjectBySlug } from '@/data/project-repository';
@@ -38,6 +38,14 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
 
   const initialFloor = piso ? parseInt(piso, 10) : 1;
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+
+  // Una casa ES la unidad — no hay plano de pisos que navegar, así que el
+  // "edificio" público de una casa no tiene nada propio que mostrar: se
+  // salta directo a la ficha de su única unidad.
+  if (!typeConfig.hasUnitStep) {
+    const unit = project.units.find(u => u.buildingId === building.id);
+    if (unit) redirect(`/proyecto/${slug}/edificio/${buildingId}/unidad/${unit.id}`);
+  }
 
   return (
     <FloorPlanWrapper

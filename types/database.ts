@@ -4,7 +4,7 @@
 // propia copia a mano de estas mismas interfaces — un rename de columna
 // obligaba a cazar N archivos. Las páginas que solo necesitan un
 // subconjunto de columnas usan `Pick<...>` sobre estos tipos completos.
-import type { UnitType, UnitStatus, PoiCategory, TourData, Room, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ThemeConfig } from './index';
+import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ThemeConfig } from './index';
 
 export interface ProjectRow {
   id: string;
@@ -106,6 +106,10 @@ export interface UnitRow {
   bedrooms: number;
   bathrooms: number;
   has_service_room: boolean;
+  lot_size: number | null;
+  has_garage: boolean;
+  hoa_fee: number | null;
+  floors_count: number;
   price: number | null;
   currency: string;
   status: UnitStatus;
@@ -118,6 +122,7 @@ export interface UnitRow {
   room_plan_image: string | null;
   polygon: { x: number; y: number }[] | null;
   rooms: Room[] | null;
+  levels: UnitLevel[] | null;
   tour_image_url: string | null;
   tour_data: TourData | null;
   created_at: string;

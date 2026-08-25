@@ -6,9 +6,14 @@ import FloorUnitsEditor from '@/components/admin/FloorUnitsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useState, useEffect } from 'react';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { buildingAgreement } from '@/lib/project-types';
 
 export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
   const { id: buildingId, floorId } = use(params);
+  const typeConfig = useProjectTypeConfig();
+  const { hasUnitStep, buildingLabel } = typeConfig;
+  const agree = buildingAgreement(typeConfig);
 
   const [buildingName, setBuildingName] = useState('');
   const [floorLabel, setFloorLabel] = useState('');
@@ -41,14 +46,18 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link href={`/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName}</Link>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Unidades — {floorLabel}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
+            {hasUnitStep ? `Unidades — ${floorLabel}` : `Datos ${agree.del} ${buildingLabel.toLowerCase()}`}
+          </h2>
         </div>
-        <Link
-          href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
-        >
-          Delimitar en el plano →
-        </Link>
+        {hasUnitStep && (
+          <Link
+            href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`}
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+          >
+            Delimitar en el plano →
+          </Link>
+        )}
       </div>
 
       <FloorUnitsEditor buildingId={buildingId} floorId={floorId} />

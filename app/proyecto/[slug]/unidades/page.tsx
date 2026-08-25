@@ -13,9 +13,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const project = await getProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   return {
-    title: `${project.name} | Unidades`,
-    description: `Buscá y filtrá todas las unidades disponibles de ${project.name}.`,
+    title: `${project.name} | ${typeConfig.unitLabel}s`,
+    description: `Buscá y filtrá todas las ${unitLabelLower}s disponibles de ${project.name}.`,
   };
 }
 

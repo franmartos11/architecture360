@@ -9,26 +9,47 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { slugify } from '@/lib/slug';
-import type { TourData, TourNode, Room } from '@/types';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { unitAgreement } from '@/lib/project-types';
+import type { TourData, TourNode, Room, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
-type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms' | 'tour_image_url' | 'tour_data'> & {
+type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms' | 'levels' | 'tour_image_url' | 'tour_data'> & {
   building_name: string | null;
   floor_number: number | null;
 };
 
 const PALETTE = ['#83978c', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
+// Una "planta" editable — la planta baja/única vive siempre en
+// room_plan_image/rooms (igual que antes de que existieran las casas de
+// varios niveles, para no migrar datos); las plantas de más (2+) viven en
+// el array `levels`, uno por nivel. Acá se las unifica bajo una misma
+// forma para que el resto del componente no tenga que distinguir "la
+// planta base" de "una planta extra" en cada handler.
+type EditableLevel = { key: 'base' | string; label: string; planImage: string; rooms: Room[] };
+
 // Delimitador de ambientes (dormitorio, cocina, baño, etc.) dentro de una
 // unidad — se usa tanto en su propia pantalla standalone
 // (unidades/[unitId]/page.tsx) como embebido como pestaña dentro de
 // "Delimitar deptos en el plano", para tener todo el flujo de delimitación
 // (piso → depto → ambientes) en un mismo lugar.
+//
+// Cuando la unidad tiene más de una planta (floorsCount > 1, hoy solo
+// posible en casas), arriba del plano aparece un selector de planta — cada
+// una con su propio plano y sus propios ambientes delimitados encima.
 export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { buildingId: string; floorId: string; unitId: string }) {
+  const typeConfig = useProjectTypeConfig();
+  const { unitLabel } = typeConfig;
+  const unitLabelLower = unitLabel.toLowerCase();
+  const uAgree = unitAgreement(typeConfig);
   const [unitCode, setUnitCode] = useState('');
   const [unitTourData, setUnitTourData] = useState<TourData | null>(null);
-  const [roomPlanImage, setRoomPlanImage] = useState('');
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [floorsCount, setFloorsCount] = useState(1);
+  const [baseImage, setBaseImage] = useState('');
+  const [baseRooms, setBaseRooms] = useState<Room[]>([]);
+  const [extraLevels, setExtraLevels] = useState<UnitLevel[]>([]);
+  const [activeLevelIdx, setActiveLevelIdx] = useState(0);
   const [points, setPoints] = useState<Record<string, { x: number; y: number }[]>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'point' | 'rectangle'>('rectangle');
@@ -51,11 +72,11 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       .then(unit => {
         setUnitCode(unit.code ?? '');
         setUnitTourData(unit.tour_data ?? null);
-        setRoomPlanImage(unit.room_plan_image ?? '');
-        const list: Room[] = unit.rooms ?? [];
-        setRooms(list);
-        setPoints(Object.fromEntries(list.map(r => [r.id, r.polygon ?? []])));
-        setActiveId(list[0]?.id ?? null);
+        setFloorsCount(unit.floors_count ?? 1);
+        setBaseImage(unit.room_plan_image ?? '');
+        setBaseRooms(unit.rooms ?? []);
+        setExtraLevels(unit.levels ?? []);
+        setActiveLevelIdx(0);
         setLoading(false);
       })
       .catch((err) => {
@@ -67,6 +88,35 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
   useEffect(load, [unitId]);
 
+  // Plantas efectivas a mostrar: la base + una por cada planta de más que
+  // declare floorsCount — si todavía no se cargó nada para una, se le
+  // ofrece un placeholder vacío en vez de esperar a que exista en la DB.
+  const levels: EditableLevel[] = useMemo(() => {
+    const extra: EditableLevel[] = Array.from({ length: Math.max(0, floorsCount - 1) }, (_, i) => {
+      const existing = extraLevels[i];
+      return {
+        key: existing?.id ?? `piso-${i + 1}`,
+        label: existing?.label ?? `Piso ${i + 1}`,
+        planImage: existing?.planImage ?? '',
+        rooms: existing?.rooms ?? [],
+      };
+    });
+    return [{ key: 'base', label: 'Planta baja', planImage: baseImage, rooms: baseRooms }, ...extra];
+  }, [floorsCount, extraLevels, baseImage, baseRooms]);
+
+  const activeLevel = levels[activeLevelIdx] ?? levels[0];
+  const roomPlanImage = activeLevel.planImage;
+  const rooms = activeLevel.rooms;
+
+  // Cuando cambia la planta activa, el lienzo de delimitación arranca de
+  // cero con los puntos ya guardados de esa planta (los de la anterior no
+  // aplican a esta imagen).
+  useEffect(() => {
+    setPoints(Object.fromEntries(activeLevel.rooms.map(r => [r.id, r.polygon ?? []])));
+    setActiveId(activeLevel.rooms[0]?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLevelIdx, activeLevel.key]);
+
   // Unidades candidatas para "copiar diseño": cualquier otra unidad del
   // proyecto que ya tenga ambientes o recorrido 360° cargado.
   useEffect(() => {
@@ -75,7 +125,10 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       .then((data: CopySourceUnit[]) => {
         setOtherUnits(
           Array.isArray(data)
-            ? data.filter(u => u.id !== unitId && ((u.rooms?.length ?? 0) > 0 || !!u.room_plan_image))
+            ? data.filter(u => u.id !== unitId && (
+                (u.rooms?.length ?? 0) > 0 || !!u.room_plan_image
+                || (u.levels ?? []).some(l => l.rooms.length > 0 || !!l.planImage)
+              ))
             : []
         );
       })
@@ -85,7 +138,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   const handleCopyFromUnit = async () => {
     const source = otherUnits.find(u => u.id === copySourceId);
     if (!source) return;
-    const ok = await confirmDialog({ message: `Esto reemplaza el plano de ambientes y el recorrido 360° actuales por los de "${source.code}". ¿Continuar?`, confirmLabel: 'Reemplazar' });
+    const ok = await confirmDialog({ message: `Esto reemplaza los planos de ambientes (todas las plantas) y el recorrido 360° actuales por los de "${source.code}". ¿Continuar?`, confirmLabel: 'Reemplazar' });
     if (!ok) return;
     setCopying(true);
     const res = await fetch(`/api/admin/units/${unitId}`, {
@@ -94,6 +147,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       body: JSON.stringify({
         roomPlanImage: source.room_plan_image,
         rooms: source.rooms,
+        levels: source.levels,
         tourImageUrl: source.tour_image_url,
         tourData: source.tour_data,
       }),
@@ -108,30 +162,56 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     }
   };
 
-  const persistRooms = async (nextRooms: Room[]) => {
+  // Persiste rooms/planImage/tourData de la planta activa — si es la planta
+  // base pisa room_plan_image/rooms como siempre; si es una planta extra,
+  // arma el array `levels` completo (con las demás plantas intactas) y lo
+  // manda entero, porque la columna es un solo JSONB sin API para tocar un
+  // elemento suelto.
+  const persistLevel = async (updates: { planImage?: string; rooms?: Room[] }, extra?: Record<string, unknown>) => {
+    const body: Record<string, unknown> = { ...extra };
+    if (activeLevelIdx === 0) {
+      if (updates.planImage !== undefined) body.roomPlanImage = updates.planImage || null;
+      if (updates.rooms !== undefined) body.rooms = updates.rooms;
+    } else {
+      const i = activeLevelIdx - 1;
+      const nextExtra = levels.slice(1).map((l, idx) => ({
+        id: l.key,
+        label: l.label,
+        planImage: idx === i ? (updates.planImage ?? l.planImage) || null : l.planImage || null,
+        rooms: idx === i ? (updates.rooms ?? l.rooms) : l.rooms,
+      }));
+      body.levels = nextExtra;
+    }
     const res = await fetch(`/api/admin/units/${unitId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rooms: nextRooms }),
+      body: JSON.stringify(body),
     });
-    if (res.ok) {
-      setRooms(nextRooms);
-      return true;
+    if (!res.ok) {
+      toast('Error al guardar.', 'error');
+      return false;
     }
-    toast('Error al guardar.', 'error');
-    return false;
+    if (activeLevelIdx === 0) {
+      if (updates.planImage !== undefined) setBaseImage(updates.planImage);
+      if (updates.rooms !== undefined) setBaseRooms(updates.rooms);
+    } else {
+      const i = activeLevelIdx - 1;
+      setExtraLevels(levels.slice(1).map((l, idx) => ({
+        id: l.key,
+        label: l.label,
+        planImage: idx === i ? (updates.planImage ?? l.planImage) : l.planImage,
+        rooms: idx === i ? (updates.rooms ?? l.rooms) : l.rooms,
+      })));
+    }
+    if (extra?.tourData !== undefined) setUnitTourData(extra.tourData as TourData);
+    return true;
   };
 
   const handleSaveImage = async (url: string) => {
-    setRoomPlanImage(url);
     setSavingImage(true);
-    const res = await fetch(`/api/admin/units/${unitId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomPlanImage: url || null }),
-    });
+    const ok = await persistLevel({ planImage: url });
     setSavingImage(false);
-    if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
+    if (ok) toast('Guardado.');
   };
 
   const handleAddRoom = async () => {
@@ -142,7 +222,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       return;
     }
     const newRoom: Room = { id, name: newRoomName.trim(), polygon: [] };
-    const ok = await persistRooms([...rooms, newRoom]);
+    const ok = await persistLevel({ rooms: [...rooms, newRoom] });
     if (ok) {
       setPoints(prev => ({ ...prev, [id]: [] }));
       setActiveId(id);
@@ -152,27 +232,14 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
   const handleRenameRoom = async (id: string, updates: Partial<Pick<Room, 'name' | 'tourNodeId'>>) => {
     const next = rooms.map(r => (r.id === id ? { ...r, ...updates } : r));
-    await persistRooms(next);
-  };
-
-  const persistRoomsAndTour = async (nextRooms: Room[], nextTour: TourData) => {
-    const res = await fetch(`/api/admin/units/${unitId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rooms: nextRooms, tourData: nextTour }),
-    });
-    if (res.ok) {
-      setRooms(nextRooms);
-      setUnitTourData(nextTour);
-      return true;
-    }
-    toast('Error al guardar.', 'error');
-    return false;
+    await persistLevel({ rooms: next });
   };
 
   // Subir una panorámica directo desde el ambiente crea (o actualiza) su
   // nodo en el recorrido 360° y lo vincula solo, sin pasar por la pantalla
-  // separada de Recorrido ni por el <select> de sincronización manual.
+  // separada de Recorrido ni por el <select> de sincronización manual. El
+  // recorrido es único por unidad (no por planta), así que viaja aparte de
+  // los rooms en el mismo PATCH.
   const handleRoomPanoramaUpload = async (room: Room, url: string) => {
     const currentTour = unitTourData ?? { initialNodeId: '', nodes: [] };
     const existingIdx = currentTour.nodes.findIndex(n => n.id === room.tourNodeId);
@@ -191,7 +258,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
     const nextTour: TourData = { initialNodeId: currentTour.initialNodeId || nodeId || '', nodes: nextNodes };
     const nextRooms = rooms.map(r => (r.id === room.id ? { ...r, tourNodeId: nodeId } : r));
-    const ok = await persistRoomsAndTour(nextRooms, nextTour);
+    const ok = await persistLevel({ rooms: nextRooms }, { tourData: nextTour });
     if (ok) toast('Panorámica vinculada al ambiente.');
   };
 
@@ -199,7 +266,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     const confirmed = await confirmDialog({ message: '¿Borrar este ambiente?', confirmLabel: 'Borrar ambiente', danger: true });
     if (!confirmed) return;
     const next = rooms.filter(r => r.id !== id);
-    const ok = await persistRooms(next);
+    const ok = await persistLevel({ rooms: next });
     if (ok) {
       setPoints(prev => {
         const { [id]: _removed, ...rest } = prev;
@@ -216,7 +283,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   const handleSaveShape = async (id: string) => {
     setSavingShape(true);
     const next = rooms.map(r => (r.id === id ? { ...r, polygon: points[id] ?? [] } : r));
-    const ok = await persistRooms(next);
+    const ok = await persistLevel({ rooms: next });
     setSavingShape(false);
     if (ok) toast('Guardado.');
   };
@@ -254,7 +321,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Delimitá cada ambiente sobre el plano de la unidad — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
+            Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
           </p>
         </div>
         <Link
@@ -265,10 +332,24 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         </Link>
       </div>
 
+      {levels.length > 1 && (
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          {levels.map((l, i) => (
+            <button
+              key={l.key}
+              onClick={() => setActiveLevelIdx(i)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeLevelIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {l.label}{!l.planImage && <span className="text-amber-500 ml-1">·</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       {otherUnits.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <p className="text-sm text-gray-600 flex-1">
-            ¿Esta unidad tiene el mismo diseño que otra ya cargada? Copiá su plano de ambientes y recorrido 360° en vez de rehacerlo.
+            ¿{uAgree.Esta} {unitLabel} tiene el mismo diseño que otra ya cargada? Copiá su plano de ambientes (todas las plantas) y recorrido 360° en vez de rehacerlo.
           </p>
           <div className="flex gap-2 w-full sm:w-auto">
             <select
@@ -296,7 +377,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Plano de ambientes</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Plano de ambientes{levels.length > 1 ? ` — ${activeLevel.label}` : ''}</h3>
         </div>
         <div className="p-6">
           <ImageUploader value={roomPlanImage} onChange={handleSaveImage} folder="floorplans" />

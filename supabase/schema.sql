@@ -393,6 +393,10 @@ create table if not exists units (
   bedrooms int not null default 0,
   bathrooms numeric not null default 1,
   has_service_room boolean not null default false,
+  lot_size numeric,                 -- superficie de terreno (m²) — solo aplica a casas
+  has_garage boolean not null default false,
+  hoa_fee numeric,                  -- expensas mensuales — solo aplica a casas en barrio privado
+  floors_count int not null default 1, -- cantidad de plantas de la casa
   price numeric,
   currency text not null default 'USD',
   status text not null default 'available' check (status in ('available', 'reserved', 'sold')),
@@ -404,7 +408,8 @@ create table if not exists units (
   technical_plan_url text,
   room_plan_image text,
   polygon jsonb,                    -- [{x,y}, ...] en % sobre floors.plan_image
-  rooms jsonb,                      -- [{id,name,polygon,tourNodeId}, ...]
+  rooms jsonb,                      -- [{id,name,polygon,tourNodeId}, ...] de la planta baja/única
+  levels jsonb,                     -- [{id,label,planImage,rooms}, ...] plantas 2+ de una casa
   tour_image_url text,
   tour_data jsonb,                  -- { initialNodeId, nodes: [...] }
   created_at timestamptz not null default now(),
@@ -416,6 +421,15 @@ create table if not exists units (
 -- currency (el CREATE TABLE de arriba no la agrega retroactivamente) — el
 -- default 'USD' se aplica también a las filas existentes.
 alter table units add column if not exists currency text not null default 'USD';
+
+-- Campos agregados para la carga de casas (lote/cochera/plantas) — mismo
+-- motivo que currency arriba: bases ya creadas no los reciben del CREATE
+-- TABLE, así que se agregan acá de forma retroactiva e idempotente.
+alter table units add column if not exists lot_size numeric;
+alter table units add column if not exists has_garage boolean not null default false;
+alter table units add column if not exists hoa_fee numeric;
+alter table units add column if not exists floors_count int not null default 1;
+alter table units add column if not exists levels jsonb;
 
 -- ─── Vistas aéreas (carrusel) ───────────────────────────────────────
 create table if not exists aerial_slides (

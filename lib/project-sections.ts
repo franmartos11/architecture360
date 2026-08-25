@@ -128,13 +128,18 @@ interface EmptyCheckProject {
   amenities: unknown[];
   pointsOfInterest: { image?: string }[];
   units: unknown[];
+  aerialSlides: unknown[];
 }
 
 // Qué secciones DISPONIBLES no tienen nada para mostrar todavía — mismo
 // criterio de contenido que usa cada componente de
-// components/project-landing/ para devolver null. 'masterplan' queda
-// afuera: siempre tiene fallback. Compartido entre
+// components/project-landing/ para devolver null. Compartido entre
 // /admin/sitio/secciones y /admin/sitio para no duplicar el criterio.
+//
+// 'masterplan' SÍ se marca vacío sin aerialSlides — antes se asumía que
+// "siempre tiene fallback" y se dejaba afuera de este chequeo, pero el
+// fallback real (components/aerial/AerialView.tsx) era una pantalla en
+// blanco sin ningún aviso cuando no había ninguna vista aérea cargada.
 export function computeEmptySectionKeys(project: EmptyCheckProject): Set<SectionKey> {
   const empty = new Set<SectionKey>();
   if (!project.description) empty.add('about');
@@ -144,6 +149,7 @@ export function computeEmptySectionKeys(project: EmptyCheckProject): Set<Section
   if (project.amenities.length === 0) empty.add('amenities');
   if (project.units.length === 0) empty.add('typologies');
   if (!project.pointsOfInterest.some(p => p.image)) empty.add('location');
+  if (project.aerialSlides.length === 0) empty.add('masterplan');
   return empty;
 }
 

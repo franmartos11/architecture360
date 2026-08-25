@@ -41,6 +41,17 @@ export interface ProjectTypeConfig {
    * asuma pisos de verdad (la tabla de pisos, el tour "de la torre").
    */
   hasFloorStep: boolean;
+  /**
+   * Si cada building de este tipo puede tener VARIAS unidades adentro
+   * (varios deptos en un piso, varios lotes en una etapa) o si building y
+   * unidad son, en la práctica, la misma cosa (una casa sola no tiene
+   * "casas" adentro). Cuando es false, el building crea su única unidad
+   * interna automáticamente — igual que el piso invisible — y el paso
+   * "Unidades" del asistente se reemplaza por un formulario único ("Datos")
+   * que edita esa unidad directo, sin lista, sin alta de una segunda, y sin
+   * paso de Delimitación (no hay nada que delimitar con una sola unidad).
+   */
+  hasUnitStep: boolean;
 }
 
 interface StructureConfig {
@@ -51,6 +62,7 @@ interface StructureConfig {
   buildingLabel: string;
   buildingLabelGender: 'm' | 'f';
   hasFloorStep: boolean;
+  hasUnitStep: boolean;
   /** Un lote no se financia como una hipoteca convencional — aunque el propósito sea "venta", la calculadora no aplica acá. */
   allowsCalculator: boolean;
 }
@@ -77,6 +89,7 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabel: 'Edificio',
     buildingLabelGender: 'm',
     hasFloorStep: true,
+    hasUnitStep: true,
     allowsCalculator: true,
   },
   loteo: {
@@ -87,6 +100,7 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabel: 'Etapa',
     buildingLabelGender: 'f',
     hasFloorStep: false,
+    hasUnitStep: true,
     allowsCalculator: false,
   },
   duplex: {
@@ -97,6 +111,7 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabel: 'Dúplex',
     buildingLabelGender: 'm',
     hasFloorStep: false,
+    hasUnitStep: true,
     allowsCalculator: true,
   },
   casas: {
@@ -107,6 +122,8 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabel: 'Casa',
     buildingLabelGender: 'f',
     hasFloorStep: false,
+    // Cada Casa ES la unidad — no hay "varias casas" adentro de una Casa.
+    hasUnitStep: false,
     allowsCalculator: true,
   },
   unico: {
@@ -117,6 +134,7 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabel: 'Edificio',
     buildingLabelGender: 'm',
     hasFloorStep: true,
+    hasUnitStep: true,
     allowsCalculator: false,
   },
 };
@@ -168,6 +186,7 @@ export function getProjectTypeConfig(type: string, saleMode: string): ProjectTyp
     buildingLabel: structure.buildingLabel,
     buildingLabelGender: structure.buildingLabelGender,
     hasFloorStep: structure.hasFloorStep,
+    hasUnitStep: structure.hasUnitStep,
   };
 }
 

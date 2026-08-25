@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { getStatusColor } from '@/lib/units';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'>;
@@ -26,6 +27,8 @@ function centroid(points: { x: number; y: number }[]) {
 // usa tanto en su pantalla standalone (pisos/[floorId]/plano/page.tsx) como
 // embebido dentro del wizard de carga guiada.
 export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingId: string; floorId: string }) {
+  const { unitLabel } = useProjectTypeConfig();
+  const unitLabelLower = unitLabel.toLowerCase();
   const [planImage, setPlanImage] = useState<string | null>(null);
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [unitDots, setUnitDots] = useState<UnitDot[]>([]);
@@ -170,7 +173,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     setCopyingDelimitation(false);
     if (res.ok) {
       const data = await res.json();
-      toast(data.unitsUpdated > 0 ? `Delimitación copiada a ${data.unitsUpdated} depto${data.unitsUpdated === 1 ? '' : 's'}.` : 'No se encontraron deptos con código equivalente en ese piso.');
+      toast(data.unitsUpdated > 0 ? `Delimitación copiada a ${data.unitsUpdated} ${unitLabelLower}${data.unitsUpdated === 1 ? '' : 's'}.` : `No se encontraron ${unitLabelLower}s con código equivalente en ese piso.`);
       setCopySourceFloorId('');
       load();
     } else {
@@ -258,7 +261,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">Deptos</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">{unitLabel}s</h3>
         </div>
         <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
           {units.map((u, i) => {
@@ -355,7 +358,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
           <div className="px-5 py-3 border-b border-amber-100 bg-amber-50">
             <h3 className="font-semibold text-amber-900 text-sm">Pines huérfanos</h3>
             <p className="text-xs text-amber-700 mt-0.5">
-              Estos aparecen como "?" en el sitio público — no coinciden con ningún depto cargado. Se pueden borrar.
+              Estos aparecen como "?" en el sitio público — no coinciden con ningún {unitLabelLower} cargado. Se pueden borrar.
             </p>
           </div>
           <div className="divide-y divide-gray-100">

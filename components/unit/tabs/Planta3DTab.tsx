@@ -16,6 +16,11 @@ export default function Planta3DTab({ unit }: { unit: Unit }) {
       className="absolute inset-0 pt-16 flex items-center justify-center p-2 sm:p-4"
     >
       <div className="relative w-full h-full">
+        {!unit.floorPlan3dUrl && (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+            Todavía no hay planta 3D cargada para esta unidad.
+          </div>
+        )}
         {unit.floorPlan3dUrl && (
           <TransformWrapper
             initialScale={1}

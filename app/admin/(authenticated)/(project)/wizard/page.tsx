@@ -40,7 +40,7 @@ export default function AdminWizardPage() {
 
 function AdminWizardPageInner() {
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const buildingLabelLower = buildingLabel.toLowerCase();
   const searchParams = useSearchParams();
@@ -52,6 +52,13 @@ function AdminWizardPageInner() {
   // paso "Piso" no existe — se crea un piso único e invisible al crear
   // el building (ver handleCreateBuilding) y se salta directo a
   // "Unidades", relabeleado con el unitLabel del tipo (ej. "Lotes").
+  //
+  // Si encima el tipo no tiene paso de unidad propio (hoy: "casas" — el
+  // building YA ES la unidad), "Delimitación" tampoco existe: no hay nada
+  // que delimitar con una sola unidad por piso. El paso "unidades" se
+  // mantiene (mismo id, para no bifurcar el resto del wizard) pero
+  // relabeleado "Datos" — adentro, FloorUnitsEditor entra directo en modo
+  // de un solo registro (ver ese componente).
   const STEPS: { id: Step; label: string }[] = hasFloorStep
     ? [
         { id: 'edificio', label: buildingLabel },
@@ -60,10 +67,16 @@ function AdminWizardPageInner() {
         { id: 'delimitacion', label: 'Delimitación' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
       ]
-    : [
+    : hasUnitStep
+    ? [
         { id: 'edificio', label: buildingLabel },
         { id: 'unidades', label: `${unitLabel}s` },
         { id: 'delimitacion', label: 'Delimitación' },
+        { id: 'ambientes', label: 'Ambientes y Tour' },
+      ]
+    : [
+        { id: 'edificio', label: buildingLabel },
+        { id: 'unidades', label: 'Datos' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
       ];
 
@@ -476,7 +489,7 @@ function AdminWizardPageInner() {
                     {creatingBuilding ? 'Creando...' : '+ Crear'}
                   </Button>
                 </div>
-                {!hasFloorStep && (
+                {!hasFloorStep && hasUnitStep && (
                   <ImageUploader
                     label="Plano de subdivisión (opcional, lo podés subir después)"
                     value={newBuilding.planImage}
@@ -594,27 +607,31 @@ function AdminWizardPageInner() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
               {selectedFloor && selectedFloor.floor_kind !== 'units'
                 ? `Este piso es de tipo "${FLOOR_KIND_OPTIONS.find(o => o.value === selectedFloor.floor_kind)?.label}" y no tiene ${unitLabel.toLowerCase()}s — nada que hacer acá, podés terminar el piso.`
+                : !hasUnitStep
+                ? `Todavía no cargaste los datos de ${agree.esta} ${buildingLabelLower} — volvé al paso "Datos" para completarlos.`
                 : `Este piso todavía no tiene ${unitLabel.toLowerCase()}s — volvé al paso "${unitLabel}s" para crear alguna.`}
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {units.map((u, i) => {
-                  const isActive = u.id === activeUnitId || (!activeUnitId && i === 0);
-                  return (
-                    <button
-                      key={u.id}
-                      onClick={() => setActiveUnitId(u.id)}
-                      className={`flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                        isActive ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                      {u.code}
-                    </button>
-                  );
-                })}
-              </div>
+              {hasUnitStep && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {units.map((u, i) => {
+                    const isActive = u.id === activeUnitId || (!activeUnitId && i === 0);
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => setActiveUnitId(u.id)}
+                        className={`flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                          isActive ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                        {u.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <UnitRoomsEditor buildingId={buildingId} floorId={floorId} unitId={activeUnitId ?? units[0].id} />
             </div>
           )

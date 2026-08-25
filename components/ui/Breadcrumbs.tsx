@@ -5,7 +5,15 @@ import { TransitionLink } from '@/components/ui/TransitionUtils';
 import { m as motion } from 'framer-motion';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
-export default function Breadcrumbs({ projectName }: { projectName: string }) {
+interface BreadcrumbsProps {
+  projectName: string;
+  /** Override para tipos sin concepto de "torre" (ej. casas) — default 'Torre'. */
+  buildingLabel?: string;
+  /** Override para tipos sin concepto de "unidad" propiamente dicha — default 'Unidad'. */
+  unitLabel?: string;
+}
+
+export default function Breadcrumbs({ projectName, buildingLabel = 'Torre', unitLabel = 'Unidad' }: BreadcrumbsProps) {
   const pathname = usePathname();
 
   // Split and clean path segments
@@ -29,17 +37,17 @@ export default function Breadcrumbs({ projectName }: { projectName: string }) {
   const buildingIndex = segments.indexOf('edificio');
   if (buildingIndex !== -1 && segments.length > buildingIndex + 1) {
     paths.push({
-      label: 'Torre ' + segments[buildingIndex + 1].toUpperCase(),
+      label: buildingLabel + ' ' + segments[buildingIndex + 1].toUpperCase(),
       href: `${projectHref}/edificio/${segments[buildingIndex + 1]}`
     });
   }
-  
+
   // Find unit
   const unitIndex = segments.indexOf('unidad');
   if (unitIndex !== -1 && segments.length > unitIndex + 1) {
-    paths.push({ 
-      label: 'Unidad ' + segments[unitIndex + 1].toUpperCase(), 
-      href: pathname 
+    paths.push({
+      label: unitLabel + ' ' + segments[unitIndex + 1].toUpperCase(),
+      href: pathname
     });
   }
 

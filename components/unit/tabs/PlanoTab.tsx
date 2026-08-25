@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -21,6 +22,16 @@ export default function PlanoTab({
   onPlanViewChange: (view: PlanView) => void;
   onSelectRoom: (room: Room) => void;
 }) {
+  // Casas de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
+  // más arriba en unit.levels — acá se unifican para poder elegir cuál
+  // mostrar con el mismo selector.
+  const levels = useMemo(() => [
+    { label: 'Planta baja', planImage: unit.roomPlanImage || unit.technicalPlanUrl || '', rooms: unit.rooms ?? [] },
+    ...(unit.levels ?? []).map(l => ({ label: l.label, planImage: l.planImage || '', rooms: l.rooms })),
+  ], [unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
+  const [activeLevelIdx, setActiveLevelIdx] = useState(0);
+  const activeLevel = levels[activeLevelIdx] ?? levels[0];
+
   return (
     <motion.div
       key="plano"
@@ -56,14 +67,35 @@ export default function PlanoTab({
         </div>
       </div>
 
+      {/* Selector de planta — solo si hay más de una (casas de 2+ niveles) */}
+      {planView === 'ambientes' && levels.length > 1 && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+            {levels.map((l, i) => (
+              <button
+                key={l.label}
+                onClick={() => setActiveLevelIdx(i)}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${activeLevelIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Plan image with zoom */}
       <div className="flex-1 relative overflow-hidden">
-        {planView === 'ambientes' && hasRooms ? (
+        {planView === 'ambientes' && hasRooms && activeLevel.planImage ? (
           <RoomPlanViewer
-            planImage={unit.roomPlanImage || unit.technicalPlanUrl || ''}
-            rooms={unit.rooms!}
+            planImage={activeLevel.planImage}
+            rooms={activeLevel.rooms}
             onSelectRoom={onSelectRoom}
           />
+        ) : planView === 'ambientes' && hasRooms ? (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+            {activeLevel.label} sin plano cargado todavía.
+          </div>
         ) : (
         <AnimatePresence mode="wait">
           <motion.div

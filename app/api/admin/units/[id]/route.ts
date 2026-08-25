@@ -13,6 +13,10 @@ const FIELD_MAP: Record<string, string> = {
   bedrooms: 'bedrooms',
   bathrooms: 'bathrooms',
   hasServiceRoom: 'has_service_room',
+  lotSize: 'lot_size',
+  hasGarage: 'has_garage',
+  hoaFee: 'hoa_fee',
+  floorsCount: 'floors_count',
   price: 'price',
   currency: 'currency',
   status: 'status',
@@ -25,6 +29,7 @@ const FIELD_MAP: Record<string, string> = {
   roomPlanImage: 'room_plan_image',
   polygon: 'polygon',
   rooms: 'rooms',
+  levels: 'levels',
   tourImageUrl: 'tour_image_url',
   tourData: 'tour_data',
 };

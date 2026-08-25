@@ -313,7 +313,7 @@ export default function FloorPlanViewer({
           <div className="flex flex-col h-full animate-in fade-in duration-300">
             {/* Building/Floor abstract header */}
             <div className="relative h-44 sm:h-56 md:h-44 bg-gray-900 flex-shrink-0 overflow-hidden">
-              {floor && (
+              {floor && floor.planImage && (
                 <Image
                   src={floor.planImage}
                   alt="Floor plan background"
@@ -418,7 +418,7 @@ export default function FloorPlanViewer({
 
         {/* Floor plan image + unit dots */}
         <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
-          {floor ? (
+          {floor && floor.planImage ? (
             <TransformWrapper
               initialScale={1}
               minScale={0.5}
@@ -544,38 +544,42 @@ export default function FloorPlanViewer({
 
 
       {/* ── Right floor selector ──────────────────────────── */}
-      <div className="w-11 sm:w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-white border-l border-gray-100 z-20">
-        {/* Top: fullscreen icon placeholder */}
-        <div className="w-8 h-8" />
+      {/* Con un solo piso (ej: una casa) no hay nada que elegir — el
+          selector solo agrega un botón sin función. */}
+      {floorNumbers.length > 1 && (
+        <div className="w-11 sm:w-14 flex-shrink-0 flex flex-col items-center justify-between py-4 bg-white border-l border-gray-100 z-20">
+          {/* Top: fullscreen icon placeholder */}
+          <div className="w-8 h-8" />
 
-        {/* Floor numbers */}
-        <div className="flex flex-col items-center gap-1 overflow-y-auto max-h-[calc(100vh-8rem)] py-2 w-full">
-          {floorNumbers.map(num => {
-            const kind = building.floors.find(f => f.number === num)?.floorKind;
-            const isSpecial = kind && kind !== 'units';
-            const baseLabel = num === 0 ? 'Planta baja' : `Piso ${num}`;
-            return (
-              <button
-                key={num}
-                onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); setMobilePreviewUnit(null); }}
-                aria-label={isSpecial ? `${baseLabel} — ${FLOOR_KIND_LABEL[kind]}` : baseLabel}
-                aria-current={activeFloor === num ? 'true' : undefined}
-                title={isSpecial ? FLOOR_KIND_LABEL[kind] : undefined}
-                className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
-                  activeFloor === num
-                    ? 'w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 text-white shadow-lg'
-                    : 'w-8 h-8 sm:w-9 sm:h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {isSpecial ? FLOOR_KIND_ICON[kind] : num === 0 ? 'L' : num}
-              </button>
-            );
-          })}
+          {/* Floor numbers */}
+          <div className="flex flex-col items-center gap-1 overflow-y-auto max-h-[calc(100vh-8rem)] py-2 w-full">
+            {floorNumbers.map(num => {
+              const kind = building.floors.find(f => f.number === num)?.floorKind;
+              const isSpecial = kind && kind !== 'units';
+              const baseLabel = num === 0 ? 'Planta baja' : `Piso ${num}`;
+              return (
+                <button
+                  key={num}
+                  onClick={() => { setActiveFloor(num); setSelectedUnit(null); setPanelOpen(false); setMobilePreviewUnit(null); }}
+                  aria-label={isSpecial ? `${baseLabel} — ${FLOOR_KIND_LABEL[kind]}` : baseLabel}
+                  aria-current={activeFloor === num ? 'true' : undefined}
+                  title={isSpecial ? FLOOR_KIND_LABEL[kind] : undefined}
+                  className={`rounded-full text-sm font-medium transition-all duration-150 flex items-center justify-center flex-shrink-0 ${
+                    activeFloor === num
+                      ? 'w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 text-white shadow-lg'
+                      : 'w-8 h-8 sm:w-9 sm:h-9 text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {isSpecial ? FLOOR_KIND_ICON[kind] : num === 0 ? 'L' : num}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bottom placeholder */}
+          <div className="w-8 h-8" />
         </div>
-
-        {/* Bottom placeholder */}
-        <div className="w-8 h-8" />
-      </div>
+      )}
 
       {showLeads && (
         <LeadCaptureModal

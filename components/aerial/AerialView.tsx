@@ -28,9 +28,6 @@ export default function AerialView({ project }: AerialViewProps) {
 
   const slide: AerialSlide | undefined = project.aerialSlides[currentSlide];
 
-  // Si no hay slides (o el índice cayó fuera de rango), no renderizar nada.
-  if (!slide) return null;
-
   const building = activeHotspot
     ? project.buildings.find(b => b.id === activeHotspot.buildingId)
     : null;
@@ -98,7 +95,7 @@ export default function AerialView({ project }: AerialViewProps) {
 
   // Autoplay carousel
   useEffect(() => {
-    if (userInteracted || activeHotspot) return;
+    if (userInteracted || activeHotspot || project.aerialSlides.length === 0) return;
     const interval = setInterval(() => {
       setCurrentSlide(i => (i + 1) % project.aerialSlides.length);
     }, 5000);
@@ -161,6 +158,23 @@ export default function AerialView({ project }: AerialViewProps) {
       if (dx < 0) goNext(); else goPrev();
     }
   }, [goNext, goPrev]);
+
+  // Sin vista aérea cargada (proyecto nuevo, o el índice cayó fuera de
+  // rango) no hay nada que mostrar acá — antes esto devolvía null y dejaba
+  // una pantalla en blanco sin salida, que un visitante lee como que la
+  // página se quedó colgada cargando. Va después de todos los hooks (y no
+  // donde se calcula `slide`) porque los hooks de React no pueden quedar
+  // atrás de un return condicional.
+  if (!slide) {
+    return (
+      <div className="w-full min-h-screen flex flex-col items-center justify-center gap-4 bg-white px-4 text-center">
+        <p className="text-gray-400 text-sm">Todavía no hay vista aérea cargada para este proyecto.</p>
+        <Link href={`/proyecto/${project.slug}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
+          ← Volver a {project.name}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div

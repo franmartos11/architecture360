@@ -11,9 +11,9 @@ interface UnitPolygonProps {
 }
 
 function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
-  if (!unit.polygon || unit.polygon.length === 0) return null;
-  const points = unit.polygon.map((p) => `${p.x},${p.y}`).join(' ');
-
+  // Los hooks van antes que cualquier return condicional (reglas de
+  // hooks) — ninguno depende de `points`, así que no hay problema en
+  // declararlos antes de calcularlo.
   const handleMouseEnter = useCallback(() => {
     onHover(unit.id);
   }, [onHover, unit.id]);
@@ -25,6 +25,9 @@ function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
   const handleClick = useCallback(() => {
     onSelect(unit);
   }, [onSelect, unit]);
+
+  if (!unit.polygon || unit.polygon.length === 0) return null;
+  const points = unit.polygon.map((p) => `${p.x},${p.y}`).join(' ');
 
   return (
     <polygon

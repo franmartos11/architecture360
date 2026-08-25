@@ -41,7 +41,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
       style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
     >
       {theme.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: theme.fontFaceCss }} />}
-      <Navbar projectSlug={project.slug} showCalculator={typeConfig.showCalculator} />
+      <Navbar projectSlug={project.slug} showCalculator={typeConfig.showCalculator} hasTour={!!project.commonAreasTour} />
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">

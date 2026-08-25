@@ -28,7 +28,7 @@ interface FloorUnitSummary {
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const uAgree = unitAgreement(typeConfig);
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -357,10 +357,49 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             />
           </form>
         </Card>
+      ) : !hasUnitStep ? (
+        // Cada building tiene un único piso interno invisible, y ese piso
+        // una única unidad — la building ES la unidad (ver hasUnitStep en
+        // lib/project-types.ts). Nada de plano de subdivisión ni tabla de
+        // pisos acá: un link directo a los datos de esta casa.
+        <Card>
+          <CardHeader>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Datos {agree.del} {buildingLabelLower}</h3>
+              <p className="text-sm text-gray-500">Precio, fotos, ambientes y tour de {agree.esta} {buildingLabelLower}.</p>
+            </div>
+            {floors[0] && (
+              <Link
+                href={`/admin/edificios/${id}/pisos/${floors[0].id}`}
+                className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0"
+              >
+                Editar →
+              </Link>
+            )}
+          </CardHeader>
+          <div className="p-6">
+            {floors[0] ? (
+              (() => {
+                const c = completeness(floors[0].id);
+                if (c.total === 0) return <p className="text-sm text-gray-400">Todavía no cargaste los datos {agree.del} {buildingLabelLower}.</p>;
+                return (
+                  <p className="text-sm text-gray-600">
+                    {c.missingPhoto > 0 && <span className="text-amber-600">Sin foto</span>}
+                    {c.missingPrice > 0 && <span className="text-amber-600">{c.missingPhoto > 0 ? ' · ' : ''}Sin precio</span>}
+                    {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="text-green-600">Completo</span>}
+                  </p>
+                );
+              })()
+            ) : (
+              <p className="text-sm text-gray-400">No se pudo encontrar el piso interno de {agree.esta} {buildingLabelLower} — probá recargar la página.</p>
+            )}
+          </div>
+        </Card>
       ) : (
-        // Sin pisos reales: el building tiene un único piso interno
-        // (creado solo al crear la Etapa) — acá se edita directo su plano
-        // y se entra a delimitar/cargar sus lotes, sin la tabla de pisos.
+        // Sin pisos reales pero con varias unidades por building (loteo,
+        // dúplex): el building tiene un único piso interno (creado solo al
+        // crear la Etapa) — acá se edita directo su plano y se entra a
+        // delimitar/cargar sus lotes, sin la tabla de pisos.
         <Card>
           <CardHeader>
             <div>
