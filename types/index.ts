@@ -130,7 +130,13 @@ export interface Unit {
   bathrooms: number;
   hasServiceRoom: boolean;
   lotSize?: number;      // superficie de terreno (m²) — solo aplica a casas
-  hasGarage?: boolean;   // undefined se trata como false
+  ceilingHeight?: number;      // altura de techo (m) — solo aplica a casas
+  garageSpaces?: number;       // cantidad de cocheras — undefined/0 se trata como sin cochera
+  garageType?: 'cubierta' | 'descubierta';
+  livingRooms?: number;        // cantidad de livings — solo aplica a casas
+  kitchens?: number;           // cantidad de cocinas — solo aplica a casas
+  otherRoomsCount?: number;    // otros ambientes (lavadero, depósito, etc.) — solo casas
+  otherRoomsDescription?: string;
   hoaFee?: number;       // expensas mensuales — solo aplica a casas en barrio privado
   floorsCount?: number;  // cantidad de plantas de la casa — undefined se trata como 1
   price?: number;        // undefined means "consultar precio"

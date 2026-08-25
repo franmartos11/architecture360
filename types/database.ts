@@ -107,7 +107,13 @@ export interface UnitRow {
   bathrooms: number;
   has_service_room: boolean;
   lot_size: number | null;
-  has_garage: boolean;
+  ceiling_height: number | null;
+  garage_spaces: number;
+  garage_type: 'cubierta' | 'descubierta' | null;
+  living_rooms: number;
+  kitchens: number;
+  other_rooms_count: number;
+  other_rooms_description: string | null;
   hoa_fee: number | null;
   floors_count: number;
   price: number | null;

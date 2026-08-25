@@ -7,20 +7,27 @@ interface VideoUploaderProps {
   onChange: (url: string) => void;
   folder: string;
   label?: string;
+  /** Ver el mismo prop en ImageUploader — mismo motivo. */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 // Igual que ImageUploader pero para video (mp4/webm/mov) — con drag&drop,
 // preview reproducible, y un campo de URL de respaldo por si el video
 // vive en otro lado (ej: ya lo subieron a un CDN de video).
-export default function VideoUploader({ value, onChange, folder, label }: VideoUploaderProps) {
+export default function VideoUploader({ value, onChange, folder, label, onUploadingChange }: VideoUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const setUploadingState = (value: boolean) => {
+    setUploading(value);
+    onUploadingChange?.(value);
+  };
+
   const handleFile = async (file: File) => {
     setError('');
-    setUploading(true);
+    setUploadingState(true);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
@@ -35,7 +42,7 @@ export default function VideoUploader({ value, onChange, folder, label }: VideoU
     } catch {
       setError('Error de conexión al subir el archivo');
     } finally {
-      setUploading(false);
+      setUploadingState(false);
     }
   };
 

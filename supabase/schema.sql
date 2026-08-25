@@ -394,7 +394,13 @@ create table if not exists units (
   bathrooms numeric not null default 1,
   has_service_room boolean not null default false,
   lot_size numeric,                 -- superficie de terreno (m²) — solo aplica a casas
-  has_garage boolean not null default false,
+  ceiling_height numeric,           -- altura de techo (m) — solo aplica a casas
+  garage_spaces int not null default 0,  -- cantidad de cocheras — solo aplica a casas
+  garage_type text check (garage_type is null or garage_type in ('cubierta', 'descubierta')),
+  living_rooms int not null default 1,   -- cantidad de livings — solo aplica a casas
+  kitchens int not null default 1,       -- cantidad de cocinas — solo aplica a casas
+  other_rooms_count int not null default 0,   -- otros ambientes (lavadero, depósito, etc.) — solo casas
+  other_rooms_description text,               -- detalle libre de esos otros ambientes
   hoa_fee numeric,                  -- expensas mensuales — solo aplica a casas en barrio privado
   floors_count int not null default 1, -- cantidad de plantas de la casa
   price numeric,
@@ -430,6 +436,22 @@ alter table units add column if not exists has_garage boolean not null default f
 alter table units add column if not exists hoa_fee numeric;
 alter table units add column if not exists floors_count int not null default 1;
 alter table units add column if not exists levels jsonb;
+
+-- Rediseño de la sección "Datos" de una casa: altura de techo, cochera con
+-- cantidad+tipo (reemplaza el booleano has_garage) y desglose de ambientes
+-- (antes solo dormitorios/baños). has_garage se migra a garage_spaces/
+-- garage_type y se elimina — no queda ningún lugar del código que siga
+-- leyéndolo.
+alter table units add column if not exists ceiling_height numeric;
+alter table units add column if not exists garage_spaces int not null default 0;
+alter table units add column if not exists garage_type text check (garage_type is null or garage_type in ('cubierta', 'descubierta'));
+alter table units add column if not exists living_rooms int not null default 1;
+alter table units add column if not exists kitchens int not null default 1;
+alter table units add column if not exists other_rooms_count int not null default 0;
+alter table units add column if not exists other_rooms_description text;
+
+update units set garage_spaces = 1, garage_type = 'cubierta' where has_garage and garage_spaces = 0;
+alter table units drop column if exists has_garage;
 
 -- ─── Vistas aéreas (carrusel) ───────────────────────────────────────
 create table if not exists aerial_slides (
@@ -821,7 +843,7 @@ create table if not exists notifications (
   id           uuid primary key default gen_random_uuid(),
   recipient_id uuid not null references profiles(id) on delete cascade,
   actor_id     uuid not null references profiles(id) on delete cascade,
-  type         text not null check (type in ('follow', 'like', 'comment', 'collaboration_accepted', 'message', 'mention')),
+  type         text not null check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention')),
   entity_id    uuid,
   read_at      timestamptz,
   created_at   timestamptz not null default now()
@@ -847,13 +869,13 @@ create policy "mark own notifications read" on notifications for update to authe
   using (recipient_id = auth.uid())
   with check (recipient_id = auth.uid());
 
--- 'message'/'mention' se suman recién ahora al type — en una base que ya
--- tenía la tabla creada, el check original de la columna no los incluye
--- todavía y hay que ampliarlo a mano (el create table de arriba es un
--- no-op si la tabla ya existe).
+-- 'message'/'mention'/'collaboration_invite' se suman recién ahora al type
+-- — en una base que ya tenía la tabla creada, el check original de la
+-- columna no los incluye todavía y hay que ampliarlo a mano (el create
+-- table de arriba es un no-op si la tabla ya existe).
 alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
-  check (type in ('follow', 'like', 'comment', 'collaboration_accepted', 'message', 'mention'));
+  check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention'));
 
 -- ─── Mensajería directa ──────────────────────────────────────────────
 -- participant_one siempre el uuid menor de los dos (se normaliza al

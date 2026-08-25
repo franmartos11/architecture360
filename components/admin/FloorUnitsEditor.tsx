@@ -21,7 +21,9 @@ import { formatPrice } from '@/lib/units';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
-  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'lot_size' | 'has_garage' | 'hoa_fee' | 'floors_count'
+  | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'lot_size' | 'ceiling_height'
+  | 'garage_spaces' | 'garage_type' | 'living_rooms' | 'kitchens' | 'other_rooms_count' | 'other_rooms_description'
+  | 'hoa_fee' | 'floors_count'
   | 'price' | 'currency' | 'status'
   | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
   | 'plan_3d_url' | 'technical_plan_url' | 'created_at'
@@ -70,7 +72,9 @@ const EMPTY_FORM = {
   code: '', modelName: '', type: '2 dormitorios' as UnitType,
   totalArea: '', innerArea: '', balconyArea: '0', externalArea: '0',
   bedrooms: '2', bathrooms: '2', hasServiceRoom: false,
-  lotSize: '', hasGarage: false, hoaFee: '', floorsCount: '1',
+  lotSize: '', ceilingHeight: '', hoaFee: '', floorsCount: '1',
+  livingRooms: '1', kitchens: '1', otherRoomsCount: '0', otherRoomsDescription: '',
+  garageSpaces: '0', garageType: 'cubierta' as 'cubierta' | 'descubierta',
   price: '', currency: 'USD', status: 'available' as UnitStatus, orientation: '',
   interiorImageUrl: '', galleryImages: [] as string[],
   floorPlan3dUrl: '', plan3dUrl: '', technicalPlanUrl: '',
@@ -79,7 +83,10 @@ const EMPTY_FORM = {
 type SourceUnitLike = {
   model_name: string | null; type: UnitType; total_area: number | null; inner_area: number | null;
   balcony_area: number | null; external_area: number | null; bedrooms: number | null; bathrooms: number | null;
-  has_service_room: boolean; lot_size: number | null; has_garage: boolean; hoa_fee: number | null; floors_count: number;
+  has_service_room: boolean; lot_size: number | null; ceiling_height: number | null;
+  garage_spaces: number; garage_type: 'cubierta' | 'descubierta' | null;
+  living_rooms: number; kitchens: number; other_rooms_count: number; other_rooms_description: string | null;
+  hoa_fee: number | null; floors_count: number;
   price: number | null; currency: string; status: UnitStatus; orientation: string | null;
   interior_image_url: string | null; gallery_images: string[] | null; floor_plan_3d_url: string | null;
   plan_3d_url: string | null; technical_plan_url: string | null;
@@ -100,7 +107,13 @@ function formFieldsFromUnit(u: SourceUnitLike) {
     bathrooms: String(u.bathrooms ?? 1),
     hasServiceRoom: u.has_service_room,
     lotSize: u.lot_size != null ? String(u.lot_size) : '',
-    hasGarage: u.has_garage,
+    ceilingHeight: u.ceiling_height != null ? String(u.ceiling_height) : '',
+    garageSpaces: String(u.garage_spaces ?? 0),
+    garageType: u.garage_type ?? 'cubierta',
+    livingRooms: String(u.living_rooms ?? 1),
+    kitchens: String(u.kitchens ?? 1),
+    otherRoomsCount: String(u.other_rooms_count ?? 0),
+    otherRoomsDescription: u.other_rooms_description ?? '',
     hoaFee: u.hoa_fee != null ? String(u.hoa_fee) : '',
     floorsCount: String(u.floors_count ?? 1),
     price: u.price != null ? String(u.price) : '',
@@ -259,7 +272,13 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     bathrooms: Number(form.bathrooms || 1),
     hasServiceRoom: form.hasServiceRoom,
     lotSize: form.lotSize === '' ? null : Number(form.lotSize),
-    hasGarage: form.hasGarage,
+    ceilingHeight: form.ceilingHeight === '' ? null : Number(form.ceilingHeight),
+    garageSpaces: Number(form.garageSpaces || 0),
+    garageType: Number(form.garageSpaces || 0) > 0 ? form.garageType : null,
+    livingRooms: Number(form.livingRooms || 0),
+    kitchens: Number(form.kitchens || 0),
+    otherRoomsCount: Number(form.otherRoomsCount || 0),
+    otherRoomsDescription: form.otherRoomsDescription || null,
     hoaFee: form.hoaFee === '' ? null : Number(form.hoaFee),
     floorsCount: Number(form.floorsCount || 1),
     price: form.price === '' ? null : Number(form.price),
@@ -308,7 +327,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     if (res.ok) {
       toast(editingId ? 'Cambios guardados.' : `${unitLabel} creada.`);
       if (editingId) {
-        cancelEdit();
+        // Para "casas" (!hasUnitStep) el form editado ES la única unidad —
+        // vaciarlo tras guardar dejaba al usuario frente a una pantalla en
+        // blanco que parecía "crear otra casa". Al no tener paso de
+        // unidades propio, no hay a dónde volver: se queda mostrando lo
+        // que se acaba de guardar.
+        if (hasUnitStep) cancelEdit();
       } else if (hasUnitStep) {
         // Deja cargados los mismos valores para el próximo depto — solo
         // hace falta cambiar el código — en vez de volver al form vacío.
@@ -542,7 +566,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Input label="Área total (m²)" id="totalArea" type="number" step="0.01" value={form.totalArea} onChange={e => setForm({ ...form, totalArea: e.target.value })} />
             <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
-            <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
+            {hasUnitStep && (
+              <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
+            )}
             <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
           </div>
 
@@ -565,11 +591,33 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           </div>
 
           {!hasUnitStep && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
-              <Input label="Cantidad de plantas" id="floorsCount" type="number" min={1} value={form.floorsCount} onChange={e => setForm({ ...form, floorsCount: e.target.value })} />
-              <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
-            </div>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
+                <Input label="Altura de techo (m)" id="ceilingHeight" type="number" step="0.01" value={form.ceilingHeight} onChange={e => setForm({ ...form, ceilingHeight: e.target.value })} placeholder="2.60" />
+                <Input label="Cantidad de plantas" id="floorsCount" type="number" min={1} value={form.floorsCount} onChange={e => setForm({ ...form, floorsCount: e.target.value })} />
+                {typeConfig.showPrice && (
+                  <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Input label="Livings" id="livingRooms" type="number" min={0} value={form.livingRooms} onChange={e => setForm({ ...form, livingRooms: e.target.value })} />
+                <Input label="Cocinas" id="kitchens" type="number" min={0} value={form.kitchens} onChange={e => setForm({ ...form, kitchens: e.target.value })} />
+                <Input label="Otros ambientes" id="otherRoomsCount" type="number" min={0} value={form.otherRoomsCount} onChange={e => setForm({ ...form, otherRoomsCount: e.target.value })} placeholder="0" />
+                <Input label="Detalle otros ambientes" id="otherRoomsDescription" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito" />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Input label="Cantidad de cocheras" id="garageSpaces" type="number" min={0} value={form.garageSpaces} onChange={e => setForm({ ...form, garageSpaces: e.target.value })} />
+                {Number(form.garageSpaces || 0) > 0 && (
+                  <Select label="Tipo de cochera" id="garageType" value={form.garageType} onChange={e => setForm({ ...form, garageType: e.target.value as 'cubierta' | 'descubierta' })}>
+                    <option value="cubierta">Cubierta</option>
+                    <option value="descubierta">Descubierta</option>
+                  </Select>
+                )}
+              </div>
+            </>
           )}
 
           <div className="flex flex-wrap items-center gap-5">
@@ -577,12 +625,6 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
               Tiene cuarto de servicio
             </label>
-            {!hasUnitStep && (
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={form.hasGarage} onChange={e => setForm({ ...form, hasGarage: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-                Tiene cochera
-              </label>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

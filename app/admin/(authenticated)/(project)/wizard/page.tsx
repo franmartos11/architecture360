@@ -9,6 +9,8 @@ import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
 import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
 import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
+import LocationEditor from '@/components/admin/section-editors/LocationEditor';
+import AmenitiesEditor from '@/components/admin/section-editors/AmenitiesEditor';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -28,7 +30,17 @@ interface BuildingRow { id: string; slug: string; name: string; total_floors: nu
 interface FloorRow { id: string; number: number; label: string; plan_image: string | null; floor_kind: FloorKind; floor_kind_description: string | null }
 interface UnitRow { id: string; code: string }
 
-type Screen = 'wizard' | 'continuar' | 'resumen';
+type Screen = 'wizard' | 'continuar' | 'proyecto' | 'resumen';
+type ProjectStep = 'ubicacion' | 'amenities';
+
+// Ubicación y Amenities son de nivel PROYECTO, no de este edificio/casa en
+// particular — se cargan una sola vez, no una vez por edificio. Por eso
+// viven en una pantalla propia entre "continuar" (¿seguís con otro
+// edificio?) y "resumen" (listo), en vez de ser un paso más de STEPS.
+const PROJECT_STEPS: { id: ProjectStep; label: string }[] = [
+  { id: 'ubicacion', label: 'Ubicación' },
+  { id: 'amenities', label: 'Amenities' },
+];
 
 export default function AdminWizardPage() {
   return (
@@ -82,6 +94,7 @@ function AdminWizardPageInner() {
 
   const [screen, setScreen] = useState<Screen>('wizard');
   const [step, setStep] = useState<Step>('edificio');
+  const [projectStep, setProjectStep] = useState<ProjectStep>('ubicacion');
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [floorId, setFloorId] = useState<string | null>(null);
 
@@ -312,7 +325,8 @@ function AdminWizardPageInner() {
   };
   const finishAndReset = () => {
     localStorage.removeItem(STORAGE_KEY);
-    setScreen('resumen');
+    setProjectStep('ubicacion');
+    setScreen('proyecto');
   };
 
   if (screen === 'continuar') {
@@ -355,7 +369,7 @@ function AdminWizardPageInner() {
             className="text-left p-5 bg-gray-900 rounded-2xl hover:bg-gray-800 transition-colors"
           >
             <p className="font-semibold text-white">✅ Por ahora terminé</p>
-            <p className="text-sm text-gray-300 mt-1">Ver qué falta para el resto del proyecto (vista aérea, amenities, ubicación).</p>
+            <p className="text-sm text-gray-300 mt-1">Cargar la ubicación y los amenities del proyecto (una sola vez, no por {buildingLabelLower}).</p>
           </button>
         </div>
 
@@ -370,18 +384,66 @@ function AdminWizardPageInner() {
     );
   }
 
+  if (screen === 'proyecto') {
+    const projectStepIndex = PROJECT_STEPS.findIndex(s => s.id === projectStep);
+    const isLastProjectStep = projectStepIndex === PROJECT_STEPS.length - 1;
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 py-10">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Ya está la estructura — faltan dos cosas del proyecto</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Ubicación y Amenities no son de {agree.esta} {buildingLabelLower} en particular, sino de todo el proyecto — se cargan una sola vez, no en cada {buildingLabelLower}.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 justify-center">
+          {PROJECT_STEPS.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => setProjectStep(s.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                s.id === projectStep ? 'bg-gray-900 text-white' : i < projectStepIndex ? 'text-brand-700 hover:bg-brand-50' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                s.id === projectStep ? 'bg-white text-gray-900' : i < projectStepIndex ? 'bg-brand-100 text-brand-700' : 'bg-gray-200 text-gray-500'
+              }`}>
+                {i < projectStepIndex ? '✓' : i + 1}
+              </span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          {projectStep === 'ubicacion' && <LocationEditor />}
+          {projectStep === 'amenities' && <AmenitiesEditor />}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+          <button type="button" onClick={() => setScreen('resumen')} className="text-sm text-gray-400 hover:text-gray-600">
+            Omitir y hacerlo después →
+          </button>
+          <Button onClick={() => (isLastProjectStep ? setScreen('resumen') : setProjectStep(PROJECT_STEPS[projectStepIndex + 1].id))}>
+            {isLastProjectStep ? 'Terminar →' : 'Siguiente →'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (screen === 'resumen') {
     return (
       <div className="max-w-2xl mx-auto space-y-6 py-10">
         <div className="text-center">
           <div className="text-4xl mb-2">🎉</div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Estructura de {buildingLabel.toLowerCase()} cargada</h2>
-          <p className="text-sm text-gray-500 mt-1">Para terminar de preparar el proyecto para publicar, te falta esto — cada uno es una sola pantalla, no hace falta repetir el wizard:</p>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Proyecto listo para revisar</h2>
+          <p className="text-sm text-gray-500 mt-1">Solo queda una cosa fuera de este asistente — cada una es una sola pantalla:</p>
         </div>
         <div className="grid gap-3">
           <Link href="/admin/proyecto" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
-            <p className="font-medium text-gray-900">Vista aérea, Amenities, Ubicación</p>
-            <p className="text-sm text-gray-500">Desde "Proyecto" accedés a las tres — vista aérea (dónde está cada {buildingLabel.toLowerCase()}), amenities y puntos de interés.</p>
+            <p className="font-medium text-gray-900">Vista aérea</p>
+            <p className="text-sm text-gray-500">El carrusel que se ve al entrar al masterplan — se carga desde Proyecto.</p>
           </Link>
           <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
             <p className="font-medium text-gray-900">Seguir cargando {buildingLabel.toLowerCase()}s</p>

@@ -8,21 +8,33 @@ interface ImageUploaderProps {
   onChange: (url: string) => void;
   folder: string;
   label?: string;
+  /**
+   * El padre puede necesitar saber si esta subida sigue en curso — ej. para
+   * deshabilitar un botón "Guardar" que de otro modo se puede tocar antes de
+   * que termine (el usuario ve la miniatura "subiendo" pero el value real
+   * todavía está vacío) y falla en silencio.
+   */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 // Subida de imagen a Supabase Storage con drag&drop, más un campo de
 // texto de respaldo por si quieren pegar una URL externa directamente
 // en vez de subir un archivo.
-export default function ImageUploader({ value, onChange, folder, label }: ImageUploaderProps) {
+export default function ImageUploader({ value, onChange, folder, label, onUploadingChange }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const setUploadingState = (value: boolean) => {
+    setUploading(value);
+    onUploadingChange?.(value);
+  };
+
   const handleFile = async (file: File) => {
     setError('');
-    setUploading(true);
+    setUploadingState(true);
     const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
     const formData = new FormData();
     formData.append('file', toUpload);
@@ -38,7 +50,7 @@ export default function ImageUploader({ value, onChange, folder, label }: ImageU
     } catch {
       setError('Error de conexión al subir el archivo');
     } finally {
-      setUploading(false);
+      setUploadingState(false);
     }
   };
 

@@ -2,11 +2,19 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
+import { notify } from '@/lib/notify';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const RATE_LIMIT_WINDOW_MINUTES = 10;
 const RATE_LIMIT_MAX_INVITES = 10;
 
-async function notifyInvitee(profileId: string, projectName: string) {
+async function notifyInvitee(
+  supabase: SupabaseClient,
+  { profileId, actorId, projectId, projectName }: { profileId: string; actorId: string; projectId: string; projectName: string }
+) {
+  // Dos canales, cada uno best-effort por separado — que falle el mail no
+  // debe tapar la notificación in-app, ni al revés.
+  await notify(supabase, { recipientId: profileId, actorId, type: 'collaboration_invite', entityId: projectId });
   try {
     const { data: { user: invitee } } = await createAdminClient().auth.admin.getUserById(profileId);
     if (!invitee?.email) return;
@@ -62,7 +70,7 @@ export async function POST(request: Request) {
       .select('*, profile:profiles(handle, display_name, avatar_image)')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (project?.name) await notifyInvitee(profile.id, project.name);
+    if (project?.name) await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
     return NextResponse.json(data, { status: 201 });
   }
 
@@ -91,6 +99,6 @@ export async function POST(request: Request) {
     if (error.code === '23505') return NextResponse.json({ error: 'Esa persona ya está acreditada en este proyecto.' }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  if (project?.name) await notifyInvitee(profile.id, project.name);
+  if (project?.name) await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
   return NextResponse.json(data, { status: 201 });
 }

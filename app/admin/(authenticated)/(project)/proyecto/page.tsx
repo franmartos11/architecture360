@@ -57,7 +57,8 @@ const COLLABORATOR_STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
 };
 
 export default function AdminProjectPage() {
-  const { saleMode } = useProjectTypeConfig();
+  const { saleMode, buildingLabel } = useProjectTypeConfig();
+  const buildingLabelLower = buildingLabel.toLowerCase();
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [slides, setSlides] = useState<SlideRow[]>([]);
@@ -68,6 +69,8 @@ export default function AdminProjectPage() {
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newSlide, setNewSlide] = useState({ imageUrl: '', videoUrl: '', label: '' });
+  const [newSlideImageUploading, setNewSlideImageUploading] = useState(false);
+  const [newSlideVideoUploading, setNewSlideVideoUploading] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<PersonSearchResult | null>(null);
   const [newCollaborator, setNewCollaborator] = useState({ contribution: '' });
   const [collaboratorError, setCollaboratorError] = useState('');
@@ -136,7 +139,14 @@ export default function AdminProjectPage() {
 
   const handleAddSlide = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSlide.imageUrl || !newSlide.label) return;
+    if (newSlideImageUploading || newSlideVideoUploading) {
+      toast('Esperá a que termine de subir el archivo.', 'error');
+      return;
+    }
+    if (!newSlide.imageUrl || !newSlide.label) {
+      toast('Faltan la foto y/o la etiqueta.', 'error');
+      return;
+    }
     const res = await fetch('/api/admin/aerial-slides', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -383,6 +393,11 @@ export default function AdminProjectPage() {
           <h3 className="text-lg font-semibold text-gray-900">Colaboradores</h3>
           <p className="text-sm text-gray-500">Acreditá a quien trabajó en este proyecto por su handle de portfolio. El crédito queda pendiente hasta que esa persona lo confirma, y recién ahí aparece en la ficha del proyecto y en su propio portfolio.</p>
         </CardHeader>
+        {project.academic_team && (
+          <p className="px-6 py-3 text-sm text-amber-700 bg-amber-50 border-b border-amber-100">
+            Antes tenías cargado como texto libre: <span className="font-medium">&ldquo;{project.academic_team}&rdquo;</span>. Ese campo se sacó porque quedaba duplicado con esto — agregalos acá abajo como colaboradores reales para que puedan confirmarlo y les quede en su portfolio.
+          </p>
+        )}
         <div className="divide-y divide-gray-100">
           {collaborators.map(c => (
             <div key={c.id} className="p-4 flex items-center gap-4">
@@ -528,14 +543,6 @@ export default function AdminProjectPage() {
               onChange={e => setProject({ ...project, academic_year: e.target.value })}
               placeholder="2025"
             />
-            <div className="sm:col-span-2">
-              <Input
-                label="Integrantes (si fue grupal)"
-                value={project.academic_team ?? ''}
-                onChange={e => setProject({ ...project, academic_team: e.target.value })}
-                placeholder="Juana Pérez, Martín Gómez"
-              />
-            </div>
             <div className="sm:col-span-2 pt-2 border-t border-gray-100 flex items-center justify-end">
               <Button type="submit" disabled={saving}>
                 {saving ? 'Guardando...' : 'Guardar Cambios'}
@@ -626,7 +633,7 @@ export default function AdminProjectPage() {
       <Card>
         <CardHeader className="block">
           <h3 className="text-lg font-semibold text-gray-900">Vistas aéreas</h3>
-          <p className="text-sm text-gray-500">El carrusel que ve el visitante al entrar al proyecto, con los hotspots de cada edificio.</p>
+          <p className="text-sm text-gray-500">Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada {buildingLabelLower}.</p>
         </CardHeader>
 
         <div className="divide-y divide-gray-100">
@@ -671,7 +678,7 @@ export default function AdminProjectPage() {
                   const b = buildings.find(bb => bb.id === h.building_id);
                   return (
                     <div key={h.id} className="flex items-center gap-3 text-sm">
-                      <span className="text-gray-700 font-medium w-32 truncate">{b?.name ?? '(edificio borrado)'}</span>
+                      <span className="text-gray-700 font-medium w-32 truncate">{b?.name ?? `(${buildingLabelLower} borrado)`}</span>
                       <span className="text-gray-500">x: {h.x}%, y: {h.y}%</span>
                       <button onClick={() => handleDeleteHotspot(h.id)} className="text-gray-400 hover:text-red-500 ml-auto">×</button>
                     </div>
@@ -699,8 +706,8 @@ export default function AdminProjectPage() {
                 aria-label="Etiqueta de la vista aérea"
               />
             </div>
-            <Button type="submit" className="w-full sm:w-auto">
-              + Agregar vista
+            <Button type="submit" className="w-full sm:w-auto" disabled={newSlideImageUploading || newSlideVideoUploading}>
+              {newSlideImageUploading || newSlideVideoUploading ? 'Subiendo...' : '+ Agregar vista'}
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -708,12 +715,14 @@ export default function AdminProjectPage() {
               label="Foto (poster / respaldo)"
               value={newSlide.imageUrl}
               onChange={url => setNewSlide({ ...newSlide, imageUrl: url })}
+              onUploadingChange={setNewSlideImageUploading}
               folder="aerial"
             />
             <VideoUploader
               label="Video (opcional)"
               value={newSlide.videoUrl}
               onChange={url => setNewSlide({ ...newSlide, videoUrl: url })}
+              onUploadingChange={setNewSlideVideoUploading}
               folder="aerial"
             />
           </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
+import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
 
 // GET /api/admin/units            → todas las unidades del proyecto activo,
 //                                    con edificio/piso resueltos (para el
@@ -73,6 +74,27 @@ export async function POST(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase: sessionClient } = access;
 
+  // Tipos sin "paso de unidades" (hoy: casas) tienen el building COMO la
+  // unidad — no admiten una segunda. El cliente ya oculta el alta múltiple
+  // para estos casos (ver FloorUnitsEditor.tsx), pero eso no alcanza: sin
+  // este chequeo acá, cualquier llamada directa al endpoint (o una carrera
+  // entre pantallas) podía crear una segunda unidad huérfana en el mismo
+  // piso.
+  const { data: project } = await sessionClient.from('projects').select('project_type, sale_mode').eq('id', projectId).maybeSingle();
+  const typeConfig = getProjectTypeConfig(project?.project_type ?? '', project?.sale_mode ?? '');
+  if (!typeConfig.hasUnitStep) {
+    const { count } = await sessionClient
+      .from('units')
+      .select('id', { count: 'exact', head: true })
+      .eq('floor_id', body.floorId);
+    if ((count ?? 0) > 0) {
+      const bAgree = buildingAgreement(typeConfig);
+      return NextResponse.json({
+        error: `${bAgree.Esta} ${typeConfig.buildingLabel.toLowerCase()} ya tiene su ${typeConfig.unitLabel.toLowerCase()} cargada — no admite más de una.`,
+      }, { status: 409 });
+    }
+  }
+
   const { data, error } = await sessionClient
     .from('units')
     .insert({
@@ -88,7 +110,13 @@ export async function POST(request: Request) {
       bathrooms: body.bathrooms ?? 1,
       has_service_room: body.hasServiceRoom ?? false,
       lot_size: body.lotSize ?? null,
-      has_garage: body.hasGarage ?? false,
+      ceiling_height: body.ceilingHeight ?? null,
+      garage_spaces: body.garageSpaces ?? 0,
+      garage_type: body.garageType ?? null,
+      living_rooms: body.livingRooms ?? 1,
+      kitchens: body.kitchens ?? 1,
+      other_rooms_count: body.otherRoomsCount ?? 0,
+      other_rooms_description: body.otherRoomsDescription ?? null,
       hoa_fee: body.hoaFee ?? null,
       floors_count: body.floorsCount ?? 1,
       price: body.price ?? null,

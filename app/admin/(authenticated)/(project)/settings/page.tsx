@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
 
 export default function SettingsPage() {
+  const { showCalculator } = useProjectTypeConfig();
   const [project, setProject] = useState<{ id: string; name: string } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -23,13 +25,15 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-500 mt-1">Ajusta los parámetros de este proyecto y sus herramientas de venta.</p>
       </div>
 
-      <Card>
-        <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">Calculadora Financiera</h3>
-          <p className="text-sm text-gray-500">Estos valores se utilizarán para proyectar las cuotas de hipoteca a los clientes.</p>
-        </CardHeader>
-        <CalculatorEditor />
-      </Card>
+      {showCalculator && (
+        <Card>
+          <CardHeader className="block">
+            <h3 className="text-lg font-semibold text-gray-900">Calculadora Financiera</h3>
+            <p className="text-sm text-gray-500">Estos valores se utilizarán para proyectar las cuotas de hipoteca a los clientes.</p>
+          </CardHeader>
+          <CalculatorEditor />
+        </Card>
+      )}
 
       <Card className="border-red-200 bg-red-50 overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between p-6 gap-4">

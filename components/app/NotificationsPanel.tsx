@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 
 interface NotificationRow {
   id: string;
-  type: 'follow' | 'like' | 'comment' | 'collaboration_accepted' | 'message' | 'mention';
+  type: 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention';
   read_at: string | null;
   created_at: string;
   actor: { handle: string; display_name: string; avatar_image: string | null } | null;
@@ -17,6 +17,7 @@ const TEXT_BY_TYPE: Record<NotificationRow['type'], string> = {
   follow: 'empezó a seguirte',
   like: 'le gustó tu post',
   comment: 'comentó tu post',
+  collaboration_invite: 'te acreditó en un proyecto — confirmalo en tu portfolio',
   collaboration_accepted: 'confirmó su crédito en tu proyecto',
   message: 'te mandó un mensaje',
   mention: 'te mencionó en un post',
@@ -50,7 +51,7 @@ export default function NotificationsPanel({ onRead }: { onRead: () => void }) {
           {notifications.map(n => (
             <li key={n.id}>
               <Link
-                href={n.actor ? `/portfolio/${n.actor.handle}` : '#'}
+                href={n.type === 'collaboration_invite' ? '/admin/portfolio' : n.actor ? `/portfolio/${n.actor.handle}` : '#'}
                 className={`flex items-center gap-3 px-4 py-3 hover:bg-trevo-dark/5 transition-colors ${!n.read_at ? 'bg-brand-50/60' : ''}`}
               >
                 <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0 bg-trevo-dark/10 flex items-center justify-center">

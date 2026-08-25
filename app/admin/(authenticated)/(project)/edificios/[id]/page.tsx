@@ -67,7 +67,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const completeness = (floorId: string) => {
     const floorUnits = unitSummaries.filter(u => u.floor_id === floorId);
     const missingPhoto = floorUnits.filter(u => !u.interior_image_url).length;
-    const missingPrice = floorUnits.filter(u => u.price == null).length;
+    // En modo showcase el precio no es un dato que vaya a cargarse nunca —
+    // contarlo como "faltante" mostraba "Sin precio" en todas partes y
+    // nunca dejaba llegar a "Completo" aunque el resto sí estuviera.
+    const missingPrice = typeConfig.showPrice ? floorUnits.filter(u => u.price == null).length : 0;
     return { total: floorUnits.length, missingPhoto, missingPrice };
   };
 

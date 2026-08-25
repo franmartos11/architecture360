@@ -314,11 +314,19 @@ export default function UnitViewer({
             {unit.balconyArea > 0 && <SpecRow label={`Área balcones ${unit.balconyArea} m²`} />}
             {unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
             {!!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
+            {!!unit.ceilingHeight && <SpecRow label={`Altura de techo ${unit.ceilingHeight} m`} />}
             <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />
             <SpecRow label={`${unit.bathrooms} Baños`} />
+            {!hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
+            {!hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
+            {!hasUnitStep && !!unit.otherRoomsCount && (
+              <SpecRow label={`${unit.otherRoomsCount} ambiente${unit.otherRoomsCount !== 1 ? 's' : ''} más${unit.otherRoomsDescription ? ` (${unit.otherRoomsDescription})` : ''}`} />
+            )}
             {!!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
             {unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
-            {unit.hasGarage && <SpecRow label="Cochera" />}
+            {!!unit.garageSpaces && (
+              <SpecRow label={`${unit.garageSpaces} Cochera${unit.garageSpaces !== 1 ? 's' : ''}${unit.garageType ? ` (${unit.garageType})` : ''}`} />
+            )}
             {!!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
 

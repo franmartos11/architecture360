@@ -168,14 +168,16 @@ export default function ProjectAdminShell({
         </div>
 
         <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-4 py-4 flex-col gap-2`}>
-          <Link
-            href="/admin"
-            className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-              pathname === '/admin' ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-            }`}
-          >
-            Dashboard
-          </Link>
+          {hasUnitStep && (
+            <Link
+              href="/admin"
+              className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
+                pathname === '/admin' ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              Dashboard
+            </Link>
+          )}
 
           <div>
             <Link
