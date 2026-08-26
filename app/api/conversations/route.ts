@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { HANDLE_RE } from '@/lib/validate';
 
 const PARTICIPANT_SELECT = 'id, handle, display_name, avatar_image';
 
@@ -63,9 +65,12 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
-  const handle = typeof body.handle === 'string' ? body.handle.trim() : '';
-  if (!handle) return NextResponse.json({ error: 'Falta el handle' }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
+  const handle = typeof body.handle === 'string' ? body.handle.trim().toLowerCase() : '';
+  if (!HANDLE_RE.test(handle)) return NextResponse.json({ error: 'Handle inválido' }, { status: 400 });
+
+  const limited = await rateLimitOrRespond({ key: `conversations:user:${user.id}`, windowSeconds: 60, max: 20 });
+  if (limited) return limited;
 
   const { data: me } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
   if (!me) return NextResponse.json({ error: 'Creá tu portfolio antes de mandar mensajes.' }, { status: 400 });

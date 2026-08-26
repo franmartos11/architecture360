@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024; // 15MB — las panorámicas 360° pesan bastante
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB — clips cortos en loop, no hay que subir un documental
@@ -17,6 +18,12 @@ const BUCKET = 'project-media';
 export async function POST(request: Request) {
   const user = await requireAdminUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  const limited = await rateLimitOrRespond(
+    { key: `upload:user:${user.id}`, windowSeconds: 60, max: 60 },
+    'Estás subiendo archivos muy rápido — esperá un momento.'
+  );
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get('file');

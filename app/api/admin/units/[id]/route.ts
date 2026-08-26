@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromUnit } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
+import { sanitizeText } from '@/lib/sanitize';
+
+// Longitud máxima de los campos de texto libre del FIELD_MAP de abajo —
+// el resto (números, booleanos, jsonb de polígonos/tour) no pasa por acá.
+const TEXT_FIELD_MAX_LENGTH: Record<string, number> = {
+  code: 60,
+  modelName: 150,
+  currency: 3,
+  orientation: 10,
+  otherRoomsDescription: 200,
+};
 
 const FIELD_MAP: Record<string, string> = {
   code: 'code',
@@ -71,7 +82,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [camel, column] of Object.entries(FIELD_MAP)) {
-    if (body[camel] !== undefined) updates[column] = body[camel];
+    if (body[camel] === undefined) continue;
+    const maxLength = TEXT_FIELD_MAX_LENGTH[camel];
+    updates[column] = maxLength ? sanitizeText(body[camel], maxLength) : body[camel];
   }
 
   const { data, error } = await supabase.from('units').update(updates).eq('id', id).select().single();

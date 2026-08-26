@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -44,7 +45,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // slug queda afuera a propósito: es inmutable después de creado (ver
   // lib/slug.ts) para no romper links ya compartidos si renombran el edificio.
   const updates: Record<string, unknown> = {};
-  if (body.name !== undefined) updates.name = body.name;
+  if (body.name !== undefined) updates.name = sanitizeText(body.name, 150);
   if (body.totalFloors !== undefined) updates.total_floors = body.totalFloors;
   if (body.amenitiesTour !== undefined) updates.amenities_tour = body.amenitiesTour;
   if (body.coverImage !== undefined) updates.cover_image = body.coverImage;

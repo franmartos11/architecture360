@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  const limited = await rateLimitOrRespond({ key: `post-like:user:${user.id}`, windowSeconds: 60, max: 60 });
+  if (limited) return limited;
 
   const { error } = await supabase.from('post_likes').insert({ post_id: id, profile_id: user.id });
   // 23505 = ya lo tenía likeado (unique constraint) — no es un error real, es idempotente.

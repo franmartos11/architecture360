@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromCollaborator } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +14,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json();
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.contribution !== undefined) {
-    updates.contribution = body.contribution;
+    updates.contribution = sanitizeText(body.contribution, 300);
     // Si ya lo había confirmado, cambiarle el texto sin que se entere sería
     // dejar acreditado en público algo que nunca aceptó — vuelve a pending
     // para que lo reconfirme.

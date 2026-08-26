@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
+import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
+import { sanitizeMultiline } from '@/lib/sanitize';
 
 const PAGE_SIZE = 30;
 const MAX_BODY_LENGTH = 2000;
 const RATE_LIMIT_WINDOW_MINUTES = 5;
 const RATE_LIMIT_MAX_MESSAGES = 30;
-const ATTACHMENT_TYPES = ['image', 'audio', 'file'];
+const ATTACHMENT_TYPES = ['image', 'audio', 'file'] as const;
+
+const messageSchema = z.object({
+  body: z.string().max(MAX_BODY_LENGTH).optional(),
+  sharedPostId: uuidSchema.optional(),
+  attachmentUrl: z.url().max(1000).optional(),
+  attachmentType: z.enum(ATTACHMENT_TYPES).optional(),
+});
 
 const SHARED_POST_SELECT = 'id, body, image_url, created_at, author:profiles(handle, display_name, avatar_image)';
 const MESSAGE_SELECT = `*, shared_post:posts(${SHARED_POST_SELECT})`;
@@ -59,16 +69,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const conversation = await getConversationIfParticipant(supabase, id, user.id);
   if (!conversation) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
 
-  const body = await request.json();
-  const text = typeof body.body === 'string' ? body.body.trim() : '';
-  const sharedPostId = typeof body.sharedPostId === 'string' ? body.sharedPostId : null;
-  const attachmentUrl = typeof body.attachmentUrl === 'string' ? body.attachmentUrl : null;
-  const attachmentType = ATTACHMENT_TYPES.includes(body.attachmentType) ? body.attachmentType as string : null;
+  const parsed = await parseJsonBody(request, messageSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
+  const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
+  const sharedPostId = body.sharedPostId ?? null;
+  const attachmentUrl = body.attachmentUrl ?? null;
+  const attachmentType = body.attachmentType ?? null;
   // Un mensaje puede ser solo un post compartido o solo un adjunto, sin texto propio.
   if (!text && !sharedPostId && !attachmentUrl) return NextResponse.json({ error: 'Falta el texto del mensaje' }, { status: 400 });
-  if (text.length > MAX_BODY_LENGTH) {
-    return NextResponse.json({ error: `El mensaje no puede superar los ${MAX_BODY_LENGTH} caracteres.` }, { status: 400 });
-  }
 
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
   const { count: recentCount } = await supabase

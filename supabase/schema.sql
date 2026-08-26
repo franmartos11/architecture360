@@ -1011,3 +1011,21 @@ drop policy if exists "owner manage saved_themes" on saved_themes;
 create policy "owner manage saved_themes" on saved_themes for all to authenticated
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid());
+
+-- ─── Rate limiting compartido (lib/rate-limit.ts) ───────────────────
+-- Contabilidad de infraestructura, no dato de usuario — RLS habilitado
+-- sin ninguna policy a propósito, para que ni anon ni authenticated
+-- puedan leer/escribir esta tabla bajo ninguna circunstancia; solo el
+-- cliente de service-role (que bypasea RLS) la toca, desde
+-- lib/rate-limit.ts. `key` es algo tipo "leads:ip:1.2.3.4" o
+-- "comments:user:<uuid>" — un prefijo por ruta + el identificador de
+-- quien pega el request.
+create table if not exists api_rate_limit_hits (
+  id bigint generated always as identity primary key,
+  key text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists api_rate_limit_hits_key_idx on api_rate_limit_hits(key, created_at desc);
+
+alter table api_rate_limit_hits enable row level security;

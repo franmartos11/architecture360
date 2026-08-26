@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   const { supabase } = access;
 
   const body = await request.json();
-  if (!body.name) {
+  if (!body.name || typeof body.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
   if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
@@ -22,10 +23,10 @@ export async function POST(request: Request) {
     .from('points_of_interest')
     .insert({
       project_id: projectId,
-      name: body.name,
+      name: sanitizeText(body.name, 150),
       category: body.category ?? 'otro',
-      description: body.description ?? null,
-      distance_label: body.distanceLabel ?? null,
+      description: sanitizeText(body.description, 500) || null,
+      distance_label: sanitizeText(body.distanceLabel, 100) || null,
       image: body.image ?? null,
       latitude: body.latitude ?? null,
       longitude: body.longitude ?? null,

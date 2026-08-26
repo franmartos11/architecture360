@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -42,14 +43,15 @@ export async function POST(request: Request) {
   const { supabase } = access;
 
   const body = await request.json();
-  if (!body.name) {
+  if (!body.name || typeof body.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
+  const name = sanitizeText(body.name, 150);
 
   // Slug generado solo a partir del nombre, único dentro de este proyecto
   // (unique (project_id, slug)) — ver lib/slug.ts.
   const slug = await ensureUniqueSlug(supabase, {
-    table: 'buildings', column: 'slug', base: slugify(body.name),
+    table: 'buildings', column: 'slug', base: slugify(name),
     scope: { column: 'project_id', value: projectId },
   });
 
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
     .insert({
       project_id: projectId,
       slug,
-      name: body.name,
+      name,
       total_floors: body.totalFloors ?? 1,
     })
     .select()

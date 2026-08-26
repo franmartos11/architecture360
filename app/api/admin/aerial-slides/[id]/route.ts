@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromSlide } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,7 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const updates: Record<string, unknown> = {};
   if (body.imageUrl !== undefined) updates.image_url = body.imageUrl;
   if (body.videoUrl !== undefined) updates.video_url = body.videoUrl || null;
-  if (body.label !== undefined) updates.label = body.label;
+  if (body.label !== undefined) updates.label = sanitizeText(body.label, 150);
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;
 
   const { data, error } = await supabase.from('aerial_slides').update(updates).eq('id', id).select().single();

@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
 // .env.local.example), este proxy no hace nada — así el sitio
@@ -44,6 +46,32 @@ function resolveProjectSlugFromHost(host: string): string | null {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const isApiRoute = pathname.startsWith('/api');
+  const origin = request.headers.get('origin');
+
+  // Un solo lugar para todo /api/**: si el origin no es el propio (ver
+  // lib/cors.ts), se corta acá, antes de gastar una consulta a Supabase o
+  // de que el handler llegue a correr — así no hace falta repetir este
+  // chequeo en cada una de las ~53 rutas.
+  if (isApiRoute) {
+    if (!isAllowedOrigin(origin)) {
+      return NextResponse.json({ error: 'Origen no permitido' }, { status: 403 });
+    }
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
+    }
+  }
+
+  // Suma los headers CORS a la respuesta que ya se iba a devolver — se usa
+  // en cada punto de salida de acá para abajo en vez de repetir el chequeo
+  // "isApiRoute ? ... : ...", así ninguna rama se olvida de aplicarlos.
+  const withCors = (response: NextResponse) => {
+    if (isApiRoute) {
+      for (const [key, value] of Object.entries(corsHeaders(origin))) response.headers.set(key, value);
+    }
+    return response;
+  };
+
   const isAdminScope = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
 
   if (!isAdminScope) {
@@ -57,14 +85,14 @@ export async function proxy(request: NextRequest) {
       if (projectSlug) {
         const url = request.nextUrl.clone();
         url.pathname = `/proyecto/${projectSlug}${pathname === '/' ? '' : pathname}`;
-        return NextResponse.rewrite(url);
+        return withCors(NextResponse.rewrite(url));
       }
     }
-    return NextResponse.next();
+    return withCors(NextResponse.next());
   }
 
   if (!SUPABASE_CONFIGURED) {
-    return NextResponse.next();
+    return withCors(NextResponse.next());
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -88,7 +116,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const PUBLIC_ADMIN_PATHS = ['/admin/login', '/admin/signup', '/admin/forgot-password', '/admin/reset-password', '/admin/auth/callback'];
+  const PUBLIC_ADMIN_PATHS = ['/admin/login', '/admin/signup', '/admin/auth/callback'];
   const isAdminApiRoute = pathname.startsWith('/api/admin');
   const isAdminPageRoute = pathname.startsWith('/admin') && !PUBLIC_ADMIN_PATHS.includes(pathname);
 
@@ -96,7 +124,20 @@ export async function proxy(request: NextRequest) {
     // Las rutas API de admin usan la service_role key internamente (bypasea
     // RLS), así que necesitan su propio chequeo acá — no alcanza con
     // proteger la página, cualquiera podría pegarle directo a la API.
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    return withCors(NextResponse.json({ error: 'No autorizado' }, { status: 401 }));
+  }
+
+  // Red de contención pareja para las ~30 rutas /api/admin/** que escriben
+  // — en vez de repetir un rate-limit puntual en cada una, esto cubre a
+  // todas de una (incluidas las que se agreguen después) con un límite
+  // generoso: no debería notarlo el uso normal, pero corta un script que
+  // castigue la base con creates/updates/deletes en loop.
+  if (isAdminApiRoute && user && request.method !== 'GET') {
+    const limited = await rateLimitOrRespond(
+      { key: `admin-write:user:${user.id}`, windowSeconds: 60, max: 120 },
+      'Estás haciendo demasiados cambios seguidos — esperá un momento.'
+    );
+    if (limited) return withCors(limited);
   }
 
   if (isAdminPageRoute && !user) {
@@ -105,7 +146,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  return withCors(supabaseResponse);
 }
 
 // Antes solo corría en /admin y /api/admin. Ahora corre en casi todo (menos

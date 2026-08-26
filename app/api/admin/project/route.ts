@@ -1,5 +1,35 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { parseJsonBody } from '@/lib/api-validate';
+import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+
+// sectionConfig/themeConfig/commonAreasTour/processGallery/beforeAfter son
+// blobs JSON grandes y con forma propia (config del sitio, tour 360°,
+// galería de proceso) — se aceptan sin validar su estructura interna acá
+// (fuera de alcance de este endurecimiento puntual); lo que sí se valida
+// es todo el texto libre que termina en la ficha pública del proyecto.
+const projectPatchSchema = z.object({
+  name: z.string().max(200).optional(),
+  description: z.string().max(5000).optional(),
+  tagline: z.string().max(300).optional(),
+  sectionConfig: z.unknown().optional(),
+  themeConfig: z.unknown().optional(),
+  location: z.string().max(300).optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  masterplanImage: z.string().max(1000).nullable().optional(),
+  commonAreasTour: z.unknown().optional(),
+  tourOrientationDegrees: z.number().min(0).max(360).nullable().optional(),
+  academicInstitution: z.string().max(200).optional(),
+  academicCareer: z.string().max(200).optional(),
+  academicTutor: z.string().max(200).optional(),
+  academicYear: z.string().max(20).optional(),
+  academicTeam: z.string().max(500).optional(),
+  processGallery: z.unknown().optional(),
+  beforeAfter: z.unknown().optional(),
+  showInPortfolio: z.boolean().optional(),
+});
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -72,25 +102,27 @@ export async function PATCH(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
+  const parsed = await parseJsonBody(request, projectPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const updates: Record<string, unknown> = {};
-  if (body.name !== undefined) updates.name = body.name;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.tagline !== undefined) updates.tagline = body.tagline;
+  if (body.name !== undefined) updates.name = sanitizeText(body.name, 200);
+  if (body.description !== undefined) updates.description = sanitizeMultiline(body.description, 5000);
+  if (body.tagline !== undefined) updates.tagline = sanitizeText(body.tagline, 300);
   if (body.sectionConfig !== undefined) updates.section_config = body.sectionConfig;
   if (body.themeConfig !== undefined) updates.theme_config = body.themeConfig;
-  if (body.location !== undefined) updates.location = body.location;
+  if (body.location !== undefined) updates.location = sanitizeText(body.location, 300);
   if (body.latitude !== undefined) updates.latitude = body.latitude;
   if (body.longitude !== undefined) updates.longitude = body.longitude;
   if (body.masterplanImage !== undefined) updates.masterplan_image = body.masterplanImage;
   if (body.commonAreasTour !== undefined) updates.common_areas_tour = body.commonAreasTour;
   if (body.tourOrientationDegrees !== undefined) updates.tour_orientation_degrees = body.tourOrientationDegrees;
-  if (body.academicInstitution !== undefined) updates.academic_institution = body.academicInstitution;
-  if (body.academicCareer !== undefined) updates.academic_career = body.academicCareer;
-  if (body.academicTutor !== undefined) updates.academic_tutor = body.academicTutor;
-  if (body.academicYear !== undefined) updates.academic_year = body.academicYear;
-  if (body.academicTeam !== undefined) updates.academic_team = body.academicTeam;
+  if (body.academicInstitution !== undefined) updates.academic_institution = sanitizeText(body.academicInstitution, 200);
+  if (body.academicCareer !== undefined) updates.academic_career = sanitizeText(body.academicCareer, 200);
+  if (body.academicTutor !== undefined) updates.academic_tutor = sanitizeText(body.academicTutor, 200);
+  if (body.academicYear !== undefined) updates.academic_year = sanitizeText(body.academicYear, 20);
+  if (body.academicTeam !== undefined) updates.academic_team = sanitizeText(body.academicTeam, 500);
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;

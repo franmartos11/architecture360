@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const body = await request.json();
-  if (!body.buildingId || body.number === undefined || !body.label) {
+  if (!body.buildingId || body.number === undefined || !body.label || typeof body.label !== 'string') {
     return NextResponse.json({ error: 'Faltan buildingId, number y/o label' }, { status: 400 });
   }
 
@@ -19,11 +20,11 @@ export async function POST(request: Request) {
     .insert({
       building_id: body.buildingId,
       number: body.number,
-      label: body.label,
+      label: sanitizeText(body.label, 100),
       plan_image: body.planImage ?? null,
       unit_dots: body.unitDots ?? [],
       floor_kind: body.floorKind ?? 'units',
-      floor_kind_description: body.floorKindDescription || null,
+      floor_kind_description: sanitizeText(body.floorKindDescription, 300) || null,
     })
     .select()
     .single();

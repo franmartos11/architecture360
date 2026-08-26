@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createClient } from '@/lib/supabase/server';
+import { sanitizeText } from '@/lib/sanitize';
 
 // Temas guardados — cuenta-scoped (owner_id): guardar la combinación
 // vigente de un proyecto (preset + tipografía) y poder aplicarla después
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body = await request.json();
-  const name = (body.name as string | undefined)?.trim();
+  const name = sanitizeText(body.name, 100);
   const config = body.config;
   if (!name) return NextResponse.json({ error: 'Falta el nombre del tema' }, { status: 400 });
   if (!config || typeof config !== 'object') return NextResponse.json({ error: 'Falta la configuración del tema' }, { status: 400 });

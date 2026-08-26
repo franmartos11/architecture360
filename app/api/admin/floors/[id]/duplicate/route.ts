@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 // Duplica un piso entero: crea un piso nuevo (mismo plano por default, ya
 // que en la mayoría de los edificios los pisos repetidos comparten la
@@ -19,9 +20,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { supabase } = access;
 
   const body = await request.json();
-  if (body.number === undefined || !body.label) {
+  if (body.number === undefined || !body.label || typeof body.label !== 'string') {
     return NextResponse.json({ error: 'Faltan number y/o label para el piso nuevo' }, { status: 400 });
   }
+  const label = sanitizeText(body.label, 100);
 
   const { data: sourceFloor, error: floorErr } = await supabase
     .from('floors')
@@ -46,7 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .insert({
       building_id: sourceFloor.building_id,
       number: body.number,
-      label: body.label,
+      label,
       plan_image: sourceFloor.plan_image,
       unit_dots: remappedDots,
       floor_kind: sourceFloor.floor_kind,

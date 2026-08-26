@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
 import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
+import { sanitizeText } from '@/lib/sanitize';
 
 // GET /api/admin/units            → todas las unidades del proyecto activo,
 //                                    con edificio/piso resueltos (para el
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  if (!body.floorId || !body.code || !body.type) {
+  if (!body.floorId || !body.code || typeof body.code !== 'string' || !body.type) {
     return NextResponse.json({ error: 'Faltan floorId, code y/o type' }, { status: 400 });
   }
   if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
@@ -99,8 +100,8 @@ export async function POST(request: Request) {
     .from('units')
     .insert({
       floor_id: body.floorId,
-      code: body.code,
-      model_name: body.modelName ?? null,
+      code: sanitizeText(body.code, 60),
+      model_name: sanitizeText(body.modelName, 150) || null,
       type: body.type,
       total_area: body.totalArea ?? null,
       inner_area: body.innerArea ?? null,
@@ -116,13 +117,13 @@ export async function POST(request: Request) {
       living_rooms: body.livingRooms ?? 1,
       kitchens: body.kitchens ?? 1,
       other_rooms_count: body.otherRoomsCount ?? 0,
-      other_rooms_description: body.otherRoomsDescription ?? null,
+      other_rooms_description: sanitizeText(body.otherRoomsDescription, 200) || null,
       hoa_fee: body.hoaFee ?? null,
       floors_count: body.floorsCount ?? 1,
       price: body.price ?? null,
-      currency: body.currency ?? 'USD',
+      currency: sanitizeText(body.currency, 3) || 'USD',
       status: body.status ?? 'available',
-      orientation: body.orientation ?? null,
+      orientation: sanitizeText(body.orientation, 10) || null,
       interior_image_url: body.interiorImageUrl ?? null,
       gallery_images: body.galleryImages ?? [],
       floor_plan_3d_url: body.floorPlan3dUrl ?? null,

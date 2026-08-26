@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
   const body = await request.json();
-  if (!body.name) {
+  if (!body.name || typeof body.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
   if (body.buildingId) {
@@ -25,8 +26,8 @@ export async function POST(request: Request) {
     .insert({
       project_id: projectId,
       building_id: body.buildingId ?? null,
-      name: body.name,
-      description: body.description ?? null,
+      name: sanitizeText(body.name, 150),
+      description: sanitizeMultiline(body.description, 2000) || null,
       images: body.images ?? [],
       tour_node_id: body.tourNodeId ?? null,
       tour_3d_url: body.tour3dUrl ?? null,

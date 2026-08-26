@@ -4,6 +4,7 @@ import { isValidEnum } from '@/lib/validate';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from '@/lib/project-types';
 import { resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
+import { sanitizeText } from '@/lib/sanitize';
 
 const PROJECT_TYPE_KEYS = Object.keys(PROJECT_STRUCTURES) as (keyof typeof PROJECT_STRUCTURES)[];
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as (keyof typeof PROJECT_SALE_MODES)[];
@@ -58,7 +59,8 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body = await request.json();
-  if (!body.name) {
+  const name = sanitizeText(body.name, 150);
+  if (!name) {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
   if (body.projectType !== undefined && !isValidEnum(body.projectType, PROJECT_TYPE_KEYS)) {
@@ -70,13 +72,13 @@ export async function POST(request: Request) {
 
   // El slug se genera solo a partir del nombre — el admin nunca lo escribe
   // ni puede pisarlo con uno repetido (ver lib/slug.ts).
-  const slug = await ensureUniqueSlug(supabase, { table: 'projects', column: 'slug', base: slugify(body.name) });
+  const slug = await ensureUniqueSlug(supabase, { table: 'projects', column: 'slug', base: slugify(name) });
 
   const { data, error } = await supabase
     .from('projects')
     .insert({
       slug,
-      name: body.name,
+      name,
       owner_id: user.id,
       project_type: body.projectType ?? DEFAULT_PROJECT_TYPE,
       sale_mode: body.saleMode ?? DEFAULT_SALE_MODE,

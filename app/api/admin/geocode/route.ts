@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const RESULT_LIMIT = 5;
 
@@ -18,8 +19,14 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const q = (searchParams.get('q') ?? '').trim();
+  const q = (searchParams.get('q') ?? '').trim().slice(0, 200);
   if (!q) return NextResponse.json({ results: [] });
+
+  // Nominatim es gratuito pero con política de uso estricta — abusarlo
+  // puede terminar baneando la IP del servidor para todo el proyecto, no
+  // solo para esta cuenta.
+  const limited = await rateLimitOrRespond({ key: `geocode:user:${user.id}`, windowSeconds: 60, max: 20 });
+  if (limited) return limited;
 
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=${RESULT_LIMIT}&q=${encodeURIComponent(q)}`;
   const res = await fetch(url, {

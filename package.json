@@ -9,8 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:seed": "node --env-file=.env.local scripts/seed-supabase.ts",
-    "admin:create-user": "node --env-file=.env.local scripts/create-admin-user.ts"
+    "db:seed": "node --env-file=.env.local scripts/seed-supabase.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -30,9 +29,11 @@
     "react-leaflet": "^5.0.0",
     "react-zoom-pan-pinch": "^4.0.3",
     "resend": "^6.20.0",
+    "sanitize-html": "^2.17.7",
     "server-only": "^0.0.1",
     "swiper": "^14.0.7",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -40,6 +41,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "@types/three": "^0.185.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",

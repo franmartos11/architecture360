@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromAmenity, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,8 +21,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updates: Record<string, unknown> = {};
   if (body.buildingId !== undefined) updates.building_id = body.buildingId;
-  if (body.name !== undefined) updates.name = body.name;
-  if (body.description !== undefined) updates.description = body.description;
+  if (body.name !== undefined) updates.name = sanitizeText(body.name, 150);
+  if (body.description !== undefined) updates.description = sanitizeMultiline(body.description, 2000) || null;
   if (body.images !== undefined) updates.images = body.images;
   if (body.tourNodeId !== undefined) updates.tour_node_id = body.tourNodeId;
   if (body.tour3dUrl !== undefined) updates.tour_3d_url = body.tour3dUrl;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
   const { supabase } = access;
 
   const body = await request.json();
-  if (!body.imageUrl || !body.label) {
+  if (!body.imageUrl || !body.label || typeof body.label !== 'string') {
     return NextResponse.json({ error: 'Faltan imageUrl y/o label' }, { status: 400 });
   }
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
       project_id: projectId,
       image_url: body.imageUrl,
       video_url: body.videoUrl || null,
-      label: body.label,
+      label: sanitizeText(body.label, 150),
       sort_order: body.sortOrder ?? 0,
     })
     .select()

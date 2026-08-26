@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 // GET /api/follows/[handle]
 // → { handle, displayName, avatarImage, bio, accountType, followerCount, followingCount, isFollowedByMe }
@@ -58,6 +59,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  const limited = await rateLimitOrRespond({ key: `follows:user:${user.id}`, windowSeconds: 60, max: 30 });
+  if (limited) return limited;
 
   // Quién sigue (debe tener perfil)
   const { data: me } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();

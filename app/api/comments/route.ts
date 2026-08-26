@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
+import { sanitizeMultiline } from '@/lib/sanitize';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -52,17 +55,21 @@ export async function GET(request: Request) {
   return NextResponse.json({ comments: await withAuthors(supabase, page), hasMore });
 }
 
+const postCommentSchema = z.object({
+  projectId: uuidSchema,
+  body: z.string().trim().min(1, 'Falta el comentario').max(MAX_BODY_LENGTH),
+});
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
-  const text = typeof body.body === 'string' ? body.body.trim() : '';
-  if (!body.projectId || !text) return NextResponse.json({ error: 'Falta projectId y/o body' }, { status: 400 });
-  if (text.length > MAX_BODY_LENGTH) {
-    return NextResponse.json({ error: `El comentario no puede superar los ${MAX_BODY_LENGTH} caracteres.` }, { status: 400 });
-  }
+  const parsed = await parseJsonBody(request, postCommentSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
+  const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
+  if (!text) return NextResponse.json({ error: 'Falta el comentario' }, { status: 400 });
 
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
   const { count: recentCount } = await supabase

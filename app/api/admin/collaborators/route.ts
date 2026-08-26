@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
+import { sanitizeText } from '@/lib/sanitize';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const RATE_LIMIT_WINDOW_MINUTES = 10;
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
   const body = await request.json();
-  if (!body.handle) return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
+  if (!body.handle || typeof body.handle !== 'string') return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
+  const contribution = sanitizeText(body.contribution, 300);
 
   const access = await requireProjectAccess(projectId);
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
     }
     const { data, error } = await supabase
       .from('project_collaborators')
-      .update({ status: 'pending', contribution: body.contribution ?? '', invited_by: user.id, updated_at: new Date().toISOString() })
+      .update({ status: 'pending', contribution, invited_by: user.id, updated_at: new Date().toISOString() })
       .eq('id', existing.id)
       .select('*, profile:profiles(handle, display_name, avatar_image)')
       .single();
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
     .insert({
       project_id: projectId,
       profile_id: profile.id,
-      contribution: body.contribution ?? '',
+      contribution,
       invited_by: user.id,
     })
     .select('*, profile:profiles(handle, display_name, avatar_image)')

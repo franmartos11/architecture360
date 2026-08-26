@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromLead } from '@/lib/supabase/require-project-access';
+import { isValidEnum, LEAD_STATUSES } from '@/lib/validate';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,6 +12,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { supabase } = access;
 
   const body = await request.json();
+  if (body.status !== undefined && !isValidEnum(body.status, LEAD_STATUSES)) {
+    return NextResponse.json({ error: `status debe ser uno de: ${LEAD_STATUSES.join(', ')}` }, { status: 400 });
+  }
 
   const updates: Record<string, unknown> = {};
   if (body.status !== undefined) updates.status = body.status;

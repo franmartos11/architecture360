@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,11 +15,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updates: Record<string, unknown> = {};
   if (body.number !== undefined) updates.number = body.number;
-  if (body.label !== undefined) updates.label = body.label;
+  if (body.label !== undefined) updates.label = sanitizeText(body.label, 100);
   if (body.planImage !== undefined) updates.plan_image = body.planImage;
   if (body.unitDots !== undefined) updates.unit_dots = body.unitDots;
   if (body.floorKind !== undefined) updates.floor_kind = body.floorKind;
-  if (body.floorKindDescription !== undefined) updates.floor_kind_description = body.floorKindDescription || null;
+  if (body.floorKindDescription !== undefined) updates.floor_kind_description = sanitizeText(body.floorKindDescription, 300) || null;
 
   const { data, error } = await supabase.from('floors').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

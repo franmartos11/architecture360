@@ -38,8 +38,11 @@ async function main() {
 
   // projects.owner_id es NOT NULL — hace falta una cuenta antes de poder
   // crear el proyecto. Usa la más antigua si ya hay alguna (caso típico:
-  // ya corriste admin:create-user), o crea una con ADMIN_EMAIL si no hay
-  // ninguna todavía (instalación 100% desde cero).
+  // ya entraste una vez con Google), o crea una sin contraseña con
+  // ADMIN_EMAIL si no hay ninguna todavía (instalación 100% desde cero) —
+  // el login real sigue siendo solo Google (ver app/admin/login), esta
+  // cuenta es solo para tener a quién asignarle el proyecto de demo hasta
+  // que entres de verdad.
   const { data: usersPage, error: usersErr } = await supabase.auth.admin.listUsers();
   if (usersErr) throw usersErr;
   let ownerId = usersPage.users.sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.id;
@@ -48,16 +51,16 @@ async function main() {
     if (!email) {
       console.error(
         '✗ No hay ninguna cuenta todavía y no hay ADMIN_EMAIL en .env.local para crear una.\n' +
-        '  Corré primero: npm run admin:create-user <email>'
+        '  Entrá una vez con Google en /admin/login, o seteá ADMIN_EMAIL y corré esto de nuevo.'
       );
       process.exit(1);
     }
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-      email, password: crypto.randomUUID().slice(0, 16), email_confirm: true,
+      email, email_confirm: true,
     });
     if (createErr || !created.user) throw createErr ?? new Error('No se pudo crear la cuenta admin');
     ownerId = created.user.id;
-    console.log(`  ✓ Cuenta admin creada para ${email} — corré admin:create-user para ponerle contraseña`);
+    console.log(`  ✓ Cuenta placeholder creada para ${email} — entrá con Google usando ese mismo email para poder usar el panel.`);
   }
 
   // Idempotencia: si ya existe, lo borramos (cascade se lleva edificios/pisos/unidades/aéreas).

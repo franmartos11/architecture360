@@ -1,6 +1,33 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
+import { parseJsonBody, optionalUrlSchema } from '@/lib/api-validate';
+import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+
+// skills/experiences/education/certifications son listas de objetos con
+// forma propia (ej. { role, company, from, to }) — se cachea su longitud
+// para que nadie mande un array de miles de entradas, pero no se valida
+// el shape interno de cada objeto (fuera de alcance de este endurecimiento
+// puntual, igual que sectionConfig/themeConfig en /api/admin/project).
+const MAX_LIST_ITEMS = 50;
+const profilePatchSchema = z.object({
+  displayName: z.string().max(150).optional(),
+  accountType: z.enum(['person', 'company']).optional(),
+  bio: z.string().max(2000).nullable().optional(),
+  avatarImage: z.string().max(1000).nullable().optional(),
+  bannerImage: z.string().max(1000).nullable().optional(),
+  location: z.string().max(200).nullable().optional(),
+  contactEmail: z.union([z.email(), z.literal('')]).nullable().optional(),
+  whatsapp: z.string().max(40).nullable().optional(),
+  linkedinUrl: optionalUrlSchema.nullable(),
+  instagramUrl: optionalUrlSchema.nullable(),
+  websiteUrl: optionalUrlSchema.nullable(),
+  skills: z.array(z.unknown()).max(MAX_LIST_ITEMS).optional(),
+  experiences: z.array(z.unknown()).max(MAX_LIST_ITEMS).optional(),
+  education: z.array(z.unknown()).max(MAX_LIST_ITEMS).optional(),
+  certifications: z.array(z.unknown()).max(MAX_LIST_ITEMS).optional(),
+});
 
 // GET   → el perfil de la cuenta logueada, o null si todavía no definió uno.
 // PATCH → crea o actualiza el perfil (upsert por id = auth.uid()).
@@ -19,7 +46,9 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
+  const parsed = await parseJsonBody(request, profilePatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   // El handle se genera solo, una única vez, a partir del nombre — nunca
   // lo escribe el usuario. Es inmutable después: si ya existe una fila,
@@ -27,7 +56,7 @@ export async function PATCH(request: Request) {
   // asignado (así renombrarse después no rompe un link ya compartido).
   const { data: existing } = await supabase.from('profiles').select('handle').eq('id', user.id).maybeSingle();
   const handle = existing?.handle ?? await ensureUniqueSlug(supabase, {
-    table: 'profiles', column: 'handle', base: slugify(body.displayName ?? ''),
+    table: 'profiles', column: 'handle', base: slugify(sanitizeText(body.displayName, 150)),
   });
 
   const { data, error } = await supabase
@@ -35,17 +64,17 @@ export async function PATCH(request: Request) {
     .upsert({
       id: user.id,
       handle,
-      display_name: body.displayName ?? '',
+      display_name: sanitizeText(body.displayName, 150),
       account_type: body.accountType === 'company' ? 'company' : 'person',
-      bio: body.bio ?? null,
+      bio: sanitizeMultiline(body.bio, 2000) || null,
       avatar_image: body.avatarImage ?? null,
       banner_image: body.bannerImage ?? null,
-      location: body.location ?? null,
-      contact_email: body.contactEmail ?? null,
-      whatsapp: body.whatsapp ?? null,
-      linkedin_url: body.linkedinUrl ?? null,
-      instagram_url: body.instagramUrl ?? null,
-      website_url: body.websiteUrl ?? null,
+      location: sanitizeText(body.location, 200) || null,
+      contact_email: body.contactEmail || null,
+      whatsapp: sanitizeText(body.whatsapp, 40) || null,
+      linkedin_url: body.linkedinUrl || null,
+      instagram_url: body.instagramUrl || null,
+      website_url: body.websiteUrl || null,
       skills: Array.isArray(body.skills) ? body.skills : [],
       experiences: Array.isArray(body.experiences) ? body.experiences : [],
       education: Array.isArray(body.education) ? body.education : [],

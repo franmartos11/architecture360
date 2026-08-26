@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sanitizeText } from '@/lib/sanitize';
 
 // Fuentes propias — cuenta-scoped (owner_id), no project-scoped: se suben
 // una vez y quedan disponibles para elegir en cualquier proyecto del mismo
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get('file');
-  const name = (formData.get('name') as string | null)?.trim();
+  const name = sanitizeText(formData.get('name'), 100);
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'Falta el archivo' }, { status: 400 });
   if (!name) return NextResponse.json({ error: 'Falta el nombre de la tipografía' }, { status: 400 });

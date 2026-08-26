@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 // ─── Google Distance Matrix API ─────────────────────────────────────
 const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -62,7 +63,16 @@ export async function POST(req: Request) {
 
   const access = await requireProjectAccess(projectId);
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  const { supabase } = access;
+  const { supabase, user } = access;
+
+  // Cada llamada golpea la Distance Matrix API de Google, que se paga por
+  // uso — sin esto, alguien con la sesión podría hacer clic repetido (o
+  // automatizarlo) y generar un costo real sin ningún freno.
+  const limited = await rateLimitOrRespond(
+    { key: `calculate-travel-times:user:${user.id}`, windowSeconds: 300, max: 5 },
+    'Ya calculaste los tiempos hace poco — esperá unos minutos antes de repetirlo.'
+  );
+  if (limited) return limited;
 
   // 1. Leer coords del proyecto
   const { data: project, error: pErr } = await supabase

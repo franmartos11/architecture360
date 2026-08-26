@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromPoi } from '@/lib/supabase/require-project-access';
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
+import { sanitizeText } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,10 +18,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const updates: Record<string, unknown> = {};
-  if (body.name !== undefined) updates.name = body.name;
+  if (body.name !== undefined) updates.name = sanitizeText(body.name, 150);
   if (body.category !== undefined) updates.category = body.category;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.distanceLabel !== undefined) updates.distance_label = body.distanceLabel;
+  if (body.description !== undefined) updates.description = sanitizeText(body.description, 500) || null;
+  if (body.distanceLabel !== undefined) updates.distance_label = sanitizeText(body.distanceLabel, 100) || null;
   if (body.image !== undefined) updates.image = body.image;
   if (body.latitude !== undefined) updates.latitude = body.latitude;
   if (body.longitude !== undefined) updates.longitude = body.longitude;

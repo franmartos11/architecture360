@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { extractMentionedHandles } from '@/lib/mentions';
+import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
+import { sanitizeMultiline } from '@/lib/sanitize';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 
 const PAGE_SIZE = 20;
@@ -105,6 +108,12 @@ export async function GET(request: Request) {
   return NextResponse.json({ posts: await withCounts(supabase, page, user?.id), hasMore });
 }
 
+const postSchema = z.object({
+  body: z.string().max(MAX_BODY_LENGTH).optional(),
+  sharedPostId: uuidSchema.optional(),
+  imageUrl: z.url().max(1000).optional(),
+});
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -115,14 +124,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Creá tu portfolio antes de publicar.' }, { status: 400 });
   }
 
-  const body = await request.json();
-  const text = typeof body.body === 'string' ? body.body.trim() : '';
-  const sharedPostId = typeof body.sharedPostId === 'string' ? body.sharedPostId : null;
+  const parsed = await parseJsonBody(request, postSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
+  const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
+  const sharedPostId = body.sharedPostId ?? null;
   // Un repost puede ir sin comentario propio — un post normal sí necesita texto.
   if (!text && !sharedPostId) return NextResponse.json({ error: 'Falta el texto del post' }, { status: 400 });
-  if (text.length > MAX_BODY_LENGTH) {
-    return NextResponse.json({ error: `El post no puede superar los ${MAX_BODY_LENGTH} caracteres.` }, { status: 400 });
-  }
 
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
   const { count: recentCount } = await supabase
