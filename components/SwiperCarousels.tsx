@@ -5,6 +5,7 @@ import { Navigation, Pagination, Autoplay } from 'swiper/modules';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { PointOfInterest } from '@/types';
 
 // Import Swiper styles
@@ -14,10 +15,10 @@ import 'swiper/css/pagination';
 
 interface PointsOfInterestCarouselProps {
   pointsOfInterest: PointOfInterest[];
-  projectSlug: string;
 }
 
-export function PointsOfInterestCarousel({ pointsOfInterest, projectSlug }: PointsOfInterestCarouselProps) {
+export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestCarouselProps) {
+  const basePath = useProjectBasePath();
   const slides = pointsOfInterest.filter(p => p.image);
   if (slides.length === 0) return null;
 
@@ -38,7 +39,7 @@ export function PointsOfInterestCarousel({ pointsOfInterest, projectSlug }: Poin
       >
         {slides.map((item) => (
           <SwiperSlide key={item.id} className="group relative rounded-[var(--theme-radius)] overflow-hidden h-[500px]">
-            <Link href={`/proyecto/${projectSlug}/ubicacion`} className="block w-full h-full">
+            <Link href={`${basePath}/ubicacion`} className="block w-full h-full">
               <Image
                 src={item.image!}
                 alt={item.name}

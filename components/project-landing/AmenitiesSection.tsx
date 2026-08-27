@@ -4,7 +4,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { SectionProps } from './types';
 
-export default function AmenitiesSection({ project }: SectionProps) {
+export default function AmenitiesSection({ project, basePath }: SectionProps) {
   // Una fila necesita una foto — sin eso no hay nada que mostrar al lado
   // del texto (mismo criterio que usaba el carrusel anterior).
   const rows = project.amenities.filter(a => a.images.length > 0);
@@ -48,7 +48,7 @@ export default function AmenitiesSection({ project }: SectionProps) {
                 <p className="text-[var(--theme-text-muted)] font-light leading-relaxed">{a.description}</p>
               )}
               <Link
-                href={`/proyecto/${project.slug}/amenities`}
+                href={`${basePath}/amenities`}
                 className="inline-block px-6 py-3 border border-[var(--theme-text)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors duration-300 tracking-wider text-sm"
               >
                 VER MÁS

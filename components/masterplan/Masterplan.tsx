@@ -10,7 +10,6 @@ import UnitModal from './UnitModal';
 interface MasterplanProps {
   imageUrl: string;
   units: Unit[];
-  projectSlug: string;
 }
 
 interface FilterState {
@@ -20,7 +19,7 @@ interface FilterState {
   floor: number | 'all';
 }
 
-export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanProps) {
+export default function Masterplan({ imageUrl, units }: MasterplanProps) {
   const router = useTransitionRouter();
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -200,7 +199,6 @@ export default function Masterplan({ imageUrl, units, projectSlug }: MasterplanP
       {/* Modal */}
       <UnitModal
         unit={selectedUnit}
-        projectSlug={projectSlug}
         onClose={handleCloseModal}
       />
     </div>

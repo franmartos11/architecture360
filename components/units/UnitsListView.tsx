@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice, getStatusLabel, getStatusColor } from '@/lib/units';
 import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
@@ -31,6 +32,7 @@ const STATUS_LABELS: Record<UnitStatus | 'all', string> = {
 };
 
 export default function UnitsListView({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
+  const basePath = useProjectBasePath();
   const { hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
@@ -87,7 +89,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
 
         <div className="relative max-w-6xl mx-auto">
           <Link
-            href={`/proyecto/${project.slug}`}
+            href={basePath || '/'}
             className="text-xs font-semibold tracking-widest text-white/60 hover:text-white transition-colors"
           >
             ← {project.name.toUpperCase()}
@@ -166,7 +168,6 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
                 <UnitCard
                   key={u.id}
                   unit={u}
-                  projectSlug={project.slug}
                   buildingName={project.buildings.find(b => b.id === u.buildingId)?.name}
                   showPrice={typeConfig.showPrice}
                   showStatus={typeConfig.showStatus}
@@ -219,22 +220,21 @@ function TabTrigger({ active, onClick, children }: { active: boolean; onClick: (
 function UnitCard({
   unit,
   buildingName,
-  projectSlug,
   showPrice,
   showStatus,
   hasUnitStep,
 }: {
   unit: Unit;
   buildingName?: string;
-  projectSlug: string;
   showPrice: boolean;
   showStatus: boolean;
   hasUnitStep: boolean;
 }) {
+  const basePath = useProjectBasePath();
   const statusColor = getStatusColor(unit.status);
   return (
     <Link
-      href={`/proyecto/${projectSlug}/edificio/${unit.buildingId}/unidad/${unit.id}`}
+      href={`${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`}
       className="group block rounded-2xl overflow-hidden bg-white border border-trevo-dark/10 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
     >
       <div className="relative aspect-[3/2] bg-trevo-dark/10">

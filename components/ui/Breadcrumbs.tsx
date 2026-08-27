@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { TransitionLink } from '@/components/ui/TransitionUtils';
 import { m as motion } from 'framer-motion';
-import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 interface BreadcrumbsProps {
   projectName: string;
@@ -15,15 +15,17 @@ interface BreadcrumbsProps {
 
 export default function Breadcrumbs({ projectName, buildingLabel = 'Torre', unitLabel = 'Unidad' }: BreadcrumbsProps) {
   const pathname = usePathname();
+  // Antes esto derivaba el slug parseando el pathname ("/proyecto/slug/...")
+  // — se rompía en el subdominio propio de un proyecto, donde el browser ve
+  // "/edificio/..." sin ese prefijo (el rewrite que sí lo agrega es
+  // invisible para usePathname()). basePath ya resuelve esto solo.
+  const basePath = useProjectBasePath();
+  const projectHref = basePath || '/';
 
-  // Split and clean path segments
+  // Split and clean path segments — sirve igual con o sin el prefijo
+  // /proyecto/slug: solo se busca dónde aparecen "edificio"/"unidad", no
+  // en qué posición exacta.
   const segments = pathname.split('/').filter(Boolean);
-
-  // El slug real es el segmento después de "proyecto" en la URL actual
-  // (no siempre DEFAULT_PROJECT_SLUG — eso es solo el fallback si por
-  // algún motivo estamos parados en una ruta sin ese segmento).
-  const slug = segments[0] === 'proyecto' && segments[1] ? segments[1] : DEFAULT_PROJECT_SLUG;
-  const projectHref = `/proyecto/${slug}`;
 
   if (pathname === '/' || pathname === projectHref) return null;
 
@@ -38,7 +40,7 @@ export default function Breadcrumbs({ projectName, buildingLabel = 'Torre', unit
   if (buildingIndex !== -1 && segments.length > buildingIndex + 1) {
     paths.push({
       label: buildingLabel + ' ' + segments[buildingIndex + 1].toUpperCase(),
-      href: `${projectHref}/edificio/${segments[buildingIndex + 1]}`
+      href: `${basePath}/edificio/${segments[buildingIndex + 1]}`
     });
   }
 

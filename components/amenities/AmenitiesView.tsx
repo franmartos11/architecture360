@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import AmenityDetailModal from './AmenityDetailModal';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
@@ -15,6 +16,7 @@ interface AmenitiesViewProps {
 }
 
 export default function AmenitiesView({ project, initialBuildingFilter }: AmenitiesViewProps) {
+  const basePath = useProjectBasePath();
   const [buildingFilter, setBuildingFilter] = useState<string>(
     initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
       ? initialBuildingFilter
@@ -31,7 +33,7 @@ export default function AmenitiesView({ project, initialBuildingFilter }: Amenit
   return (
     <div className="min-h-screen bg-trevo-dark">
       <div className="pt-24 pb-20 px-4 sm:px-6 max-w-6xl mx-auto">
-        <Link href={`/proyecto/${project.slug}`} className="text-sm text-white/50 hover:text-white transition-colors">
+        <Link href={basePath || '/'} className="text-sm text-white/50 hover:text-white transition-colors">
           ← {project.name}
         </Link>
         <h1 className="text-3xl sm:text-4xl font-light text-white mt-3 mb-1">Amenities</h1>
@@ -74,7 +76,6 @@ export default function AmenitiesView({ project, initialBuildingFilter }: Amenit
       <AmenityDetailModal
         amenity={activeAmenity}
         building={project.buildings.find(b => b.id === activeAmenity?.buildingId)}
-        projectSlug={project.slug}
         onClose={() => setActiveAmenity(null)}
       />
     </div>

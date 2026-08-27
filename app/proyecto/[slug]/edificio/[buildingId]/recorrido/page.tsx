@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
 import { getBuildingById, getProjectBySlug } from '@/data/project-repository';
 import { getSunAzimuths } from '@/lib/sun-position';
+import { getProjectBasePath } from '@/lib/project-url';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -31,6 +32,7 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
   // getBuildingById por dentro.
   const project = await getProjectBySlug(slug);
   const sunAzimuths = project?.latitude != null ? getSunAzimuths(project.latitude) : null;
+  const basePath = await getProjectBasePath(slug);
 
   return (
     <CommonAreasTourWrapper
@@ -39,7 +41,7 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
       tourData={building.amenitiesTour}
       focusNodeId={focus}
       label={`Recorrido — ${building.name}`}
-      backHref={`/proyecto/${slug}/edificio/${buildingId}`}
+      backHref={`${basePath}/edificio/${buildingId}`}
       backLabel={`Volver a ${building.name}`}
       embed={isEmbed}
       orientationDegrees={building.tourOrientationDegrees}

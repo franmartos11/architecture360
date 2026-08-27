@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
 import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
@@ -95,6 +96,7 @@ export default function UnitViewer({
   // precio", gateado por showLeads) — showPrice no aplica acá.
   const { showStatus, showLeads, showCalculator, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const router = useTransitionRouter();
+  const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
   const initialCompareUnitId = searchParams.get('compare');
   const [activeTab, setActiveTab] = useState<UnitViewTab>(initialCompareUnitId ? 'tour360' : (initialTab ?? 'planta3d'));
@@ -391,7 +393,7 @@ export default function UnitViewer({
       {/* ── Mobile: fixed top bar ──────────────────────────── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center gap-3 px-4 py-3 shadow-sm">
         <button
-          onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}`)}
+          onClick={() => router.push(`${basePath}/edificio/${buildingId}`)}
           aria-label="Volver al plano"
           className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"
         >
@@ -456,7 +458,7 @@ export default function UnitViewer({
                   Planta {floorNumber}
                 </span>
                 <button
-                  onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}`)}
+                  onClick={() => router.push(`${basePath}/edificio/${buildingId}`)}
                   className="px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
                 >
                   Cambiar planta
@@ -549,7 +551,6 @@ export default function UnitViewer({
             {activeTab === 'amenities' && (
               <AmenitiesTab
                 amenities={relevantAmenities}
-                projectSlug={projectSlug}
                 activeAmenity={activeAmenity}
                 onSelectAmenity={(a) => {
                   setActiveAmenity(a);
@@ -594,7 +595,7 @@ export default function UnitViewer({
         {/* Bottom-right: "Ubicación en planta" mini map — hidden en gallery mode y en mobile */}
         {activeTab !== 'galeria' && hasUnitStep && (
           <button
-            onClick={() => router.push(`/proyecto/${projectSlug}/edificio/${buildingId}?piso=${floorNumber}`)}
+            onClick={() => router.push(`${basePath}/edificio/${buildingId}?piso=${floorNumber}`)}
             className={`hidden md:block absolute right-16 z-20 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow ${
               sidebarCollapsed ? 'bottom-24 md:bottom-5' : 'bottom-5'
             }`}

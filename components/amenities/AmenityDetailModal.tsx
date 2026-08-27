@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import type { Amenity, Building } from '@/types';
@@ -11,11 +12,11 @@ import type { Amenity, Building } from '@/types';
 interface AmenityDetailModalProps {
   amenity: Amenity | null;
   building: Building | undefined;
-  projectSlug: string;
   onClose: () => void;
 }
 
-export default function AmenityDetailModal({ amenity, building, projectSlug, onClose }: AmenityDetailModalProps) {
+export default function AmenityDetailModal({ amenity, building, onClose }: AmenityDetailModalProps) {
+  const basePath = useProjectBasePath();
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -35,8 +36,8 @@ export default function AmenityDetailModal({ amenity, building, projectSlug, onC
 
   const tourHref = amenity?.tourNodeId
     ? building
-      ? `/proyecto/${projectSlug}/edificio/${building.id}/recorrido?focus=${amenity.tourNodeId}`
-      : `/proyecto/${projectSlug}/recorrido?focus=${amenity.tourNodeId}`
+      ? `${basePath}/edificio/${building.id}/recorrido?focus=${amenity.tourNodeId}`
+      : `${basePath}/recorrido?focus=${amenity.tourNodeId}`
     : null;
 
   return (

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { resolveProjectSlugFromHost } from '@/lib/project-subdomain';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
 // .env.local.example), este proxy no hace nada — así el sitio
@@ -23,25 +24,14 @@ const SUPABASE_CONFIGURED =
 //   3. Vercel → Project Settings → Domains → agregar *.architecture360.com.
 //   4. Setear NEXT_PUBLIC_ROOT_DOMAIN=architecture360.com (sin protocolo,
 //      sin www) en las env vars del proyecto.
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+// La resolución de "¿qué proyecto es este subdominio?" vive en
+// lib/project-subdomain.ts — compartida con lib/project-url.ts (que arma
+// los links salientes) para que las dos partes nunca queden desincronizadas.
 
 // Un pedido a un archivo con extensión (imagen, ícono, etc.) nunca es una
 // ruta de página — no tiene sentido evaluarlo como subdominio de proyecto.
 function isStaticAssetPath(pathname: string) {
   return pathname.startsWith('/_next') || /\.[a-zA-Z0-9]+$/.test(pathname);
-}
-
-// Si el host es un subdominio de nuestro propio dominio (ni el dominio
-// raíz, ni "www", ni localhost, ni un preview de *.vercel.app) lo tratamos
-// como "mi-proyecto.tudominio.com" → el subdominio ES el slug del proyecto.
-function resolveProjectSlugFromHost(host: string): string | null {
-  if (!ROOT_DOMAIN) return null;
-  const hostname = host.split(':')[0].toLowerCase();
-  if (hostname === ROOT_DOMAIN || hostname === `www.${ROOT_DOMAIN}`) return null;
-  if (!hostname.endsWith(`.${ROOT_DOMAIN}`)) return null;
-  const subdomain = hostname.slice(0, -(`.${ROOT_DOMAIN}`.length));
-  if (!subdomain || subdomain.includes('.')) return null; // solo un nivel de subdominio
-  return subdomain;
 }
 
 export async function proxy(request: NextRequest) {
@@ -79,7 +69,15 @@ export async function proxy(request: NextRequest) {
     // entró por un subdominio de proyecto, reescribimos por dentro a
     // /proyecto/[slug] sin que la URL que ve cambie. El admin queda
     // siempre en el dominio raíz a propósito — no es por proyecto.
-    if (!isStaticAssetPath(pathname)) {
+    //
+    // Las rutas /api/** quedan afuera de esta reescritura a propósito: el
+    // sitio público llama a /api/leads, /api/comments, etc. con fetch()
+    // relativo al host donde está parado — si viene de un subdominio de
+    // proyecto, reescribir esas rutas también las mandaría a un path que
+    // no existe (/proyecto/slug/api/leads). Los handlers de esas rutas ya
+    // reciben el slug/id del proyecto por body o query, no necesitan el
+    // Host para saber de qué proyecto se trata.
+    if (!isStaticAssetPath(pathname) && !isApiRoute) {
       const host = request.headers.get('host');
       const projectSlug = host ? resolveProjectSlugFromHost(host) : null;
       if (projectSlug) {

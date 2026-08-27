@@ -3,17 +3,23 @@
 import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 
-export default function Navbar({ projectSlug, showCalculator, hasTour }: { projectSlug: string; showCalculator: boolean; hasTour: boolean }) {
+export default function Navbar({ showCalculator, hasTour }: { showCalculator: boolean; hasTour: boolean }) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const projectHref = `/proyecto/${projectSlug}`;
-  const masterplanHref = `${projectHref}/masterplan`;
-  const tourHref = `${projectHref}/recorrido`;
-  const unitsHref = `${projectHref}/unidades`;
-  const amenitiesHref = `${projectHref}/amenities`;
-  const locationHref = `${projectHref}/ubicacion`;
-  const calculatorHref = `${projectHref}#cotizador`;
+  const basePath = useProjectBasePath();
+  // projectHref (con el fallback a "/") es solo para el link "Inicio" — el
+  // resto de los links concatena sobre basePath crudo ('' en subdominio,
+  // "/proyecto/slug" en el dominio raíz); anteponerle el fallback acá
+  // duplicaba la barra ("" || "/" + "/masterplan" = "//masterplan").
+  const projectHref = basePath || '/';
+  const masterplanHref = `${basePath}/masterplan`;
+  const tourHref = `${basePath}/recorrido`;
+  const unitsHref = `${basePath}/unidades`;
+  const amenitiesHref = `${basePath}/amenities`;
+  const locationHref = `${basePath}/ubicacion`;
+  const calculatorHref = `${basePath}#cotizador`;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--theme-bg-alt)]/70 backdrop-blur-xl border-b border-[var(--theme-border-on-dark)]">

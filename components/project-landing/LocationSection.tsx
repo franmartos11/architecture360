@@ -9,7 +9,7 @@ const PointsOfInterestCarousel = dynamic(() => import('@/components/SwiperCarous
   loading: () => <div className="w-full max-w-6xl mx-auto h-[400px] rounded-xl bg-gray-100 animate-pulse" />,
 });
 
-export default function LocationSection({ project }: SectionProps) {
+export default function LocationSection({ project, basePath }: SectionProps) {
   if (!project.pointsOfInterest.some(p => p.image)) return null;
 
   return (
@@ -19,14 +19,14 @@ export default function LocationSection({ project }: SectionProps) {
           UBICACIÓN
         </h2>
         <a
-          href={`/proyecto/${project.slug}/ubicacion`}
+          href={`${basePath}/ubicacion`}
           className="px-6 py-3 border border-[var(--theme-text-on-dark)] text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)] hover:text-[var(--theme-bg-alt)] transition-colors duration-300 tracking-wider text-sm whitespace-nowrap w-full md:w-auto text-center"
         >
           DESCUBRIR LA ZONA
         </a>
       </Reveal>
 
-      <PointsOfInterestCarousel pointsOfInterest={project.pointsOfInterest} projectSlug={project.slug} />
+      <PointsOfInterestCarousel pointsOfInterest={project.pointsOfInterest} />
     </section>
   );
 }

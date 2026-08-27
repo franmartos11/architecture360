@@ -6,6 +6,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { getPortfolioByHandle } from '@/data/profile-repository';
 import { PROJECT_STRUCTURES } from '@/lib/project-types';
+import { getProjectHref } from '@/lib/project-url';
 import { createClient } from '@/lib/supabase/server';
 import PostFeed from '@/components/social/PostFeed';
 import FollowButton from '@/components/social/FollowButton';
@@ -50,7 +51,7 @@ function ProjectCard({ slug, name, masterplanImage, label, sub, featured = false
   const aspect = featured ? 'aspect-[16/9]' : 'aspect-[4/3]';
   return (
     <Link
-      href={`/proyecto/${slug}`}
+      href={getProjectHref(slug)}
       className="group relative block overflow-hidden rounded-2xl bg-stone-100"
     >
       <div className={`relative ${aspect} overflow-hidden`}>

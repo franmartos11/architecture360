@@ -169,7 +169,7 @@ export default function AdminSitioPage() {
                 {showPreview && (
                   <div className={`pl-10 ${ALL_FONT_CLASSNAMES}`} style={theme.cssVars as React.CSSProperties}>
                     <SectionPreviewFrame>
-                      <SectionComponent project={project} typeConfig={typeConfig} />
+                      <SectionComponent project={project} typeConfig={typeConfig} basePath={`/proyecto/${project.slug}`} />
                     </SectionPreviewFrame>
                   </div>
                 )}

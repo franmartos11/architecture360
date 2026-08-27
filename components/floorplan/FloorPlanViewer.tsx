@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
@@ -38,6 +39,7 @@ export default function FloorPlanViewer({
 }: FloorPlanViewerProps) {
   const { showPrice, showStatus, showLeads } = typeConfig;
   const router = useTransitionRouter();
+  const basePath = useProjectBasePath();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -56,7 +58,7 @@ export default function FloorPlanViewer({
 
   const handleShare = async () => {
     if (!selectedUnit) return;
-    const url = `${window.location.origin}/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}`;
+    const url = `${window.location.origin}${basePath}/edificio/${building.id}/unidad/${selectedUnit.id}`;
     await shareLink(url, `Unidad ${selectedUnit.name} - ${projectSlug}`, `Mirá esta unidad: ${selectedUnit.name} (${selectedUnit.modelName})`);
   };
 
@@ -101,13 +103,13 @@ export default function FloorPlanViewer({
   const handleOpenFullPanel = useCallback((unit: Unit) => {
     if (isMobileRef.current) {
       // On mobile: go directly to the unit page, no intermediate panel
-      router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${unit.id}`);
+      router.push(`${basePath}/edificio/${building.id}/unidad/${unit.id}`);
     } else {
       setSelectedUnit(unit);
       setMobilePreviewUnit(null);
       setPanelOpen(true);
     }
-  }, [router, projectSlug, building.id]);
+  }, [router, basePath, building.id]);
 
   const handleClosePanel = useCallback(() => {
     // No limpiamos selectedUnit acá: el efecto de arriba auto-selecciona
@@ -118,16 +120,16 @@ export default function FloorPlanViewer({
 
   const handleEnterUnit = useCallback(() => {
     if (!selectedUnit) return;
-    router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}`);
-  }, [selectedUnit, projectSlug, building.id, router]);
+    router.push(`${basePath}/edificio/${building.id}/unidad/${selectedUnit.id}`);
+  }, [selectedUnit, basePath, building.id, router]);
 
   // Entra a la unidad directo en el tab de Amenities/Ubicación — misma
   // experiencia inmersiva que ya tiene el visor de la unidad, en vez de
   // un popup aparte acá.
   const handleEnterUnitTab = useCallback((tab: 'amenities' | 'ubicacion') => {
     if (!selectedUnit) return;
-    router.push(`/proyecto/${projectSlug}/edificio/${building.id}/unidad/${selectedUnit.id}?tab=${tab}`);
-  }, [selectedUnit, projectSlug, building.id, router]);
+    router.push(`${basePath}/edificio/${building.id}/unidad/${selectedUnit.id}?tab=${tab}`);
+  }, [selectedUnit, basePath, building.id, router]);
 
   const floorNumbers = building.floors
     .map(f => f.number)

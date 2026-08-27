@@ -16,7 +16,7 @@ export default function TypologiesSection({ project, typeConfig }: SectionProps)
         </Reveal>
 
         <Reveal delay={0.15} className="bg-[var(--theme-bg)] rounded-[var(--theme-radius)] p-8 md:p-12">
-          <TabsSection units={project.units} projectSlug={project.slug} showPrice={typeConfig.showPrice} />
+          <TabsSection units={project.units} showPrice={typeConfig.showPrice} />
         </Reveal>
       </div>
     </section>

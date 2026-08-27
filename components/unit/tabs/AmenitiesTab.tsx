@@ -6,13 +6,13 @@ import { m as motion } from 'framer-motion';
 import type { Amenity } from '@/types';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 
 type AmenityViewMode = 'fotos' | '360';
 
 export default function AmenitiesTab({
   amenities,
-  projectSlug,
   activeAmenity,
   onSelectAmenity,
   imageIndex,
@@ -24,7 +24,6 @@ export default function AmenitiesTab({
   onOpenLightbox,
 }: {
   amenities: Amenity[];
-  projectSlug: string;
   activeAmenity: Amenity | null;
   onSelectAmenity: (amenity: Amenity) => void;
   imageIndex: number;
@@ -35,6 +34,7 @@ export default function AmenitiesTab({
   onListOpenChange: (open: boolean) => void;
   onOpenLightbox: () => void;
 }) {
+  const basePath = useProjectBasePath();
   const thumbsRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -151,8 +151,8 @@ export default function AmenitiesTab({
                 <iframe
                   key={activeAmenity.tourNodeId}
                   src={activeAmenity.buildingId
-                    ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
-                    : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
+                    ? `${basePath}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
+                    : `${basePath}/recorrido?focus=${activeAmenity.tourNodeId}&embed=true`
                   }
                   className="absolute inset-0 w-full h-full border-0"
                   allowFullScreen
@@ -279,8 +279,8 @@ export default function AmenitiesTab({
               {activeAmenity.tourNodeId && (
                 <Link
                   href={activeAmenity.buildingId
-                    ? `/proyecto/${projectSlug}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}`
-                    : `/proyecto/${projectSlug}/recorrido?focus=${activeAmenity.tourNodeId}`
+                    ? `${basePath}/edificio/${activeAmenity.buildingId}/recorrido?focus=${activeAmenity.tourNodeId}`
+                    : `${basePath}/recorrido?focus=${activeAmenity.tourNodeId}`
                   }
                   className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[15px] font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >

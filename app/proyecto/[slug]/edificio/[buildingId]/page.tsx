@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
 import { getProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { getProjectBasePath } from '@/lib/project-url';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -44,7 +45,10 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
   // salta directo a la ficha de su única unidad.
   if (!typeConfig.hasUnitStep) {
     const unit = project.units.find(u => u.buildingId === building.id);
-    if (unit) redirect(`/proyecto/${slug}/edificio/${buildingId}/unidad/${unit.id}`);
+    if (unit) {
+      const basePath = await getProjectBasePath(slug);
+      redirect(`${basePath}/edificio/${buildingId}/unidad/${unit.id}`);
+    }
   }
 
   return (

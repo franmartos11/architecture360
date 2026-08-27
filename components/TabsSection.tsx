@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice } from '@/lib/units';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { Unit } from '@/types';
 
 interface TypologyGroup {
@@ -53,7 +54,8 @@ function formatPriceRange(min: number | null, currency?: string): string {
   return min == null ? '' : `Desde ${formatPrice(min, currency)}`;
 }
 
-export function TabsSection({ units, projectSlug, showPrice }: { units: Unit[]; projectSlug: string; showPrice: boolean }) {
+export function TabsSection({ units, showPrice }: { units: Unit[]; showPrice: boolean }) {
+  const basePath = useProjectBasePath();
   const typologies = useMemo(() => buildTypologies(units), [units]);
   const [activeTab, setActiveTab] = useState(typologies[0]?.id ?? '');
 
@@ -104,7 +106,7 @@ export function TabsSection({ units, projectSlug, showPrice }: { units: Unit[]; 
 
           <div className="pt-4">
             <a
-              href={`/proyecto/${projectSlug}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`}
+              href={`${basePath}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`}
               className="inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
             >
               CONOCER {activeData.label.toUpperCase()}

@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { TourData } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
 
@@ -10,7 +11,6 @@ const VirtualTour = dynamic(() => import('./VirtualTour'), { ssr: false });
 
 interface CommonAreasTourProps {
   projectName: string;
-  projectSlug: string;
   tourData: TourData;
   /** Nodo en el que arranca el recorrido — si no se pasa, usa tourData.initialNodeId */
   focusNodeId?: string;
@@ -26,7 +26,6 @@ interface CommonAreasTourProps {
 
 export default function CommonAreasTour({
   projectName,
-  projectSlug,
   tourData,
   focusNodeId,
   label,
@@ -37,6 +36,8 @@ export default function CommonAreasTour({
   sunAzimuths,
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
+  const basePath = useProjectBasePath();
+  const resolvedBackHref = backHref ?? `${basePath}/masterplan`;
 
   // Sin esto, la única forma de salir del recorrido era el botón "Volver" —
   // en modo embed (dentro de un iframe) no hay a dónde volver, así que Escape
@@ -45,12 +46,12 @@ export default function CommonAreasTour({
     if (embed) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        router.push(backHref ?? `/proyecto/${projectSlug}/masterplan`);
+        router.push(resolvedBackHref);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [embed, backHref, projectSlug, router]);
+  }, [embed, resolvedBackHref, router]);
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden">
@@ -59,7 +60,7 @@ export default function CommonAreasTour({
       {!embed && (
         <div className="absolute top-0 left-0 right-0 z-20 p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
           <button
-            onClick={() => router.push(backHref ?? `/proyecto/${projectSlug}/masterplan`)}
+            onClick={() => router.push(resolvedBackHref)}
             aria-label={backLabel}
             className="glass rounded-xl px-3 py-2.5 sm:px-4 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors hover:bg-white/10 pointer-events-auto shrink-0"
           >

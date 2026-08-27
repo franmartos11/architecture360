@@ -6,7 +6,7 @@ import type { SectionProps } from './types';
 // CTA al masterplan interactivo — a diferencia del resto, no depende de
 // ningún contenido cargado (masterplanImage ya tiene fallback), así que
 // siempre tiene algo para mostrar; solo se apaga si el admin la deshabilita.
-export default function MasterplanCtaSection({ project }: SectionProps) {
+export default function MasterplanCtaSection({ project, basePath }: SectionProps) {
   return (
     <section id="tour-360" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)]">
       <Reveal className="max-w-6xl mx-auto px-6 text-center space-y-4 mb-12">
@@ -28,7 +28,7 @@ export default function MasterplanCtaSection({ project }: SectionProps) {
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
             <h3 className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text-on-dark)] text-2xl sm:text-3xl font-light tracking-widest mb-6 text-center">{project.name.toUpperCase()}</h3>
             <a
-              href={`/proyecto/${project.slug}/masterplan`}
+              href={`${basePath}/masterplan`}
               className="px-6 py-3 border border-[var(--theme-text-on-dark)] bg-[var(--theme-text-on-dark)]/10 backdrop-blur-md text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)] hover:text-[var(--theme-bg-alt)] transition-colors duration-300 tracking-wider text-sm"
             >
               ENTRAR AL MASTERPLAN

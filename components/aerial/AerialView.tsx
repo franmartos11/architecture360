@@ -7,12 +7,14 @@ import Image from 'next/image';
 import type { Project, AerialSlide, AerialHotspot } from '@/types';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 interface AerialViewProps {
   project: Project;
 }
 
 export default function AerialView({ project }: AerialViewProps) {
+  const basePath = useProjectBasePath();
   const router = useRouter();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [activeHotspot, setActiveHotspot] = useState<AerialHotspot | null>(null);
@@ -112,9 +114,9 @@ export default function AerialView({ project }: AerialViewProps) {
     if (!activeHotspot) return;
     setIsTransitioning(true);
     setTimeout(() => {
-      router.push(`/proyecto/${project.slug}/edificio/${activeHotspot.buildingId}`);
+      router.push(`${basePath}/edificio/${activeHotspot.buildingId}`);
     }, 500);
-  }, [activeHotspot, project.slug, router]);
+  }, [activeHotspot, basePath, router]);
 
   // Prev/Next slide
   const goNext = useCallback(() => {
@@ -169,7 +171,7 @@ export default function AerialView({ project }: AerialViewProps) {
     return (
       <div className="w-full min-h-screen flex flex-col items-center justify-center gap-4 bg-white px-4 text-center">
         <p className="text-gray-400 text-sm">Todavía no hay vista aérea cargada para este proyecto.</p>
-        <Link href={`/proyecto/${project.slug}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <Link href={basePath || '/'} className="text-sm font-medium text-brand-600 hover:text-brand-700">
           ← Volver a {project.name}
         </Link>
       </div>
@@ -412,7 +414,7 @@ export default function AerialView({ project }: AerialViewProps) {
         >
           {project.units.length > 0 && (
             <Link
-              href={`/proyecto/${project.slug}/unidades`}
+              href={`${basePath}/unidades`}
               aria-label="Unidades"
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
@@ -424,7 +426,7 @@ export default function AerialView({ project }: AerialViewProps) {
           )}
           {project.amenities.length > 0 && (
             <Link
-              href={`/proyecto/${project.slug}/amenities`}
+              href={`${basePath}/amenities`}
               aria-label="Amenities"
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
@@ -436,7 +438,7 @@ export default function AerialView({ project }: AerialViewProps) {
           )}
           {project.pointsOfInterest.length > 0 && (
             <Link
-              href={`/proyecto/${project.slug}/ubicacion`}
+              href={`${basePath}/ubicacion`}
               aria-label="Ubicación"
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >

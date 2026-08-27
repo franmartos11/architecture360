@@ -12,6 +12,7 @@ import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { formatPrice } from '@/lib/units';
+import { getProjectBasePath } from '@/lib/project-url';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -32,6 +33,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
+  const basePath = await getProjectBasePath(slug);
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const sectionOrder = resolveSectionOrder(project.sectionConfig, typeConfig);
   const theme = resolveTheme(project.themeConfig);
@@ -57,7 +59,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
       style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
     >
       {theme.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: theme.fontFaceCss }} />}
-      <Navbar projectSlug={project.slug} showCalculator={typeConfig.showCalculator} hasTour={!!project.commonAreasTour} />
+      <Navbar showCalculator={typeConfig.showCalculator} hasTour={!!project.commonAreasTour} />
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -87,7 +89,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           )}
           {typeConfig.saleMode === 'venta' && project.units.length > 0 && (
             <a
-              href={`/proyecto/${project.slug}/unidades`}
+              href={`${basePath}/unidades`}
               className="mt-8 inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
             >
               VER DISPONIBILIDAD
@@ -104,7 +106,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
 
       {sectionOrder.map(key => {
         const Section = SECTION_COMPONENTS[key];
-        return <Section key={key} project={project} typeConfig={typeConfig} />;
+        return <Section key={key} project={project} typeConfig={typeConfig} basePath={basePath} />;
       })}
 
       {/* Comentarios */}
@@ -122,7 +124,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="font-[family-name:var(--theme-font-heading)] text-2xl font-bold tracking-widest">{project.name.toUpperCase()}</div>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-light text-[var(--theme-text-on-dark-muted)]">
-            <a href={`/proyecto/${project.slug}`} className="hover:text-[var(--theme-text-on-dark)] transition-colors">Inicio</a>
+            <a href={basePath || '/'} className="hover:text-[var(--theme-text-on-dark)] transition-colors">Inicio</a>
             {project.description && <a href="#next" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Sobre el proyecto</a>}
             {project.units.length > 0 && <a href="#modelos" className="hover:text-[var(--theme-text-on-dark)] transition-colors">{typeConfig.unitLabel}s</a>}
             {typeConfig.showCalculator && <a href="#cotizador" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Cotizador</a>}

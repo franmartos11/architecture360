@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { Footprints, Bike, Car } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { Project, PointOfInterest, PoiCategory } from '@/types';
 import { POI_CATEGORY_LABELS, PoiCategoryIcon } from '@/lib/poiCategories';
@@ -20,6 +21,7 @@ function directionsHref(poi: PointOfInterest, projectLocation: string) {
 }
 
 export default function LocationView({ project }: LocationViewProps) {
+  const basePath = useProjectBasePath();
   const [categoryFilter, setCategoryFilter] = useState<PoiCategory | 'all'>('all');
 
   const categoriesPresent = useMemo(() => {
@@ -40,7 +42,7 @@ export default function LocationView({ project }: LocationViewProps) {
   return (
     <div className="min-h-screen bg-trevo-dark">
       <div className="pt-24 pb-20 px-4 sm:px-6 max-w-6xl mx-auto">
-        <Link href={`/proyecto/${project.slug}`} className="text-sm text-white/50 hover:text-white transition-colors">
+        <Link href={basePath || '/'} className="text-sm text-white/50 hover:text-white transition-colors">
           ← {project.name}
         </Link>
         <h1 className="text-3xl sm:text-4xl font-light text-white mt-3 mb-1">Ubicación y Puntos de Interés</h1>

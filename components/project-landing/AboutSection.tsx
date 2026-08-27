@@ -3,7 +3,7 @@ import Reveal from '@/components/ui/Reveal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { SectionProps } from './types';
 
-export default function AboutSection({ project }: SectionProps) {
+export default function AboutSection({ project, basePath }: SectionProps) {
   if (!project.description) return null;
 
   // Ficha académica: solo se completa (y solo tiene sentido mostrar) en
@@ -29,7 +29,7 @@ export default function AboutSection({ project }: SectionProps) {
             )}
             <div className="pt-4 flex flex-wrap gap-4">
               <a
-                href={`/proyecto/${project.slug}/masterplan`}
+                href={`${basePath}/masterplan`}
                 className="px-6 py-3 border border-[var(--theme-text)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors duration-300 tracking-wider text-sm"
               >
                 VER MASTERPLAN
