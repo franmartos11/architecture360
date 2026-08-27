@@ -64,9 +64,10 @@ export default function AdminDashboard() {
   const sold = units.filter(u => u.status === 'sold').length;
 
   // Un proyecto showcase no tiene precio/estado/leads comerciales — mostrar
-  // ese dashboard ahí sería 3 métricas en 0 para siempre. En su lugar, un
-  // resumen de lo cargado más el link para compartir.
-  const showsCommercialMetrics = typeConfig.showPrice || typeConfig.showStatus || typeConfig.showLeads;
+  // ese dashboard ahí sería 3 métricas en 0 para siempre. Una casa tampoco:
+  // es UNA unidad, un gráfico de torta de 1 depto no dice nada. En ambos
+  // casos, un resumen de lo cargado más el link para compartir.
+  const showsCommercialMetrics = hasUnitStep && (typeConfig.showPrice || typeConfig.showStatus || typeConfig.showLeads);
 
   if (totalUnits === 0) {
     return (
@@ -103,18 +104,20 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-500 mt-1">Visión general del proyecto</p>
         </div>
 
-        <div className={`grid grid-cols-1 ${hasUnitStep ? 'sm:grid-cols-2' : ''} gap-6`}>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.buildingLabel}s {agree.cargado}s</div>
-            <div className="text-3xl font-bold text-gray-900">{project.buildingCount}</div>
-          </div>
-          {hasUnitStep && (
+        {/* Para "casa" (una sola unidad) el conteo no aporta — se va directo
+            al link para compartir. Para el resto, las tarjetas de conteo. */}
+        {hasUnitStep && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.buildingLabel}s {agree.cargado}s</div>
+              <div className="text-3xl font-bold text-gray-900">{project.buildingCount}</div>
+            </div>
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.unitLabel}s cargados</div>
               <div className="text-3xl font-bold text-gray-900">{totalUnits}</div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-900 mb-1">Compartí tu proyecto</h3>

@@ -91,13 +91,11 @@ export default function ProjectAdminShell({
   // hijos siempre visibles, para no esconderlos detrás de un click a una
   // página que no existe.
   //
-  // Cuando building y unidad son la misma cosa (hasUnitStep false, hoy
-  // "casa"), unitLabel === buildingLabel — este ítem NO puede llamarse
-  // "Casas" igual que el de arriba (línea ~59) o quedan dos entradas
-  // idénticas en el menú sin forma de distinguirlas. Acá se edita precio y
-  // estado en lote, así que ese es el nombre.
+  // La pantalla de inventario (precio/estado en lote) solo tiene sentido
+  // con varias unidades — una casa es UNA sola, su precio y estado se
+  // editan en su propia ficha (paso "Datos"), así que acá no aparece.
   const operacionItems = [
-    { label: hasFloorStep ? 'Inventario' : hasUnitStep ? `${unitLabel}s` : 'Precios y estados', href: '/admin/inventory' },
+    ...(hasUnitStep ? [{ label: hasFloorStep ? 'Inventario' : `${unitLabel}s`, href: '/admin/inventory' }] : []),
     ...(showLeads ? [{ label: 'Leads', href: '/admin/leads' }] : []),
   ];
 
@@ -242,6 +240,7 @@ export default function ProjectAdminShell({
             )}
           </div>
 
+          {operacionItems.length > 0 && (
           <div className="pt-2">
             <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Operación</p>
             <div className="mt-1 flex flex-col gap-1">
@@ -267,6 +266,7 @@ export default function ProjectAdminShell({
               })}
             </div>
           </div>
+          )}
 
           {navItems.map(item => {
             const isActive = pathname === item.href;
