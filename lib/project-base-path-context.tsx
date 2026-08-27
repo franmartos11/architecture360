@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 
-// Ver lib/project-url.ts:getProjectBasePath — mismo prefijo, disponible acá
+// Ver lib/project-base-path.ts:getProjectBasePath — mismo prefijo, disponible acá
 // sin volver a pegarle a next/headers en cada Client Component. El
 // Provider se monta una única vez en app/proyecto/[slug]/layout.tsx (Server
 // Component, calcula el valor con headers() y lo pasa para acá) y de ahí

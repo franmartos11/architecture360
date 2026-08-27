@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
 import { getProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
-import { getProjectBasePath } from '@/lib/project-url';
+import { getProjectBasePath } from '@/lib/project-base-path';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;

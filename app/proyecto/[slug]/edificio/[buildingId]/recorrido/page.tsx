@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
 import { getBuildingById, getProjectBySlug } from '@/data/project-repository';
 import { getSunAzimuths } from '@/lib/sun-position';
-import { getProjectBasePath } from '@/lib/project-url';
+import { getProjectBasePath } from '@/lib/project-base-path';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;

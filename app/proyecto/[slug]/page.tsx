@@ -12,7 +12,7 @@ import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { formatPrice } from '@/lib/units';
-import { getProjectBasePath } from '@/lib/project-url';
+import { getProjectBasePath } from '@/lib/project-base-path';
 
 interface PageProps {
   params: Promise<{ slug: string }>;

@@ -1,4 +1,4 @@
-import { getProjectBasePath } from '@/lib/project-url';
+import { getProjectBasePath } from '@/lib/project-base-path';
 import { ProjectBasePathProvider } from '@/lib/project-base-path-context';
 
 interface LayoutProps {
