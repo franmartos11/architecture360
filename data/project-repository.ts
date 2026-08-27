@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
 import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit } from '@/types';
 import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
+import { getProjectTypeConfig } from '@/lib/project-types';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -29,6 +30,11 @@ function mapProject(
 ): Project {
   const buildingSlugById = new Map(buildingRows.map(b => [b.id, b.slug]));
 
+  // Tipo "casa": el edificio y la unidad SON el proyecto — su nombre real
+  // de cara al público es el del proyecto, sin importar con qué nombre se
+  // hayan creado en la base (evita "Casa CASA" en migas, títulos, etc.).
+  const isSingleUnit = !getProjectTypeConfig(project.project_type, project.sale_mode).hasUnitStep;
+
   const units: Unit[] = unitRows.map(u => {
     const floor = floorRows.find(f => f.id === u.floor_id)!;
     const building = buildingRows.find(b => b.id === floor.building_id)!;
@@ -41,7 +47,7 @@ function mapProject(
     const counts = roomCounts(allRooms);
     return {
       id: u.code,
-      name: u.code,
+      name: isSingleUnit ? project.name : u.code,
       modelName: u.model_name ?? '',
       buildingId: building.slug,
       floor: floor.number,
@@ -84,7 +90,7 @@ function mapProject(
 
   const buildings: Building[] = buildingRows.map(b => ({
     id: b.slug,
-    name: b.name,
+    name: isSingleUnit ? project.name : b.name,
     totalFloors: b.total_floors,
     amenitiesTour: b.amenities_tour ?? undefined,
     coverImage: b.cover_image ?? undefined,

@@ -12,6 +12,7 @@ interface UnitViewerWrapperProps {
   projectSlug: string;
   projectName: string;
   buildingId: string;
+  buildingName: string;
   floorNumber: number;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];

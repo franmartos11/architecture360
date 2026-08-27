@@ -32,6 +32,7 @@ interface UnitViewerProps {
   projectSlug: string;
   projectName: string;
   buildingId: string;
+  buildingName: string;
   floorNumber: number;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
@@ -84,6 +85,7 @@ export default function UnitViewer({
   projectSlug,
   projectName,
   buildingId,
+  buildingName,
   floorNumber,
   amenities = [],
   pointsOfInterest = [],
@@ -190,7 +192,11 @@ export default function UnitViewer({
   }, [amenityLightboxOpen, activeAmenity]);
 
   const handleShare = async () => {
-    await shareLink(window.location.href, `Unidad ${unit.name} - ${projectSlug}`, `Mirá esta unidad: ${unit.name} (${unit.modelName})`);
+    const title = hasUnitStep ? `Unidad ${unit.name} - ${projectSlug}` : `${unit.name} - ${projectSlug}`;
+    const text = hasUnitStep
+      ? `Mirá esta unidad: ${unit.name}${unit.modelName ? ` (${unit.modelName})` : ''}`
+      : `Mirá ${unit.name}`;
+    await shareLink(window.location.href, title, text);
   };
 
   const handleSelectRoom = useCallback((room: Room) => {
@@ -489,11 +495,19 @@ export default function UnitViewer({
         {/* Top bar — desktop only */}
         <div className="hidden md:flex absolute top-0 left-0 right-0 z-20 flex-wrap items-center justify-between gap-2 px-4 pt-4 pointer-events-none">
           <div className="flex items-center gap-2 pointer-events-auto min-w-0">
-            <Breadcrumbs
-              projectName={projectName}
-              buildingLabel={!hasUnitStep ? buildingLabel : undefined}
-              unitLabel={!hasUnitStep ? unitLabel : undefined}
-            />
+            <Breadcrumbs crumbs={
+              hasUnitStep
+                ? [
+                    { label: projectName, href: basePath || '/' },
+                    { label: buildingName, href: `${basePath}/edificio/${buildingId}` },
+                    { label: unit.modelName || unit.name },
+                  ]
+                : // casa: el edificio y la unidad son la misma cosa → un solo crumb
+                  [
+                    { label: projectName, href: basePath || '/' },
+                    { label: buildingName || unit.name },
+                  ]
+            } />
           </div>
 
           {/* Floor badge + Cambiar planta */}

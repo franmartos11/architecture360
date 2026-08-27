@@ -49,6 +49,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
       projectSlug={slug}
       projectName={project.name}
       buildingId={building.id}
+      buildingName={building.name}
       floorNumber={unit.floor}
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
