@@ -57,8 +57,9 @@ const COLLABORATOR_STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
 };
 
 export default function AdminProjectPage() {
-  const { saleMode, buildingLabel } = useProjectTypeConfig();
+  const { saleMode, buildingLabel, hasUnitStep, aerialLabel, aerialLabelPlural } = useProjectTypeConfig();
   const buildingLabelLower = buildingLabel.toLowerCase();
+  const aerialLower = aerialLabel.toLowerCase();
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [slides, setSlides] = useState<SlideRow[]>([]);
@@ -156,7 +157,7 @@ export default function AdminProjectPage() {
       setNewSlide({ imageUrl: '', videoUrl: '', label: '' });
       load();
     } else {
-      toast('Error al crear la vista aérea.', 'error');
+      toast(`Error al crear la ${aerialLower}.`, 'error');
     }
   };
 
@@ -175,7 +176,7 @@ export default function AdminProjectPage() {
   };
 
   const handleDeleteSlide = async (id: string) => {
-    const ok = await confirmDialog({ message: '¿Borrar esta vista aérea y sus hotspots?', confirmLabel: 'Borrar vista', danger: true });
+    const ok = await confirmDialog({ message: `¿Borrar esta ${aerialLower} y sus hotspots?`, confirmLabel: 'Borrar', danger: true });
     if (!ok) return;
     const res = await fetch(`/api/admin/aerial-slides/${id}`, { method: 'DELETE' });
     if (res.ok) load();
@@ -267,7 +268,7 @@ export default function AdminProjectPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Proyecto</h2>
-          <p className="text-sm text-gray-500 mt-1">Datos generales y vistas aéreas del sitio público.</p>
+          <p className="text-sm text-gray-500 mt-1">Datos generales y {aerialLabelPlural.toLowerCase()} del sitio público.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -386,6 +387,7 @@ export default function AdminProjectPage() {
           </div>
         </form>
       </Card>
+
 
       {/* Colaboradores — créditos públicos, no acceso al admin */}
       <Card>
@@ -629,11 +631,15 @@ export default function AdminProjectPage() {
         </Card>
       )}
 
-      {/* Vistas aéreas */}
+      {/* Vistas aéreas / Vista frontal */}
       <Card>
         <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">Vistas aéreas</h3>
-          <p className="text-sm text-gray-500">Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada {buildingLabelLower}.</p>
+          <h3 className="text-lg font-semibold text-gray-900">{aerialLabelPlural}</h3>
+          <p className="text-sm text-gray-500">
+            {hasUnitStep
+              ? `Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada ${buildingLabelLower}.`
+              : `La foto del frente de la ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`}
+          </p>
         </CardHeader>
 
         <div className="divide-y divide-gray-100">
@@ -646,7 +652,7 @@ export default function AdminProjectPage() {
                     href={`/admin/proyecto/aereas/${slide.id}`}
                     className="text-sm font-medium text-brand-600 hover:text-brand-700"
                   >
-                    Delimitar torres →
+                    {hasUnitStep ? 'Delimitar torres →' : 'Marcar la casa →'}
                   </Link>
                   <button
                     onClick={() => handleDeleteSlide(slide.id)}
@@ -687,7 +693,7 @@ export default function AdminProjectPage() {
                 <p className="text-xs text-gray-400">
                   Para agregar o mover un hotspot, usá{' '}
                   <Link href={`/admin/proyecto/aereas/${slide.id}`} className="text-brand-600 hover:text-brand-700 font-medium">
-                    Delimitar torres →
+                    {hasUnitStep ? 'Delimitar torres →' : 'Marcar la casa →'}
                   </Link>{' '}
                   y ubicalo con un clic directo sobre la foto.
                 </p>
@@ -702,12 +708,12 @@ export default function AdminProjectPage() {
               <Input
                 value={newSlide.label}
                 onChange={e => setNewSlide({ ...newSlide, label: e.target.value })}
-                placeholder="Etiqueta (ej: Vista Norte)"
-                aria-label="Etiqueta de la vista aérea"
+                placeholder={hasUnitStep ? "Etiqueta (ej: Vista Norte)" : "Etiqueta (ej: Frente)"}
+                aria-label={`Etiqueta de la ${aerialLower}`}
               />
             </div>
             <Button type="submit" className="w-full sm:w-auto" disabled={newSlideImageUploading || newSlideVideoUploading}>
-              {newSlideImageUploading || newSlideVideoUploading ? 'Subiendo...' : '+ Agregar vista'}
+              {newSlideImageUploading || newSlideVideoUploading ? 'Subiendo...' : `+ Agregar ${aerialLower}`}
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -7,7 +7,7 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 interface BreadcrumbsProps {
   projectName: string;
-  /** Override para tipos sin concepto de "torre" (ej. casas) — default 'Torre'. */
+  /** Override para tipos sin concepto de "torre" (ej. casa) — default 'Torre'. */
   buildingLabel?: string;
   /** Override para tipos sin concepto de "unidad" propiamente dicha — default 'Unidad'. */
   unitLabel?: string;

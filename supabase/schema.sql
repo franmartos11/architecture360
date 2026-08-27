@@ -268,7 +268,7 @@ create index if not exists idx_project_collaborators_profile on project_collabor
 
 -- ─── Tipo de proyecto: forma + propósito, por separado ───────────────
 -- Son dos preguntas independientes: qué FORMA tiene el desarrollo
--- (edificio/loteo/duplex/casas — project_type, determina la jerarquía
+-- (edificio/loteo/duplex/casa — project_type, determina la jerarquía
 -- pisos/unidades y cómo se llama todo) y para QUÉ es (venta/showcase —
 -- sale_mode, determina si se muestran precio/estado/leads/calculadora).
 -- Antes vivían mezcladas en un solo valor combinado (ej. "edificio-
@@ -285,8 +285,13 @@ alter table projects add column if not exists sale_mode text not null default 'v
 -- (o los ya migrados) llegan con valores que no matchean ningún WHEN acá
 -- y quedan sin tocar.
 update projects set project_type = 'edificio', sale_mode = 'venta' where project_type = 'edificio-venta';
-update projects set project_type = 'casas', sale_mode = 'showcase' where project_type = 'casa-showcase';
-update projects set project_type = 'casas', sale_mode = 'venta' where project_type = 'casas-en-venta';
+update projects set project_type = 'casa', sale_mode = 'showcase' where project_type = 'casa-showcase';
+update projects set project_type = 'casa', sale_mode = 'venta' where project_type = 'casas-en-venta';
+
+-- Renombrado de 'casas' (plural) a 'casa' (singular) — cada building
+-- es UNA casa, no un conjunto. Migra proyectos creados con el valor
+-- anterior.
+update projects set project_type = 'casa' where project_type = 'casas';
 
 -- Para bases que ya tenían project_type creada con el default viejo.
 alter table projects alter column project_type set default 'edificio';
@@ -393,15 +398,15 @@ create table if not exists units (
   bedrooms int not null default 0,
   bathrooms numeric not null default 1,
   has_service_room boolean not null default false,
-  lot_size numeric,                 -- superficie de terreno (m²) — solo aplica a casas
-  ceiling_height numeric,           -- altura de techo (m) — solo aplica a casas
-  garage_spaces int not null default 0,  -- cantidad de cocheras — solo aplica a casas
+  lot_size numeric,                 -- superficie de terreno (m²) — solo aplica a casa
+  ceiling_height numeric,           -- altura de techo (m) — solo aplica a casa
+  garage_spaces int not null default 0,  -- cantidad de cocheras — solo aplica a casa
   garage_type text check (garage_type is null or garage_type in ('cubierta', 'descubierta')),
-  living_rooms int not null default 1,   -- cantidad de livings — solo aplica a casas
-  kitchens int not null default 1,       -- cantidad de cocinas — solo aplica a casas
-  other_rooms_count int not null default 0,   -- otros ambientes (lavadero, depósito, etc.) — solo casas
+  living_rooms int not null default 1,   -- cantidad de livings — solo aplica a casa
+  kitchens int not null default 1,       -- cantidad de cocinas — solo aplica a casa
+  other_rooms_count int not null default 0,   -- otros ambientes (lavadero, depósito, etc.) — solo casa
   other_rooms_description text,               -- detalle libre de esos otros ambientes
-  hoa_fee numeric,                  -- expensas mensuales — solo aplica a casas en barrio privado
+  hoa_fee numeric,                  -- expensas mensuales — solo aplica a casa en barrio privado
   floors_count int not null default 1, -- cantidad de plantas de la casa
   price numeric,
   currency text not null default 'USD',
@@ -428,7 +433,7 @@ create table if not exists units (
 -- default 'USD' se aplica también a las filas existentes.
 alter table units add column if not exists currency text not null default 'USD';
 
--- Campos agregados para la carga de casas (lote/cochera/plantas) — mismo
+-- Campos agregados para la carga de casa (lote/cochera/plantas) — mismo
 -- motivo que currency arriba: bases ya creadas no los reciben del CREATE
 -- TABLE, así que se agregan acá de forma retroactiva e idempotente.
 alter table units add column if not exists lot_size numeric;

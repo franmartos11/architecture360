@@ -10,7 +10,8 @@ import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL } from '@/lib/units';
+import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
@@ -105,10 +106,19 @@ export default function UnitViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [comparing, setComparing] = useState(!!initialCompareUnitId);
   const hasTour = !!(unit.tourImageUrl || unit.tourData);
+  const sunAzimuths = projectLatitude != null ? getSunAzimuths(projectLatitude) : null;
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
+  // Programa de ambientes con detalle (tipo, m², características, foto) —
+  // cuando está cargado, reemplaza a la lista plana "N Dormitorios / N
+  // Baños". Agrupado por planta (planta baja + niveles extra).
+  const showRoomProgram = hasRoomProgram(allProgramRooms(unit.rooms, unit.levels));
+  const roomFloors = [
+    { label: 'Planta baja', rooms: (unit.rooms ?? []).filter(r => r.kind) },
+    ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(r => r.kind) })),
+  ].filter(g => g.rooms.length > 0);
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Amenity detail state (inline tab)
@@ -317,20 +327,68 @@ export default function UnitViewer({
             {unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
             {!!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
             {!!unit.ceilingHeight && <SpecRow label={`Altura de techo ${unit.ceilingHeight} m`} />}
-            <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />
-            <SpecRow label={`${unit.bathrooms} Baños`} />
-            {!hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
-            {!hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
-            {!hasUnitStep && !!unit.otherRoomsCount && (
+            {!showRoomProgram && <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />}
+            {!showRoomProgram && <SpecRow label={`${unit.bathrooms} Baños`} />}
+            {!showRoomProgram && !hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
+            {!showRoomProgram && !hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
+            {!showRoomProgram && !hasUnitStep && !!unit.otherRoomsCount && (
               <SpecRow label={`${unit.otherRoomsCount} ambiente${unit.otherRoomsCount !== 1 ? 's' : ''} más${unit.otherRoomsDescription ? ` (${unit.otherRoomsDescription})` : ''}`} />
             )}
             {!!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
+            {!!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
             {unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
             {!!unit.garageSpaces && (
               <SpecRow label={`${unit.garageSpaces} Cochera${unit.garageSpaces !== 1 ? 's' : ''}${unit.garageType ? ` (${unit.garageType})` : ''}`} />
             )}
             {!!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
+
+          {/* Programa de ambientes — detalle de cada uno, agrupado por planta */}
+          {showRoomProgram && (
+            <>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-6 mb-3">Ambientes</h4>
+              <div className="space-y-4">
+                {roomFloors.map((group, gi) => (
+                  <div key={gi}>
+                    {roomFloors.length > 1 && (
+                      <p className="text-xs font-semibold text-gray-500 mb-2">{group.label}</p>
+                    )}
+                    <ul className="space-y-3 text-sm">
+                      {group.rooms.map(room => (
+                        <li key={room.id} className="flex gap-3">
+                          {room.imageUrl && (
+                            <div className="relative w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                              <Image
+                                src={room.imageUrl}
+                                alt={room.name || ROOM_KIND_LABEL[room.kind!]}
+                                fill
+                                sizes="80px"
+                                placeholder="blur"
+                                blurDataURL={shimmerDataUrl(80, 80)}
+                                className="object-cover"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
+                              <span className="font-medium text-gray-900">{room.name || ROOM_KIND_LABEL[room.kind!]}</span>
+                              <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind!]}</span>
+                              {!!room.area && <span className="text-gray-500">· {room.area} m²</span>}
+                            </div>
+                            {(room.features?.length || room.notes) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {[...(room.features ?? []), room.notes].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Accesos rápidos a tabs de Amenities / Ubicación */}
           {(amenities.length > 0 || pointsOfInterest.length > 0) && (
@@ -502,6 +560,7 @@ export default function UnitViewer({
                   focusNodeId={focusNodeId}
                   isFullscreen={isFullscreen}
                   onFullscreenChange={setIsFullscreen}
+                  sunAzimuths={sunAzimuths}
                 />
               ) : (
                 <motion.div

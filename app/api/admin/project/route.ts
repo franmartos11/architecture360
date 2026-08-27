@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+import { PROJECT_SALE_MODES, isValidTypeCombo } from '@/lib/project-types';
+
+const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
 // sectionConfig/themeConfig/commonAreasTour/processGallery/beforeAfter son
 // blobs JSON grandes y con forma propia (config del sitio, tour 360°,
@@ -11,21 +14,30 @@ import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 // es todo el texto libre que termina en la ficha pública del proyecto.
 const projectPatchSchema = z.object({
   name: z.string().max(200).optional(),
-  description: z.string().max(5000).optional(),
-  tagline: z.string().max(300).optional(),
+  // Propósito del desarrollo (para vender / solo mostrar) — editable desde
+  // Configuración. La FORMA (project_type: edificio/casa/loteo…) NO se
+  // toca acá: se fija al crear el proyecto y define toda la jerarquía.
+  // Sin CHECK en la base (ver supabase/schema.sql), la validación vive acá.
+  saleMode: z.enum(SALE_MODE_KEYS).optional(),
+  // Columnas de texto opcionales: la fila las trae como null en un
+  // proyecto recién creado, y el form las reenvía tal cual al guardar
+  // cualquier otro campo (ej. la foto del masterplan). `.nullable()` para
+  // no rechazar ese null — el handler lo sanea a '' igual.
+  description: z.string().max(5000).nullable().optional(),
+  tagline: z.string().max(300).nullable().optional(),
   sectionConfig: z.unknown().optional(),
   themeConfig: z.unknown().optional(),
-  location: z.string().max(300).optional(),
+  location: z.string().max(300).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   masterplanImage: z.string().max(1000).nullable().optional(),
   commonAreasTour: z.unknown().optional(),
   tourOrientationDegrees: z.number().min(0).max(360).nullable().optional(),
-  academicInstitution: z.string().max(200).optional(),
-  academicCareer: z.string().max(200).optional(),
-  academicTutor: z.string().max(200).optional(),
-  academicYear: z.string().max(20).optional(),
-  academicTeam: z.string().max(500).optional(),
+  academicInstitution: z.string().max(200).nullable().optional(),
+  academicCareer: z.string().max(200).nullable().optional(),
+  academicTutor: z.string().max(200).nullable().optional(),
+  academicYear: z.string().max(20).nullable().optional(),
+  academicTeam: z.string().max(500).nullable().optional(),
   processGallery: z.unknown().optional(),
   beforeAfter: z.unknown().optional(),
   showInPortfolio: z.boolean().optional(),
@@ -108,6 +120,17 @@ export async function PATCH(request: Request) {
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = sanitizeText(body.name, 200);
+
+  // El propósito nuevo tiene que ser compatible con la forma ya guardada
+  // (ej. un "Proyecto único" no puede pasar a "venta") — ver isValidTypeCombo.
+  if (body.saleMode !== undefined) {
+    const { data: current } = await supabase
+      .from('projects').select('project_type').eq('id', projectId).maybeSingle();
+    if (!isValidTypeCombo(current?.project_type ?? '', body.saleMode)) {
+      return NextResponse.json({ error: `La forma de este proyecto no admite el propósito "${body.saleMode}".` }, { status: 400 });
+    }
+    updates.sale_mode = body.saleMode;
+  }
   if (body.description !== undefined) updates.description = sanitizeMultiline(body.description, 5000);
   if (body.tagline !== undefined) updates.tagline = sanitizeText(body.tagline, 300);
   if (body.sectionConfig !== undefined) updates.section_config = body.sectionConfig;

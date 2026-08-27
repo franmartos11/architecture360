@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isValidEnum } from '@/lib/validate';
-import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from '@/lib/project-types';
+import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
 import { resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
+import { provisionSingleUnitStructure } from '@/lib/provision-structure';
 
 const PROJECT_TYPE_KEYS = Object.keys(PROJECT_STRUCTURES) as (keyof typeof PROJECT_STRUCTURES)[];
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as (keyof typeof PROJECT_SALE_MODES)[];
@@ -69,6 +70,11 @@ export async function POST(request: Request) {
   if (body.saleMode !== undefined && !isValidEnum(body.saleMode, SALE_MODE_KEYS)) {
     return NextResponse.json({ error: `saleMode debe ser uno de: ${SALE_MODE_KEYS.join(', ')}` }, { status: 400 });
   }
+  const projectType = body.projectType ?? DEFAULT_PROJECT_TYPE;
+  const saleMode = body.saleMode ?? DEFAULT_SALE_MODE;
+  if (!isValidTypeCombo(projectType, saleMode)) {
+    return NextResponse.json({ error: `La forma "${projectType}" no admite el propósito "${saleMode}".` }, { status: 400 });
+  }
 
   // El slug se genera solo a partir del nombre — el admin nunca lo escribe
   // ni puede pisarlo con uno repetido (ver lib/slug.ts).
@@ -80,8 +86,8 @@ export async function POST(request: Request) {
       slug,
       name,
       owner_id: user.id,
-      project_type: body.projectType ?? DEFAULT_PROJECT_TYPE,
-      sale_mode: body.saleMode ?? DEFAULT_SALE_MODE,
+      project_type: projectType,
+      sale_mode: saleMode,
     })
     .select('id, slug, name, project_type, sale_mode')
     .single();
@@ -90,5 +96,18 @@ export async function POST(request: Request) {
     if (error.code === '23505') return NextResponse.json({ error: 'Ese slug ya está en uso.' }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Formas "de una sola cosa" (casa): la casa ES el proyecto, así que se
+  // arma sola acá mismo con el nombre del proyecto — el usuario no pasa
+  // por un paso de "crear la casa". Si algo falla, el proyecto igual queda
+  // creado y el wizard la provisiona como red de seguridad.
+  if (!getProjectTypeConfig(projectType, saleMode).hasUnitStep) {
+    try {
+      await provisionSingleUnitStructure(supabase, { projectId: data.id, name });
+    } catch (e) {
+      console.error('No se pudo auto-provisionar la casa del proyecto', data.id, e);
+    }
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

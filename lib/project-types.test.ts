@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getProjectTypeConfig, buildingAgreement, unitAgreement, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from './project-types';
+import { getProjectTypeConfig, buildingAgreement, unitAgreement, isValidTypeCombo, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from './project-types';
 
 describe('getProjectTypeConfig', () => {
   it('combina forma y propósito de forma independiente', () => {
@@ -36,11 +36,50 @@ describe('getProjectTypeConfig', () => {
     expect(config.saleMode).toBe(DEFAULT_SALE_MODE);
   });
 
+  it('resuelve el alias legacy "casas" (plural) a "casa" sin marcar fallback', () => {
+    const config = getProjectTypeConfig('casas', 'showcase');
+    expect(config.isFallback).toBe(false);
+    expect(config.buildingLabel).toBe('Casa');
+    expect(config.hasUnitStep).toBe(false);
+    expect(isValidTypeCombo('casas', 'venta')).toBe(true);
+  });
+
+  it('marca isFallback y el eje que no matcheó', () => {
+    const ok = getProjectTypeConfig('loteo', 'venta');
+    expect(ok.isFallback).toBe(false);
+    expect(ok.fallbackFields).toEqual({ type: false, saleMode: false });
+
+    const badType = getProjectTypeConfig('casa-showcase', 'venta');
+    expect(badType.isFallback).toBe(true);
+    expect(badType.fallbackFields).toEqual({ type: true, saleMode: false });
+
+    const badMode = getProjectTypeConfig('edificio', 'combinado-viejo');
+    expect(badMode.isFallback).toBe(true);
+    expect(badMode.fallbackFields).toEqual({ type: false, saleMode: true });
+  });
+
+  it('isValidTypeCombo rechaza propósitos que la forma no admite', () => {
+    expect(isValidTypeCombo('edificio', 'venta')).toBe(true);
+    expect(isValidTypeCombo('edificio', 'showcase')).toBe(true);
+    expect(isValidTypeCombo('unico', 'showcase')).toBe(true);
+    expect(isValidTypeCombo('unico', 'venta')).toBe(false);
+    expect(isValidTypeCombo('no-existe', 'venta')).toBe(false);
+  });
+
+  it('corrige un combo inválido guardado hacia el propósito que la forma sí admite', () => {
+    const config = getProjectTypeConfig('unico', 'venta');
+    expect(config.saleMode).toBe('showcase');
+    expect(config.showPrice).toBe(false);
+    // El combo se corrigió, pero los dos ejes existen en el catálogo — no es
+    // un "tipo desconocido", así que no dispara el banner rojo.
+    expect(config.isFallback).toBe(false);
+  });
+
   it('hasFloorStep depende de la forma, no del propósito', () => {
     expect(getProjectTypeConfig('edificio', 'venta').hasFloorStep).toBe(true);
     expect(getProjectTypeConfig('edificio', 'showcase').hasFloorStep).toBe(true);
-    expect(getProjectTypeConfig('casas', 'venta').hasFloorStep).toBe(false);
-    expect(getProjectTypeConfig('casas', 'showcase').hasFloorStep).toBe(false);
+    expect(getProjectTypeConfig('casa', 'venta').hasFloorStep).toBe(false);
+    expect(getProjectTypeConfig('casa', 'showcase').hasFloorStep).toBe(false);
   });
 });
 

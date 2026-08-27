@@ -197,7 +197,14 @@ export default function MisProyectosPage() {
                   <button
                     type="button"
                     key={key}
-                    onClick={() => setForm({ ...form, projectType: key })}
+                    onClick={() => setForm({
+                      ...form,
+                      projectType: key,
+                      // Si el propósito elegido no aplica a esta forma (ej.
+                      // pasar a "Proyecto único", que es solo showcase), se
+                      // ajusta al que sí — el otro botón desaparece abajo.
+                      saleMode: config.allowedSaleModes.includes(form.saleMode) ? form.saleMode : config.allowedSaleModes[0],
+                    })}
                     className={`text-left p-4 rounded-xl border-2 transition-colors ${
                       form.projectType === key ? 'border-brand-500 bg-brand-50/50' : 'border-gray-200 hover:border-gray-300'
                     }`}
@@ -212,7 +219,9 @@ export default function MisProyectosPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">¿Es para vender o solo para mostrar?</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(Object.entries(PROJECT_SALE_MODES) as [ProjectSaleMode, typeof PROJECT_SALE_MODES[ProjectSaleMode]][]).map(([key, config]) => (
+                {(Object.entries(PROJECT_SALE_MODES) as [ProjectSaleMode, typeof PROJECT_SALE_MODES[ProjectSaleMode]][])
+                  .filter(([key]) => PROJECT_STRUCTURES[form.projectType].allowedSaleModes.includes(key))
+                  .map(([key, config]) => (
                   <button
                     type="button"
                     key={key}

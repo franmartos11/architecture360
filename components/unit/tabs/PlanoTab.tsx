@@ -22,7 +22,7 @@ export default function PlanoTab({
   onPlanViewChange: (view: PlanView) => void;
   onSelectRoom: (room: Room) => void;
 }) {
-  // Casas de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
+  // Casa de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
   // más arriba en unit.levels — acá se unifican para poder elegir cuál
   // mostrar con el mismo selector.
   const levels = useMemo(() => [
@@ -67,7 +67,7 @@ export default function PlanoTab({
         </div>
       </div>
 
-      {/* Selector de planta — solo si hay más de una (casas de 2+ niveles) */}
+      {/* Selector de planta — solo si hay más de una (casa de 2+ niveles) */}
       {planView === 'ambientes' && levels.length > 1 && (
         <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2">
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">

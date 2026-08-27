@@ -6,12 +6,19 @@ import type { SectionProps } from './types';
 // CTA al masterplan interactivo — a diferencia del resto, no depende de
 // ningún contenido cargado (masterplanImage ya tiene fallback), así que
 // siempre tiene algo para mostrar; solo se apaga si el admin la deshabilita.
-export default function MasterplanCtaSection({ project, basePath }: SectionProps) {
+export default function MasterplanCtaSection({ project, basePath, typeConfig }: SectionProps) {
+  const isHouse = !typeConfig.hasUnitStep;
   return (
     <section id="tour-360" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)]">
       <Reveal className="max-w-6xl mx-auto px-6 text-center space-y-4 mb-12">
-        <h2 className="font-[family-name:var(--theme-font-heading)] text-3xl font-light text-[var(--theme-text)] tracking-widest">MASTERPLAN INTERACTIVO</h2>
-        <p className="text-[var(--theme-text-muted)] font-light">Explora el proyecto desde cualquier ángulo con nuestro visor interactivo.</p>
+        <h2 className="font-[family-name:var(--theme-font-heading)] text-3xl font-light text-[var(--theme-text)] tracking-widest">
+          {isHouse ? 'VISTA FRONTAL' : 'MASTERPLAN INTERACTIVO'}
+        </h2>
+        <p className="text-[var(--theme-text-muted)] font-light">
+          {isHouse
+            ? 'Entrá a recorrer la casa desde el frente.'
+            : 'Explora el proyecto desde cualquier ángulo con nuestro visor interactivo.'}
+        </p>
       </Reveal>
 
       <Reveal delay={0.15} className="max-w-4xl mx-auto px-6 text-center">
@@ -31,7 +38,7 @@ export default function MasterplanCtaSection({ project, basePath }: SectionProps
               href={`${basePath}/masterplan`}
               className="px-6 py-3 border border-[var(--theme-text-on-dark)] bg-[var(--theme-text-on-dark)]/10 backdrop-blur-md text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)] hover:text-[var(--theme-bg-alt)] transition-colors duration-300 tracking-wider text-sm"
             >
-              ENTRAR AL MASTERPLAN
+              {isHouse ? 'ENTRAR A LA CASA' : 'ENTRAR AL MASTERPLAN'}
             </a>
           </div>
         </div>

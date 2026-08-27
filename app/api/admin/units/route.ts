@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase: sessionClient } = access;
 
-  // Tipos sin "paso de unidades" (hoy: casas) tienen el building COMO la
+  // Tipos sin "paso de unidades" (hoy: casa) tienen el building COMO la
   // unidad — no admiten una segunda. El cliente ya oculta el alta múltiple
   // para estos casos (ver FloorUnitsEditor.tsx), pero eso no alcanza: sin
   // este chequeo acá, cualquier llamada directa al endpoint (o una carrera

@@ -36,6 +36,11 @@ export default function ProjectAdminShell({
   const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount();
   const typeConfig = getProjectTypeConfig(project.project_type, project.sale_mode);
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, showLeads } = typeConfig;
+  // Valor de project_type / sale_mode que no existe en el catálogo — el
+  // proyecto se está mostrando como "Edificio — Para vender" por descarte.
+  // Casi siempre es dato viejo (valor combinado legacy, migración a medias).
+  const badType = typeConfig.fallbackFields.type ? project.project_type : null;
+  const badSaleMode = typeConfig.fallbackFields.saleMode ? project.sale_mode : null;
   const { missing: missingSections } = useProjectCompleteness(typeConfig);
   const shareLink = useShareLink();
   const publicHref = getProjectHref(project.slug);
@@ -87,7 +92,7 @@ export default function ProjectAdminShell({
   // página que no existe.
   //
   // Cuando building y unidad son la misma cosa (hasUnitStep false, hoy
-  // "casas"), unitLabel === buildingLabel — este ítem NO puede llamarse
+  // "casa"), unitLabel === buildingLabel — este ítem NO puede llamarse
   // "Casas" igual que el de arriba (línea ~59) o quedan dos entradas
   // idénticas en el menú sin forma de distinguirlas. Acá se edita precio y
   // estado en lote, así que ese es el nombre.
@@ -283,6 +288,21 @@ export default function ProjectAdminShell({
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="p-6 md:p-8 max-w-6xl mx-auto">
+          {typeConfig.isFallback && (
+            <div className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-sm font-semibold text-red-800">
+                Este proyecto tiene un tipo que no se reconoce
+                {badType && <> (forma: <code className="font-mono">{badType}</code>)</>}
+                {badSaleMode && <> (propósito: <code className="font-mono">{badSaleMode}</code>)</>}
+                {' '}— mientras tanto se muestra como <strong>{getProjectTypeConfig('edificio', 'venta').label}</strong>.
+              </p>
+              <p className="text-sm text-red-700 mt-1">
+                {badSaleMode
+                  ? <>El propósito se corrige en <Link href="/admin/settings" className="font-medium underline underline-offset-2 hover:text-red-900">Configuración</Link>.</>
+                  : 'La forma se define al crear el proyecto — para corregir un valor viejo hay que ajustarlo en la base de datos.'}
+              </p>
+            </div>
+          )}
           {children}
         </div>
       </main>

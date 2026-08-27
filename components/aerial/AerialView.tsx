@@ -8,6 +8,7 @@ import type { Project, AerialSlide, AerialHotspot } from '@/types';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
+import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface AerialViewProps {
   project: Project;
@@ -28,7 +29,26 @@ export default function AerialView({ project }: AerialViewProps) {
   const [animationDone, setAnimationDone] = useState(false);
   const isReady = mediaLoaded && animationDone;
 
-  const slide: AerialSlide | undefined = project.aerialSlides[currentSlide];
+  // Si no se cargó ninguna vista aérea/frontal como slide propio pero sí
+  // hay una imagen de masterplan, se arma un slide sintético a partir de
+  // ella con un pin por cada edificio (para una casa: un pin al centro,
+  // que lleva a la casa). Antes esto era una pantalla vacía sin salida.
+  const slides: AerialSlide[] = project.aerialSlides.length > 0
+    ? project.aerialSlides
+    : project.masterplanImage
+      ? [{
+          id: 'masterplan-fallback',
+          imageUrl: project.masterplanImage,
+          label: '',
+          hotspots: project.buildings.map((b, i) => ({
+            buildingId: b.id,
+            x: project.buildings.length === 1 ? 50 : (100 / (project.buildings.length + 1)) * (i + 1),
+            y: 55,
+          })),
+        }]
+      : [];
+
+  const slide: AerialSlide | undefined = slides[currentSlide];
 
   const building = activeHotspot
     ? project.buildings.find(b => b.id === activeHotspot.buildingId)
@@ -97,12 +117,12 @@ export default function AerialView({ project }: AerialViewProps) {
 
   // Autoplay carousel
   useEffect(() => {
-    if (userInteracted || activeHotspot || project.aerialSlides.length === 0) return;
+    if (userInteracted || activeHotspot || slides.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentSlide(i => (i + 1) % project.aerialSlides.length);
+      setCurrentSlide(i => (i + 1) % slides.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [userInteracted, activeHotspot, project.aerialSlides.length]);
+  }, [userInteracted, activeHotspot, slides.length]);
 
   // Close popup on click outside
   const handleBackgroundClick = useCallback(() => {
@@ -122,14 +142,14 @@ export default function AerialView({ project }: AerialViewProps) {
   const goNext = useCallback(() => {
     setUserInteracted(true);
     setActiveHotspot(null);
-    setCurrentSlide(i => (i + 1) % project.aerialSlides.length);
-  }, [project.aerialSlides.length]);
+    setCurrentSlide(i => (i + 1) % slides.length);
+  }, [slides.length]);
 
   const goPrev = useCallback(() => {
     setUserInteracted(true);
     setActiveHotspot(null);
-    setCurrentSlide(i => (i - 1 + project.aerialSlides.length) % project.aerialSlides.length);
-  }, [project.aerialSlides.length]);
+    setCurrentSlide(i => (i - 1 + slides.length) % slides.length);
+  }, [slides.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -168,9 +188,10 @@ export default function AerialView({ project }: AerialViewProps) {
   // donde se calcula `slide`) porque los hooks de React no pueden quedar
   // atrás de un return condicional.
   if (!slide) {
+    const aerialLower = getProjectTypeConfig(project.projectType, project.saleMode).aerialLabel.toLowerCase();
     return (
       <div className="w-full min-h-screen flex flex-col items-center justify-center gap-4 bg-white px-4 text-center">
-        <p className="text-gray-400 text-sm">Todavía no hay vista aérea cargada para este proyecto.</p>
+        <p className="text-gray-400 text-sm">Todavía no hay {aerialLower} cargada para este proyecto.</p>
         <Link href={basePath || '/'} className="text-sm font-medium text-brand-600 hover:text-brand-700">
           ← Volver a {project.name}
         </Link>
@@ -481,7 +502,7 @@ export default function AerialView({ project }: AerialViewProps) {
 
         {/* Slide dots */}
         <div className="flex items-center gap-1.5">
-          {project.aerialSlides.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               onClick={e => { e.stopPropagation(); setCurrentSlide(i); setActiveHotspot(null); }}

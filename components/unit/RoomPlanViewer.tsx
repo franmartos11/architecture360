@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, memo } from 'react';
-import Image from 'next/image';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Room } from '@/types';
 
@@ -11,10 +10,16 @@ interface RoomPlanViewerProps {
   onSelectRoom?: (room: Room) => void;
 }
 
+// Un ambiente sin polígono (cargado en el programa de la casa pero sin
+// delimitar sobre el plano) no se dibuja acá — se ignora.
+type DrawnRoom = Room & { polygon: NonNullable<Room['polygon']> };
+const isDrawn = (r: Room): r is DrawnRoom => Array.isArray(r.polygon) && r.polygon.length >= 3;
+
 export default function RoomPlanViewer({ planImage, rooms, onSelectRoom }: RoomPlanViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 
-  const hovered = rooms.find(r => r.id === hoveredRoom);
+  const drawnRooms = rooms.filter(isDrawn);
+  const hovered = drawnRooms.find(r => r.id === hoveredRoom);
   const center = hovered
     ? {
         x: hovered.polygon.reduce((s, p) => s + p.x, 0) / hovered.polygon.length,
@@ -26,18 +31,21 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom }: RoomP
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
       <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit wheel={{ step: 0.1 }} doubleClick={{ step: 1 }}>
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          {/* El overlay de polígonos tiene que coincidir EXACTO con la caja
+              de la imagen renderizada. Los puntos se guardan como % del plano
+              real (ver PolygonCanvas), así que la imagen se muestra a su
+              proporción natural (nada de forzarla a un cuadrado con
+              object-contain) y el <svg> la cubre 1:1. */}
           <div className="relative max-w-full max-h-[85vh]">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={planImage}
               alt="Plano de ambientes"
-              width={1200}
-              height={1200}
-              unoptimized={planImage.endsWith('.svg')}
-              className="max-w-full max-h-[85vh] object-contain select-none"
+              className="block max-w-full max-h-[85vh] w-auto h-auto select-none"
               draggable={false}
             />
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {rooms.map(room => (
+              {drawnRooms.map(room => (
                 <RoomPolygon
                   key={room.id}
                   room={room}
@@ -68,7 +76,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom }: RoomP
 function RoomPolygonBase({
   room, isHovered, onHover, onSelect,
 }: {
-  room: Room;
+  room: DrawnRoom;
   isHovered: boolean;
   onHover: (id: string | null) => void;
   onSelect?: (room: Room) => void;

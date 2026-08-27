@@ -20,10 +20,11 @@ type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'> 
 
 export default function AdminBuildingsPage() {
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, aerialLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
+  const aerialLower = aerialLabel.toLowerCase();
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [firstSlideId, setFirstSlideId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export default function AdminBuildingsPage() {
     const res = await fetch('/api/admin/buildings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, totalFloors: form.totalFloors }),
+      body: JSON.stringify({ name: form.name, totalFloors: form.totalFloors, planImage: form.planImage || null }),
     });
     if (!res.ok) {
       setCreating(false);
@@ -70,17 +71,8 @@ export default function AdminBuildingsPage() {
       setError(data.error ?? `Error al crear ${hasFloorStep ? 'el edificio' : `${agree.el} ${buildingLabelLower}`}.`);
       return;
     }
-    if (!hasFloorStep) {
-      // Sin paso "Piso" propio en este flujo tampoco — el building
-      // necesita igual un único piso interno para poder colgarle
-      // unidades, así que se crea acá mismo, invisible para el usuario.
-      const created = await res.json();
-      await fetch('/api/admin/floors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ buildingId: created.id, number: 1, label: 'Plano', planImage: form.planImage || null }),
-      });
-    }
+    // El piso interno (y, para "casa", su única unidad) los crea el POST de
+    // /api/admin/buildings para las formas sin paso "Piso" — ver esa ruta.
     setCreating(false);
     setForm({ name: '', totalFloors: 1, planImage: '' });
     load();
@@ -90,8 +82,8 @@ export default function AdminBuildingsPage() {
     const ok = await confirmDialog({
       title: `¿Borrar "${b.name}"?`,
       message: hasFloorStep
-        ? 'Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la vista aérea. Esta acción no se puede deshacer.'
-        : `Se van a borrar también sus ${unitLabelLower}s y la silueta/pin que tenga en la vista aérea. Esta acción no se puede deshacer.`,
+        ? `Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la ${aerialLower}. Esta acción no se puede deshacer.`
+        : `Se van a borrar también sus ${unitLabelLower}s y la silueta/pin que tenga en la ${aerialLower}. Esta acción no se puede deshacer.`,
       confirmLabel: `Borrar ${buildingLabelLower}`,
       danger: true,
     });
@@ -124,7 +116,9 @@ export default function AdminBuildingsPage() {
         </p>
         {!firstSlideId && (
           <p className="text-sm text-amber-600 mt-2">
-            Para poder delimitar la silueta de {hasFloorStep ? 'una torre' : `${agree.un} ${buildingLabelLower}`} en la foto aérea, primero cargá al menos una vista aérea en{' '}
+            {hasUnitStep
+              ? `Para poder delimitar la silueta de ${hasFloorStep ? 'una torre' : `${agree.un} ${buildingLabelLower}`} en la foto, primero cargá al menos una ${aerialLower} en `
+              : `Para poder marcar ${agree.el} ${buildingLabelLower} sobre la foto del frente, primero cargá la ${aerialLower} en `}
             <Link href="/admin/proyecto" className="underline hover:text-amber-700">Proyecto</Link>.
           </p>
         )}
@@ -162,7 +156,7 @@ export default function AdminBuildingsPage() {
                         href={`/admin/proyecto/aereas/${firstSlideId}?building=${b.id}`}
                         className="text-sm font-medium text-gray-500 hover:text-gray-700"
                       >
-                        Delimitar en foto aérea →
+                        {hasUnitStep ? 'Delimitar en foto aérea →' : 'Marcar en la vista frontal →'}
                       </Link>
                     )}
                     <Link href={`/admin/edificios/${b.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
@@ -186,6 +180,9 @@ export default function AdminBuildingsPage() {
         </div>
       </Card>
 
+      {/* "casa" es una sola por proyecto — una vez creada, no hay alta de
+          una segunda (el server también lo rechaza). */}
+      {!hasUnitStep && buildings.length > 0 ? null : (
       <Card>
         <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">{hasFloorStep ? 'Nuevo' : (agree.el === 'la' ? 'Nueva' : 'Nuevo')} {buildingLabelLower}</h3>
@@ -236,6 +233,7 @@ export default function AdminBuildingsPage() {
         </form>
         {error && <p className="px-6 pb-4 text-sm text-red-500">{error}</p>}
       </Card>
+      )}
     </div>
   );
 }

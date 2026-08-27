@@ -22,7 +22,7 @@ type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms
 const PALETTE = ['#83978c', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
 // Una "planta" editable — la planta baja/única vive siempre en
-// room_plan_image/rooms (igual que antes de que existieran las casas de
+// room_plan_image/rooms (igual que antes de que existiera el tipo casa de
 // varios niveles, para no migrar datos); las plantas de más (2+) viven en
 // el array `levels`, uno por nivel. Acá se las unifica bajo una misma
 // forma para que el resto del componente no tenga que distinguir "la
@@ -36,7 +36,7 @@ type EditableLevel = { key: 'base' | string; label: string; planImage: string; r
 // (piso → depto → ambientes) en un mismo lugar.
 //
 // Cuando la unidad tiene más de una planta (floorsCount > 1, hoy solo
-// posible en casas), arriba del plano aparece un selector de planta — cada
+// posible en casa), arriba del plano aparece un selector de planta — cada
 // una con su propio plano y sus propios ambientes delimitados encima.
 export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { buildingId: string; floorId: string; unitId: string }) {
   const typeConfig = useProjectTypeConfig();

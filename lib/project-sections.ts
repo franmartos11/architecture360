@@ -105,7 +105,9 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
     process: 'Bocetos, maquetas y diagramas del proceso de diseño.',
     team: 'Colaboradores acreditados y confirmados.',
     amenities: 'Pileta, gym, SUM y demás espacios comunes.',
-    masterplan: 'Usa la foto del masterplan cargada en "Datos generales".',
+    masterplan: typeConfig.hasUnitStep
+      ? 'Foto aérea con hotspots — se carga en Proyecto → Vistas aéreas.'
+      : 'Foto del frente de la casa — se carga en Proyecto → Vista frontal.',
     typologies: `${typeConfig.unitLabel}s disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
@@ -197,7 +199,9 @@ export function resolveSectionList(
     const available = isSectionAvailable(key, typeConfig);
     return {
       key,
-      label: labelByKey.get(s.key) ?? s.key,
+      // "Masterplan interactivo" para edificio/loteo; una casa carga una
+      // foto del frente, no una vista aérea.
+      label: key === 'masterplan' && !typeConfig.hasUnitStep ? 'Vista frontal' : (labelByKey.get(s.key) ?? s.key),
       enabled: s.enabled,
       available,
       unavailableReason: available ? undefined : UNAVAILABLE_REASON[key],

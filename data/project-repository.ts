@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
 import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit } from '@/types';
+import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -31,6 +32,13 @@ function mapProject(
   const units: Unit[] = unitRows.map(u => {
     const floor = floorRows.find(f => f.id === u.floor_id)!;
     const building = buildingRows.find(b => b.id === floor.building_id)!;
+    // Cuando la unidad tiene un programa de ambientes cargado (rooms con
+    // `kind`), esa lista es la fuente de verdad de los conteos — los
+    // contadores planos de la fila quedan como dato viejo/de respaldo.
+    // Suma todas las plantas (planta baja + levels) para casas de 2+ pisos.
+    const allRooms = allProgramRooms(u.rooms, u.levels);
+    const program = hasRoomProgram(allRooms);
+    const counts = roomCounts(allRooms);
     return {
       id: u.code,
       name: u.code,
@@ -42,23 +50,24 @@ function mapProject(
       innerArea: Number(u.inner_area ?? 0),
       balconyArea: Number(u.balcony_area ?? 0),
       externalArea: Number(u.external_area ?? 0),
-      bedrooms: u.bedrooms,
-      bathrooms: Number(u.bathrooms),
+      bedrooms: program ? counts.bedrooms : u.bedrooms,
+      bathrooms: program ? counts.bathrooms : Number(u.bathrooms),
       hasServiceRoom: u.has_service_room,
       lotSize: u.lot_size != null ? Number(u.lot_size) : undefined,
       ceilingHeight: u.ceiling_height != null ? Number(u.ceiling_height) : undefined,
       garageSpaces: u.garage_spaces,
       garageType: u.garage_type ?? undefined,
-      livingRooms: u.living_rooms,
-      kitchens: u.kitchens,
-      otherRoomsCount: u.other_rooms_count,
+      livingRooms: program ? counts.living : u.living_rooms,
+      kitchens: program ? counts.kitchen : u.kitchens,
+      otherRoomsCount: program ? counts.other : u.other_rooms_count,
       otherRoomsDescription: u.other_rooms_description ?? undefined,
       hoaFee: u.hoa_fee != null ? Number(u.hoa_fee) : undefined,
       floorsCount: u.floors_count ?? 1,
       price: u.price != null ? Number(u.price) : undefined,
       currency: u.currency ?? undefined,
       status: u.status,
-      orientation: u.orientation ?? undefined,
+      orientation: parseOrientation(u.orientation).cardinal,
+      orientationDegrees: parseOrientation(u.orientation).degrees,
       tourImageUrl: u.tour_image_url ?? undefined,
       tourData: u.tour_data ?? undefined,
       floorPlan3dUrl: u.floor_plan_3d_url ?? undefined,

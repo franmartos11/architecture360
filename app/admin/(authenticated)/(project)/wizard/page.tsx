@@ -20,7 +20,7 @@ import { buildingAgreement } from '@/lib/project-types';
 import { FLOOR_KIND_OPTIONS, FLOOR_KIND_ICON } from '@/lib/floorKinds';
 import type { FloorKind } from '@/types';
 
-type Step = 'edificio' | 'piso' | 'unidades' | 'delimitacion' | 'ambientes';
+type Step = 'edificio' | 'piso' | 'unidades' | 'delimitacion' | 'ambientes' | 'ubicacion' | 'amenities';
 
 const STORAGE_KEY = 'admin-wizard-state';
 
@@ -65,12 +65,12 @@ function AdminWizardPageInner() {
   // el building (ver handleCreateBuilding) y se salta directo a
   // "Unidades", relabeleado con el unitLabel del tipo (ej. "Lotes").
   //
-  // Si encima el tipo no tiene paso de unidad propio (hoy: "casas" — el
-  // building YA ES la unidad), "Delimitación" tampoco existe: no hay nada
-  // que delimitar con una sola unidad por piso. El paso "unidades" se
-  // mantiene (mismo id, para no bifurcar el resto del wizard) pero
-  // relabeleado "Datos" — adentro, FloorUnitsEditor entra directo en modo
-  // de un solo registro (ver ese componente).
+  // Si encima el tipo no tiene paso de unidad propio (hoy: "casa" — el
+  // building YA ES la unidad), no hay paso "Casa" ni "Delimitación": la
+  // casa se crea sola al crear el proyecto (con el nombre del proyecto,
+  // ver POST /api/admin/projects) y acá se entra directo a "Datos" — que
+  // adentro es FloorUnitsEditor en modo de un solo registro, sin pedir
+  // código (ver ese componente).
   const STEPS: { id: Step; label: string }[] = hasFloorStep
     ? [
         { id: 'edificio', label: buildingLabel },
@@ -86,14 +86,18 @@ function AdminWizardPageInner() {
         { id: 'delimitacion', label: 'Delimitación' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
       ]
-    : [
-        { id: 'edificio', label: buildingLabel },
+    : // "casa": flujo lineal completo — la casa es una sola, así que
+      // Ubicación y Amenities (nivel proyecto) entran como pasos 3 y 4 acá
+      // mismo en vez de una pantalla aparte después.
+      [
         { id: 'unidades', label: 'Datos' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
+        { id: 'ubicacion', label: 'Ubicación' },
+        { id: 'amenities', label: 'Amenities' },
       ];
 
   const [screen, setScreen] = useState<Screen>('wizard');
-  const [step, setStep] = useState<Step>('edificio');
+  const [step, setStep] = useState<Step>(() => STEPS[0].id);
   const [projectStep, setProjectStep] = useState<ProjectStep>('ubicacion');
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [floorId, setFloorId] = useState<string | null>(null);
@@ -135,6 +139,19 @@ function AdminWizardPageInner() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ buildingId, floorId, step }));
   }, [buildingId, floorId, step]);
 
+  // El paso guardado (localStorage o ?step=) puede no existir para el tipo
+  // de proyecto actual — ej. se retoma en "Piso"/"Casa" un flujo que no
+  // tiene ese paso. Sin esto el stepper queda sin nada activo y goPrev()
+  // puede indexar fuera del array. Se vuelve al primer paso del flujo
+  // actual (siempre existe → no cicla).
+  useEffect(() => {
+    if (!STEPS.some(s => s.id === step)) {
+      setStep(STEPS[0].id);
+      setFloorId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFloorStep, hasUnitStep, step]);
+
   const loadBuildings = useCallback(() => {
     setLoadingBuildings(true);
     fetch('/api/admin/buildings')
@@ -161,10 +178,44 @@ function AdminWizardPageInner() {
     if (buildingId && !buildings.some(b => b.id === buildingId)) {
       setBuildingId(null);
       setFloorId(null);
-      setStep('edificio');
+      setStep(STEPS[0].id);
       localStorage.removeItem(STORAGE_KEY);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingBuildings, buildings, buildingId]);
+
+  // Nombre del proyecto — solo hace falta para la red de seguridad de
+  // abajo (auto-crear la casa si un proyecto viejo no la tiene).
+  const [projectName, setProjectName] = useState('');
+  useEffect(() => {
+    fetch('/api/admin/project')
+      .then(res => res.json())
+      .then(data => setProjectName(data.project?.name ?? ''))
+      .catch(() => {});
+  }, []);
+
+  // "casa": normalmente la crea el POST de /api/admin/projects con el
+  // nombre del proyecto. Si un proyecto viejo (o una creación a medias)
+  // llegó acá sin ella, se arma sola ahora — el usuario nunca ve un paso
+  // de "crear la casa".
+  const casaProvisionRef = useRef(false);
+  useEffect(() => {
+    if (hasUnitStep || loadingBuildings || buildings.length > 0 || !projectName || casaProvisionRef.current) return;
+    casaProvisionRef.current = true;
+    fetch('/api/admin/buildings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: projectName }),
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(created => {
+        if (!created) { casaProvisionRef.current = false; return; }
+        loadBuildings();
+        setBuildingId(created.id);
+        if (created.floor_id) setFloorId(created.floor_id);
+      })
+      .catch(() => { casaProvisionRef.current = false; });
+  }, [hasUnitStep, loadingBuildings, buildings.length, projectName, loadBuildings]);
 
   const loadFloors = useCallback(() => {
     if (!buildingId) { setFloors([]); return; }
@@ -179,6 +230,14 @@ function AdminWizardPageInner() {
   }, [buildingId]);
 
   useEffect(loadFloors, [loadFloors]);
+
+  // "casa" es UNA sola — si ya existe, se selecciona sola: no hay lista que
+  // elegir ni alta que ofrecer (ver el render del paso "edificio").
+  useEffect(() => {
+    if (!hasUnitStep && !buildingId && buildings.length > 0) {
+      setBuildingId(buildings[0].id);
+    }
+  }, [hasUnitStep, buildingId, buildings]);
 
   // Sin paso "Piso" no hay dónde elegirlo a mano — en cuanto se sabe qué
   // piso (único) tiene el building activo, se selecciona solo. Cubre
@@ -214,7 +273,7 @@ function AdminWizardPageInner() {
     const res = await fetch('/api/admin/buildings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newBuilding.name, totalFloors: newBuilding.totalFloors }),
+      body: JSON.stringify({ name: newBuilding.name, totalFloors: newBuilding.totalFloors, planImage: newBuilding.planImage || null }),
     });
     if (!res.ok) { setCreatingBuilding(false); return; }
     const created = await res.json();
@@ -237,18 +296,10 @@ function AdminWizardPageInner() {
       const firstFloor = createdFloors.filter((f): f is FloorRow => f !== null).sort((a, b) => a.number - b.number)[0];
       setFloorId(firstFloor?.id ?? null);
     } else {
-      // Sin paso "Piso" — el building necesita igual un único piso interno
-      // para poder colgarle unidades con su plano de delimitación, así
-      // que se crea acá mismo, invisible para el usuario.
-      const floorRes = await fetch('/api/admin/floors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ buildingId: created.id, number: 1, label: 'Plano', planImage: newBuilding.planImage || null }),
-      });
-      if (floorRes.ok) {
-        const createdFloor = await floorRes.json();
-        setFloorId(createdFloor.id);
-      }
+      // Formas sin paso "Piso": el piso interno (y, para "casa", su única
+      // unidad) los crea el propio POST de /api/admin/buildings — ver esa
+      // ruta. Acá solo tomamos el id que devuelve.
+      if (created.floor_id) setFloorId(created.floor_id);
     }
 
     setCreatingBuilding(false);
@@ -293,15 +344,26 @@ function AdminWizardPageInner() {
   };
 
   const stepIndex = STEPS.findIndex(s => s.id === step);
+  const isLastStep = stepIndex === STEPS.length - 1;
   const canGoNext =
     (step === 'edificio' && (hasFloorStep ? !!buildingId : !!buildingId && !!floorId)) ||
     (step === 'piso' && !!floorId) ||
-    step === 'unidades' ||
+    // "casa": no se puede avanzar de "Datos" hasta que la casa (y su piso)
+    // estén listos — normalmente ya lo están al entrar.
+    (step === 'unidades' && (hasUnitStep || !!floorId)) ||
     step === 'delimitacion' ||
-    step === 'ambientes';
+    step === 'ambientes' ||
+    step === 'ubicacion' ||
+    step === 'amenities';
 
   const goNext = () => {
-    if (step === 'ambientes') { setScreen('continuar'); return; }
+    if (isLastStep) {
+      // Edificio/loteo/dúplex: "¿seguís con otro?" (pueden tener varios).
+      // Casa: es una sola y Ubicación/Amenities ya son pasos del flujo →
+      // directo al resumen.
+      setScreen(hasUnitStep ? 'continuar' : 'resumen');
+      return;
+    }
     setStep(STEPS[stepIndex + 1].id);
   };
   const goPrev = () => {
@@ -357,13 +419,16 @@ function AdminWizardPageInner() {
               <p className="text-sm text-gray-500 mt-1">Repetís el flujo completo (piso → unidades → delimitación → ambientes) para un piso con un layout distinto.</p>
             </button>
           )}
-          <button
-            onClick={startAnotherBuilding}
-            className="text-left p-5 bg-white rounded-2xl border border-gray-200 hover:border-brand-400 hover:shadow-sm transition-all"
-          >
-            <p className="font-semibold text-gray-900">{hasFloorStep ? '🏢 Otro edificio' : `➕ ${agree.Otro} ${buildingLabelLower}`}</p>
-            <p className="text-sm text-gray-500 mt-1">{hasFloorStep ? 'Arrancás una torre nueva desde cero.' : `Arrancás ${agree.otro} ${buildingLabelLower} ${agree.nuevo} desde cero.`}</p>
-          </button>
+          {/* "casa" es una sola por proyecto — no hay "otra casa". */}
+          {hasUnitStep && (
+            <button
+              onClick={startAnotherBuilding}
+              className="text-left p-5 bg-white rounded-2xl border border-gray-200 hover:border-brand-400 hover:shadow-sm transition-all"
+            >
+              <p className="font-semibold text-gray-900">{hasFloorStep ? '🏢 Otro edificio' : `➕ ${agree.Otro} ${buildingLabelLower}`}</p>
+              <p className="text-sm text-gray-500 mt-1">{hasFloorStep ? 'Arrancás una torre nueva desde cero.' : `Arrancás ${agree.otro} ${buildingLabelLower} ${agree.nuevo} desde cero.`}</p>
+            </button>
+          )}
           <button
             onClick={finishAndReset}
             className="text-left p-5 bg-gray-900 rounded-2xl hover:bg-gray-800 transition-colors"
@@ -438,17 +503,33 @@ function AdminWizardPageInner() {
         <div className="text-center">
           <div className="text-4xl mb-2">🎉</div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Proyecto listo para revisar</h2>
-          <p className="text-sm text-gray-500 mt-1">Solo queda una cosa fuera de este asistente — cada una es una sola pantalla:</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {hasUnitStep ? 'Solo queda una cosa fuera de este asistente — cada una es una sola pantalla:' : 'Ya cargaste todo. Podés volver a editar cualquier parte:'}
+          </p>
         </div>
         <div className="grid gap-3">
           <Link href="/admin/proyecto" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
-            <p className="font-medium text-gray-900">Vista aérea</p>
-            <p className="text-sm text-gray-500">El carrusel que se ve al entrar al masterplan — se carga desde Proyecto.</p>
+            <p className="font-medium text-gray-900">{typeConfig.aerialLabel}</p>
+            <p className="text-sm text-gray-500">
+              {hasUnitStep
+                ? 'El carrusel que se ve al entrar al masterplan — se carga desde Proyecto.'
+                : `La foto del frente de la ${buildingLabelLower} que se ve al entrar al masterplan — se carga desde Proyecto.`}
+            </p>
           </Link>
-          <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
-            <p className="font-medium text-gray-900">Seguir cargando {buildingLabel.toLowerCase()}s</p>
-            <p className="text-sm text-gray-500">Volvés a la lista — desde ahí podés reabrir la carga guiada cuando quieras.</p>
-          </Link>
+          {hasUnitStep ? (
+            <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
+              <p className="font-medium text-gray-900">Seguir cargando {buildingLabel.toLowerCase()}s</p>
+              <p className="text-sm text-gray-500">Volvés a la lista — desde ahí podés reabrir la carga guiada cuando quieras.</p>
+            </Link>
+          ) : (
+            <button
+              onClick={() => { setStep(STEPS[0].id); setScreen('wizard'); }}
+              className="block w-full text-left p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors"
+            >
+              <p className="font-medium text-gray-900">Volver a editar la {buildingLabelLower}</p>
+              <p className="text-sm text-gray-500">Reabrís el asistente en el primer paso para ajustar datos, ambientes, ubicación o amenities.</p>
+            </button>
+          )}
         </div>
         <div className="text-center pt-4">
           <Link href="/admin" className="text-sm text-brand-600 hover:text-brand-700 font-medium">Ir al Dashboard →</Link>
@@ -475,7 +556,9 @@ function AdminWizardPageInner() {
           const isReachable =
             s.id === 'edificio' ||
             (s.id === 'piso' && !!buildingId) ||
-            (['unidades', 'delimitacion', 'ambientes'].includes(s.id) && !!floorId);
+            (['unidades', 'delimitacion', 'ambientes'].includes(s.id) && !!floorId) ||
+            // Ubicación / Amenities son de proyecto — siempre accesibles.
+            ['ubicacion', 'amenities'].includes(s.id);
           return (
             <button
               key={s.id}
@@ -494,7 +577,7 @@ function AdminWizardPageInner() {
             </button>
           );
         })}
-        {(buildingId || floorId) && (
+        {hasUnitStep && (buildingId || floorId) && (
           <button
             onClick={() => { setBuildingId(null); setFloorId(null); setStep('edificio'); localStorage.removeItem(STORAGE_KEY); }}
             className="ml-auto shrink-0 text-xs text-gray-400 hover:text-red-500 px-2"
@@ -664,6 +747,9 @@ function AdminWizardPageInner() {
           <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
         )}
 
+        {step === 'ubicacion' && <LocationEditor />}
+        {step === 'amenities' && <AmenitiesEditor />}
+
         {step === 'ambientes' && buildingId && floorId && (
           units.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
@@ -704,7 +790,7 @@ function AdminWizardPageInner() {
       <div className="flex items-center justify-between pt-4 border-t border-gray-100">
         <Button variant="secondary" onClick={goPrev} disabled={stepIndex === 0}>← Anterior</Button>
         <Button onClick={goNext} disabled={!canGoNext}>
-          {step === 'ambientes' ? (hasFloorStep ? 'Terminar este piso →' : 'Terminar acá →') : 'Siguiente →'}
+          {isLastStep ? (hasUnitStep ? (hasFloorStep ? 'Terminar este piso →' : 'Terminar acá →') : 'Terminar →') : 'Siguiente →'}
         </Button>
       </div>
     </div>

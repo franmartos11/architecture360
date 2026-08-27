@@ -33,6 +33,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const typeConfig = useProjectTypeConfig();
   const { un } = buildingAgreement(typeConfig);
   const buildingLabelLower = typeConfig.buildingLabel.toLowerCase();
+  const aerialLower = typeConfig.aerialLabel.toLowerCase();
 
   const [slide, setSlide] = useState<SlideRow | null>(null);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
@@ -128,15 +129,15 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
 
-  if (loading) return <LoadingSpinner text="Cargando vista aérea..." tone="light" />;
-  if (loadError) return <ErrorState message="No se pudo cargar la vista aérea." onRetry={load} />;
-  if (!slide) return <ErrorState message="Vista aérea no encontrada." />;
+  if (loading) return <LoadingSpinner text={`Cargando ${aerialLower}...`} tone="light" />;
+  if (loadError) return <ErrorState message={`No se pudo cargar la ${aerialLower}.`} onRetry={load} />;
+  if (!slide) return <ErrorState message={`${typeConfig.aerialLabel} no encontrada.`} />;
 
   return (
     <div className="space-y-6">
       <div>
         <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {typeConfig.buildingLabel.toLowerCase()}s — {slide.label}</h2>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{typeConfig.hasUnitStep ? `Delimitar ${buildingLabelLower}s` : `Marcar la ${buildingLabelLower}`} — {slide.label}</h2>
         <p className="text-sm text-gray-500 mt-1">
           Elegí {un} {buildingLabelLower} de la lista y marcá su silueta en la foto. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — cualquier punto se puede arrastrar para ajustarlo, doble click lo borra. El pin (📍) se ubica solo en el centro de la silueta — usá <strong>Pin</strong> para arrastrarlo a mano, o doble click sobre el pin para volver al automático. Si te equivocás, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás.
         </p>

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { m as motion } from 'framer-motion';
 import type { Unit } from '@/types';
+import type { SunAzimuths } from '@/lib/sun-position';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 
@@ -11,12 +12,21 @@ export default function Tour360Tab({
   focusNodeId,
   isFullscreen,
   onFullscreenChange,
+  sunAzimuths,
 }: {
   unit: Unit;
   focusNodeId?: string;
   isFullscreen: boolean;
   onFullscreenChange: (fullscreen: boolean) => void;
+  sunAzimuths?: SunAzimuths | null;
 }) {
+  // orientationDegrees del visor = grados al norte desde yaw=0 del tour.
+  // Asumimos que la primera panorámica mira al frente de la casa (lo
+  // natural al sacarla), así que el norte queda "a la espalda" de ese
+  // frente: 360 - (hacia dónde mira la casa).
+  const orientationDegrees = unit.orientationDegrees != null
+    ? (360 - unit.orientationDegrees) % 360
+    : undefined;
   return (
     <motion.div
       key="tour360"
@@ -27,7 +37,7 @@ export default function Tour360Tab({
       className={isFullscreen ? 'fixed inset-0 z-[100] bg-black animate-in zoom-in duration-300' : 'absolute inset-0 pt-16'}
     >
       <div className="relative w-full h-full overflow-hidden shadow-inner">
-        <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} focusNodeId={focusNodeId} />
+        <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} focusNodeId={focusNodeId} orientationDegrees={orientationDegrees} sunAzimuths={sunAzimuths} />
         {isFullscreen ? (
           <button
             onClick={() => onFullscreenChange(false)}

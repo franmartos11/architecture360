@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusLabel, getStatusColor } from '@/lib/units';
+import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel } from '@/lib/units';
 import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
@@ -14,14 +14,6 @@ interface UnitsListViewProps {
   initialBuildingFilter?: string;
   typeConfig: ProjectTypeConfig;
 }
-
-const TYPE_LABELS: Record<UnitType, string> = {
-  monoambiente: 'Monoambiente',
-  '1 dormitorio': '1 Dormitorio',
-  '2 dormitorios': '2 Dormitorios',
-  '3 dormitorios': '3 Dormitorios',
-  penthouse: 'Penthouse',
-};
 
 const STATUS_ORDER: (UnitStatus | 'all')[] = ['all', 'available', 'reserved', 'sold'];
 const STATUS_LABELS: Record<UnitStatus | 'all', string> = {
@@ -131,7 +123,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
               </TabTrigger>
               {typesPresent.map(t => (
                 <TabTrigger key={t} active={typeFilter === t} onClick={() => setTypeFilter(t)}>
-                  {TYPE_LABELS[t]}
+                  {unitTypeLabel(t)}
                 </TabTrigger>
               ))}
             </FilterRow>
@@ -271,7 +263,7 @@ function UnitCard({
 
       <div className="p-5 flex items-center justify-between">
         <div>
-          <p className="text-sm text-trevo-dark font-medium">{TYPE_LABELS[unit.type]}</p>
+          <p className="text-sm text-trevo-dark font-medium">{unitTypeLabel(unit.type)}</p>
           <p className="text-xs text-trevo-dark/50 font-light mt-0.5">{unit.totalArea} m² · {unit.bedrooms} dorm · {unit.bathrooms} baños</p>
         </div>
         {showPrice && (

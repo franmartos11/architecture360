@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import type { UnitType, UnitStatus, TourData, Room } from '@/types';
+import TourOrientationControl from '@/components/admin/TourOrientationControl';
+import type { UnitType, UnitStatus, TourData, Room, RoomKind, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -17,7 +18,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { formatPrice } from '@/lib/units';
+import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions } from '@/lib/units';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
@@ -27,7 +28,7 @@ type UnitRow = Pick<DbUnitRow,
   | 'price' | 'currency' | 'status'
   | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
   | 'plan_3d_url' | 'technical_plan_url' | 'created_at'
-  | 'room_plan_image' | 'rooms' | 'tour_image_url' | 'tour_data'
+  | 'room_plan_image' | 'rooms' | 'levels' | 'tour_image_url' | 'tour_data'
 >;
 
 // Lo que "Duplicar" arrastra de la unidad de origen pero que no se ve en el
@@ -46,11 +47,25 @@ type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
 };
 
 const UNIT_TYPES: UnitType[] = ['monoambiente', '1 dormitorio', '2 dormitorios', '3 dormitorios', 'penthouse'];
-// Una casa no es "monoambiente" ni "penthouse" — esos términos son de
-// depto. El resto de los valores (conteo de dormitorios) sí describe bien
-// una casa, así que se reusa el mismo UnitType en vez de inventar uno
-// nuevo que habría que sumar a los filtros del sitio público.
-const HOUSE_TYPES: UnitType[] = ['1 dormitorio', '2 dormitorios', '3 dormitorios'];
+// La casa NO elige tipología de una lista — puede tener 4, 5, 6+
+// dormitorios. Se deriva del campo "Dormitorios" al guardar
+// (deriveUnitType), así el filtro público la agrupa igual.
+
+// Programa de ambientes de una casa — cada uno con su tipo, m² y
+// características. Se guarda en units.rooms (el mismo array que después
+// recibe el polígono en el paso de delimitación).
+const ROOM_KIND_OPTIONS: { value: RoomKind; label: string }[] = [
+  { value: 'bedroom', label: 'Dormitorio' },
+  { value: 'bathroom', label: 'Baño' },
+  { value: 'kitchen', label: 'Cocina' },
+  { value: 'living', label: 'Living' },
+  { value: 'dining', label: 'Comedor' },
+  { value: 'studio', label: 'Escritorio / Estudio' },
+  { value: 'laundry', label: 'Lavadero' },
+  { value: 'storage', label: 'Depósito' },
+  { value: 'other', label: 'Otro' },
+];
+const newRoomId = () => `r-${Math.random().toString(36).slice(2, 9)}`;
 
 // Mismas monedas que reconoce formatPrice() en lib/units.ts — agregar acá
 // una moneda sin agregarla ahí la deja guardable pero sin formato local
@@ -133,8 +148,8 @@ function formFieldsFromUnit(u: SourceUnitLike) {
 // wizard de carga guiada, para no repetir el formulario de 18 campos en
 // dos lugares distintos.
 //
-// Tipos sin hasUnitStep (hoy: "casas") renderizan un modo distinto: acá el
-// building YA ES la unidad (una casa no tiene "casas" adentro), así que en
+// Tipos sin hasUnitStep (hoy: "casa") renderizan un modo distinto: acá el
+// building YA ES la unidad (una casa no tiene sub-unidades adentro), así que en
 // vez de tabla + alta múltiple se muestra directo el form de la única
 // unidad del piso interno — en modo edición si ya existe, o de alta si
 // todavía no. Sin tabla, sin CSV, sin "Duplicar/Borrar" (no hay lista).
@@ -150,6 +165,13 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
   const [duplicateExtras, setDuplicateExtras] = useState<DuplicateExtras | null>(null);
+  // Programa de ambientes (solo casa) — se guarda aparte del `form` de
+  // campos planos. `rooms` es la planta baja (units.rooms); `levels` son
+  // las plantas de más (units.levels), una por cada floorsCount - 1.
+  // Ambos son los mismos arrays que después delimita "Ambientes y Tour".
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [levels, setLevels] = useState<UnitLevel[]>([]);
+  const [activePlanta, setActivePlanta] = useState(0); // 0 = planta baja
   const toast = useToast();
   const confirmDialog = useConfirm();
   const inheritedDefaultsApplied = useRef(false);
@@ -160,6 +182,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
   const columnCount = 4 + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
+  // En "casa" el código de la unidad ES el nombre de la casa (se fija al
+  // crearla, ver POST /api/admin/buildings) — no se vuelve a pedir. El
+  // campo solo reaparece como fallback si por algún motivo la casa quedó
+  // sin su unidad (proyecto viejo, creación a medias).
+  const showCodeField = hasUnitStep || units.length === 0;
 
   // Unidades de CUALQUIER otro piso/edificio del proyecto — para poder
   // traer el mismo modelo a este piso sin retipear los 18 campos, cuando
@@ -205,6 +232,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const startEdit = (u: UnitRow) => {
     setEditingId(u.id);
     setForm({ code: u.code, ...formFieldsFromUnit(u) });
+    setRooms(u.rooms ?? []);
+    setLevels(u.levels ?? []);
+    setActivePlanta(0);
     setDuplicateExtras(null);
   };
 
@@ -220,9 +250,65 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const cancelEdit = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setRooms([]);
+    setLevels([]);
+    setActivePlanta(0);
     setError('');
     setDuplicateExtras(null);
   };
+
+  // Plantas efectivas del programa: planta baja (rooms) + una por cada
+  // planta de más que declare "Cantidad de plantas". Si una todavía no
+  // existe en `levels`, se ofrece un placeholder vacío.
+  const floorsCount = Math.max(1, Number(form.floorsCount) || 1);
+  const plantas: { label: string; rooms: Room[] }[] = [
+    { label: 'Planta baja', rooms },
+    ...Array.from({ length: floorsCount - 1 }, (_, i) => ({
+      label: levels[i]?.label ?? `Piso ${i + 1}`,
+      rooms: levels[i]?.rooms ?? [],
+    })),
+  ];
+  const plantaIdx = Math.min(activePlanta, plantas.length - 1);
+  const activeRooms = plantas[plantaIdx].rooms;
+
+  // Escribe la lista de ambientes de la planta activa — planta baja pisa
+  // `rooms`; una planta extra arma el array `levels` completo (las demás
+  // intactas), porque la columna es un solo JSONB.
+  const setActiveRooms = (next: Room[]) => {
+    if (plantaIdx === 0) { setRooms(next); return; }
+    const i = plantaIdx - 1;
+    setLevels(Array.from({ length: floorsCount - 1 }, (_, k) => ({
+      id: levels[k]?.id ?? `piso-${k + 1}`,
+      label: levels[k]?.label ?? `Piso ${k + 1}`,
+      planImage: levels[k]?.planImage ?? null,
+      rooms: k === i ? next : (levels[k]?.rooms ?? []),
+    })));
+  };
+
+  // Se agrega arriba de todo — el ambiente nuevo queda a la vista sin
+  // tener que scrollear la lista.
+  const addRoom = () => setActiveRooms([{ id: newRoomId(), name: '', kind: 'bedroom' }, ...activeRooms]);
+  const updateRoom = (id: string, patch: Partial<Room>) =>
+    setActiveRooms(activeRooms.map(r => {
+      if (r.id !== id) return r;
+      const next = { ...r, ...patch };
+      // Al cambiar el tipo, se descartan las características que ya no
+      // aplican (ej. "En suite" al pasar de dormitorio a cocina).
+      if (patch.kind && next.features?.length) {
+        const valid = new Set(roomFeatureOptions(patch.kind));
+        const kept = next.features.filter(f => valid.has(f));
+        next.features = kept.length ? kept : undefined;
+      }
+      return next;
+    }));
+  const removeRoom = (id: string) => setActiveRooms(activeRooms.filter(r => r.id !== id));
+  const toggleRoomFeature = (id: string, feature: string) =>
+    setActiveRooms(activeRooms.map(r => {
+      if (r.id !== id) return r;
+      const has = r.features?.includes(feature);
+      const features = has ? r.features!.filter(f => f !== feature) : [...(r.features ?? []), feature];
+      return { ...r, features: features.length ? features : undefined };
+    }));
 
   // Precarga el formulario de "Nueva unidad" con los datos de una unidad
   // existente (todo menos el código, que tiene que ser único) — para no
@@ -260,24 +346,42 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     document.getElementById('code')?.focus();
   };
 
+  // Cuando la casa tiene un programa de ambientes cargado (rooms con
+  // kind, en cualquier planta), ese programa es la fuente de verdad de
+  // los conteos — los inputs de dormitorios/baños/livings pasan a
+  // solo-lectura.
+  const allRooms = allProgramRooms(rooms, levels);
+  const programActive = !hasUnitStep && hasRoomProgram(allRooms);
+  const derivedCounts = roomCounts(allRooms);
+  const effectiveBedrooms = programActive ? derivedCounts.bedrooms : Number(form.bedrooms || 0);
+
+  // Departamento: la tipología la elige el usuario del dropdown. Casa: se
+  // deriva de los dormitorios (no hay lista fija — puede tener 4, 5, 6+).
+  const resolvedType = hasUnitStep ? form.type : deriveUnitType(effectiveBedrooms);
+
+  // Cardinal hacia donde mira la casa, derivado de los grados de la brújula.
+  const orientationCardinal = form.orientation !== '' && Number.isFinite(Number(form.orientation))
+    ? bearingToCardinal(Number(form.orientation))
+    : '';
+
   const buildPayload = () => ({
     code: form.code,
     modelName: form.modelName || null,
-    type: form.type,
+    type: resolvedType,
     totalArea: form.totalArea === '' ? null : Number(form.totalArea),
     innerArea: form.innerArea === '' ? null : Number(form.innerArea),
     balconyArea: Number(form.balconyArea || 0),
     externalArea: Number(form.externalArea || 0),
-    bedrooms: Number(form.bedrooms || 0),
-    bathrooms: Number(form.bathrooms || 1),
+    bedrooms: programActive ? derivedCounts.bedrooms : Number(form.bedrooms || 0),
+    bathrooms: programActive ? derivedCounts.bathrooms : Number(form.bathrooms || 1),
     hasServiceRoom: form.hasServiceRoom,
     lotSize: form.lotSize === '' ? null : Number(form.lotSize),
     ceilingHeight: form.ceilingHeight === '' ? null : Number(form.ceilingHeight),
     garageSpaces: Number(form.garageSpaces || 0),
     garageType: Number(form.garageSpaces || 0) > 0 ? form.garageType : null,
-    livingRooms: Number(form.livingRooms || 0),
-    kitchens: Number(form.kitchens || 0),
-    otherRoomsCount: Number(form.otherRoomsCount || 0),
+    livingRooms: programActive ? derivedCounts.living : Number(form.livingRooms || 0),
+    kitchens: programActive ? derivedCounts.kitchen : Number(form.kitchens || 0),
+    otherRoomsCount: programActive ? derivedCounts.other : Number(form.otherRoomsCount || 0),
     otherRoomsDescription: form.otherRoomsDescription || null,
     hoaFee: form.hoaFee === '' ? null : Number(form.hoaFee),
     floorsCount: Number(form.floorsCount || 1),
@@ -290,6 +394,21 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     floorPlan3dUrl: form.floorPlan3dUrl || null,
     plan3dUrl: form.plan3dUrl || null,
     technicalPlanUrl: form.technicalPlanUrl || null,
+    // Programa de ambientes: solo en casa. Para departamentos, los `rooms`
+    // se editan aparte (delimitación sobre el plano) y no hay que pisarlos.
+    // Para casa se manda el programa: `rooms` (planta baja) y, si tiene
+    // 2+ plantas, `levels` (las de más, normalizadas a floorsCount - 1).
+    ...(hasUnitStep ? {} : {
+      rooms,
+      ...(floorsCount > 1 ? {
+        levels: Array.from({ length: floorsCount - 1 }, (_, k) => ({
+          id: levels[k]?.id ?? `piso-${k + 1}`,
+          label: levels[k]?.label ?? `Piso ${k + 1}`,
+          planImage: levels[k]?.planImage ?? null,
+          rooms: levels[k]?.rooms ?? [],
+        })),
+      } : {}),
+    }),
     // Solo al crear a partir de "Duplicar" — en una edición normal
     // (editingId set) nunca hay que pisar los ambientes/tour reales de la
     // unidad con lo que haya quedado cacheado de un duplicado anterior.
@@ -304,8 +423,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.code || !form.type) {
-      setError('Faltan código y/o tipología.');
+    if (!form.code || !resolvedType) {
+      setError(hasUnitStep ? 'Faltan código y/o tipología.' : 'Falta el nombre.');
       return;
     }
     setSaving(true);
@@ -327,7 +446,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     if (res.ok) {
       toast(editingId ? 'Cambios guardados.' : `${unitLabel} creada.`);
       if (editingId) {
-        // Para "casas" (!hasUnitStep) el form editado ES la única unidad —
+        // Para "casa" (!hasUnitStep) el form editado ES la única unidad —
         // vaciarlo tras guardar dejaba al usuario frente a una pantalla en
         // blanco que parecía "crear otra casa". Al no tener paso de
         // unidades propio, no hay a dónde volver: se queda mostrando lo
@@ -545,15 +664,19 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Input
-              label={hasUnitStep ? 'Código' : 'Código interno'}
-              id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
-              placeholder={hasUnitStep ? 'A01-01' : buildingLabel.toUpperCase() + '-1'} required
-            />
+            {showCodeField && (
+              <Input
+                label={hasUnitStep ? 'Código' : 'Nombre de la casa'}
+                id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
+                placeholder={hasUnitStep ? 'A01-01' : buildingLabel} required
+              />
+            )}
             <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
-            <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
-              {(hasUnitStep ? UNIT_TYPES : HOUSE_TYPES).map(t => <option key={t} value={t}>{t}</option>)}
-            </Select>
+            {hasUnitStep && (
+              <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
+                {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            )}
             {typeConfig.showStatus && (
               <Select label="Estado" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
                 <option value="available">Disponible</option>
@@ -573,8 +696,17 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
-            <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
+            {programActive ? (
+              <>
+                <ReadOnlyField label="Dormitorios" value={`${derivedCounts.bedrooms}`} hint="de los ambientes" />
+                <ReadOnlyField label="Baños" value={`${derivedCounts.bathrooms}`} hint="de los ambientes" />
+              </>
+            ) : (
+              <>
+                <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
+                <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
+              </>
+            )}
             {typeConfig.showPrice && (
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
@@ -587,8 +719,22 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               </div>
             )}
-            <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
+            {/* Casa: la orientación se carga con la brújula de abajo, no acá. */}
+            {hasUnitStep && (
+              <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
+            )}
           </div>
+
+          {!hasUnitStep && (
+            <div className="pt-1">
+              <label className="block text-sm font-medium text-brand-900 mb-2">Orientación</label>
+              <TourOrientationControl
+                hint={`Arrastrá la aguja hacia dónde mira el frente de ${uAgree.esta} ${unitLabelLower}${orientationCardinal ? ` — mira al ${orientationCardinal}` : ''}. También calibra por dónde sale y se pone el sol en el recorrido 360°.`}
+                value={orientationCardinal !== '' ? Number(form.orientation) : undefined}
+                onChange={(deg: number | undefined) => setForm({ ...form, orientation: deg == null ? '' : String(deg) })}
+              />
+            </div>
+          )}
 
           {!hasUnitStep && (
             <>
@@ -601,12 +747,16 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Input label="Livings" id="livingRooms" type="number" min={0} value={form.livingRooms} onChange={e => setForm({ ...form, livingRooms: e.target.value })} />
-                <Input label="Cocinas" id="kitchens" type="number" min={0} value={form.kitchens} onChange={e => setForm({ ...form, kitchens: e.target.value })} />
-                <Input label="Otros ambientes" id="otherRoomsCount" type="number" min={0} value={form.otherRoomsCount} onChange={e => setForm({ ...form, otherRoomsCount: e.target.value })} placeholder="0" />
-                <Input label="Detalle otros ambientes" id="otherRoomsDescription" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito" />
-              </div>
+              {/* Livings / cocinas / otros: solo mientras NO haya programa de
+                  ambientes cargado — con programa, esos conteos salen de él. */}
+              {!programActive && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Input label="Livings" id="livingRooms" type="number" min={0} value={form.livingRooms} onChange={e => setForm({ ...form, livingRooms: e.target.value })} />
+                  <Input label="Cocinas" id="kitchens" type="number" min={0} value={form.kitchens} onChange={e => setForm({ ...form, kitchens: e.target.value })} />
+                  <Input label="Otros ambientes" id="otherRoomsCount" type="number" min={0} value={form.otherRoomsCount} onChange={e => setForm({ ...form, otherRoomsCount: e.target.value })} placeholder="0" />
+                  <Input label="Detalle otros ambientes" id="otherRoomsDescription" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito" />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Input label="Cantidad de cocheras" id="garageSpaces" type="number" min={0} value={form.garageSpaces} onChange={e => setForm({ ...form, garageSpaces: e.target.value })} />
@@ -615,6 +765,126 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                     <option value="cubierta">Cubierta</option>
                     <option value="descubierta">Descubierta</option>
                   </Select>
+                )}
+              </div>
+
+              {/* Programa de ambientes — cada uno con su tipo, m², foto y
+                  detalle. Se guarda en units.rooms / units.levels; el paso
+                  "Ambientes y Tour" le agrega después el polígono. */}
+              <div className="pt-4 border-t border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Ambientes</h4>
+                    <p className="text-xs text-gray-400">
+                      Detalle de cada ambiente de la casa (dormitorios, baños, cocina…). Opcional pero recomendado.
+                      {floorsCount > 1 && ' Cargalos por planta con las solapas de abajo.'}
+                    </p>
+                  </div>
+                  <button type="button" onClick={addRoom} className="text-sm font-medium text-brand-600 hover:text-brand-700 shrink-0">
+                    + Agregar {plantaIdx === 0 ? 'ambiente' : `a ${plantas[plantaIdx].label.toLowerCase()}`}
+                  </button>
+                </div>
+
+                {/* Solapas de planta — solo si la casa declara 2+ plantas. */}
+                {floorsCount > 1 && (
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                    {plantas.map((p, i) => {
+                      const n = p.rooms.filter(r => r.kind).length;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActivePlanta(i)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                          {p.label}{n > 0 && <span className="text-gray-400 ml-1">({n})</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {activeRooms.length === 0 ? (
+                  <div className="py-2 space-y-2">
+                    <p className="text-sm text-gray-400">Todavía no cargaste ambientes{floorsCount > 1 ? ` en ${plantas[plantaIdx].label.toLowerCase()}` : ''}.</p>
+                    {plantaIdx === 0 && (() => {
+                      const legacy = synthesizeRoomProgram({
+                        bedrooms: Number(form.bedrooms || 0), bathrooms: Number(form.bathrooms || 0),
+                        livingRooms: Number(form.livingRooms || 0), kitchens: Number(form.kitchens || 0),
+                        otherRoomsCount: Number(form.otherRoomsCount || 0), otherRoomsDescription: form.otherRoomsDescription,
+                      });
+                      return legacy.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setRooms(legacy)}
+                          className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                        >
+                          Generar {legacy.length} ambiente{legacy.length === 1 ? '' : 's'} desde los datos actuales (podés ajustarlos después)
+                        </button>
+                      ) : null;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activeRooms.map(room => {
+                      const featureOpts = roomFeatureOptions(room.kind);
+                      return (
+                      <div key={room.id} className="rounded-xl border border-gray-200 p-3 space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          <Input
+                            label="Nombre" value={room.name}
+                            onChange={e => updateRoom(room.id, { name: e.target.value })}
+                            placeholder="Dormitorio principal"
+                          />
+                          <Select label="Tipo" value={room.kind ?? 'other'} onChange={e => updateRoom(room.id, { kind: e.target.value as RoomKind })}>
+                            {ROOM_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </Select>
+                          <Input
+                            label="m²" type="number" step="0.01" value={room.area ?? ''}
+                            onChange={e => updateRoom(room.id, { area: e.target.value === '' ? undefined : Number(e.target.value) })}
+                          />
+                        </div>
+                        {featureOpts.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {featureOpts.map(feature => {
+                              const on = room.features?.includes(feature);
+                              return (
+                                <button
+                                  type="button"
+                                  key={feature}
+                                  onClick={() => toggleRoomFeature(room.id, feature)}
+                                  className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                                    on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                                  }`}
+                                >
+                                  {on ? '✓ ' : ''}{feature}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <ImageUploader
+                          label="Foto del ambiente"
+                          value={room.imageUrl ?? ''}
+                          onChange={url => updateRoom(room.id, { imageUrl: url || undefined })}
+                          folder="units"
+                        />
+                        <div className="flex items-end gap-3">
+                          <div className="flex-1">
+                            <Input
+                              label="Nota" value={room.notes ?? ''}
+                              onChange={e => updateRoom(room.id, { notes: e.target.value || undefined })}
+                              placeholder="Detalle libre (ventanal al jardín, piso de madera…)"
+                            />
+                          </div>
+                          <button type="button" onClick={() => removeRoom(room.id)} className="text-sm text-red-500 hover:text-red-700 pb-2 shrink-0">
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </>
@@ -656,6 +926,18 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           </div>
         </form>
       </Card>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="w-full">
+      <label className="block text-sm font-medium text-brand-900 mb-1">{label}</label>
+      <div className="w-full px-4 py-2 border border-gray-100 rounded-lg bg-gray-50 text-sm text-gray-700">
+        {value}
+        {hint && <span className="text-gray-400"> · {hint}</span>}
+      </div>
     </div>
   );
 }

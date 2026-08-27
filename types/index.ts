@@ -8,14 +8,21 @@ export type UnitStatus = 'available' | 'reserved' | 'sold';
 // (define qué secciones de venta se muestran). Cualquier forma puede
 // combinarse con cualquier propósito — un loteo puramente ilustrativo
 // es tan válido como un edificio en venta.
-export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casas' | 'unico';
+export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casa' | 'unico';
 export type ProjectSaleMode = 'venta' | 'showcase';
 
 // ─── View tabs inside unit ─────────────────────────────────────────
 export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
 
 // ─── Unit type ─────────────────────────────────────────────────────
-export type UnitType = 'monoambiente' | '1 dormitorio' | '2 dormitorios' | '3 dormitorios' | 'penthouse';
+// Categorías estándar de aviso — las que ofrece el dropdown para
+// departamentos.
+export type KnownUnitType = 'monoambiente' | '1 dormitorio' | '2 dormitorios' | '3 dormitorios' | 'penthouse';
+// El valor guardado es texto libre: una casa NO elige de una lista, deriva
+// su tipología de la cantidad de dormitorios (ver deriveUnitType en
+// lib/units.ts) y puede tener 4, 5, 6+. El union laxo mantiene el
+// autocompletado de las categorías conocidas sin cerrar la puerta al resto.
+export type UnitType = KnownUnitType | (string & {});
 
 // ─── Tour 360 Types ────────────────────────────────────────────────
 export interface TourLinkHotspot {
@@ -80,13 +87,31 @@ export interface UnitDot {
 }
 
 // ─── Room/ambiente dentro de una unidad ────────────────────────────
+// Un ambiente puede existir SIN polígono: el "programa de ambientes" de una
+// casa (nombre + tipo + m² + orientación + características de cada uno) se
+// carga en el form de datos, sin plano. El paso de delimitación le agrega
+// el polígono después, sobre la misma lista.
+export type RoomKind =
+  | 'bedroom' | 'bathroom' | 'kitchen' | 'living' | 'dining'
+  | 'studio' | 'laundry' | 'storage' | 'other';
+
 export interface Room {
   id: string;
   name: string;
-  /** Polígono (% sobre el plano de ambientes de la unidad) */
-  polygon: { x: number; y: number }[];
+  /** Polígono (% sobre el plano de ambientes de la unidad) — ausente/vacío = ambiente sin delimitar. */
+  polygon?: { x: number; y: number }[];
   /** Nodo del tour 360° al que salta al seleccionar este ambiente */
   tourNodeId?: string;
+  /** Qué tipo de ambiente es — de acá se derivan los conteos (dormitorios, baños). */
+  kind?: RoomKind;
+  /** Superficie del ambiente en m². */
+  area?: number;
+  /** Características, según el tipo de ambiente — ver ROOM_FEATURES_BY_KIND. */
+  features?: string[];
+  /** Nota libre sobre el ambiente. */
+  notes?: string;
+  /** Foto del ambiente. */
+  imageUrl?: string;
 }
 
 // ─── Nivel adicional de una casa de 2+ plantas ──────────────────────
@@ -129,20 +154,23 @@ export interface Unit {
   bedrooms: number;
   bathrooms: number;
   hasServiceRoom: boolean;
-  lotSize?: number;      // superficie de terreno (m²) — solo aplica a casas
-  ceilingHeight?: number;      // altura de techo (m) — solo aplica a casas
+  lotSize?: number;      // superficie de terreno (m²) — solo aplica a casa
+  ceilingHeight?: number;      // altura de techo (m) — solo aplica a casa
   garageSpaces?: number;       // cantidad de cocheras — undefined/0 se trata como sin cochera
   garageType?: 'cubierta' | 'descubierta';
-  livingRooms?: number;        // cantidad de livings — solo aplica a casas
-  kitchens?: number;           // cantidad de cocinas — solo aplica a casas
-  otherRoomsCount?: number;    // otros ambientes (lavadero, depósito, etc.) — solo casas
+  livingRooms?: number;        // cantidad de livings — solo aplica a casa
+  kitchens?: number;           // cantidad de cocinas — solo aplica a casa
+  otherRoomsCount?: number;    // otros ambientes (lavadero, depósito, etc.) — solo casa
   otherRoomsDescription?: string;
-  hoaFee?: number;       // expensas mensuales — solo aplica a casas en barrio privado
+  hoaFee?: number;       // expensas mensuales — solo aplica a casa en barrio privado
   floorsCount?: number;  // cantidad de plantas de la casa — undefined se trata como 1
   price?: number;        // undefined means "consultar precio"
   currency?: string;     // ISO 4217, ej. "USD" — undefined se trata como "USD"
   status: UnitStatus;
-  orientation?: string; // N, S, E, O
+  /** Cardinal hacia donde mira la unidad (derivado de orientationDegrees), ej. "NE". */
+  orientation?: string;
+  /** Grados (0-359) hacia donde mira la unidad — se carga con la brújula del paso Datos. */
+  orientationDegrees?: number;
   tourImageUrl?: string;       // 360 equirectangular (legacy, single node)
   tourData?: TourData;         // Multi-node 360 tour data
   floorPlan3dUrl?: string;     // render 3D del edificio/planta
@@ -153,7 +181,7 @@ export interface Unit {
   polygon?: { x: number; y: number }[]; // optional polygon for masterplan
   roomPlanImage?: string;      // plano de ambientes de la planta baja/única
   rooms?: Room[];              // ambientes delimitados de la planta baja/única
-  levels?: UnitLevel[];        // plantas adicionales (casas de 2+ niveles) — ver floorsCount
+  levels?: UnitLevel[];        // plantas adicionales (casa de 2+ niveles) — ver floorsCount
 }
 
 // ─── Building (tower) ──────────────────────────────────────────────
