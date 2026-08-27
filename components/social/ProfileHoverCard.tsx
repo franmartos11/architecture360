@@ -21,7 +21,7 @@ const cache = new Map<string, HoverProfile>();
 // comentario sea solo un link plano sin más contexto. Perezoso: recién pide
 // el perfil la primera vez que se hace hover, y lo cachea en memoria para
 // no repetir el fetch si aparece varias veces en la misma sesión.
-export default function ProfileHoverCard({ handle, loggedIn, children }: { handle: string; loggedIn: boolean; children: ReactNode }) {
+export default function ProfileHoverCard({ handle, loggedIn, isOwnProfile, children }: { handle: string; loggedIn: boolean; isOwnProfile?: boolean; children: ReactNode }) {
   const [profile, setProfile] = useState<HoverProfile | null>(cache.get(handle) ?? null);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,7 +76,9 @@ export default function ProfileHoverCard({ handle, loggedIn, children }: { handl
                 </div>
               </Link>
               {profile.bio && <p className="text-xs text-trevo-dark/60 font-light line-clamp-2 mb-3">{profile.bio}</p>}
-              <FollowButton handle={profile.handle} initialFollowing={profile.isFollowedByMe} initialCount={profile.followerCount} loggedIn={loggedIn} />
+              {!isOwnProfile && (
+                <FollowButton handle={profile.handle} initialFollowing={profile.isFollowedByMe} initialCount={profile.followerCount} loggedIn={loggedIn} />
+              )}
             </>
           )}
         </div>

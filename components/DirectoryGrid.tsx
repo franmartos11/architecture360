@@ -11,7 +11,7 @@ import type { DirectoryProfile } from '@/types';
 
 type Filter = 'all' | 'person' | 'company';
 
-export default function DirectoryGrid({ profiles, followingSet = new Set(), loggedIn = false }: { profiles: DirectoryProfile[], followingSet?: Set<string>, loggedIn?: boolean }) {
+export default function DirectoryGrid({ profiles, followingSet = new Set(), loggedIn = false, currentProfileId }: { profiles: DirectoryProfile[], followingSet?: Set<string>, loggedIn?: boolean, currentProfileId?: string }) {
   // Precarga el filtro cuando se llega con ?q= (ej. desde el buscador de
   // la nav) — solo como valor inicial, así el usuario puede seguir
   // editando la búsqueda sin que se resetee.
@@ -84,14 +84,16 @@ export default function DirectoryGrid({ profiles, followingSet = new Set(), logg
                   {p.projectCount} {p.projectCount === 1 ? 'proyecto' : 'proyectos'}
                 </p>
               </div>
-              <div className="shrink-0 pt-2" onClick={e => e.preventDefault()}>
-                <FollowButton
-                  handle={p.handle}
-                  initialFollowing={followingSet.has(p.id)}
-                  initialCount={0} // Ocultar contador en la grilla para hacerlo liviano
-                  loggedIn={loggedIn}
-                />
-              </div>
+              {p.id !== currentProfileId && (
+                <div className="shrink-0 pt-2" onClick={e => e.preventDefault()}>
+                  <FollowButton
+                    handle={p.handle}
+                    initialFollowing={followingSet.has(p.id)}
+                    initialCount={0} // Ocultar contador en la grilla para hacerlo liviano
+                    loggedIn={loggedIn}
+                  />
+                </div>
+              )}
             </Link>
           ))}
         </div>

@@ -35,7 +35,7 @@ export default async function DirectoryPage() {
             <EmptyState icon={<Users className="w-6 h-6" />} title="Todavía no hay perfiles publicados." />
           ) : (
             <Suspense fallback={null}>
-              <DirectoryGrid profiles={profiles} followingSet={followingSet} loggedIn={!!user} />
+              <DirectoryGrid profiles={profiles} followingSet={followingSet} loggedIn={!!user} currentProfileId={user?.id} />
             </Suspense>
           )}
         </div>

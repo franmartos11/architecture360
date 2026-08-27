@@ -250,7 +250,7 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
               )}
               <div className="flex items-start gap-3">
                 {post.author ? (
-                  <ProfileHoverCard handle={post.author.handle} loggedIn={loggedIn}>
+                  <ProfileHoverCard handle={post.author.handle} loggedIn={loggedIn} isOwnProfile={post.author.handle === currentProfileHandle}>
                     <Link href={`/portfolio/${post.author.handle}`} className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-trevo-dark/10 flex items-center justify-center">
                       {post.author.avatar_image ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -268,7 +268,7 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     {post.author && (
-                      <ProfileHoverCard handle={post.author.handle} loggedIn={loggedIn}>
+                      <ProfileHoverCard handle={post.author.handle} loggedIn={loggedIn} isOwnProfile={post.author.handle === currentProfileHandle}>
                         <Link href={`/portfolio/${post.author.handle}`} className="text-sm font-medium text-trevo-dark hover:underline">
                           {post.author.display_name}
                         </Link>

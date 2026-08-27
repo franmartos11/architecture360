@@ -47,7 +47,7 @@ export default async function FollowingPage({ params }: PageProps) {
             <EmptyState icon={<Users className="w-6 h-6" />} title="Todavía no sigue a nadie." />
           ) : (
             <Suspense fallback={null}>
-              <DirectoryGrid profiles={following} followingSet={followingSet} loggedIn={!!user} />
+              <DirectoryGrid profiles={following} followingSet={followingSet} loggedIn={!!user} currentProfileId={user?.id} />
             </Suspense>
           )}
         </div>

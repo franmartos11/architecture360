@@ -168,7 +168,7 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-[var(--theme-text)]">
                     {c.author ? (
-                      <ProfileHoverCard handle={c.author.handle} loggedIn={!!userId}>
+                      <ProfileHoverCard handle={c.author.handle} loggedIn={!!userId} isOwnProfile={c.author_id === userId}>
                         <a href={`/portfolio/${c.author.handle}`} className="hover:underline">{c.author.display_name}</a>
                       </ProfileHoverCard>
                     ) : 'Usuario'}
