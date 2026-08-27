@@ -5,7 +5,12 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 
-export default function Navbar({ showCalculator, hasTour }: { showCalculator: boolean; hasTour: boolean }) {
+export default function Navbar({ showCalculator, hasTour, singleUnit }: {
+  showCalculator: boolean;
+  hasTour: boolean;
+  /** Tipo "casa": una sola unidad — el link va directo a ella y se llama como la casa. */
+  singleUnit?: { buildingId: string; unitId: string; label: string };
+}) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const basePath = useProjectBasePath();
@@ -16,7 +21,10 @@ export default function Navbar({ showCalculator, hasTour }: { showCalculator: bo
   const projectHref = basePath || '/';
   const masterplanHref = `${basePath}/masterplan`;
   const tourHref = `${basePath}/recorrido`;
-  const unitsHref = `${basePath}/unidades`;
+  const unitsHref = singleUnit
+    ? `${basePath}/edificio/${singleUnit.buildingId}/unidad/${singleUnit.unitId}`
+    : `${basePath}/unidades`;
+  const unitsLabel = singleUnit?.label ?? 'Unidades';
   const amenitiesHref = `${basePath}/amenities`;
   const locationHref = `${basePath}/ubicacion`;
   const calculatorHref = `${basePath}#cotizador`;
@@ -49,7 +57,7 @@ export default function Navbar({ showCalculator, hasTour }: { showCalculator: bo
               </NavLink>
             )}
             <NavLink href={unitsHref} active={pathname === unitsHref}>
-              Unidades
+              {unitsLabel}
             </NavLink>
             <NavLink href={amenitiesHref} active={pathname === amenitiesHref}>
               Amenities
@@ -107,7 +115,7 @@ export default function Navbar({ showCalculator, hasTour }: { showCalculator: bo
             </MobileNavLink>
           )}
           <MobileNavLink href={unitsHref} active={pathname === unitsHref} onClick={() => setIsMobileMenuOpen(false)}>
-            Unidades
+            {unitsLabel}
           </MobileNavLink>
           <MobileNavLink href={amenitiesHref} active={pathname === amenitiesHref} onClick={() => setIsMobileMenuOpen(false)}>
             Amenities

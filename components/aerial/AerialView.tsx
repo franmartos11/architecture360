@@ -17,6 +17,12 @@ interface AerialViewProps {
 export default function AerialView({ project }: AerialViewProps) {
   const basePath = useProjectBasePath();
   const router = useRouter();
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  // "casa": es UNA sola, así que el chip de arriba lleva directo a ella y
+  // se llama como la casa, no "Unidades" (una lista de 1).
+  const singleUnit = !typeConfig.hasUnitStep && project.units[0]
+    ? { href: `${basePath}/edificio/${project.units[0].buildingId}/unidad/${project.units[0].id}`, label: typeConfig.unitLabel }
+    : null;
   const [currentSlide, setCurrentSlide] = useState(0);
   const [activeHotspot, setActiveHotspot] = useState<AerialHotspot | null>(null);
   const [hoveredBuildingId, setHoveredBuildingId] = useState<string | null>(null);
@@ -129,14 +135,14 @@ export default function AerialView({ project }: AerialViewProps) {
     setActiveHotspot(null);
   }, []);
 
-  // Navigate to building floor plan
+  // Navigate to building floor plan — o directo a la casa si es tipo "casa".
   const handleEnterBuilding = useCallback(() => {
     if (!activeHotspot) return;
     setIsTransitioning(true);
     setTimeout(() => {
-      router.push(`${basePath}/edificio/${activeHotspot.buildingId}`);
+      router.push(singleUnit ? singleUnit.href : `${basePath}/edificio/${activeHotspot.buildingId}`);
     }, 500);
-  }, [activeHotspot, basePath, router]);
+  }, [activeHotspot, basePath, router, singleUnit]);
 
   // Prev/Next slide
   const goNext = useCallback(() => {
@@ -433,16 +439,16 @@ export default function AerialView({ project }: AerialViewProps) {
           onClick={e => e.stopPropagation()}
           className="flex items-center gap-1.5 sm:gap-3 shrink-0"
         >
-          {project.units.length > 0 && (
+          {(singleUnit || project.units.length > 0) && (
             <Link
-              href={`${basePath}/unidades`}
-              aria-label="Unidades"
+              href={singleUnit ? singleUnit.href : `${basePath}/unidades`}
+              aria-label={singleUnit ? singleUnit.label : 'Unidades'}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
               </svg>
-              <span className="hidden sm:inline">Unidades</span>
+              <span className="hidden sm:inline">{singleUnit ? singleUnit.label : 'Unidades'}</span>
             </Link>
           )}
           {project.amenities.length > 0 && (
