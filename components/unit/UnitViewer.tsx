@@ -152,6 +152,11 @@ export default function UnitViewer({
   ].filter(g => g.rooms.length > 0);
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
+  // Programa de ambientes de la sidebar — fila expandible + lightbox de fotos.
+  const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);
+  const [planFocusRoomId, setPlanFocusRoomId] = useState<string | undefined>(undefined);
+  const [roomLightboxOpen, setRoomLightboxOpen] = useState(false);
+  const [roomLightboxIndex, setRoomLightboxIndex] = useState(0);
   // Amenity detail state (inline tab)
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
   const [amenityImageIndex, setAmenityImageIndex] = useState(0);
@@ -233,6 +238,21 @@ export default function UnitViewer({
     setFocusNodeId(room.tourNodeId);
     setActiveTab('tour360');
   }, [setFocusNodeId, setActiveTab]);
+
+  // Todas las fotos de ambientes (todas las plantas) — para el lightbox
+  // que abre la foto grande de la ficha expandida.
+  const roomImages = roomFloors.flatMap(g => g.rooms).map(r => r.imageUrl).filter((u): u is string => !!u);
+  const openRoomPhoto = (imageUrl: string) => {
+    const i = roomImages.indexOf(imageUrl);
+    setRoomLightboxIndex(i < 0 ? 0 : i);
+    setRoomLightboxOpen(true);
+  };
+  const showRoomOnPlan = useCallback((room: Room) => {
+    setPlanFocusRoomId(room.id);
+    setPlanView('ambientes');
+    setActiveTab('plano');
+    setSidebarCollapsed(true);
+  }, [setPlanView, setActiveTab]);
 
   const statusColor = getStatusColor(unit.status);
   const statusLabel = getStatusLabel(unit.status);
@@ -378,7 +398,8 @@ export default function UnitViewer({
             {!!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
 
-          {/* Programa de ambientes — detalle de cada uno, agrupado por planta */}
+          {/* Programa de ambientes — fila expandible: se despliega la foto
+              grande, características y (si hay) accesos a 360° y al plano. */}
           {showRoomProgram && (
             <>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-6 mb-3">Ambientes</h4>
@@ -388,36 +409,95 @@ export default function UnitViewer({
                     {roomFloors.length > 1 && (
                       <p className="text-xs font-semibold text-gray-500 mb-2">{group.label}</p>
                     )}
-                    <ul className="space-y-3 text-sm">
-                      {group.rooms.map(room => (
-                        <li key={room.id} className="flex gap-3">
-                          {room.imageUrl && (
-                            <div className="relative w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                              <Image
-                                src={room.imageUrl}
-                                alt={room.name || ROOM_KIND_LABEL[room.kind!]}
-                                fill
-                                sizes="80px"
-                                placeholder="blur"
-                                blurDataURL={shimmerDataUrl(80, 80)}
-                                className="object-cover"
-                              />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="font-medium text-gray-900">{room.name || ROOM_KIND_LABEL[room.kind!]}</span>
-                              <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind!]}</span>
-                              {!!room.area && <span className="text-gray-500">· {room.area} m²</span>}
-                            </div>
-                            {(room.features?.length || room.notes) && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {[...(room.features ?? []), room.notes].filter(Boolean).join(' · ')}
-                              </p>
-                            )}
-                          </div>
-                        </li>
-                      ))}
+                    <ul className="space-y-2">
+                      {group.rooms.map(room => {
+                        const isOpen = expandedRoomId === room.id;
+                        const roomName = room.name || ROOM_KIND_LABEL[room.kind!];
+                        const canTour = !!room.tourNodeId && tabHasContent.tour360;
+                        const canPlan = !!room.polygon && room.polygon.length >= 3 && tabHasContent.plano;
+                        const hasDetail = !!room.imageUrl || !!room.features?.length || !!room.notes || canTour || canPlan;
+                        return (
+                          <li key={room.id} className={`rounded-xl border transition-colors ${isOpen ? 'border-gray-200 bg-gray-50/60' : 'border-gray-100'}`}>
+                            <button
+                              type="button"
+                              onClick={() => hasDetail && setExpandedRoomId(isOpen ? null : room.id)}
+                              aria-expanded={hasDetail ? isOpen : undefined}
+                              disabled={!hasDetail}
+                              className="w-full flex items-center gap-3 p-2.5 text-left disabled:cursor-default"
+                            >
+                              {room.imageUrl && (
+                                <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                                  <Image src={room.imageUrl} alt={roomName} fill sizes="56px" placeholder="blur" blurDataURL={shimmerDataUrl(56, 56)} className="object-cover" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                                  <span className="font-medium text-gray-900">{roomName}</span>
+                                  <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind!]}</span>
+                                  {!!room.area && <span className="text-gray-500">· {room.area} m²</span>}
+                                </div>
+                                {!isOpen && (room.features?.length || room.notes) && (
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                    {[...(room.features ?? []), room.notes].filter(Boolean).join(' · ')}
+                                  </p>
+                                )}
+                              </div>
+                              {hasDetail && (
+                                <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              )}
+                            </button>
+
+                            <AnimatePresence initial={false}>
+                              {isOpen && hasDetail && (
+                                <motion.div
+                                  key="body"
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="px-2.5 pb-3 space-y-2.5">
+                                    {room.imageUrl && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openRoomPhoto(room.imageUrl!)}
+                                        className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 group"
+                                      >
+                                        <Image src={room.imageUrl} alt={roomName} fill sizes="288px" placeholder="blur" blurDataURL={shimmerDataUrl(288, 216)} className="object-cover transition-transform group-hover:scale-[1.03]" />
+                                      </button>
+                                    )}
+                                    {!!room.features?.length && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {room.features.map(f => (
+                                          <span key={f} className="text-[11px] font-medium text-gray-600 bg-white border border-gray-200 rounded-full px-2 py-0.5">{f}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {!!room.notes && <p className="text-xs text-gray-500 whitespace-pre-line">{room.notes}</p>}
+                                    {(canTour || canPlan) && (
+                                      <div className="flex flex-wrap gap-2 pt-0.5">
+                                        {canTour && (
+                                          <button type="button" onClick={() => handleSelectRoom(room)} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5">
+                                            Ver en 360°
+                                          </button>
+                                        )}
+                                        {canPlan && (
+                                          <button type="button" onClick={() => showRoomOnPlan(room)} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5">
+                                            Ver en el plano
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ))}
@@ -625,6 +705,7 @@ export default function UnitViewer({
                 planView={planView}
                 onPlanViewChange={setPlanView}
                 onSelectRoom={handleSelectRoom}
+                focusRoomId={planFocusRoomId}
               />
             )}
 
@@ -724,6 +805,15 @@ export default function UnitViewer({
         onIndexChange={setAmenityImageIndex}
         onClose={() => setAmenityLightboxOpen(false)}
         altPrefix={activeAmenity?.name ?? 'Imagen'}
+      />
+
+      <ImageLightbox
+        isOpen={roomLightboxOpen}
+        images={roomImages}
+        index={roomLightboxIndex}
+        onIndexChange={setRoomLightboxIndex}
+        onClose={() => setRoomLightboxOpen(false)}
+        altPrefix="Ambiente"
       />
 
       {showLeads && (

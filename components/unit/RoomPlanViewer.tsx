@@ -8,6 +8,8 @@ interface RoomPlanViewerProps {
   planImage: string;
   rooms: Room[];
   onSelectRoom?: (room: Room) => void;
+  /** Ambiente a resaltar al entrar (ej. desde la lista de la sidebar). */
+  focusRoomId?: string;
 }
 
 // Un ambiente sin polígono (cargado en el programa de la casa pero sin
@@ -15,11 +17,14 @@ interface RoomPlanViewerProps {
 type DrawnRoom = Room & { polygon: NonNullable<Room['polygon']> };
 const isDrawn = (r: Room): r is DrawnRoom => Array.isArray(r.polygon) && r.polygon.length >= 3;
 
-export default function RoomPlanViewer({ planImage, rooms, onSelectRoom }: RoomPlanViewerProps) {
+export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRoomId }: RoomPlanViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 
   const drawnRooms = rooms.filter(isDrawn);
-  const hovered = drawnRooms.find(r => r.id === hoveredRoom);
+  // El hover del usuario manda; si no hay, se resalta el ambiente pedido
+  // desde afuera (ej. clickeado en la lista de la sidebar).
+  const highlightId = hoveredRoom ?? focusRoomId ?? null;
+  const hovered = drawnRooms.find(r => r.id === highlightId);
   const center = hovered
     ? {
         x: hovered.polygon.reduce((s, p) => s + p.x, 0) / hovered.polygon.length,
@@ -49,7 +54,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom }: RoomP
                 <RoomPolygon
                   key={room.id}
                   room={room}
-                  isHovered={hoveredRoom === room.id}
+                  isHovered={highlightId === room.id}
                   onHover={setHoveredRoom}
                   onSelect={onSelectRoom}
                 />

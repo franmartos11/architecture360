@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -15,12 +15,15 @@ export default function PlanoTab({
   planView,
   onPlanViewChange,
   onSelectRoom,
+  focusRoomId,
 }: {
   unit: Unit;
   hasRooms: boolean;
   planView: PlanView;
   onPlanViewChange: (view: PlanView) => void;
   onSelectRoom: (room: Room) => void;
+  /** Ambiente a resaltar (viene de clickearlo en la lista de la sidebar). */
+  focusRoomId?: string;
 }) {
   // Casa de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
   // más arriba en unit.levels — acá se unifican para poder elegir cuál
@@ -31,6 +34,13 @@ export default function PlanoTab({
   ], [unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
   const [activeLevelIdx, setActiveLevelIdx] = useState(0);
   const activeLevel = levels[activeLevelIdx] ?? levels[0];
+
+  // Si se pidió resaltar un ambiente, saltar a la planta que lo contiene.
+  useEffect(() => {
+    if (!focusRoomId) return;
+    const idx = levels.findIndex(l => l.rooms.some(r => r.id === focusRoomId));
+    if (idx >= 0) setActiveLevelIdx(idx);
+  }, [focusRoomId, levels]);
 
   return (
     <motion.div
@@ -91,6 +101,7 @@ export default function PlanoTab({
             planImage={activeLevel.planImage}
             rooms={activeLevel.rooms}
             onSelectRoom={onSelectRoom}
+            focusRoomId={activeLevel.rooms.some(r => r.id === focusRoomId) ? focusRoomId : undefined}
           />
         ) : planView === 'ambientes' && hasRooms ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
