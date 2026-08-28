@@ -157,6 +157,9 @@ export default function UnitViewer({
   const [planFocusRoomId, setPlanFocusRoomId] = useState<string | undefined>(undefined);
   const [roomLightboxOpen, setRoomLightboxOpen] = useState(false);
   const [roomLightboxIndex, setRoomLightboxIndex] = useState(0);
+  // Fotos del ambiente cuya foto grande se abrió — solo las de ESE ambiente,
+  // no las de todos.
+  const [roomLightboxImages, setRoomLightboxImages] = useState<string[]>([]);
   // Amenity detail state (inline tab)
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
   const [amenityImageIndex, setAmenityImageIndex] = useState(0);
@@ -239,12 +242,11 @@ export default function UnitViewer({
     setActiveTab('tour360');
   }, [setFocusNodeId, setActiveTab]);
 
-  // Todas las fotos de ambientes (todas las plantas) — para el lightbox
-  // que abre la foto grande de la ficha expandida.
-  const roomImages = roomFloors.flatMap(g => g.rooms).map(r => r.imageUrl).filter((u): u is string => !!u);
-  const openRoomPhoto = (imageUrl: string) => {
-    const i = roomImages.indexOf(imageUrl);
-    setRoomLightboxIndex(i < 0 ? 0 : i);
+  // Fotos de UN ambiente: la principal + las adicionales que tenga.
+  const roomPhotos = (room: Room) => [room.imageUrl, ...(room.images ?? [])].filter((u): u is string => !!u);
+  const openRoomPhoto = (room: Room) => {
+    setRoomLightboxImages(roomPhotos(room));
+    setRoomLightboxIndex(0);
     setRoomLightboxOpen(true);
   };
   const showRoomOnPlan = useCallback((room: Room) => {
@@ -476,10 +478,15 @@ export default function UnitViewer({
                                     {room.imageUrl && (
                                       <button
                                         type="button"
-                                        onClick={() => openRoomPhoto(room.imageUrl!)}
+                                        onClick={() => openRoomPhoto(room)}
                                         className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 group"
                                       >
                                         <Image src={room.imageUrl} alt={roomName} fill sizes="288px" placeholder="blur" blurDataURL={shimmerDataUrl(288, 216)} className="object-cover transition-transform group-hover:scale-[1.03]" />
+                                        {!!room.images?.length && (
+                                          <span className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-[11px] font-medium rounded-md px-2 py-0.5 backdrop-blur-sm">
+                                            +{room.images.length} foto{room.images.length === 1 ? '' : 's'}
+                                          </span>
+                                        )}
                                       </button>
                                     )}
                                     {!!room.features?.length && (
@@ -822,7 +829,7 @@ export default function UnitViewer({
 
       <ImageLightbox
         isOpen={roomLightboxOpen}
-        images={roomImages}
+        images={roomLightboxImages}
         index={roomLightboxIndex}
         onIndexChange={setRoomLightboxIndex}
         onClose={() => setRoomLightboxOpen(false)}

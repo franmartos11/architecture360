@@ -929,6 +929,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                           onChange={url => updateRoom(room.id, { imageUrl: url || undefined })}
                           folder="units"
                         />
+                        <MultiImageUploader
+                          label="Más fotos de este ambiente"
+                          values={room.images ?? []}
+                          onChange={urls => updateRoom(room.id, { images: urls.length ? urls : undefined })}
+                          folder="units"
+                        />
                         <div className="flex items-end gap-3">
                           <div className="flex-1">
                             <Input

@@ -110,8 +110,10 @@ export interface Room {
   features?: string[];
   /** Nota libre sobre el ambiente. */
   notes?: string;
-  /** Foto del ambiente. */
+  /** Foto principal del ambiente (la que se ve chica en la lista). */
   imageUrl?: string;
+  /** Fotos adicionales del ambiente — se ven en el visor al abrir la foto grande. */
+  images?: string[];
 }
 
 // ─── Nivel adicional de una casa de 2+ plantas ──────────────────────
