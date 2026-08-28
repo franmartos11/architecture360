@@ -124,6 +124,7 @@ export default function PlanoTab({
                 minScale={0.5}
                 maxScale={4}
                 centerOnInit={true}
+                centerZoomedOut={true}
                 wheel={{ step: 0.1 }}
                 doubleClick={{ step: 1 }}
                 panning={{ disabled: false }}

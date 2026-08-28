@@ -34,7 +34,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
 
   return (
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
-      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit wheel={{ step: 0.1 }} doubleClick={{ step: 1 }}>
+      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={{ step: 0.1 }} doubleClick={{ step: 1 }}>
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           {/* El overlay de polígonos tiene que coincidir EXACTO con la caja
               de la imagen renderizada. Los puntos se guardan como % del plano

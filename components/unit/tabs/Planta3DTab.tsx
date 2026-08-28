@@ -27,6 +27,7 @@ export default function Planta3DTab({ unit }: { unit: Unit }) {
             minScale={1}
             maxScale={4}
             centerOnInit={true}
+            centerZoomedOut={true}
             wheel={{ step: 0.1 }}
             doubleClick={{ step: 1 }}
             panning={{ disabled: false }}
