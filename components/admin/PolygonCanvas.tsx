@@ -20,6 +20,12 @@ interface PolygonCanvasProps {
   onPointsChange: (id: string, points: Point[]) => void;
   /** Se dispara cuando el usuario "cierra" la forma (toca el primer punto o suelta el rectángulo) */
   onComplete?: (id: string) => void;
+  /**
+   * Descartar los cambios sin guardar de la forma activa y volverla a como
+   * estaba guardada. Lo dispara el botón "Cancelar" y la tecla Escape. El
+   * padre repone points[id] (y el pin) desde el dato persistido.
+   */
+  onCancel?: (id: string) => void;
   /** Posición del pin de la forma activa — se muestra siempre, se puede arrastrar o reubicar en modo "pin" */
   pinPoint?: Point | null;
   onPinPlace?: (point: Point | null) => void;
@@ -47,7 +53,7 @@ function distance(a: Point, b: Point) {
 //   "point" para agregarle más esquinas si el ambiente no es un rectángulo.
 // En ambos modos: arrastrar un punto existente lo mueve, doble click
 // sobre un punto lo borra.
-export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, pinPoint, onPinPlace, pinColor }: PolygonCanvasProps) {
+export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, onCancel, pinPoint, onPinPlace, pinColor }: PolygonCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [draggingPin, setDraggingPin] = useState(false);
@@ -177,6 +183,7 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
     onPointsChange(activeShape.id, activeShape.points.filter((_, i) => i !== index));
   };
 
+  // Vacía los puntos de la forma activa (para redibujarla de cero).
   const handleReset = () => {
     if (!activeShape) return;
     pushHistory(activeShape.id, activeShape.points, pinPoint ?? null);
@@ -186,11 +193,26 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
     onPointsChange(activeShape.id, []);
   };
 
-  // Esc cancela un arrastre de rectángulo en curso sin borrar lo que ya estaba guardado.
-  // Ctrl/Cmd+Z deshace el último cambio (agregar/mover/borrar punto, rectángulo, pin o reset).
+  // Descarta TODO lo no guardado de la forma activa — el padre la repone
+  // desde el dato persistido. Lo dispara "Cancelar" y Escape.
+  const handleCancel = useCallback(() => {
+    if (!activeShape) return;
+    setDragIndex(null);
+    setRectStart(null);
+    setCursorPos(null);
+    setHistory(prev => ({ ...prev, [activeShape.id]: [] }));
+    onCancel?.(activeShape.id);
+  }, [activeShape, onCancel]);
+
+  // Escape: si hay un arrastre de rectángulo en curso, lo corta; si no,
+  // cancela la edición de la forma activa (vuelve a lo guardado).
+  // Ctrl/Cmd+Z deshace el último cambio.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && rectStart) setRectStart(null);
+      if (e.key === 'Escape') {
+        if (rectStart) setRectStart(null);
+        else if (activeShape && onCancel) handleCancel();
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         handleUndo();
@@ -198,7 +220,7 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rectStart, handleUndo]);
+  }, [rectStart, handleUndo, activeShape, onCancel, handleCancel]);
 
   const rectPreview = mode === 'rectangle' && rectStart && cursorPos
     ? {
@@ -336,7 +358,7 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
         </div>
       )}
 
-      {/* Deshacer último cambio + resetear la forma activa */}
+      {/* Deshacer · Cancelar (volver a lo guardado) · Vaciar la forma activa */}
       {activeShape && (canUndo || activeShape.points.length > 0 || rectStart) && (
         <div className="absolute top-2 right-2 flex items-center gap-2">
           {canUndo && (
@@ -351,16 +373,28 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
               Deshacer
             </button>
           )}
+          {onCancel && (
+            <button
+              onClick={handleCancel}
+              title="Descartar los cambios sin guardar de esta forma y volver a como estaba (Escape). No toca el resto de la carga."
+              className="flex items-center gap-1.5 bg-white/95 hover:bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg border border-gray-200 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Cancelar
+            </button>
+          )}
           {(activeShape.points.length > 0 || rectStart) && (
             <button
               onClick={handleReset}
-              title="Borrar todos los puntos de esta forma y empezar de nuevo"
+              title="Borrar los puntos de esta forma para dibujarla de nuevo. Solo afecta a esta forma, no al resto de la carga."
               className="flex items-center gap-1.5 bg-white/95 hover:bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg border border-gray-200 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
-              Resetear
+              Vaciar esta forma
             </button>
           )}
         </div>

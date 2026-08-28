@@ -293,6 +293,13 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
   const handleClear = (id: string) => setPoints(prev => ({ ...prev, [id]: [] }));
 
+  // "Cancelar" / Escape: descarta lo dibujado sin guardar y repone el
+  // contorno desde lo último guardado del ambiente.
+  const handleCancelShape = (id: string) => {
+    const room = rooms.find(r => r.id === id);
+    setPoints(prev => ({ ...prev, [id]: room?.polygon ?? [] }));
+  };
+
   const linkedRoomsCount = useMemo(
     () => rooms.filter(r => r.tourNodeId && unitTourData?.nodes.some(n => n.id === r.tourNodeId)).length,
     [rooms, unitTourData]
@@ -409,7 +416,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
                 Forma libre
               </button>
             </div>
-            <PolygonCanvas imageUrl={roomPlanImage} shapes={shapes} activeId={activeId} mode={mode} onPointsChange={handlePointsChange} onComplete={handleSaveShape} />
+            <PolygonCanvas imageUrl={roomPlanImage} shapes={shapes} activeId={activeId} mode={mode} onPointsChange={handlePointsChange} onComplete={handleSaveShape} onCancel={handleCancelShape} />
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
