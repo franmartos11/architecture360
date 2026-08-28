@@ -25,10 +25,13 @@ interface ActiveProject {
 export default function ProjectAdminShell({
   project,
   userEmail,
+  houseEditHref,
   children,
 }: {
   project: ActiveProject;
   userEmail: string | null;
+  /** Solo para "casa": link directo al editor de datos, resuelto en el server. */
+  houseEditHref?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -64,7 +67,10 @@ export default function ProjectAdminShell({
   // está navegando algo bajo /admin/proyecto — Edificios vive ahí adentro
   // también, aunque su URL sea propia (/admin/edificios).
   const projectSubItems = [
-    { label: hasFloorStep ? 'Edificios' : `${buildingLabel}s`, href: '/admin/edificios' },
+    // Casa: una sola (building === unidad) → en singular, "Casas" no aplica.
+    // Y el link va directo al editor (houseEditHref) para no pasar por la
+    // lista + redirect.
+    { label: hasFloorStep ? 'Edificios' : hasUnitStep ? `${buildingLabel}s` : buildingLabel, href: houseEditHref ?? '/admin/edificios' },
     { label: 'Amenidades', href: '/admin/proyecto/amenities' },
     { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
     { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },

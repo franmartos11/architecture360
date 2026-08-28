@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -161,7 +161,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [otherUnits, setOtherUnits] = useState<OtherUnitRow[]>([]);
+  const [allProjectUnits, setAllProjectUnits] = useState<OtherUnitRow[]>([]);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
   const [duplicateExtras, setDuplicateExtras] = useState<DuplicateExtras | null>(null);
@@ -190,15 +190,21 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
   // Unidades de CUALQUIER otro piso/edificio del proyecto — para poder
   // traer el mismo modelo a este piso sin retipear los 18 campos, cuando
-  // el depto ya existe en otra torre o en un piso con layout distinto
-  // (para pisos con el layout idéntico conviene usar "Duplicar piso" en
-  // vez de esto, unidad por unidad).
+  // el depto ya existe en otra torre o en un piso con layout distinto.
+  // Solo aplica a tipos con varias unidades por piso — una "casa" es una
+  // sola, no hay de dónde copiar. Se trae UNA vez (no cada vez que cambia
+  // `units`), y el filtro contra las de este piso se hace al renderizar.
   useEffect(() => {
+    if (!hasUnitStep) return;
     fetch('/api/admin/units')
       .then(res => res.json())
-      .then((data: OtherUnitRow[]) => setOtherUnits(Array.isArray(data) ? data.filter(u => !units.some(un => un.id === u.id)) : []))
+      .then((data: OtherUnitRow[]) => setAllProjectUnits(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [floorId, units]);
+  }, [hasUnitStep]);
+  const otherUnits = useMemo(
+    () => allProjectUnits.filter(u => !units.some(un => un.id === u.id)),
+    [allProjectUnits, units],
+  );
 
   const load = () => {
     setLoading(true);
@@ -271,19 +277,38 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const plantaIdx = Math.min(activePlanta, plantas.length - 1);
   const activeRooms = plantas[plantaIdx].rooms;
 
-  // Escribe la lista de ambientes de la planta activa — planta baja pisa
-  // `rooms`; una planta extra arma el array `levels` completo (las demás
-  // intactas), porque la columna es un solo JSONB.
-  const setActiveRooms = (next: Room[]) => {
-    if (plantaIdx === 0) { setRooms(next); return; }
-    const i = plantaIdx - 1;
-    setLevels(Array.from({ length: floorsCount - 1 }, (_, k) => ({
+  // Arma el array `levels` completo (una sola columna JSONB) preservando
+  // todo lo de cada planta extra, salvo lo que `over(k)` pise para la k
+  // que corresponda. Se usa para escribir ambientes, plano 2D y render 3D
+  // de una planta sin perder los de las demás.
+  const buildLevels = (over: (k: number) => Partial<UnitLevel>): UnitLevel[] =>
+    Array.from({ length: floorsCount - 1 }, (_, k) => ({
       id: levels[k]?.id ?? `piso-${k + 1}`,
       label: levels[k]?.label ?? `Piso ${k + 1}`,
       planImage: levels[k]?.planImage ?? null,
-      rooms: k === i ? next : (levels[k]?.rooms ?? []),
-    })));
+      plan3dImage: levels[k]?.plan3dImage ?? null,
+      rooms: levels[k]?.rooms ?? [],
+      ...over(k),
+    }));
+
+  // Escribe la lista de ambientes de la planta activa — planta baja pisa
+  // `rooms`; una planta extra arma el array `levels`.
+  const setActiveRooms = (next: Room[]) => {
+    if (plantaIdx === 0) { setRooms(next); return; }
+    const i = plantaIdx - 1;
+    setLevels(buildLevels(k => (k === i ? { rooms: next } : {})));
   };
+
+  // Render / planta 3D de la planta activa — planta baja vive en
+  // form.floorPlan3dUrl (dato existente, sin migrar); las de más en
+  // levels[k].plan3dImage.
+  const activePlan3d = plantaIdx === 0 ? form.floorPlan3dUrl : (levels[plantaIdx - 1]?.plan3dImage ?? '');
+  const setActivePlan3d = (url: string) => {
+    if (plantaIdx === 0) { setForm(f => ({ ...f, floorPlan3dUrl: url })); return; }
+    const i = plantaIdx - 1;
+    setLevels(buildLevels(k => (k === i ? { plan3dImage: url || null } : {})));
+  };
+
 
   // Se agrega arriba de todo — el ambiente nuevo queda a la vista sin
   // tener que scrollear la lista.
@@ -364,7 +389,19 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     ? bearingToCardinal(Number(form.orientation))
     : '';
 
-  const buildPayload = () => ({
+  // polygon y tourNodeId de cada ambiente los edita la pantalla de "Plano y
+  // delimitación" (UnitRoomsEditor), no este form. Antes de guardar se
+  // fusionan los valores frescos del server por id para no pisarlos con la
+  // copia que se cargó al abrir el editor.
+  const mergeDelimitation = (local: Room[], server: Room[] | null | undefined): Room[] => {
+    const byId = new Map((server ?? []).map(r => [r.id, r] as const));
+    return local.map(r => {
+      const s = byId.get(r.id);
+      return s ? { ...r, polygon: s.polygon, tourNodeId: s.tourNodeId } : r;
+    });
+  };
+
+  const buildPayload = (roomsArg: Room[], levelsArg: UnitLevel[]) => ({
     code: form.code,
     modelName: form.modelName || null,
     type: resolvedType,
@@ -399,15 +436,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     // Para casa se manda el programa: `rooms` (planta baja) y, si tiene
     // 2+ plantas, `levels` (las de más, normalizadas a floorsCount - 1).
     ...(hasUnitStep ? {} : {
-      rooms,
-      ...(floorsCount > 1 ? {
-        levels: Array.from({ length: floorsCount - 1 }, (_, k) => ({
-          id: levels[k]?.id ?? `piso-${k + 1}`,
-          label: levels[k]?.label ?? `Piso ${k + 1}`,
-          planImage: levels[k]?.planImage ?? null,
-          rooms: levels[k]?.rooms ?? [],
-        })),
-      } : {}),
+      rooms: roomsArg,
+      ...(floorsCount > 1 ? { levels: levelsArg } : {}),
     }),
     // Solo al crear a partir de "Duplicar" — en una edición normal
     // (editingId set) nunca hay que pisar los ambientes/tour reales de la
@@ -429,7 +459,23 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     }
     setSaving(true);
 
-    const payload = buildPayload();
+    // Casa: traer los polígonos/tour frescos y fusionarlos, para no pisar lo
+    // que se haya delimitado en la pantalla de "Plano y delimitación".
+    let roomsToSave = rooms;
+    let levelsToSave = buildLevels(() => ({}));
+    if (!hasUnitStep && editingId) {
+      try {
+        const server = await fetch(`/api/admin/units/${editingId}`).then(r => (r.ok ? r.json() : null));
+        if (server) {
+          roomsToSave = mergeDelimitation(rooms, server.rooms);
+          levelsToSave = levelsToSave.map((l, i) => ({ ...l, rooms: mergeDelimitation(l.rooms, server.levels?.[i]?.rooms) }));
+        }
+      } catch {
+        // Sin conexión al server: se guarda con lo que hay en memoria.
+      }
+    }
+
+    const payload = buildPayload(roomsToSave, levelsToSave);
     const res = editingId
       ? await fetch(`/api/admin/units/${editingId}`, {
           method: 'PATCH',
@@ -886,6 +932,22 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                     })}
                   </div>
                 )}
+
+                {/* La delimitación de cada ambiente sobre el plano 2D (y el
+                    plano en sí) se hacen en una pantalla aparte, más grande —
+                    ver /pisos/[floorId]/plano. */}
+                {buildingId && (
+                  <Link
+                    href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-gray-900">Plano y delimitación de los ambientes</span>
+                      <span className="block text-xs text-gray-400">Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. Se abre en otra pantalla — guardá primero los cambios de acá.</span>
+                    </span>
+                    <span className="text-sm font-medium text-brand-600 shrink-0">Abrir →</span>
+                  </Link>
+                )}
               </div>
             </>
           )}
@@ -899,7 +961,34 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ImageUploader label="Foto interior" value={form.interiorImageUrl} onChange={url => setForm({ ...form, interiorImageUrl: url })} folder="units" />
-            <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
+            {/* Casa: la Planta 3D se carga siempre acá. Con 2+ plantas es una
+                por planta (misma solapa que la sección "Ambientes" de arriba);
+                con una sola, es directo el uploader. */}
+            {!hasUnitStep ? (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Planta 3D</label>
+                {plantas.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                    {plantas.map((p, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setActivePlanta(i)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <ImageUploader value={activePlan3d} onChange={setActivePlan3d} folder="floorplans" />
+                {plantas.length > 1 && (
+                  <p className="text-xs text-gray-400">Estás editando la planta 3D de {plantas[plantaIdx].label.toLowerCase()}.</p>
+                )}
+              </div>
+            ) : (
+              <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
+            )}
             <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
             <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
           </div>

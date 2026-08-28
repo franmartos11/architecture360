@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import AppShell from '@/components/app/AppShell';
 
 // Todo lo que cuelga de este grupo (Mis proyectos, el portfolio propio, y
@@ -9,12 +10,12 @@ import AppShell from '@/components/app/AppShell';
 // cambiar de producto; cada pantalla de adentro sigue poniendo su propio
 // chrome específico (el sidebar de ProjectAdminShell, por ejemplo).
 export default async function AuthenticatedAdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   let profileHandle: string | null = null;
   let avatarImage: string | null = null;
   if (user) {
+    const supabase = await createClient();
     const { data: profile } = await supabase.from('profiles').select('handle, avatar_image').eq('id', user.id).maybeSingle();
     profileHandle = profile?.handle ?? null;
     avatarImage = profile?.avatar_image ?? null;

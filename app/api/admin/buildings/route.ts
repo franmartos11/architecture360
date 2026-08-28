@@ -19,19 +19,26 @@ export async function GET(request: Request) {
     .order('slug');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Conteo de pisos y unidades por edificio, para mostrarlo en el listado.
+  // Conteo de pisos + id del primer piso por edificio (este último lo usa
+  // el redirect de "casa" para ir directo al editor sin un fetch extra).
   const buildingIds = (buildings ?? []).map(b => b.id);
   const { data: floors } = buildingIds.length
-    ? await supabase.from('floors').select('id, building_id').in('building_id', buildingIds)
+    ? await supabase.from('floors').select('id, building_id, number').in('building_id', buildingIds).order('number')
     : { data: [] };
 
   const floorCountByBuilding = new Map<string, number>();
+  const firstFloorByBuilding = new Map<string, string>();
   for (const f of floors ?? []) {
     floorCountByBuilding.set(f.building_id, (floorCountByBuilding.get(f.building_id) ?? 0) + 1);
+    if (!firstFloorByBuilding.has(f.building_id)) firstFloorByBuilding.set(f.building_id, f.id);
   }
 
   return NextResponse.json(
-    (buildings ?? []).map(b => ({ ...b, floors_loaded: floorCountByBuilding.get(b.id) ?? 0 }))
+    (buildings ?? []).map(b => ({
+      ...b,
+      floors_loaded: floorCountByBuilding.get(b.id) ?? 0,
+      first_floor_id: firstFloorByBuilding.get(b.id) ?? null,
+    }))
   );
 }
 

@@ -420,7 +420,7 @@ create table if not exists units (
   room_plan_image text,
   polygon jsonb,                    -- [{x,y}, ...] en % sobre floors.plan_image
   rooms jsonb,                      -- [{id,name,polygon,tourNodeId}, ...] de la planta baja/única
-  levels jsonb,                     -- [{id,label,planImage,rooms}, ...] plantas 2+ de una casa
+  levels jsonb,                     -- [{id,label,planImage,plan3dImage,rooms}, ...] plantas 2+ de una casa
   tour_image_url text,
   tour_data jsonb,                  -- { initialNodeId, nodes: [...] }
   created_at timestamptz not null default now(),

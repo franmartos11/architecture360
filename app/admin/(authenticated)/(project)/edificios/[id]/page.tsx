@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
@@ -27,8 +28,12 @@ interface FloorUnitSummary {
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  // casa: el edificio ES la unidad — no hay "datos del edificio" aparte de
+  // los datos de la casa, así que se entra derecho a ese editor.
+  const isSingleHouse = !hasFloorStep && !hasUnitStep;
   const agree = buildingAgreement(typeConfig);
   const uAgree = unitAgreement(typeConfig);
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -63,6 +68,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   };
 
   useEffect(load, [id]);
+
+  useEffect(() => {
+    if (isSingleHouse && floors[0]) router.replace(`/admin/edificios/${id}/pisos/${floors[0].id}`);
+  }, [isSingleHouse, floors, id, router]);
 
   const completeness = (floorId: string) => {
     const floorUnits = unitSummaries.filter(u => u.floor_id === floorId);
@@ -141,6 +150,11 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
 
   if (loading) return <LoadingSpinner text={`Cargando ${buildingLabelLower}...`} tone="light" />;
   if (loadError || !building) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el edificio' : `${agree.el} ${buildingLabelLower}`}.`} onRetry={load} />;
+  if (isSingleHouse) {
+    return floors[0]
+      ? <LoadingSpinner text={`Abriendo los datos ${agree.del} ${buildingLabelLower}...`} tone="light" />
+      : <ErrorState message={`No se encontró el piso interno ${agree.del} ${buildingLabelLower} — probá recargar.`} onRetry={load} />;
+  }
 
   return (
     <div className="space-y-6">

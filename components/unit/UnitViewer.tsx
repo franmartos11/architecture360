@@ -111,7 +111,7 @@ export default function UnitViewer({
   // Amenities/Ubicación ya seguían este criterio; acá se unifica para los
   // 4 tabs de la unidad.
   const tabHasContent: Record<UnitViewTab, boolean> = {
-    planta3d: !!unit.floorPlan3dUrl,
+    planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage),
     tour360: hasTour,
     plano: hasRooms || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
       || !!unit.levels?.some(l => l.planImage),

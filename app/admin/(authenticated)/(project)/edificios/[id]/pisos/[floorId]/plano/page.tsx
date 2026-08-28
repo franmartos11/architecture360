@@ -6,6 +6,8 @@ import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { buildingAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 type UnitRow = Pick<DbUnitRow, 'id' | 'code'>;
@@ -14,6 +16,12 @@ const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706
 
 export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
   const { id: buildingId, floorId } = use(params);
+  const typeConfig = useProjectTypeConfig();
+  const { hasUnitStep, hasFloorStep, buildingLabel } = typeConfig;
+  const agree = buildingAgreement(typeConfig);
+  // casa: el edificio ES la unidad — no hay "deptos en el piso" que delimitar,
+  // solo el plano y los ambientes de esa casa.
+  const isSingleHouse = !hasFloorStep && !hasUnitStep;
 
   const [buildingName, setBuildingName] = useState('');
   const [floorLabel, setFloorLabel] = useState('');
@@ -46,6 +54,28 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
 
   if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano." />;
+
+  // ── casa: directo al plano + ambientes de la única unidad ──────────
+  if (isSingleHouse) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Datos {agree.del} {buildingLabel.toLowerCase()}</Link>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Plano y ambientes {agree.del} {buildingLabel.toLowerCase()}</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo. Cada cambio se guarda solo.
+          </p>
+        </div>
+        {units.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+            No se encontró la unidad de {agree.esta} {buildingLabel.toLowerCase()} — probá recargar.
+          </div>
+        ) : (
+          <UnitRoomsEditor buildingId={buildingId} floorId={floorId} unitId={units[0].id} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

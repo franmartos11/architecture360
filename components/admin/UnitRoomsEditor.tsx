@@ -27,7 +27,7 @@ const PALETTE = ['#83978c', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706
 // el array `levels`, uno por nivel. Acá se las unifica bajo una misma
 // forma para que el resto del componente no tenga que distinguir "la
 // planta base" de "una planta extra" en cada handler.
-type EditableLevel = { key: 'base' | string; label: string; planImage: string; rooms: Room[] };
+type EditableLevel = { key: 'base' | string; label: string; planImage: string; plan3dImage?: string | null; rooms: Room[] };
 
 // Delimitador de ambientes (dormitorio, cocina, baño, etc.) dentro de una
 // unidad — se usa tanto en su propia pantalla standalone
@@ -98,6 +98,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         key: existing?.id ?? `piso-${i + 1}`,
         label: existing?.label ?? `Piso ${i + 1}`,
         planImage: existing?.planImage ?? '',
+        plan3dImage: existing?.plan3dImage ?? null,
         rooms: existing?.rooms ?? [],
       };
     });
@@ -178,6 +179,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         id: l.key,
         label: l.label,
         planImage: idx === i ? (updates.planImage ?? l.planImage) || null : l.planImage || null,
+        plan3dImage: l.plan3dImage ?? null,
         rooms: idx === i ? (updates.rooms ?? l.rooms) : l.rooms,
       }));
       body.levels = nextExtra;
@@ -200,6 +202,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         id: l.key,
         label: l.label,
         planImage: idx === i ? (updates.planImage ?? l.planImage) : l.planImage,
+        plan3dImage: l.plan3dImage ?? null,
         rooms: idx === i ? (updates.rooms ?? l.rooms) : l.rooms,
       })));
     }
@@ -481,7 +484,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
                 placeholder="Nuevo ambiente (ej: Dormitorio)"
                 className="flex-1 text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               />
-              <button onClick={handleAddRoom} className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
+              <button onClick={handleAddRoom} className="shrink-0 text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap">
                 + Agregar
               </button>
             </div>

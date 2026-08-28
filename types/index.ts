@@ -122,6 +122,9 @@ export interface UnitLevel {
   id: string;
   label: string;                          // ej. "Piso 1", "Piso 2"
   planImage: string | null;
+  /** Render / planta 3D de esta planta. El de la planta baja vive en
+   *  unit.floorPlan3dUrl (no se migra el dato existente). */
+  plan3dImage?: string | null;
   rooms: Room[];
 }
 

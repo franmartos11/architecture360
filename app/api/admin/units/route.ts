@@ -133,6 +133,7 @@ export async function POST(request: Request) {
       // deptos idénticos comparten ambientes y recorrido 360°.
       room_plan_image: body.roomPlanImage ?? null,
       rooms: body.rooms ?? null,
+      levels: body.levels ?? null,
       tour_image_url: body.tourImageUrl ?? null,
       tour_data: body.tourData ?? null,
     })

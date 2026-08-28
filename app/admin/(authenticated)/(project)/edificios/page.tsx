@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -14,13 +15,18 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type { BuildingRow as DbBuildingRow } from '@/types/database';
 
-// floors_loaded no es una columna real — la agrega /api/admin/buildings
-// enriqueciendo cada fila con el conteo de pisos cargados.
-type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'> & { floors_loaded: number };
+// floors_loaded / first_floor_id no son columnas reales — las agrega
+// /api/admin/buildings enriqueciendo cada fila.
+type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors'> & { floors_loaded: number; first_floor_id: string | null };
 
 export default function AdminBuildingsPage() {
+  const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, aerialLabel } = typeConfig;
+  // "casa": una sola por proyecto, y el edificio ES la unidad. No tiene
+  // sentido una lista con una fila ni una pantalla intermedia — al entrar
+  // acá se va derecho al editor de datos de esa casa.
+  const isSingleHouse = !hasFloorStep && !hasUnitStep;
   const agree = buildingAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -33,18 +39,31 @@ export default function AdminBuildingsPage() {
   const [form, setForm] = useState({ name: '', totalFloors: 1, planImage: '' });
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+  const [redirectFailed, setRedirectFailed] = useState(false);
   const toast = useToast();
   const confirmDialog = useConfirm();
 
   const load = () => {
     setLoading(true);
     setLoadError(false);
-    Promise.all([
-      fetch('/api/admin/buildings').then(res => res.json()),
-      fetch('/api/admin/project').then(res => res.json()),
-    ]).then(([buildingsData, projectData]) => {
-      setBuildings(Array.isArray(buildingsData) ? buildingsData : []);
-      setFirstSlideId(projectData.slides?.[0]?.id ?? null);
+    // Para casa solo hace falta el edificio (para el redirect); el resto
+    // (slides de la vista frontal) no se muestra porque no se llega a
+    // renderizar la lista.
+    const reqs: Promise<unknown>[] = [fetch('/api/admin/buildings').then(res => res.json())];
+    if (!isSingleHouse) reqs.push(fetch('/api/admin/project').then(res => res.json()));
+    Promise.all(reqs).then(([buildingsData, projectData]) => {
+      const list = Array.isArray(buildingsData) ? (buildingsData as BuildingRow[]) : [];
+      setBuildings(list);
+      if (projectData) setFirstSlideId((projectData as { slides?: { id: string }[] }).slides?.[0]?.id ?? null);
+      // casa: al editor de datos directo — con el first_floor_id que ya vino
+      // en la misma respuesta (sin un fetch extra).
+      if (isSingleHouse && list[0]?.first_floor_id) {
+        setRedirecting(true);
+        router.replace(`/admin/edificios/${list[0].id}/pisos/${list[0].first_floor_id}`);
+        return;
+      }
+      if (isSingleHouse) setRedirectFailed(true);
       setLoading(false);
     }).catch((err) => {
       console.error(err);
@@ -100,7 +119,9 @@ export default function AdminBuildingsPage() {
     }
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />;
+  if (loading || redirecting || (isSingleHouse && buildings.length > 0 && !redirectFailed)) {
+    return <LoadingSpinner text={isSingleHouse ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />;
+  }
   if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${buildingLabelLower}s`}.`} onRetry={load} />;
 
   return (

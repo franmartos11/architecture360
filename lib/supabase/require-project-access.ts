@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createClient } from './server';
+import { getRequestUser } from './auth';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
 // Nombre de la cookie que recuerda "con qué proyecto estoy trabajando" —
@@ -25,7 +26,7 @@ export interface ProjectAccess {
 // (próximo sprint), quedan aplicadas de verdad y no solo de nombre.
 export async function requireProjectAccess(projectId: string): Promise<ProjectAccess | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) return null;
 
   const { data: project } = await supabase
