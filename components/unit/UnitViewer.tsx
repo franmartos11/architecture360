@@ -253,6 +253,20 @@ export default function UnitViewer({
     setActiveTab('plano');
   }, [setPlanView, setActiveTab]);
 
+  // Click sobre un ambiente en el plano → abre su ficha en la sidebar
+  // (despliega la fila, la deja resaltada y la trae a la vista). El acceso
+  // al 360° queda en el botón "Ver en 360°" de la ficha.
+  const openRoomFichaFromPlan = useCallback((room: Room) => {
+    setExpandedRoomId(room.id);
+    setPlanFocusRoomId(room.id);
+    setSidebarCollapsed(false);
+    setTimeout(() => {
+      document
+        .getElementById(`room-row-${room.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+  }, []);
+
   const statusColor = getStatusColor(unit.status);
   const statusLabel = getStatusLabel(unit.status);
 
@@ -416,7 +430,7 @@ export default function UnitViewer({
                         const canPlan = !!room.polygon && room.polygon.length >= 3 && tabHasContent.plano;
                         const hasDetail = !!room.imageUrl || !!room.features?.length || !!room.notes || canTour || canPlan;
                         return (
-                          <li key={room.id} className={`rounded-xl border transition-colors ${isOpen ? 'border-gray-200 bg-gray-50/60' : 'border-gray-100'}`}>
+                          <li key={room.id} id={`room-row-${room.id}`} className={`rounded-xl border transition-colors ${isOpen ? 'border-gray-200 bg-gray-50/60' : 'border-gray-100'}`}>
                             <button
                               type="button"
                               onClick={() => hasDetail && setExpandedRoomId(isOpen ? null : room.id)}
@@ -703,7 +717,7 @@ export default function UnitViewer({
                 hasRooms={hasRooms}
                 planView={planView}
                 onPlanViewChange={setPlanView}
-                onSelectRoom={handleSelectRoom}
+                onSelectRoom={openRoomFichaFromPlan}
                 focusRoomId={planFocusRoomId}
               />
             )}

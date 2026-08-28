@@ -67,7 +67,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
               >
                 <div className="bg-gray-900 text-white text-xs font-medium rounded-lg px-3 py-1.5 whitespace-nowrap shadow-lg">
                   {hovered.name}
-                  {hovered.tourNodeId && <span className="text-white/50 ml-1.5">· click para recorrer</span>}
+                  <span className="text-white/50 ml-1.5">· click para ver la ficha</span>
                 </div>
               </div>
             )}
