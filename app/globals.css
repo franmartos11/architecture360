@@ -225,21 +225,27 @@ body {
 }
 
 .room-polygon {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: fill 0.2s ease, stroke 0.2s ease, filter 0.2s ease;
   cursor: pointer;
-  fill: rgba(131, 151, 140, 0.28);
+  fill: rgba(131, 151, 140, 0.2);
   stroke: #37463f;
+  stroke-width: 1;               /* px reales — ver vector-effect en RoomPlanViewer */
+  stroke-opacity: 0.7;
 }
 
-.room-polygon:hover,
+/* Ambiente marcado — por hover del mouse o porque se lo eligió en la
+   lista de la sidebar ("Ver en el plano"). Color de acento para que salte. */
+.room-polygon--active,
 .room-polygon:focus-visible {
-  fill: rgba(150, 134, 118, 0.45);
-  stroke: #968676;
-  filter: drop-shadow(0 0 6px rgba(150, 134, 118, 0.5));
+  fill: rgba(217, 119, 6, 0.4);
+  stroke: #d97706;
+  stroke-width: 2;
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(217, 119, 6, 0.55));
 }
 
 .room-polygon:focus-visible {
-  outline: 2px solid #968676;
+  outline: 2px solid #d97706;
   outline-offset: 2px;
 }
 

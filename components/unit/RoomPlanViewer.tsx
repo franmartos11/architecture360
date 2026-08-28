@@ -95,9 +95,8 @@ function RoomPolygonBase({
   return (
     <polygon
       points={points}
-      className="room-polygon"
-      fillOpacity={isHovered ? 0.55 : undefined}
-      strokeWidth={isHovered ? 2.5 : 1.5}
+      className={`room-polygon${isHovered ? ' room-polygon--active' : ''}`}
+      vectorEffect="non-scaling-stroke"
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
       onClick={handleClick}
