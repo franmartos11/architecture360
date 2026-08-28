@@ -37,10 +37,14 @@ export default function FloorPlanViewer({
   initialFloor = 1,
   typeConfig,
 }: FloorPlanViewerProps) {
-  const { showPrice, showStatus, showLeads } = typeConfig;
+  const { showPrice, showStatus, showLeads, unitIsLand } = typeConfig;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
+  // Capas del plano que el visitante puede prender/apagar. Para un loteo las
+  // siluetas arrancan visibles (así se ven los límites de cada lote); en un
+  // edificio no, para no cambiar el plano de siempre.
+  const [layers, setLayers] = useState({ siluetas: unitIsLand, etiquetas: true, fotos: false });
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -417,9 +421,39 @@ export default function FloorPlanViewer({
               { label: building.name },
             ]} />
           </div>
-
-
         </div>
+
+        {/* Panel de capas — prender/apagar lo que se dibuja sobre el plano.
+            Todo apagado = solo el mapa. */}
+        {floor && floor.planImage && (polygonUnits.length > 0 || floor.unitDots.length > 0) && (
+          <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-gray-200/60 p-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1.5 pt-0.5 pb-1">Capas</p>
+            <div className="flex flex-col gap-0.5">
+              {([
+                ['siluetas', unitIsLand ? 'Límites de los lotes' : 'Siluetas', polygonUnits.length > 0],
+                ['etiquetas', 'Etiquetas', floor.unitDots.length > 0],
+                ['fotos', 'Fotos', polygonUnits.some(u => u.interiorImageUrl)],
+              ] as const).filter(([, , available]) => available).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))}
+                  className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-gray-100 transition-colors text-left"
+                  role="switch"
+                  aria-checked={layers[key]}
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${layers[key] ? 'bg-brand-500 border-brand-500' : 'bg-white border-gray-300'}`}>
+                    {layers[key] && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-xs font-medium text-gray-700 whitespace-nowrap">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Floor plan image + unit dots */}
         <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
@@ -456,7 +490,8 @@ export default function FloorPlanViewer({
                       <polygon
                         key={unit.id}
                         points={unit.polygon!.map(p => `${p.x},${p.y}`).join(' ')}
-                        className="unit-hover-zone pointer-events-auto"
+                        vectorEffect="non-scaling-stroke"
+                        className={`unit-hover-zone pointer-events-auto${layers.siluetas ? ' unit-hover-zone--outlined' : ''}`}
                         onMouseEnter={() => setHoveredUnit(unit.id)}
                         onMouseLeave={() => setHoveredUnit(null)}
                         onFocus={() => setHoveredUnit(unit.id)}
@@ -496,7 +531,30 @@ export default function FloorPlanViewer({
                   );
                 })()}
 
-                {/* Unit dots (etiquetas tipo píldora, como antes) */}
+                {/* Capa "Fotos": una miniatura de cada unidad con foto, en el
+                    centro de su silueta (o su pin) — se prende/apaga desde
+                    el panel de capas. */}
+                {layers.fotos && polygonUnits.map(unit => {
+                  if (!unit.interiorImageUrl) return null;
+                  const poly = unit.polygon!;
+                  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+                  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+                  return (
+                    <button
+                      key={`foto-${unit.id}`}
+                      onClick={() => handleSelectUnit(unit)}
+                      aria-label={`Ver ${unit.name}`}
+                      className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 rounded-lg overflow-hidden ring-2 ring-white shadow-lg hover:ring-brand-400 transition-all"
+                      style={{ left: `${cx}%`, top: `${cy}%`, width: 52, height: 52 }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={unit.interiorImageUrl} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  );
+                })}
+
+                {/* Unit dots (etiquetas tipo píldora) — capa "Etiquetas" */}
+                {layers.etiquetas && (
                 <motion.div
                   initial="hidden"
                   animate="visible"
@@ -539,6 +597,7 @@ export default function FloorPlanViewer({
                     );
                   })}
                 </motion.div>
+                )}
               </TransformComponent>
             </TransformWrapper>
           ) : (
