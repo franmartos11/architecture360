@@ -25,20 +25,20 @@ interface ActiveProject {
 export default function ProjectAdminShell({
   project,
   userEmail,
-  houseEditHref,
+  singleBuildingHref,
   children,
 }: {
   project: ActiveProject;
   userEmail: string | null;
-  /** Solo para "casa": link directo al editor de datos, resuelto en el server. */
-  houseEditHref?: string | null;
+  /** Casa / loteo: link directo al editor de datos, resuelto en el server. */
+  singleBuildingHref?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount();
   const typeConfig = getProjectTypeConfig(project.project_type, project.sale_mode);
-  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, showLeads } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, unitIsLand, showLeads } = typeConfig;
   // Valor de project_type / sale_mode que no existe en el catálogo — el
   // proyecto se está mostrando como "Edificio — Para vender" por descarte.
   // Casi siempre es dato viejo (valor combinado legacy, migración a medias).
@@ -66,11 +66,15 @@ export default function ProjectAdminShell({
   // era fácil ni enterarse de que existían. Se expande solo mientras se
   // está navegando algo bajo /admin/proyecto — Edificios vive ahí adentro
   // también, aunque su URL sea propia (/admin/edificios).
+  // Ítem que entra a la estructura del proyecto:
+  //  - loteo (1 etapa): "Lotes" → directo al editor de lotes (singleBuildingHref)
+  //  - casa (1 building = 1 unidad): "Casa" → directo a sus datos
+  //  - edificio/dúplex/único (varios): "Edificios" / "Dúplexs" / … → la lista
+  const structureItemLabel = singleBuildingHref
+    ? (unitIsLand ? `${unitLabel}s` : buildingLabel)
+    : hasFloorStep ? 'Edificios' : hasUnitStep ? `${buildingLabel}s` : buildingLabel;
   const projectSubItems = [
-    // Casa: una sola (building === unidad) → en singular, "Casas" no aplica.
-    // Y el link va directo al editor (houseEditHref) para no pasar por la
-    // lista + redirect.
-    { label: hasFloorStep ? 'Edificios' : hasUnitStep ? `${buildingLabel}s` : buildingLabel, href: houseEditHref ?? '/admin/edificios' },
+    { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
     { label: 'Amenidades', href: '/admin/proyecto/amenities' },
     { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
     { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },

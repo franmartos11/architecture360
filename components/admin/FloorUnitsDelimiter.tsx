@@ -7,6 +7,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { getStatusColor } from '@/lib/units';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { buildingAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'>;
@@ -27,8 +28,12 @@ function centroid(points: { x: number; y: number }[]) {
 // usa tanto en su pantalla standalone (pisos/[floorId]/plano/page.tsx) como
 // embebido dentro del wizard de carga guiada.
 export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingId: string; floorId: string }) {
-  const { unitLabel } = useProjectTypeConfig();
+  const typeConfig = useProjectTypeConfig();
+  const { unitLabel, buildingLabel, hasFloorStep } = typeConfig;
   const unitLabelLower = unitLabel.toLowerCase();
+  const buildingLabelLower = buildingLabel.toLowerCase();
+  // "este piso" para edificios; "esta etapa / este dúplex" para los que no tienen pisos.
+  const container = hasFloorStep ? 'este piso' : `${buildingAgreement(typeConfig).esta} ${buildingLabelLower}`;
   const [planImage, setPlanImage] = useState<string | null>(null);
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [unitDots, setUnitDots] = useState<UnitDot[]>([]);
@@ -187,14 +192,16 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   if (!planImage) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-        Este piso todavía no tiene un plano cargado — agregalo primero en la pantalla del edificio.
+        {hasFloorStep
+          ? 'Este piso todavía no tiene un plano cargado — agregalo primero en la pantalla del edificio.'
+          : `${container[0].toUpperCase()}${container.slice(1)} todavía no tiene su plano — subilo primero en los datos ${buildingAgreement(typeConfig).del} ${buildingLabelLower}.`}
       </div>
     );
   }
   if (units.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-        Este piso todavía no tiene unidades — cargalas primero en la pestaña de Unidades.
+        {container[0].toUpperCase()}{container.slice(1)} todavía no tiene {unitLabelLower}s — cargalas primero en la pestaña de {unitLabel}s.
       </div>
     );
   }

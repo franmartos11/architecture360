@@ -12,7 +12,7 @@ import { buildingAgreement } from '@/lib/project-types';
 export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
   const { id: buildingId, floorId } = use(params);
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, hasUnitStep, buildingLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   // casa: la pantalla de edificio redirige acá, así que "volver" ahí no
   // tiene sentido — se sube a Proyecto.
@@ -54,7 +54,9 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
         <div>
           <Link href={isSingleHouse ? '/admin/proyecto' : `/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {isSingleHouse ? 'Proyecto' : buildingName}</Link>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
-            {hasUnitStep ? `Unidades — ${floorLabel}` : `Datos ${agree.del} ${buildingLabel.toLowerCase()}`}
+            {hasUnitStep
+              ? (hasFloorStep ? `${unitLabel}s — ${floorLabel}` : `${unitLabel}s de ${buildingName}`)
+              : `Datos ${agree.del} ${buildingLabel.toLowerCase()}`}
           </h2>
         </div>
         {hasUnitStep && (

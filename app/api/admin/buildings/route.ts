@@ -60,16 +60,18 @@ export async function POST(request: Request) {
     .from('projects').select('project_type, sale_mode').eq('id', projectId).maybeSingle();
   const typeConfig = getProjectTypeConfig(project?.project_type ?? '', project?.sale_mode ?? '');
 
-  // Formas sin paso de unidad (hoy: "casa") son UNA sola cosa — el proyecto
-  // ES esa casa, no un conjunto. No admite un segundo building. El cliente
-  // ya oculta el alta cuando existe uno, pero esto lo blinda contra una
-  // llamada directa o una doble creación por carrera.
-  if (!typeConfig.hasUnitStep) {
+  // Formas "de una sola cosa": una casa (el proyecto ES esa casa) o un
+  // loteo (una sola etapa). No admiten un segundo building. El cliente ya
+  // oculta el alta cuando existe uno; esto blinda contra una llamada
+  // directa o una doble creación por carrera.
+  if (typeConfig.singleBuilding) {
     const { count } = await supabase
       .from('buildings').select('id', { count: 'exact', head: true }).eq('project_id', projectId);
     if ((count ?? 0) > 0) {
       return NextResponse.json({
-        error: `Este proyecto ya tiene su ${typeConfig.buildingLabel.toLowerCase()} — este tipo de proyecto no admite más de una.`,
+        error: typeConfig.unitIsLand
+          ? 'Este loteo ya tiene su etapa cargada. Para desarrollos con varias etapas, escribinos.'
+          : `Este proyecto ya tiene su ${typeConfig.buildingLabel.toLowerCase()} — este tipo de proyecto no admite más de una.`,
       }, { status: 409 });
     }
   }

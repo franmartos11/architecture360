@@ -71,6 +71,26 @@ export interface ProjectTypeConfig {
    */
   aerialLabel: string;        // "Vista aérea" | "Vista frontal"
   aerialLabelPlural: string;  // "Vistas aéreas" | "Vistas frontales"
+  /**
+   * Qué ES cada "unidad" de este tipo:
+   *  - 'dwelling': una vivienda (depto, casa, dúplex) — tiene modelo,
+   *    tipología, dormitorios/baños, ambientes, planos 3D, orientación…
+   *  - 'land': un lote de terreno — NO tiene nada de eso. Solo código,
+   *    superficie, precio, estado, una foto y su silueta en el plano.
+   * El formulario de carga y el visor público esconden los campos de
+   * vivienda cuando es 'land'.
+   */
+  unitKind: 'dwelling' | 'land';
+  /** Atajo de unitKind === 'land'. */
+  unitIsLand: boolean;
+  /**
+   * El proyecto es UNA sola cosa a nivel building: una casa (el building ES
+   * la unidad) o un loteo (una sola etapa). No admite un segundo building —
+   * ni el alta lo ofrece ni el server lo acepta. Para desarrollos con
+   * varias etapas hay que contactar. (edificio/dúplex/único sí admiten
+   * varios.)
+   */
+  singleBuilding: boolean;
 }
 
 interface StructureConfig {
@@ -82,6 +102,8 @@ interface StructureConfig {
   buildingLabelGender: 'm' | 'f';
   hasFloorStep: boolean;
   hasUnitStep: boolean;
+  unitKind: 'dwelling' | 'land';
+  singleBuilding: boolean;
   /** Un lote no se financia como una hipoteca convencional — aunque el propósito sea "venta", la calculadora no aplica acá. */
   allowsCalculator: boolean;
   /**
@@ -118,18 +140,24 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabelGender: 'm',
     hasFloorStep: true,
     hasUnitStep: true,
+    unitKind: 'dwelling',
+    singleBuilding: false,
     allowsCalculator: true,
     allowedSaleModes: ['venta', 'showcase'],
   },
   loteo: {
     label: 'Loteo',
-    description: 'Venta de lotes por etapas, cada una con su propio plano de subdivisión.',
+    description: 'Venta de lotes de terreno con su plano de subdivisión.',
     unitLabel: 'Lote',
     unitLabelGender: 'm',
     buildingLabel: 'Etapa',
     buildingLabelGender: 'f',
     hasFloorStep: false,
     hasUnitStep: true,
+    // Un lote es terreno: sin modelo/tipología/ambientes/planos 3D.
+    unitKind: 'land',
+    // Un loteo se carga como UNA etapa. Para varias etapas, contacto directo.
+    singleBuilding: true,
     allowsCalculator: false,
     allowedSaleModes: ['venta', 'showcase'],
   },
@@ -142,6 +170,8 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabelGender: 'm',
     hasFloorStep: false,
     hasUnitStep: true,
+    unitKind: 'dwelling',
+    singleBuilding: false,
     allowsCalculator: true,
     allowedSaleModes: ['venta', 'showcase'],
   },
@@ -155,6 +185,8 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     hasFloorStep: false,
     // Cada Casa ES la unidad — no hay sub-unidades adentro de una Casa.
     hasUnitStep: false,
+    unitKind: 'dwelling',
+    singleBuilding: true,
     allowsCalculator: true,
     allowedSaleModes: ['venta', 'showcase'],
   },
@@ -167,6 +199,8 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     buildingLabelGender: 'm',
     hasFloorStep: true,
     hasUnitStep: true,
+    unitKind: 'dwelling',
+    singleBuilding: false,
     allowsCalculator: false,
     allowedSaleModes: ['showcase'],
   },
@@ -254,6 +288,9 @@ export function getProjectTypeConfig(type: string, saleMode: string): ProjectTyp
     buildingLabelGender: structure.buildingLabelGender,
     hasFloorStep: structure.hasFloorStep,
     hasUnitStep: structure.hasUnitStep,
+    unitKind: structure.unitKind,
+    unitIsLand: structure.unitKind === 'land',
+    singleBuilding: structure.singleBuilding,
     aerialLabel: structure.hasUnitStep ? 'Vista aérea' : 'Vista frontal',
     aerialLabelPlural: structure.hasUnitStep ? 'Vistas aéreas' : 'Vistas frontales',
   };
@@ -276,6 +313,7 @@ function genderAgreement(gender: 'm' | 'f') {
     Otro: f ? 'Otra' : 'Otro',
     uno: f ? 'una' : 'uno',
     nuevo: f ? 'nueva' : 'nuevo',
+    Nuevo: f ? 'Nueva' : 'Nuevo',
     borrado: f ? 'borrada' : 'borrado',
     cargado: f ? 'cargada' : 'cargado',
     ningun: f ? 'ninguna' : 'ningún',

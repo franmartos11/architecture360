@@ -23,10 +23,10 @@ export default function AdminBuildingsPage() {
   const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, aerialLabel } = typeConfig;
-  // "casa": una sola por proyecto, y el edificio ES la unidad. No tiene
-  // sentido una lista con una fila ni una pantalla intermedia — al entrar
-  // acá se va derecho al editor de datos de esa casa.
-  const isSingleHouse = !hasFloorStep && !hasUnitStep;
+  // "casa" y "loteo": una sola cosa por proyecto. No tiene sentido una
+  // lista con una fila — al entrar acá se va derecho al editor (datos de
+  // la casa / lotes de la etapa).
+  const isSingleBuilding = typeConfig.singleBuilding;
   const agree = buildingAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
@@ -51,19 +51,19 @@ export default function AdminBuildingsPage() {
     // (slides de la vista frontal) no se muestra porque no se llega a
     // renderizar la lista.
     const reqs: Promise<unknown>[] = [fetch('/api/admin/buildings').then(res => res.json())];
-    if (!isSingleHouse) reqs.push(fetch('/api/admin/project').then(res => res.json()));
+    if (!isSingleBuilding) reqs.push(fetch('/api/admin/project').then(res => res.json()));
     Promise.all(reqs).then(([buildingsData, projectData]) => {
       const list = Array.isArray(buildingsData) ? (buildingsData as BuildingRow[]) : [];
       setBuildings(list);
       if (projectData) setFirstSlideId((projectData as { slides?: { id: string }[] }).slides?.[0]?.id ?? null);
       // casa: al editor de datos directo — con el first_floor_id que ya vino
       // en la misma respuesta (sin un fetch extra).
-      if (isSingleHouse && list[0]?.first_floor_id) {
+      if (isSingleBuilding && list[0]?.first_floor_id) {
         setRedirecting(true);
         router.replace(`/admin/edificios/${list[0].id}/pisos/${list[0].first_floor_id}`);
         return;
       }
-      if (isSingleHouse) setRedirectFailed(true);
+      if (isSingleBuilding) setRedirectFailed(true);
       setLoading(false);
     }).catch((err) => {
       console.error(err);
@@ -119,8 +119,8 @@ export default function AdminBuildingsPage() {
     }
   };
 
-  if (loading || redirecting || (isSingleHouse && buildings.length > 0 && !redirectFailed)) {
-    return <LoadingSpinner text={isSingleHouse ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />;
+  if (loading || redirecting || (isSingleBuilding && buildings.length > 0 && !redirectFailed)) {
+    return <LoadingSpinner text={isSingleBuilding ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />;
   }
   if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${buildingLabelLower}s`}.`} onRetry={load} />;
 
@@ -201,9 +201,16 @@ export default function AdminBuildingsPage() {
         </div>
       </Card>
 
-      {/* "casa" es una sola por proyecto — una vez creada, no hay alta de
-          una segunda (el server también lo rechaza). */}
-      {!hasUnitStep && buildings.length > 0 ? null : (
+      {/* Formas "de una sola cosa" (casa, loteo): una vez creada la única
+          casa / etapa, no hay alta de una segunda (el server también lo
+          rechaza). Para varias etapas de un loteo, contacto directo. */}
+      {typeConfig.singleBuilding && buildings.length > 0 ? (
+        <p className="text-sm text-gray-400">
+          {typeConfig.unitIsLand
+            ? 'Este loteo ya tiene su etapa. Para desarrollos con varias etapas, escribinos.'
+            : `Este proyecto ya tiene ${agree.esta} ${buildingLabelLower} — no admite más de una.`}
+        </p>
+      ) : (
       <Card>
         <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">{hasFloorStep ? 'Nuevo' : (agree.el === 'la' ? 'Nueva' : 'Nuevo')} {buildingLabelLower}</h3>

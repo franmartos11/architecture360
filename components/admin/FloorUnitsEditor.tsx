@@ -177,11 +177,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const inheritedDefaultsApplied = useRef(false);
   const singleRecordAutoEdited = useRef(false);
   const typeConfig = useProjectTypeConfig();
-  const { hasUnitStep, unitLabel, buildingLabel } = typeConfig;
+  const { hasUnitStep, unitLabel, buildingLabel, unitIsLand } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
-  const columnCount = 4 + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
+  const columnCount = (typeConfig.unitIsLand ? 3 : 4) + (typeConfig.showStatus ? 1 : 0) + (typeConfig.showPrice ? 1 : 0);
   // En "casa" el código de la unidad ES el nombre de la casa (se fija al
   // crearla, ver POST /api/admin/buildings) — no se vuelve a pedir. El
   // campo solo reaparece como fallback si por algún motivo la casa quedó
@@ -380,9 +380,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const derivedCounts = roomCounts(allRooms);
   const effectiveBedrooms = programActive ? derivedCounts.bedrooms : Number(form.bedrooms || 0);
 
-  // Departamento: la tipología la elige el usuario del dropdown. Casa: se
-  // deriva de los dormitorios (no hay lista fija — puede tener 4, 5, 6+).
-  const resolvedType = hasUnitStep ? form.type : deriveUnitType(effectiveBedrooms);
+  // Lote: no tiene tipología de vivienda — se guarda un valor fijo.
+  // Departamento: la elige el usuario del dropdown. Casa: se deriva de los
+  // dormitorios (no hay lista fija — puede tener 4, 5, 6+).
+  const resolvedType = unitIsLand ? 'lote' : hasUnitStep ? form.type : deriveUnitType(effectiveBedrooms);
 
   // Cardinal hacia donde mira la casa, derivado de los grados de la brújula.
   const orientationCardinal = form.orientation !== '' && Number.isFinite(Number(form.orientation))
@@ -454,7 +455,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     e.preventDefault();
     setError('');
     if (!form.code || !resolvedType) {
-      setError(hasUnitStep ? 'Faltan código y/o tipología.' : 'Falta el nombre.');
+      setError(unitIsLand ? `Falta el código ${uAgree.del} ${unitLabelLower}.` : hasUnitStep ? 'Faltan código y/o tipología.' : 'Falta el nombre.');
       return;
     }
     setSaving(true);
@@ -616,8 +617,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
                   <th className="px-6 py-3 text-sm font-semibold text-gray-900">Código</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">m²</th>
+                  {!unitIsLand && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Modelo / Tipo</th>}
+                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">{unitIsLand ? 'Superficie (m²)' : 'm²'}</th>
                   {typeConfig.showStatus && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Estado</th>}
                   {typeConfig.showPrice && <th className="px-6 py-3 text-sm font-semibold text-gray-900">Precio</th>}
                   <th className="px-6 py-3"></th>
@@ -627,7 +628,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 {units.map(u => (
                   <tr key={u.id} className={`hover:bg-gray-50/50 transition-colors ${editingId === u.id ? 'bg-brand-50/50' : ''}`}>
                     <td className="px-6 py-3 font-medium text-gray-900">{u.code}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>
+                    {!unitIsLand && <td className="px-6 py-3 text-sm text-gray-600">{u.model_name} <span className="text-gray-400">· {u.type}</span></td>}
                     <td className="px-6 py-3 text-sm text-gray-600">{u.total_area ?? '—'}</td>
                     {typeConfig.showStatus && (
                       <td className="px-6 py-3 text-sm">
@@ -643,7 +644,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       <td className="px-6 py-3 text-sm text-gray-600">{u.price ? formatPrice(u.price, u.currency) : '—'}</td>
                     )}
                     <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
-                      {buildingId && (
+                      {buildingId && !unitIsLand && (
                         <>
                           <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
                           <Link
@@ -703,7 +704,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">
             {hasUnitStep
-              ? (editingId ? `Editando ${form.code}` : `Nueva ${unitLabelLower}`)
+              ? (editingId ? `Editando ${form.code}` : `${uAgree.Nuevo} ${unitLabelLower}`)
               : (editingId ? `Datos de ${form.code || buildingLabelLower}` : `Datos de ${uAgree.esta} ${buildingLabelLower}`)}
           </h3>
         </CardHeader>
@@ -712,13 +713,16 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {showCodeField && (
               <Input
-                label={hasUnitStep ? 'Código' : 'Nombre de la casa'}
+                label={unitIsLand ? 'Código del lote' : hasUnitStep ? 'Código' : 'Nombre de la casa'}
                 id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
-                placeholder={hasUnitStep ? 'A01-01' : buildingLabel} required
+                placeholder={unitIsLand ? 'Lote 12' : hasUnitStep ? 'A01-01' : buildingLabel} required
               />
             )}
-            <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
-            {hasUnitStep && (
+            {/* Un lote es terreno: sin modelo ni tipología (no hay vivienda). */}
+            {!unitIsLand && (
+              <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
+            )}
+            {hasUnitStep && !unitIsLand && (
               <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
                 {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
@@ -733,16 +737,26 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Input label="Área total (m²)" id="totalArea" type="number" step="0.01" value={form.totalArea} onChange={e => setForm({ ...form, totalArea: e.target.value })} />
-            <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
-            {hasUnitStep && (
-              <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
+            <Input
+              label={unitIsLand ? 'Superficie del lote (m²)' : 'Área total (m²)'}
+              id="totalArea" type="number" step="0.01" value={form.totalArea}
+              onChange={e => setForm({ ...form, totalArea: e.target.value })}
+            />
+            {/* Áreas internas/balcón/externa: solo aplican a una vivienda. */}
+            {!unitIsLand && (
+              <>
+                <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
+                {hasUnitStep && (
+                  <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
+                )}
+                <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
+              </>
             )}
-            <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {programActive ? (
+            {/* Dormitorios/baños: no aplican a un lote. */}
+            {!unitIsLand && (programActive ? (
               <>
                 <ReadOnlyField label="Dormitorios" value={`${derivedCounts.bedrooms}`} hint="de los ambientes" />
                 <ReadOnlyField label="Baños" value={`${derivedCounts.bathrooms}`} hint="de los ambientes" />
@@ -752,7 +766,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
                 <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
               </>
-            )}
+            ))}
             {typeConfig.showPrice && (
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
@@ -952,19 +966,25 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             </>
           )}
 
-          <div className="flex flex-wrap items-center gap-5">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-              Tiene cuarto de servicio
-            </label>
-          </div>
+          {/* Cuarto de servicio: no aplica a un lote. */}
+          {!unitIsLand && (
+            <div className="flex flex-wrap items-center gap-5">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                Tiene cuarto de servicio
+              </label>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ImageUploader label="Foto interior" value={form.interiorImageUrl} onChange={url => setForm({ ...form, interiorImageUrl: url })} folder="units" />
-            {/* Casa: la Planta 3D se carga siempre acá. Con 2+ plantas es una
-                por planta (misma solapa que la sección "Ambientes" de arriba);
-                con una sola, es directo el uploader. */}
-            {!hasUnitStep ? (
+            <ImageUploader
+              label={unitIsLand ? 'Foto del lote' : 'Foto interior'}
+              value={form.interiorImageUrl}
+              onChange={url => setForm({ ...form, interiorImageUrl: url })}
+              folder="units"
+            />
+            {/* Planos 3D/técnicos: solo para una vivienda. Un lote no tiene. */}
+            {!unitIsLand && (!hasUnitStep ? (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">Planta 3D</label>
                 {plantas.length > 1 && (
@@ -988,15 +1008,26 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               </div>
             ) : (
               <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
+            ))}
+            {!unitIsLand && (
+              <>
+                <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
+                <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
+              </>
             )}
-            <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
-            <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
           </div>
 
-          <MultiImageUploader label="Galería" values={form.galleryImages} onChange={urls => setForm({ ...form, galleryImages: urls })} folder="units" />
+          <MultiImageUploader
+            label={unitIsLand ? 'Más fotos del lote' : 'Galería'}
+            values={form.galleryImages}
+            onChange={urls => setForm({ ...form, galleryImages: urls })}
+            folder="units"
+          />
 
           <p className="text-xs text-gray-500">
-            {hasUnitStep
+            {unitIsLand
+              ? `La silueta de ${uAgree.esta} ${unitLabelLower} sobre el plano de subdivisión se marca en el paso siguiente.`
+              : hasUnitStep
               ? 'El polígono del depto en el plano, los ambientes y el tour 360° se cargan en los pasos siguientes.'
               : 'Los ambientes (incluida una pileta u otro espacio propio, si tiene) y el tour 360° se cargan en el paso siguiente.'}
           </p>

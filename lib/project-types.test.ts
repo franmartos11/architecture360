@@ -81,6 +81,22 @@ describe('getProjectTypeConfig', () => {
     expect(getProjectTypeConfig('casa', 'venta').hasFloorStep).toBe(false);
     expect(getProjectTypeConfig('casa', 'showcase').hasFloorStep).toBe(false);
   });
+
+  it('unitKind: solo el loteo tiene unidades de tipo "land"', () => {
+    expect(getProjectTypeConfig('loteo', 'venta').unitKind).toBe('land');
+    expect(getProjectTypeConfig('loteo', 'venta').unitIsLand).toBe(true);
+    for (const t of ['edificio', 'duplex', 'casa', 'unico']) {
+      expect(getProjectTypeConfig(t, 'showcase').unitIsLand).toBe(false);
+    }
+  });
+
+  it('singleBuilding: casa y loteo son UNA sola cosa; edificio/dúplex/único admiten varios', () => {
+    expect(getProjectTypeConfig('casa', 'venta').singleBuilding).toBe(true);
+    expect(getProjectTypeConfig('loteo', 'venta').singleBuilding).toBe(true);
+    expect(getProjectTypeConfig('edificio', 'venta').singleBuilding).toBe(false);
+    expect(getProjectTypeConfig('duplex', 'venta').singleBuilding).toBe(false);
+    expect(getProjectTypeConfig('unico', 'showcase').singleBuilding).toBe(false);
+  });
 });
 
 describe('buildingAgreement / unitAgreement', () => {

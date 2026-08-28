@@ -358,10 +358,10 @@ function AdminWizardPageInner() {
 
   const goNext = () => {
     if (isLastStep) {
-      // Edificio/loteo/dúplex: "¿seguís con otro?" (pueden tener varios).
-      // Casa: es una sola y Ubicación/Amenities ya son pasos del flujo →
-      // directo al resumen.
-      setScreen(hasUnitStep ? 'continuar' : 'resumen');
+      // Edificio/dúplex/único: "¿seguís con otro?" (pueden tener varios
+      // buildings o pisos). Casa y loteo son "de una sola cosa" → directo
+      // al resumen.
+      setScreen(hasUnitStep && !typeConfig.singleBuilding ? 'continuar' : 'resumen');
       return;
     }
     setStep(STEPS[stepIndex + 1].id);
@@ -419,8 +419,9 @@ function AdminWizardPageInner() {
               <p className="text-sm text-gray-500 mt-1">Repetís el flujo completo (piso → unidades → delimitación → ambientes) para un piso con un layout distinto.</p>
             </button>
           )}
-          {/* "casa" es una sola por proyecto — no hay "otra casa". */}
-          {hasUnitStep && (
+          {/* casa y loteo son "de una sola cosa" — no hay "otra casa" ni
+              "otra etapa" (para varias etapas de un loteo, contacto directo). */}
+          {hasUnitStep && !typeConfig.singleBuilding && (
             <button
               onClick={startAnotherBuilding}
               className="text-left p-5 bg-white rounded-2xl border border-gray-200 hover:border-brand-400 hover:shadow-sm transition-all"
@@ -516,10 +517,15 @@ function AdminWizardPageInner() {
                 : `La foto del frente de la ${buildingLabelLower} que se ve al entrar al masterplan — se carga desde Proyecto.`}
             </p>
           </Link>
-          {hasUnitStep ? (
+          {hasUnitStep && !typeConfig.singleBuilding ? (
             <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
               <p className="font-medium text-gray-900">Seguir cargando {buildingLabel.toLowerCase()}s</p>
               <p className="text-sm text-gray-500">Volvés a la lista — desde ahí podés reabrir la carga guiada cuando quieras.</p>
+            </Link>
+          ) : hasUnitStep ? (
+            <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
+              <p className="font-medium text-gray-900">Ver y editar {agree.esta} {buildingLabelLower}</p>
+              <p className="text-sm text-gray-500">{typeConfig.unitIsLand ? 'Ajustar los lotes, el plano y la delimitación.' : 'Ajustar lo que cargaste.'}</p>
             </Link>
           ) : (
             <button

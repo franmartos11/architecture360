@@ -97,7 +97,7 @@ export default function UnitViewer({
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator, hasUnitStep } = typeConfig;
+  const { showStatus, showLeads, showCalculator, hasUnitStep, unitIsLand } = typeConfig;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
@@ -379,7 +379,7 @@ export default function UnitViewer({
           </div>
 
           {/* Specs */}
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Instalaciones</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">{unitIsLand ? 'Datos del lote' : 'Instalaciones'}</h4>
           <motion.div
             initial="hidden"
             animate="visible"
@@ -389,26 +389,26 @@ export default function UnitViewer({
             }}
             className="space-y-2.5 text-sm text-gray-600"
           >
-            <SpecRow label={`Área total ${unit.totalArea} m²`} />
-            <SpecRow label={`Área interna ${unit.innerArea} m²`} />
-            {unit.balconyArea > 0 && <SpecRow label={`Área balcones ${unit.balconyArea} m²`} />}
-            {unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
-            {!!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
-            {!!unit.ceilingHeight && <SpecRow label={`Altura de techo ${unit.ceilingHeight} m`} />}
-            {!showRoomProgram && <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />}
-            {!showRoomProgram && <SpecRow label={`${unit.bathrooms} Baños`} />}
-            {!showRoomProgram && !hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
-            {!showRoomProgram && !hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
-            {!showRoomProgram && !hasUnitStep && !!unit.otherRoomsCount && (
+            <SpecRow label={`${unitIsLand ? 'Superficie' : 'Área total'} ${unit.totalArea} m²`} />
+            {!unitIsLand && <SpecRow label={`Área interna ${unit.innerArea} m²`} />}
+            {!unitIsLand && unit.balconyArea > 0 && <SpecRow label={`Área balcones ${unit.balconyArea} m²`} />}
+            {!unitIsLand && unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
+            {!unitIsLand && !!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
+            {!unitIsLand && !!unit.ceilingHeight && <SpecRow label={`Altura de techo ${unit.ceilingHeight} m`} />}
+            {!unitIsLand && !showRoomProgram && <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />}
+            {!unitIsLand && !showRoomProgram && <SpecRow label={`${unit.bathrooms} Baños`} />}
+            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
+            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
+            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.otherRoomsCount && (
               <SpecRow label={`${unit.otherRoomsCount} ambiente${unit.otherRoomsCount !== 1 ? 's' : ''} más${unit.otherRoomsDescription ? ` (${unit.otherRoomsDescription})` : ''}`} />
             )}
-            {!!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
+            {!unitIsLand && !!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
             {!!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
-            {unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
-            {!!unit.garageSpaces && (
+            {!unitIsLand && unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
+            {!unitIsLand && !!unit.garageSpaces && (
               <SpecRow label={`${unit.garageSpaces} Cochera${unit.garageSpaces !== 1 ? 's' : ''}${unit.garageType ? ` (${unit.garageType})` : ''}`} />
             )}
-            {!!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
+            {!unitIsLand && !!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
 
           {/* Programa de ambientes — fila expandible: se despliega la foto

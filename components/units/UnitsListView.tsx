@@ -40,7 +40,8 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
     const set = new Set(project.units.map(u => u.type));
     return Array.from(set);
   }, [project.units]);
-  const hasTypeFilterRow = typesPresent.length > 0;
+  // Un loteo no tiene "tipología" (todos los lotes son del mismo tipo).
+  const hasTypeFilterRow = typesPresent.length > 0 && !typeConfig.unitIsLand;
   const hasStatusFilterRow = typeConfig.showStatus;
 
   const filtered = useMemo(() => {
@@ -164,6 +165,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
                   showPrice={typeConfig.showPrice}
                   showStatus={typeConfig.showStatus}
                   hasUnitStep={hasUnitStep}
+                  unitIsLand={typeConfig.unitIsLand}
                 />
               ))}
             </div>
@@ -215,12 +217,14 @@ function UnitCard({
   showPrice,
   showStatus,
   hasUnitStep,
+  unitIsLand,
 }: {
   unit: Unit;
   buildingName?: string;
   showPrice: boolean;
   showStatus: boolean;
   hasUnitStep: boolean;
+  unitIsLand: boolean;
 }) {
   const basePath = useProjectBasePath();
   const statusColor = getStatusColor(unit.status);
@@ -263,8 +267,12 @@ function UnitCard({
 
       <div className="p-5 flex items-center justify-between">
         <div>
-          <p className="text-sm text-trevo-dark font-medium">{unitTypeLabel(unit.type)}</p>
-          <p className="text-xs text-trevo-dark/50 font-light mt-0.5">{unit.totalArea} m² · {unit.bedrooms} dorm · {unit.bathrooms} baños</p>
+          <p className="text-sm text-trevo-dark font-medium">{unitIsLand ? 'Lote' : unitTypeLabel(unit.type)}</p>
+          <p className="text-xs text-trevo-dark/50 font-light mt-0.5">
+            {unitIsLand
+              ? `${unit.totalArea} m²`
+              : `${unit.totalArea} m² · ${unit.bedrooms} dorm · ${unit.bathrooms} baños`}
+          </p>
         </div>
         {showPrice && (
           <p className="text-sm font-semibold text-trevo-dark whitespace-nowrap">

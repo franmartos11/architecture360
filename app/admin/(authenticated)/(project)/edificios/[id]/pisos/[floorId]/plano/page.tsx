@@ -7,7 +7,7 @@ import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import { buildingAgreement } from '@/lib/project-types';
+import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 type UnitRow = Pick<DbUnitRow, 'id' | 'code'>;
@@ -17,10 +17,12 @@ const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706
 export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
   const { id: buildingId, floorId } = use(params);
   const typeConfig = useProjectTypeConfig();
-  const { hasUnitStep, hasFloorStep, buildingLabel } = typeConfig;
+  const { hasUnitStep, hasFloorStep, buildingLabel, unitLabel, unitIsLand } = typeConfig;
   const agree = buildingAgreement(typeConfig);
-  // casa: el edificio ES la unidad — no hay "deptos en el piso" que delimitar,
-  // solo el plano y los ambientes de esa casa.
+  const uAgree = unitAgreement(typeConfig);
+  const unitLabelLower = unitLabel.toLowerCase();
+  // casa: el edificio ES la unidad — no hay "unidades en el piso" que
+  // delimitar, solo el plano y los ambientes de esa casa.
   const isSingleHouse = !hasFloorStep && !hasUnitStep;
 
   const [buildingName, setBuildingName] = useState('');
@@ -81,32 +83,36 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     <div className="space-y-6">
       <div>
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar deptos en el plano</h2>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {unitLabelLower}s en el plano</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Elegí un depto de la lista. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra y listo. En <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — sirve para ambientes con más de 4 lados, incluso arrancando de un rectángulo ya hecho. Arrastrá cualquier punto para ajustarlo (incluso mientras lo estás dibujando), doble click para borrarlo. El pin (📍) con el nombre del depto se ubica solo en el centro de la silueta — usá <strong>Pin</strong> para arrastrarlo a mano, o doble click sobre el pin para volver al automático. Si te equivocás, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás.
+          Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
         </p>
       </div>
 
-      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setView('deptos')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'deptos' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-        >
-          Deptos en el piso
-        </button>
-        <button
-          onClick={() => setView('ambientes')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-        >
-          Ambientes del depto
-        </button>
-      </div>
+      {/* Un lote no tiene "ambientes" — solo se delimita su silueta. El resto
+          de los tipos sí (deptos, dúplex): solapa aparte para eso. */}
+      {!unitIsLand && (
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          <button
+            onClick={() => setView('deptos')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'deptos' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            {unitLabel}s{hasFloorStep ? ' en el piso' : ''}
+          </button>
+          <button
+            onClick={() => setView('ambientes')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Ambientes
+          </button>
+        </div>
+      )}
 
-      {view === 'deptos' ? (
+      {view === 'deptos' || unitIsLand ? (
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-          Este piso todavía no tiene unidades — cargalas primero en la pestaña de Unidades.
+          Este piso todavía no tiene {unitLabelLower}s — cargalas primero en la pestaña de {unitLabel}s.
         </div>
       ) : (
         <div className="space-y-5">
