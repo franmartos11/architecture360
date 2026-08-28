@@ -251,7 +251,6 @@ export default function UnitViewer({
     setPlanFocusRoomId(room.id);
     setPlanView('ambientes');
     setActiveTab('plano');
-    setSidebarCollapsed(true);
   }, [setPlanView, setActiveTab]);
 
   const statusColor = getStatusColor(unit.status);
