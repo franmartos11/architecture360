@@ -160,6 +160,9 @@ export default function UnitViewer({
   // Fotos del ambiente cuya foto grande se abrió — solo las de ESE ambiente,
   // no las de todos.
   const [roomLightboxImages, setRoomLightboxImages] = useState<string[]>([]);
+  // En mobile la sidebar con la ficha del ambiente no existe (es hidden) —
+  // al tocar un ambiente en el plano se abre este modal con su info.
+  const [planRoomModal, setPlanRoomModal] = useState<Room | null>(null);
   // Amenity detail state (inline tab)
   const [activeAmenity, setActiveAmenity] = useState<Amenity | null>(null);
   const [amenityImageIndex, setAmenityImageIndex] = useState(0);
@@ -255,13 +258,14 @@ export default function UnitViewer({
     setActiveTab('plano');
   }, [setPlanView, setActiveTab]);
 
-  // Click sobre un ambiente en el plano → abre su ficha en la sidebar
-  // (despliega la fila, la deja resaltada y la trae a la vista). El acceso
-  // al 360° queda en el botón "Ver en 360°" de la ficha.
+  // Click sobre un ambiente en el plano:
+  //  - desktop: despliega su ficha en la sidebar, resaltada y a la vista.
+  //  - mobile: abre un modal con su info (la sidebar no existe en mobile).
   const openRoomFichaFromPlan = useCallback((room: Room) => {
     setExpandedRoomId(room.id);
     setPlanFocusRoomId(room.id);
     setSidebarCollapsed(false);
+    setPlanRoomModal(room);
     setTimeout(() => {
       document
         .getElementById(`room-row-${room.id}`)
@@ -835,6 +839,90 @@ export default function UnitViewer({
         onClose={() => setRoomLightboxOpen(false)}
         altPrefix="Ambiente"
       />
+
+      {/* Mobile: ficha del ambiente al tocarlo en el plano */}
+      <AnimatePresence>
+        {planRoomModal && (() => {
+          const room = planRoomModal;
+          const roomName = room.name || ROOM_KIND_LABEL[room.kind ?? 'other'];
+          const canTour = !!room.tourNodeId && tabHasContent.tour360;
+          return (
+            <motion.div
+              key="plan-room-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="md:hidden fixed inset-0 z-[60] flex items-end"
+              onClick={() => setPlanRoomModal(null)}
+            >
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                onClick={e => e.stopPropagation()}
+                className="relative w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+              >
+                <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-gray-900 truncate">{roomName}</h3>
+                    <p className="text-xs text-gray-400">
+                      {ROOM_KIND_LABEL[room.kind ?? 'other']}{room.area ? ` · ${room.area} m²` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setPlanRoomModal(null)}
+                    aria-label="Cerrar"
+                    className="w-9 h-9 shrink-0 rounded-full bg-gray-100 flex items-center justify-center"
+                  >
+                    <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                  {room.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => openRoomPhoto(room)}
+                      className="relative block w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-100"
+                    >
+                      <Image src={room.imageUrl} alt={roomName} fill sizes="100vw" placeholder="blur" blurDataURL={shimmerDataUrl(400, 300)} className="object-cover" />
+                      {!!room.images?.length && (
+                        <span className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-[11px] font-medium rounded-md px-2 py-0.5 backdrop-blur-sm">
+                          +{room.images.length} foto{room.images.length === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </button>
+                  )}
+                  {!!room.features?.length && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {room.features.map(f => (
+                        <span key={f} className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">{f}</span>
+                      ))}
+                    </div>
+                  )}
+                  {!!room.notes && <p className="text-sm text-gray-500 whitespace-pre-line">{room.notes}</p>}
+                  {canTour && (
+                    <button
+                      type="button"
+                      onClick={() => { setPlanRoomModal(null); handleSelectRoom(room); }}
+                      className="w-full mt-1 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-semibold"
+                    >
+                      Ver en 360°
+                    </button>
+                  )}
+                  {!room.imageUrl && !room.features?.length && !room.notes && !canTour && (
+                    <p className="text-sm text-gray-400 py-2">Este ambiente todavía no tiene información cargada.</p>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {showLeads && (
         <LeadCaptureModal
