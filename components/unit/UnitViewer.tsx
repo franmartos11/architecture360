@@ -97,22 +97,51 @@ export default function UnitViewer({
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  const { showStatus, showLeads, showCalculator, hasUnitStep } = typeConfig;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
   const initialCompareUnitId = searchParams.get('compare');
-  const [activeTab, setActiveTab] = useState<UnitViewTab>(initialCompareUnitId ? 'tour360' : (initialTab ?? 'planta3d'));
+
+  const hasTour = !!(unit.tourImageUrl || unit.tourData);
+  const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
+
+  // Solo se muestran los tabs con contenido cargado — así un visitante no
+  // clickea "360°" o "Planos" para encontrar una pantalla vacía. Los tabs
+  // Amenities/Ubicación ya seguían este criterio; acá se unifica para los
+  // 4 tabs de la unidad.
+  const tabHasContent: Record<UnitViewTab, boolean> = {
+    planta3d: !!unit.floorPlan3dUrl,
+    tour360: hasTour,
+    plano: hasRooms || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
+      || !!unit.levels?.some(l => l.planImage),
+    galeria: (unit.galleryImages?.length ?? 0) > 0,
+    amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
+    ubicacion: pointsOfInterest.length > 0,
+  };
+  const visibleTabs = TABS.filter(t => tabHasContent[t.id]);
+  const firstTab = visibleTabs[0]?.id;
+
+  // Comparar necesita al menos otra unidad — una casa (o un proyecto con
+  // una sola unidad cargada) no tiene con qué.
+  const canCompare = allUnits.length > 1;
+
+  // Tab inicial: el pedido por URL si tiene contenido, si no el primero
+  // disponible. El deep-link a comparar arranca en 360° si existe.
+  const startTab: UnitViewTab | undefined =
+    (canCompare && initialCompareUnitId && tabHasContent.tour360) ? 'tour360'
+    : (initialTab && tabHasContent[initialTab]) ? initialTab
+    : firstTab;
+
+  const [activeTab, setActiveTab] = useState<UnitViewTab>(startTab ?? 'planta3d');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [comparing, setComparing] = useState(!!initialCompareUnitId);
-  const hasTour = !!(unit.tourImageUrl || unit.tourData);
+  const [comparing, setComparing] = useState(canCompare && !!initialCompareUnitId);
   const sunAzimuths = projectLatitude != null ? getSunAzimuths(projectLatitude) : null;
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
   // Programa de ambientes con detalle (tipo, m², características, foto) —
   // cuando está cargado, reemplaza a la lista plana "N Dormitorios / N
   // Baños". Agrupado por planta (planta baja + niveles extra).
@@ -203,7 +232,7 @@ export default function UnitViewer({
     if (!room.tourNodeId) return;
     setFocusNodeId(room.tourNodeId);
     setActiveTab('tour360');
-  }, []);
+  }, [setFocusNodeId, setActiveTab]);
 
   const statusColor = getStatusColor(unit.status);
   const statusLabel = getStatusLabel(unit.status);
@@ -300,7 +329,7 @@ export default function UnitViewer({
 
           {/* View tabs (Galería / Planta 3D / Planos) */}
           <div className="flex items-center gap-1 overflow-x-auto border border-gray-100 rounded-xl p-1 mb-5 bg-gray-50" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {TABS.map(tab => (
+            {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -474,7 +503,7 @@ export default function UnitViewer({
           </div>
           <p className="text-xs text-gray-400 truncate">{unit.modelName} · {unit.totalArea}m² · P{floorNumber}</p>
         </div>
-        {!comparing && (
+        {canCompare && !comparing && (
           <button onClick={() => setComparing(true)} aria-label="Comparar con otra unidad" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
             <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <rect x="3" y="4" width="7.5" height="16" rx="1" />
@@ -512,7 +541,7 @@ export default function UnitViewer({
 
           {/* Floor badge + Cambiar planta */}
           <div className="flex items-center gap-2 pointer-events-auto">
-            {!isFullscreen && !comparing && (
+            {canCompare && !isFullscreen && !comparing && (
               <button
                 onClick={() => setComparing(true)}
                 className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
@@ -542,7 +571,7 @@ export default function UnitViewer({
              tab row while the sidebar renders as a full overlay drawer; from md up
              the sidebar sits in-flow and this floating strip has room of its own) */}
         <div className="hidden md:flex absolute right-4 top-20 z-20 flex-col gap-2">
-          {TABS.map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -563,30 +592,30 @@ export default function UnitViewer({
         {/* Viewer area — on mobile pad top (top bar) and bottom (bottom nav) */}
         <div className="absolute inset-0 md:top-0 top-[61px] md:bottom-0 bottom-[64px] overflow-hidden">
           <AnimatePresence mode="wait">
-            {activeTab === 'planta3d' && (
+            {visibleTabs.length === 0 && (
+              <motion.div
+                key="no-visual"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm px-6 text-center"
+              >
+                Todavía no hay material visual cargado — planos, recorrido 360°, planta 3D o galería.
+              </motion.div>
+            )}
+
+            {visibleTabs.length > 0 && activeTab === 'planta3d' && (
               <Planta3DTab unit={unit} />
             )}
 
             {activeTab === 'tour360' && (
-              hasTour ? (
-                <Tour360Tab
-                  unit={unit}
-                  focusNodeId={focusNodeId}
-                  isFullscreen={isFullscreen}
-                  onFullscreenChange={setIsFullscreen}
-                  sunAzimuths={sunAzimuths}
-                />
-              ) : (
-                <motion.div
-                  key="tour360-empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 pt-16 flex items-center justify-center text-gray-400 text-sm"
-                >
-                  Todavía no hay recorrido 360° cargado para esta unidad.
-                </motion.div>
-              )
+              <Tour360Tab
+                unit={unit}
+                focusNodeId={focusNodeId}
+                isFullscreen={isFullscreen}
+                onFullscreenChange={setIsFullscreen}
+                sunAzimuths={sunAzimuths}
+              />
             )}
 
             {activeTab === 'plano' && (
@@ -599,25 +628,13 @@ export default function UnitViewer({
               />
             )}
 
-            {activeTab === 'galeria' && (
-              unit.galleryImages && unit.galleryImages.length > 0 ? (
-                <GaleriaTab
-                  images={unit.galleryImages}
-                  activeIndex={galleryIndex}
-                  onIndexChange={setGalleryIndex}
-                  onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
-                />
-              ) : (
-                <motion.div
-                  key="galeria-empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 pt-16 flex items-center justify-center text-gray-400 text-sm"
-                >
-                  Todavía no hay fotos cargadas para esta unidad.
-                </motion.div>
-              )
+            {activeTab === 'galeria' && unit.galleryImages && unit.galleryImages.length > 0 && (
+              <GaleriaTab
+                images={unit.galleryImages}
+                activeIndex={galleryIndex}
+                onIndexChange={setGalleryIndex}
+                onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+              />
             )}
 
             {/* ── Amenities tab ── */}
@@ -731,7 +748,7 @@ export default function UnitViewer({
 
       {/* ── Mobile: bottom navigation bar ──────────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-100 flex items-stretch shadow-lg" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
