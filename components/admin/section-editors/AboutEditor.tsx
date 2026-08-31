@@ -13,11 +13,10 @@ interface AboutForm {
   academic_career: string;
   academic_tutor: string;
   academic_year: string;
-  academic_team: string;
 }
 
 const EMPTY: AboutForm = {
-  description: '', academic_institution: '', academic_career: '', academic_tutor: '', academic_year: '', academic_team: '',
+  description: '', academic_institution: '', academic_career: '', academic_tutor: '', academic_year: '',
 };
 
 // Autocontenido a propósito: no comparte estado con proyecto/page.tsx
@@ -42,7 +41,6 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
           academic_career: p.academic_career ?? '',
           academic_tutor: p.academic_tutor ?? '',
           academic_year: p.academic_year ?? '',
-          academic_team: p.academic_team ?? '',
         });
         setLoading(false);
       })
@@ -62,7 +60,6 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
         academicCareer: form.academic_career,
         academicTutor: form.academic_tutor,
         academicYear: form.academic_year,
-        academicTeam: form.academic_team,
       }),
     });
     setSaving(false);
@@ -116,13 +113,10 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
               onChange={e => setForm({ ...form, academic_year: e.target.value })}
               placeholder="2025"
             />
-            <Input
-              label="Integrantes (si fue grupal)"
-              value={form.academic_team}
-              onChange={e => setForm({ ...form, academic_team: e.target.value })}
-              placeholder="Juana Pérez, Martín Gómez"
-            />
           </div>
+          <p className="text-xs text-gray-400">
+            Los integrantes del proyecto se cargan en <strong>Proyecto → Colaboradores</strong>, por su handle de portfolio. Cada uno confirma su crédito y le queda en su propio portfolio.
+          </p>
         </div>
       )}
 

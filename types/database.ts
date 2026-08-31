@@ -110,6 +110,10 @@ export interface UnitRow {
   ceiling_height: number | null;
   garage_spaces: number;
   garage_type: 'cubierta' | 'descubierta' | null;
+  garage_covered: number;
+  garage_uncovered: number;
+  condition: 'a_estrenar' | 'en_construccion' | 'en_pozo' | 'usada' | null;
+  features: string[];
   living_rooms: number;
   kitchens: number;
   other_rooms_count: number;

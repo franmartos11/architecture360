@@ -3,10 +3,14 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
-const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), {
-  ssr: false,
-  loading: () => <div className="h-72 rounded-xl bg-gray-100 animate-pulse" />,
-});
+// Si hay API key de Google, el mapa interactivo es Google Maps; si no, el
+// de OpenStreetMap/leaflet de siempre. El buscador de direcciones queda
+// igual en ambos casos (Nominatim, sin billing).
+const HAS_GMAPS = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const loading = () => <div className="h-72 rounded-xl bg-gray-100 animate-pulse" />;
+const LocationPickerMap = HAS_GMAPS
+  ? dynamic(() => import('./GoogleLocationPickerMap'), { ssr: false, loading })
+  : dynamic(() => import('./LocationPickerMap'), { ssr: false, loading });
 
 interface SearchResult {
   label: string;
@@ -19,6 +23,9 @@ interface LocationPickerProps {
   longitude: number | null;
   onChange: (lat: number | null, lng: number | null) => void;
   label?: string;
+  /** Centro del mapa cuando todavía no hay nada marcado — ej. las
+   *  coordenadas del proyecto, para que un POI nuevo abra cerca. */
+  fallbackCenter?: { lat: number; lng: number } | null;
 }
 
 // Click en el mapa (o elegir un resultado del buscador) para marcar la
@@ -26,7 +33,7 @@ interface LocationPickerProps {
 // queda en null como antes de tener este picker. El buscador pega contra
 // /api/admin/geocode (proxy a Nominatim, gratis, sin API key) en vez de
 // Google Places para no depender de billing.
-export default function LocationPicker({ latitude, longitude, onChange, label = 'Ubicación' }: LocationPickerProps) {
+export default function LocationPicker({ latitude, longitude, onChange, label = 'Ubicación', fallbackCenter }: LocationPickerProps) {
   const hasPosition = latitude != null && longitude != null;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -100,13 +107,25 @@ export default function LocationPicker({ latitude, longitude, onChange, label = 
       </div>
 
       <div className="h-72 rounded-xl overflow-hidden border border-gray-200">
-        <LocationPickerMap latitude={latitude} longitude={longitude} onChange={onChange} flyToken={flyToken} />
+        <LocationPickerMap latitude={latitude} longitude={longitude} onChange={onChange} fallbackCenter={fallbackCenter} flyToken={flyToken} />
       </div>
-      <p className="text-xs text-gray-400 mt-1.5">
-        {hasPosition
-          ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)} — arrastrá el pin o hacé click en otro punto para moverlo.`
-          : 'Buscá una dirección o hacé click en el mapa para marcar la ubicación.'}
-      </p>
+      <div className="flex items-center justify-between gap-3 mt-1.5">
+        <p className="text-xs text-gray-400">
+          {hasPosition
+            ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)} — arrastrá el pin o hacé click en otro punto para moverlo.`
+            : 'Buscá una dirección o hacé click en el mapa para marcar la ubicación.'}
+        </p>
+        {hasPosition && (
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-brand-600 hover:text-brand-700 shrink-0 whitespace-nowrap"
+          >
+            Ver en Google Maps ↗
+          </a>
+        )}
+      </div>
     </div>
   );
 }

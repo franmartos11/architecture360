@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import EmojiPicker from '@/components/ui/EmojiPicker';
 
 interface MentionResult {
   handle: string;
@@ -81,6 +82,20 @@ export default function MentionTextarea({ value, onChange, rows = 3, maxLength, 
     });
   };
 
+  // Inserta texto (un emoji) en la posición del cursor y mantiene el foco.
+  const insertAtCursor = (insert: string) => {
+    const el = textareaRef.current;
+    if (!el) { onChange(value + insert); return; }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const next = value.slice(0, start) + insert + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + insert.length;
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (results.length === 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => (i + 1) % results.length); }
@@ -103,8 +118,11 @@ export default function MentionTextarea({ value, onChange, rows = 3, maxLength, 
         maxLength={maxLength}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        className={className}
+        className={`${className ?? ''} pr-10`}
       />
+      <div className="absolute right-2 bottom-2">
+        <EmojiPicker onSelect={insertAtCursor} />
+      </div>
       {results.length > 0 && (
         <ul className="absolute z-20 left-0 right-0 mt-1 bg-white rounded-lg border border-trevo-dark/10 shadow-lg max-h-56 overflow-y-auto">
           {results.map((r, i) => (

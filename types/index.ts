@@ -161,8 +161,12 @@ export interface Unit {
   hasServiceRoom: boolean;
   lotSize?: number;      // superficie de terreno (m²) — solo aplica a casa
   ceilingHeight?: number;      // altura de techo (m) — solo aplica a casa
-  garageSpaces?: number;       // cantidad de cocheras — undefined/0 se trata como sin cochera
+  garageSpaces?: number;       // total de cocheras (= cubiertas + descubiertas) — undefined/0 = sin cochera
   garageType?: 'cubierta' | 'descubierta';
+  garageCovered?: number;      // cocheras cubiertas — solo casa
+  garageUncovered?: number;    // cocheras descubiertas — solo casa
+  condition?: 'a_estrenar' | 'en_construccion' | 'en_pozo' | 'usada';  // estado/antigüedad — solo casa
+  features?: string[];         // comodidades (pileta, quincho, losa radiante, amoblada, apto crédito…) — solo casa
   livingRooms?: number;        // cantidad de livings — solo aplica a casa
   kitchens?: number;           // cantidad de cocinas — solo aplica a casa
   otherRoomsCount?: number;    // otros ambientes (lavadero, depósito, etc.) — solo casa

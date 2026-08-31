@@ -17,14 +17,17 @@ const markerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-// Maldonado/Punta del Este — región donde suelen estar los proyectos, se usa
-// solo como centro inicial del mapa cuando todavía no hay nada marcado.
-const DEFAULT_CENTER: [number, number] = [-34.9497, -54.9522];
+// Córdoba, Argentina — centro inicial cuando no hay nada marcado y el
+// proyecto tampoco tiene coordenadas. Si el proyecto sí las tiene, se usa
+// eso vía fallbackCenter.
+const DEFAULT_CENTER: [number, number] = [-31.4201, -64.1888];
 
 interface LocationPickerMapProps {
   latitude: number | null;
   longitude: number | null;
   onChange: (lat: number, lng: number) => void;
+  /** Centro cuando no hay marcador (ej: las coordenadas del proyecto). */
+  fallbackCenter?: { lat: number; lng: number } | null;
   /** Se incrementa para forzar un paneo animado (ej: al elegir un resultado de búsqueda). */
   flyToken?: number;
 }
@@ -54,9 +57,11 @@ function FlyOnSearch({ position, flyToken }: { position: [number, number] | null
   return null;
 }
 
-export default function LocationPickerMap({ latitude, longitude, onChange, flyToken = 0 }: LocationPickerMapProps) {
+export default function LocationPickerMap({ latitude, longitude, onChange, fallbackCenter, flyToken = 0 }: LocationPickerMapProps) {
   const hasPosition = latitude != null && longitude != null;
-  const center: [number, number] = hasPosition ? [latitude, longitude] : DEFAULT_CENTER;
+  const center: [number, number] = hasPosition
+    ? [latitude, longitude]
+    : fallbackCenter ? [fallbackCenter.lat, fallbackCenter.lng] : DEFAULT_CENTER;
   const markerRef = useRef<LeafletMarker>(null);
 
   const handleDragEnd = useCallback(() => {

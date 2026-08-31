@@ -10,12 +10,12 @@ import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, cocheraLabel, unitConditionLabel } from '@/lib/units';
 import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
-import { useShareLink } from '@/hooks/useShareLink';
+import ShareMenu from '@/components/ui/ShareMenu';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import ImageLightbox from './ImageLightbox';
 import CompareView from './CompareView';
@@ -171,7 +171,6 @@ export default function UnitViewer({
   const [amenityLightboxOpen, setAmenityLightboxOpen] = useState(false);
 
   const contactModal = useContactModal();
-  const shareLink = useShareLink();
 
   // Amenities relevant to this building
   const relevantAmenities = useMemo(
@@ -231,13 +230,10 @@ export default function UnitViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [amenityLightboxOpen, activeAmenity]);
 
-  const handleShare = async () => {
-    const title = hasUnitStep ? `Unidad ${unit.name} - ${projectSlug}` : `${unit.name} - ${projectSlug}`;
-    const text = hasUnitStep
-      ? `Mirá esta unidad: ${unit.name}${unit.modelName ? ` (${unit.modelName})` : ''}`
-      : `Mirá ${unit.name}`;
-    await shareLink(window.location.href, title, text);
-  };
+  const shareText = hasUnitStep
+    ? `Mirá esta unidad: ${unit.name}${unit.modelName ? ` (${unit.modelName})` : ''} — ${projectSlug}`
+    : `Mirá ${unit.name} — ${projectSlug}`;
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   const handleSelectRoom = useCallback((room: Room) => {
     if (!room.tourNodeId) return;
@@ -314,15 +310,21 @@ export default function UnitViewer({
               className="object-cover"
             />
           )}
-          <button
-            onClick={handleShare}
-            aria-label="Compartir esta unidad"
-            className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-colors"
-          >
-            <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-            </svg>
-          </button>
+          <div className="absolute bottom-2 right-2">
+            <ShareMenu url={shareUrl} text={shareText} align="right">
+              {(trigger) => (
+                <button
+                  {...trigger}
+                  aria-label="Compartir esta unidad"
+                  className="w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow hover:bg-white transition-colors"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                  </svg>
+                </button>
+              )}
+            </ShareMenu>
+          </div>
         </div>
 
         <div className="p-5 flex-1">
@@ -412,10 +414,23 @@ export default function UnitViewer({
             {!unitIsLand && !!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
             {!unitIsLand && unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
             {!unitIsLand && !!unit.garageSpaces && (
-              <SpecRow label={`${unit.garageSpaces} Cochera${unit.garageSpaces !== 1 ? 's' : ''}${unit.garageType ? ` (${unit.garageType})` : ''}`} />
+              <SpecRow label={cocheraLabel(unit)} />
             )}
+            {!unitIsLand && !!unit.condition && <SpecRow label={unitConditionLabel(unit.condition)} />}
             {!unitIsLand && !!unit.hoaFee && <SpecRow label={`Expensas ${formatPrice(unit.hoaFee, unit.currency)}/mes`} />}
           </motion.div>
+
+          {/* Comodidades — chips (pileta, quincho, losa radiante, amoblada…). */}
+          {!unitIsLand && !!unit.features?.length && (
+            <>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-6 mb-3">Comodidades</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {unit.features.map(f => (
+                  <span key={f} className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">{f}</span>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Programa de ambientes — fila expandible: se despliega la foto
               grande, características y (si hay) accesos a 360° y al plano. */}
@@ -615,11 +630,15 @@ export default function UnitViewer({
             </svg>
           </button>
         )}
-        <button onClick={handleShare} aria-label="Compartir" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-          <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-          </svg>
-        </button>
+        <ShareMenu url={shareUrl} text={shareText} align="right">
+          {(trigger) => (
+            <button {...trigger} aria-label="Compartir" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+            </button>
+          )}
+        </ShareMenu>
       </div>
 
       {/* ── Main viewer ───────────────────────────────────── */}

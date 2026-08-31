@@ -64,10 +64,11 @@ export default function AdminDashboard() {
   const sold = units.filter(u => u.status === 'sold').length;
 
   // Un proyecto showcase no tiene precio/estado/leads comerciales — mostrar
-  // ese dashboard ahí sería 3 métricas en 0 para siempre. Una casa tampoco:
-  // es UNA unidad, un gráfico de torta de 1 depto no dice nada. En ambos
-  // casos, un resumen de lo cargado más el link para compartir.
-  const showsCommercialMetrics = hasUnitStep && (typeConfig.showPrice || typeConfig.showStatus || typeConfig.showLeads);
+  // ese dashboard ahí sería 3 métricas en 0 para siempre. Una casa (1 unidad)
+  // o un loteo (1 etapa) tampoco: el dashboard "de proyecto" no aplica cuando
+  // el proyecto ES una sola cosa — se muestra un resumen + link para compartir.
+  const showsCommercialMetrics = hasUnitStep && !typeConfig.singleBuilding
+    && (typeConfig.showPrice || typeConfig.showStatus || typeConfig.showLeads);
 
   if (totalUnits === 0) {
     return (

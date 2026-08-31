@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Rss, Repeat2, Send, Share2, X } from 'lucide-react';
-import { useShareLink } from '@/hooks/useShareLink';
+import ShareMenu from '@/components/ui/ShareMenu';
 import ImageUploader from '@/components/admin/ImageUploader';
 import EmptyState from '@/components/ui/EmptyState';
 import CommentSection from '@/components/CommentSection';
@@ -56,7 +56,6 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
   const [reposting, setReposting] = useState(false);
   const [sendingPostId, setSendingPostId] = useState<string | null>(null);
   const toast = useToast();
-  const shareLink = useShareLink();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const buildQuery = (before?: string) => {
@@ -326,19 +325,19 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                   <Send className="w-4 h-4" /> Enviar
                 </button>
                 {post.author && (
-                  <button
-                    onClick={() => {
-                      const handle = post.author!.handle;
-                      shareLink(
-                        `${window.location.origin}/portfolio/${handle}`,
-                        `${post.author!.display_name} en 360`,
-                        post.body.slice(0, 140)
-                      );
-                    }}
-                    className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors flex items-center gap-1.5"
+                  <ShareMenu
+                    url={typeof window !== 'undefined' ? `${window.location.origin}/portfolio/${post.author.handle}` : `/portfolio/${post.author.handle}`}
+                    text={`${post.author.display_name} en 360 — ${post.body.slice(0, 120)}`}
                   >
-                    <Share2 className="w-4 h-4" /> Compartir
-                  </button>
+                    {(trigger) => (
+                      <button
+                        {...trigger}
+                        className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors flex items-center gap-1.5"
+                      >
+                        <Share2 className="w-4 h-4" /> Compartir
+                      </button>
+                    )}
+                  </ShareMenu>
                 )}
               </div>
               {expandedPostId === post.id && (

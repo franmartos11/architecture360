@@ -1,10 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
+
+// Editor de recorrido 360° — pesado (VirtualTour, panoramas). Solo se
+// carga cuando se abre un depto a editar, no en cada mount de esta pantalla.
+const TourEditor = dynamic(() => import('@/components/admin/TourEditor'), {
+  loading: () => <div className="h-40 rounded-xl bg-gray-100 animate-pulse" />,
+});
 import type { UnitType, UnitStatus, TourData, Room, RoomKind, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -18,12 +25,13 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions } from '@/lib/units';
+import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS } from '@/lib/units';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
   | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'lot_size' | 'ceiling_height'
-  | 'garage_spaces' | 'garage_type' | 'living_rooms' | 'kitchens' | 'other_rooms_count' | 'other_rooms_description'
+  | 'garage_spaces' | 'garage_type' | 'garage_covered' | 'garage_uncovered' | 'condition' | 'features'
+  | 'living_rooms' | 'kitchens' | 'other_rooms_count' | 'other_rooms_description'
   | 'hoa_fee' | 'floors_count'
   | 'price' | 'currency' | 'status'
   | 'orientation' | 'interior_image_url' | 'gallery_images' | 'floor_plan_3d_url'
@@ -90,6 +98,9 @@ const EMPTY_FORM = {
   lotSize: '', ceilingHeight: '', hoaFee: '', floorsCount: '1',
   livingRooms: '1', kitchens: '1', otherRoomsCount: '0', otherRoomsDescription: '',
   garageSpaces: '0', garageType: 'cubierta' as 'cubierta' | 'descubierta',
+  garageCovered: '0', garageUncovered: '0',
+  condition: '' as '' | 'a_estrenar' | 'en_construccion' | 'en_pozo' | 'usada',
+  features: [] as string[],
   price: '', currency: 'USD', status: 'available' as UnitStatus, orientation: '',
   interiorImageUrl: '', galleryImages: [] as string[],
   floorPlan3dUrl: '', plan3dUrl: '', technicalPlanUrl: '',
@@ -100,6 +111,8 @@ type SourceUnitLike = {
   balcony_area: number | null; external_area: number | null; bedrooms: number | null; bathrooms: number | null;
   has_service_room: boolean; lot_size: number | null; ceiling_height: number | null;
   garage_spaces: number; garage_type: 'cubierta' | 'descubierta' | null;
+  garage_covered: number; garage_uncovered: number;
+  condition: 'a_estrenar' | 'en_construccion' | 'en_pozo' | 'usada' | null; features: string[] | null;
   living_rooms: number; kitchens: number; other_rooms_count: number; other_rooms_description: string | null;
   hoa_fee: number | null; floors_count: number;
   price: number | null; currency: string; status: UnitStatus; orientation: string | null;
@@ -125,6 +138,10 @@ function formFieldsFromUnit(u: SourceUnitLike) {
     ceilingHeight: u.ceiling_height != null ? String(u.ceiling_height) : '',
     garageSpaces: String(u.garage_spaces ?? 0),
     garageType: u.garage_type ?? 'cubierta',
+    garageCovered: String(u.garage_covered ?? 0),
+    garageUncovered: String(u.garage_uncovered ?? 0),
+    condition: u.condition ?? ('' as const),
+    features: u.features ?? [],
     livingRooms: String(u.living_rooms ?? 1),
     kitchens: String(u.kitchens ?? 1),
     otherRoomsCount: String(u.other_rooms_count ?? 0),
@@ -172,6 +189,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const [rooms, setRooms] = useState<Room[]>([]);
   const [levels, setLevels] = useState<UnitLevel[]>([]);
   const [activePlanta, setActivePlanta] = useState(0); // 0 = planta baja
+  // Recorrido 360° del depto que se está editando — se muestra inline en el
+  // form (TourEditor autoguarda su propio campo tour_data, aparte del
+  // "Guardar cambios" del resto).
+  const [editUnitTourData, setEditUnitTourData] = useState<TourData | null>(null);
   const toast = useToast();
   const confirmDialog = useConfirm();
   const inheritedDefaultsApplied = useRef(false);
@@ -240,6 +261,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     setForm({ code: u.code, ...formFieldsFromUnit(u) });
     setRooms(u.rooms ?? []);
     setLevels(u.levels ?? []);
+    setEditUnitTourData(u.tour_data ?? null);
     setActivePlanta(0);
     setDuplicateExtras(null);
   };
@@ -258,6 +280,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     setForm(EMPTY_FORM);
     setRooms([]);
     setLevels([]);
+    setEditUnitTourData(null);
     setActivePlanta(0);
     setError('');
     setDuplicateExtras(null);
@@ -415,8 +438,19 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     hasServiceRoom: form.hasServiceRoom,
     lotSize: form.lotSize === '' ? null : Number(form.lotSize),
     ceilingHeight: form.ceilingHeight === '' ? null : Number(form.ceilingHeight),
-    garageSpaces: Number(form.garageSpaces || 0),
-    garageType: Number(form.garageSpaces || 0) > 0 ? form.garageType : null,
+    // Cochera: cubiertas + descubiertas. garage_spaces/garage_type se
+    // mantienen sincronizados (suma y tipo derivado) para lectores viejos.
+    garageCovered: Number(form.garageCovered || 0),
+    garageUncovered: Number(form.garageUncovered || 0),
+    garageSpaces: Number(form.garageCovered || 0) + Number(form.garageUncovered || 0),
+    garageType: (() => {
+      const cov = Number(form.garageCovered || 0), unc = Number(form.garageUncovered || 0);
+      if (cov > 0 && unc === 0) return 'cubierta';
+      if (unc > 0 && cov === 0) return 'descubierta';
+      return null;
+    })(),
+    condition: unitIsLand ? null : (form.condition || null),
+    features: unitIsLand ? [] : form.features,
     livingRooms: programActive ? derivedCounts.living : Number(form.livingRooms || 0),
     kitchens: programActive ? derivedCounts.kitchen : Number(form.kitchens || 0),
     otherRoomsCount: programActive ? derivedCounts.other : Number(form.otherRoomsCount || 0),
@@ -647,13 +681,17 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       {buildingId && !unitIsLand && (
                         <>
                           <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
-                          <Link
-                            href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/tour`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              startEdit(u);
+                              setTimeout(() => document.getElementById('depto-tour-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                            }}
                             className="text-sm font-medium text-brand-600 hover:text-brand-700"
                             title={u.tour_data?.nodes.length ? `${u.tour_data.nodes.length} panorámica${u.tour_data.nodes.length === 1 ? '' : 's'} cargada${u.tour_data.nodes.length === 1 ? '' : 's'}` : 'Todavía sin recorrido 360°'}
                           >
                             Recorrido 360°{u.tour_data?.nodes.length ? ` (${u.tour_data.nodes.length})` : ''}
-                          </Link>
+                          </button>
                         </>
                       )}
                       <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
@@ -820,13 +858,45 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Input label="Cantidad de cocheras" id="garageSpaces" type="number" min={0} value={form.garageSpaces} onChange={e => setForm({ ...form, garageSpaces: e.target.value })} />
-                {Number(form.garageSpaces || 0) > 0 && (
-                  <Select label="Tipo de cochera" id="garageType" value={form.garageType} onChange={e => setForm({ ...form, garageType: e.target.value as 'cubierta' | 'descubierta' })}>
-                    <option value="cubierta">Cubierta</option>
-                    <option value="descubierta">Descubierta</option>
-                  </Select>
-                )}
+                <Input label="Cocheras cubiertas" id="garageCovered" type="number" min={0} value={form.garageCovered} onChange={e => setForm({ ...form, garageCovered: e.target.value })} />
+                <Input label="Cocheras descubiertas" id="garageUncovered" type="number" min={0} value={form.garageUncovered} onChange={e => setForm({ ...form, garageUncovered: e.target.value })} />
+                <Select label="Estado / antigüedad" id="condition" value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value as typeof form.condition })}>
+                  <option value="">Sin especificar</option>
+                  {UNIT_CONDITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
+              </div>
+
+              {/* Comodidades — lista libre de tags (pileta, quincho, losa
+                  radiante, amoblada, apto crédito…). Se guarda en units.features. */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Comodidades</label>
+                <div className="space-y-2">
+                  {UNIT_FEATURE_GROUPS.map(group => (
+                    <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-medium text-gray-400 w-24 shrink-0">{group.label}</span>
+                      {group.options
+                        .filter(opt => opt !== 'Apto crédito' || typeConfig.showPrice)
+                        .map(opt => {
+                          const on = form.features.includes(opt);
+                          return (
+                            <button
+                              type="button"
+                              key={opt}
+                              onClick={() => setForm({
+                                ...form,
+                                features: on ? form.features.filter(f => f !== opt) : [...form.features, opt],
+                              })}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                                on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                              }`}
+                            >
+                              {on ? '✓ ' : ''}{opt}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Programa de ambientes — cada uno con su tipo, m², foto y
@@ -1031,11 +1101,37 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             folder="units"
           />
 
+          {/* Recorrido 360° del depto — inline, acá mismo. Autoguarda su
+              propio campo (tour_data), independiente del "Guardar cambios". */}
+          {hasUnitStep && !unitIsLand && editingId && (
+            <div id="depto-tour-section" className="pt-4 border-t border-gray-100 space-y-2 scroll-mt-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">Creá tu recorrido — {form.code}</h4>
+                <p className="text-xs text-gray-400">
+                  Una panorámica 360° (imagen equirectangular) por ambiente. Se guarda solo. Al duplicar un depto igual, el recorrido viaja con él.
+                </p>
+              </div>
+              <TourEditor
+                key={editingId}
+                initialTourData={editUnitTourData}
+                onPersist={async (next) => {
+                  const res = await fetch(`/api/admin/units/${editingId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tourData: next }),
+                  });
+                  if (res.ok) setEditUnitTourData(next);
+                  return res.ok;
+                }}
+              />
+            </div>
+          )}
+
           <p className="text-xs text-gray-500">
             {unitIsLand
               ? `La silueta de ${uAgree.esta} ${unitLabelLower} sobre el plano de subdivisión se marca en el paso siguiente.`
               : hasUnitStep
-              ? 'El polígono del depto en el plano, los ambientes y el tour 360° se cargan en los pasos siguientes.'
+              ? 'El polígono del depto en el plano y los ambientes se cargan en los pasos siguientes.'
               : 'Los ambientes (incluida una pileta u otro espacio propio, si tiene) y el tour 360° se cargan en el paso siguiente.'}
           </p>
 

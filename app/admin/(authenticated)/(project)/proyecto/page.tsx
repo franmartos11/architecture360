@@ -17,6 +17,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useShareLink } from '@/hooks/useShareLink';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { buildingAgreement } from '@/lib/project-types';
 import type {
   ProjectRow as DbProjectRow, BuildingRow as DbBuildingRow, AerialSlideRow, AerialHotspotRow,
 } from '@/types/database';
@@ -57,7 +58,9 @@ const COLLABORATOR_STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
 };
 
 export default function AdminProjectPage() {
-  const { saleMode, buildingLabel, hasUnitStep, aerialLabel, aerialLabelPlural } = useProjectTypeConfig();
+  const typeConfig = useProjectTypeConfig();
+  const { saleMode, buildingLabel, hasUnitStep, aerialLabel, aerialLabelPlural } = typeConfig;
+  const agree = buildingAgreement(typeConfig);
   const buildingLabelLower = buildingLabel.toLowerCase();
   const aerialLower = aerialLabel.toLowerCase();
   const [project, setProject] = useState<ProjectRow | null>(null);
@@ -636,9 +639,11 @@ export default function AdminProjectPage() {
         <CardHeader className="block">
           <h3 className="text-lg font-semibold text-gray-900">{aerialLabelPlural}</h3>
           <p className="text-sm text-gray-500">
-            {hasUnitStep
-              ? `Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada ${buildingLabelLower}.`
-              : `La foto del frente de la ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`}
+            {!hasUnitStep
+              ? `La foto del frente de la ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`
+              : typeConfig.singleBuilding
+              ? `La vista aérea ${agree.del} ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`
+              : `Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada ${buildingLabelLower}.`}
           </p>
         </CardHeader>
 

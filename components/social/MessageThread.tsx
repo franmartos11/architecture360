@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { useConversationMessages, type ApiMessage } from '@/hooks/useConversationMessages';
 import EmbeddedPostCard from '@/components/social/EmbeddedPostCard';
+import EmojiPicker from '@/components/ui/EmojiPicker';
 import { useIsOnline } from '@/lib/presence-context';
 
 const MAX_ATTACHMENT_SIZE = 15 * 1024 * 1024;
@@ -278,6 +279,7 @@ export default function MessageThread({ conversationId, other }: { conversationI
               disabled={uploading}
               className="flex-1 min-w-0 px-3.5 py-2 rounded-full border border-trevo-dark/15 text-sm text-trevo-dark placeholder:text-trevo-dark/30 focus:ring-2 focus:ring-trevo-dark/20 outline-none transition-all disabled:opacity-60"
             />
+            <EmojiPicker onSelect={e => setText(t => t + e)} />
           </>
         )}
         <button

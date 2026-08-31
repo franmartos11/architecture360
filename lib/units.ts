@@ -111,6 +111,44 @@ export function roomFeatureOptions(kind: RoomKind | undefined): string[] {
   return ROOM_FEATURES_BY_KIND[kind ?? 'other'] ?? [];
 }
 
+// ─── Comodidades de una casa (Unit.features) ────────────────────────
+// Lista libre de tags — agregar una opción nueva es sumarla acá, sin
+// tocar la base (la columna es text[]). Se muestra como chips agrupados
+// en el form de "Datos" y en el visor público.
+export const UNIT_FEATURE_GROUPS: { label: string; options: string[] }[] = [
+  { label: 'Exteriores', options: ['Patio', 'Jardín', 'Pileta', 'Quincho', 'Parrilla', 'Terraza'] },
+  { label: 'Climatización', options: ['Losa radiante', 'Radiadores', 'Tiro balanceado', 'Aire split', 'Aire central'] },
+  { label: 'Otros', options: ['Amoblada', 'Semiamoblada', 'Cocina equipada', 'Gas natural', 'Apto crédito'] },
+];
+
+export const ALL_UNIT_FEATURES: string[] = UNIT_FEATURE_GROUPS.flatMap(g => g.options);
+
+// Estado / antigüedad de la casa.
+export const UNIT_CONDITION_OPTIONS: { value: NonNullable<Unit['condition']>; label: string }[] = [
+  { value: 'a_estrenar', label: 'A estrenar' },
+  { value: 'en_construccion', label: 'En construcción' },
+  { value: 'en_pozo', label: 'En pozo' },
+  { value: 'usada', label: 'Usada' },
+];
+
+export function unitConditionLabel(condition: Unit['condition'] | null | undefined): string {
+  return UNIT_CONDITION_OPTIONS.find(o => o.value === condition)?.label ?? '';
+}
+
+// "2 cocheras (1 cubierta, 1 descubierta)" — usa el desglose si está, y si
+// no cae al par viejo garageSpaces/garageType.
+export function cocheraLabel(u: Pick<Unit, 'garageSpaces' | 'garageType' | 'garageCovered' | 'garageUncovered'>): string {
+  const cov = u.garageCovered ?? 0;
+  const unc = u.garageUncovered ?? 0;
+  const total = cov + unc || u.garageSpaces || 0;
+  if (total === 0) return '';
+  const noun = `${total} cochera${total !== 1 ? 's' : ''}`;
+  if (cov > 0 && unc > 0) return `${noun} (${cov} cubierta${cov !== 1 ? 's' : ''}, ${unc} descubierta${unc !== 1 ? 's' : ''})`;
+  if (cov > 0) return `${noun} cubierta${cov !== 1 ? 's' : ''}`;
+  if (unc > 0) return `${noun} descubierta${unc !== 1 ? 's' : ''}`;
+  return u.garageType ? `${noun} (${u.garageType})` : noun;
+}
+
 // Todos los ambientes de una unidad — la planta baja (rooms) más los de
 // cada planta extra (levels[].rooms). Para casas de 2+ pisos, los conteos
 // y el display público tienen que sumar todas las plantas, no solo la baja.

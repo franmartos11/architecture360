@@ -24,9 +24,8 @@ export default function AboutSection({ project, basePath }: SectionProps) {
               <p className="text-sm text-[var(--theme-accent)] tracking-wide -mt-4">{academicLine}</p>
             )}
             <p className="text-[var(--theme-text-muted)] font-light leading-relaxed whitespace-pre-line">{project.description}</p>
-            {project.academicTeam && (
-              <p className="text-sm text-[var(--theme-text-muted)]">Integrantes: {project.academicTeam}</p>
-            )}
+            {/* Los integrantes se muestran en la sección "Equipo" (colaboradores
+                confirmados), no como texto libre acá. */}
             <div className="pt-4 flex flex-wrap gap-4">
               <a
                 href={`${basePath}/masterplan`}

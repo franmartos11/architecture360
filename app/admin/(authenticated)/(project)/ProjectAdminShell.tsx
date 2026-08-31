@@ -5,7 +5,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
 import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
-import { useShareLink } from '@/hooks/useShareLink';
+import ShareMenu from '@/components/ui/ShareMenu';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
@@ -45,12 +45,8 @@ export default function ProjectAdminShell({
   const badType = typeConfig.fallbackFields.type ? project.project_type : null;
   const badSaleMode = typeConfig.fallbackFields.saleMode ? project.sale_mode : null;
   const { missing: missingSections } = useProjectCompleteness(typeConfig);
-  const shareLink = useShareLink();
   const publicHref = getProjectHref(project.slug);
-
-  const handleShare = () => {
-    shareLink(getProjectDisplayUrl(project.slug, window.location.origin), project.name, `Mirá el proyecto ${project.name}`);
-  };
+  const shareUrl = typeof window !== 'undefined' ? getProjectDisplayUrl(project.slug, window.location.origin) : '';
 
   useEffect(() => {
     if (pathname === '/admin/leads') markLeadsSeen();
@@ -138,16 +134,20 @@ export default function ProjectAdminShell({
                 </svg>
                 <span className="truncate">Ver sitio público</span>
               </a>
-              <button
-                onClick={handleShare}
-                className="shrink-0 p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-200 hover:text-white transition-colors"
-                title="Copiar link del proyecto"
-                aria-label="Copiar link del proyecto"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
+              <ShareMenu url={shareUrl} text={`Mirá el proyecto ${project.name}`} align="left">
+                {(trigger) => (
+                  <button
+                    {...trigger}
+                    className="shrink-0 p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-200 hover:text-white transition-colors"
+                    title="Compartir el proyecto"
+                    aria-label="Compartir el proyecto"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                )}
+              </ShareMenu>
             </div>
             {missingSections.length > 0 && (
               <Link
@@ -181,7 +181,9 @@ export default function ProjectAdminShell({
         </div>
 
         <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-4 py-4 flex-col gap-2`}>
-          {hasUnitStep && (
+          {/* El dashboard (métricas del proyecto) no aplica cuando el
+              proyecto ES una sola cosa: una casa, o un loteo de una etapa. */}
+          {hasUnitStep && !typeConfig.singleBuilding && (
             <Link
               href="/admin"
               className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${

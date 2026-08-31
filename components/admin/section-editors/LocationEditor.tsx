@@ -46,6 +46,7 @@ const EMPTY_FORM = {
 // /admin/proyecto/ubicacion y el panel deslizable de /admin/sitio.
 export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectCenter, setProjectCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [pois, setPois] = useState<PoiRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -63,6 +64,11 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
       .then(res => res.json())
       .then(data => {
         setProjectId(data.project?.id ?? null);
+        setProjectCenter(
+          data.project?.latitude != null && data.project?.longitude != null
+            ? { lat: data.project.latitude, lng: data.project.longitude }
+            : null
+        );
         setPois(data.pointsOfInterest ?? []);
         setLoading(false);
       })
@@ -209,6 +215,17 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                   {p.distance_label && <p className="text-xs text-gray-400 mt-0.5">{p.distance_label}</p>}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
+                  {p.latitude != null && p.longitude != null && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-gray-500 hover:text-gray-800"
+                      title="Ver este punto en Google Maps"
+                    >
+                      Google Maps ↗
+                    </a>
+                  )}
                   <button onClick={() => startEdit(p)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
                   <button onClick={() => handleDelete(p.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
                 </div>
@@ -273,6 +290,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
             latitude={form.latitude === '' ? null : Number(form.latitude)}
             longitude={form.longitude === '' ? null : Number(form.longitude)}
             onChange={(lat, lng) => setForm({ ...form, latitude: lat === null ? '' : String(lat), longitude: lng === null ? '' : String(lng) })}
+            fallbackCenter={projectCenter}
           />
 
           <div>

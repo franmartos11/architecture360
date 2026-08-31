@@ -458,6 +458,24 @@ alter table units add column if not exists other_rooms_description text;
 update units set garage_spaces = 1, garage_type = 'cubierta' where has_garage and garage_spaces = 0;
 alter table units drop column if exists has_garage;
 
+-- 2ª pasada de "Datos" de una casa: cochera desglosada en cubiertas +
+-- descubiertas (permite el caso mixto), estado/antigüedad, y una lista
+-- libre de comodidades (pileta, quincho, losa radiante, amoblada, apto
+-- crédito, …). garage_spaces/garage_type se mantienen sincronizados (suma
+-- y tipo derivado) para los lectores viejos.
+alter table units add column if not exists garage_covered int not null default 0;
+alter table units add column if not exists garage_uncovered int not null default 0;
+alter table units add column if not exists condition text
+  check (condition is null or condition in ('a_estrenar', 'en_construccion', 'en_pozo', 'usada'));
+alter table units add column if not exists features text[] not null default '{}';
+
+-- Backfill: la cantidad vieja va toda al tipo que tenía marcado (o a
+-- cubierta por defecto si no había tipo).
+update units set garage_covered = garage_spaces
+  where garage_spaces > 0 and coalesce(garage_type, 'cubierta') = 'cubierta' and garage_covered = 0 and garage_uncovered = 0;
+update units set garage_uncovered = garage_spaces
+  where garage_spaces > 0 and garage_type = 'descubierta' and garage_covered = 0 and garage_uncovered = 0;
+
 -- ─── Vistas aéreas (carrusel) ───────────────────────────────────────
 create table if not exists aerial_slides (
   id uuid primary key default gen_random_uuid(),
