@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { Users } from 'lucide-react';
 import { getPortfolioDirectory, getFollowingSet } from '@/data/profile-repository';
-import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import DirectoryGrid from '@/components/DirectoryGrid';
 import EmptyState from '@/components/ui/EmptyState';
 
@@ -21,8 +21,7 @@ export default async function DirectoryPage() {
   // render — como es un client component, Next también lo renderiza en
   // el server con los searchParams correctos, así que un link compartido
   // con ?q= ya sale filtrado en el primer HTML, sin round-trip extra acá.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   const profiles = await getPortfolioDirectory();
   const followingSet = user ? await getFollowingSet(user.id) : new Set<string>();

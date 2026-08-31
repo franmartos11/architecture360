@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { UserPlus } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { getPortfolioByHandle, getFollowers, getFollowingSet } from '@/data/profile-repository';
-import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import DirectoryGrid from '@/components/DirectoryGrid';
 import EmptyState from '@/components/ui/EmptyState';
 
@@ -22,8 +22,7 @@ export default async function FollowersPage({ params }: PageProps) {
   const portfolio = await getPortfolioByHandle(handle);
   if (!portfolio) notFound();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   const [followers, followingSet] = await Promise.all([
     getFollowers(portfolio.id),

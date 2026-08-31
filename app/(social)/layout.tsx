@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import AppShell from '@/components/app/AppShell';
 import { PresenceProvider } from '@/lib/presence-context';
 
@@ -7,10 +8,15 @@ import { PresenceProvider } from '@/lib/presence-context';
 // puntual) o /proyecto/[slug] (el sitio público de un proyecto), este
 // grupo es donde vive la parte social de la cuenta. Se resuelve sesión +
 // perfil una sola vez acá, del lado del servidor, para que la nav no
-// tenga que pedirlo de nuevo en cada página.
+// tenga que pedirlo de nuevo en cada página. getRequestUser() (en vez de
+// supabase.auth.getUser() directo) es clave acá: ese método hace un
+// round-trip de red a la API de Auth, y sin dedupear, el layout y la
+// página podían resolver ese round-trip con resultados distintos dentro
+// del mismo request — la nav mostraba "Ingresar" mientras el feed de
+// abajo ya mostraba el perfil logueado.
 export default async function SocialLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   let profileHandle: string | null = null;
   let avatarImage: string | null = null;

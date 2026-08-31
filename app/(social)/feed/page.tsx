@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import FeedTabs from '@/components/social/FeedTabs';
 import FeedLeftRail from '@/components/social/FeedLeftRail';
 import PeopleSuggestions from '@/components/social/PeopleSuggestions';
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 export default async function FeedPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   let currentProfileHandle: string | null = null;
   let currentAvatarImage: string | null = null;

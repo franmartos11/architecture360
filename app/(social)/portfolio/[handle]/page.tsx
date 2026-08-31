@@ -8,6 +8,7 @@ import { getPortfolioByHandle } from '@/data/profile-repository';
 import { PROJECT_STRUCTURES } from '@/lib/project-types';
 import { getProjectHref } from '@/lib/project-url';
 import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import PostFeed from '@/components/social/PostFeed';
 import FollowButton from '@/components/social/FollowButton';
 import ProfileQuickEditButton from '@/components/social/ProfileQuickEditButton';
@@ -220,7 +221,7 @@ export default async function PortfolioPage({ params }: PageProps) {
   if (!portfolio) notFound();
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   const isOwnProfile = user?.id === portfolio.id;
   const isCompany = portfolio.accountType === 'company';
 
