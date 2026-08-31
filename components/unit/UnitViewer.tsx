@@ -97,7 +97,7 @@ export default function UnitViewer({
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator, hasUnitStep, unitIsLand } = typeConfig;
+  const { showStatus, showLeads, showCalculator, hasUnitStep, hasFloorStep, unitIsLand } = typeConfig;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
@@ -124,7 +124,9 @@ export default function UnitViewer({
 
   // Comparar necesita al menos otra unidad — una casa (o un proyecto con
   // una sola unidad cargada) no tiene con qué.
-  const canCompare = allUnits.length > 1;
+  // Un lote no tiene ambientes/tipología que comparar entre sí — el
+  // comparador queda para viviendas (deptos/casas/dúplex).
+  const canCompare = !unitIsLand && allUnits.length > 1;
 
   // Tab inicial: el pedido por URL si tiene contenido, si no el primero
   // disponible. El deep-link a comparar arranca en 360° si existe.
@@ -620,7 +622,9 @@ export default function UnitViewer({
               <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: statusColor }}>{statusLabel.toUpperCase()}</span>
             )}
           </div>
-          <p className="text-xs text-gray-400 truncate">{unit.modelName} · {unit.totalArea}m² · P{floorNumber}</p>
+          <p className="text-xs text-gray-400 truncate">
+            {!unitIsLand && unit.modelName ? `${unit.modelName} · ` : ''}{unit.totalArea}m²{hasFloorStep ? ` · P${floorNumber}` : ''}
+          </p>
         </div>
         {canCompare && !comparing && (
           <button onClick={() => setComparing(true)} aria-label="Comparar con otra unidad" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -676,7 +680,7 @@ export default function UnitViewer({
                 Comparador
               </button>
             )}
-            {hasUnitStep && (
+            {hasFloorStep && (
               <>
                 <span className="text-sm font-medium text-gray-700 bg-white shadow rounded-lg px-3 py-1.5 whitespace-nowrap">
                   Planta {floorNumber}

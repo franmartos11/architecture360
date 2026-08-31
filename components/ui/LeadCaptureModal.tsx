@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit } from '@/types';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { unitAgreement } from '@/lib/project-types';
 
 interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -29,10 +31,21 @@ export default function LeadCaptureModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const typeConfig = useProjectTypeConfig();
+  const { hasFloorStep, unitIsLand } = typeConfig;
+  const uAgree = unitAgreement(typeConfig);
+  const unitLabelLower = typeConfig.unitLabel.toLowerCase();
+
+  // Un lote no tiene modelo ni piso — y sin programa de ambientes tampoco
+  // hay garantía de modelName en una casa, así que ninguno de los dos se
+  // asume presente.
   const defaultMessage = initialMessage
     ? initialMessage
     : unit
-      ? `Hola, me interesa recibir más información sobre la unidad ${unit.name} (${unit.modelName}) en el piso ${unit.floor}.`
+      ? `Hola, me interesa recibir más información sobre ${uAgree.el} ${unitLabelLower} ${unit.name}`
+        + (!unitIsLand && unit.modelName ? ` (${unit.modelName})` : '')
+        + (hasFloorStep ? ` en el piso ${unit.floor}` : '')
+        + '.'
       : 'Hola, me interesa recibir más información sobre el proyecto.';
 
   useEffect(() => {
@@ -138,7 +151,7 @@ export default function LeadCaptureModal({
                       </h3>
                       {unit && (
                         <p className="text-sm text-gray-500 mt-1">
-                          {unit.name} • {unit.modelName}
+                          {unit.name}{!unitIsLand && unit.modelName ? ` • ${unit.modelName}` : ''}
                         </p>
                       )}
                     </div>

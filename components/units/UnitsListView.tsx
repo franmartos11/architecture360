@@ -89,7 +89,9 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
           </Link>
           <div className="text-trevo-lightgreen tracking-widest text-sm font-semibold mt-6">UNIDADES DISPONIBLES</div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-thin tracking-wide text-white leading-tight mt-3 max-w-2xl">
-            Encontrá tu <span className="font-medium">próximo hogar</span>
+            {typeConfig.unitIsLand
+              ? <>Encontrá tu <span className="font-medium">próximo terreno</span></>
+              : <>Encontrá tu <span className="font-medium">próximo hogar</span></>}
           </h1>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-6 sm:gap-x-10 gap-y-4 sm:gap-y-3 mt-10">

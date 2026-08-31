@@ -54,7 +54,7 @@ function formatPriceRange(min: number | null, currency?: string): string {
   return min == null ? '' : `Desde ${formatPrice(min, currency)}`;
 }
 
-export function TabsSection({ units, showPrice }: { units: Unit[]; showPrice: boolean }) {
+export function TabsSection({ units, showPrice, unitIsLand = false }: { units: Unit[]; showPrice: boolean; unitIsLand?: boolean }) {
   const basePath = useProjectBasePath();
   const typologies = useMemo(() => buildTypologies(units), [units]);
   const [activeTab, setActiveTab] = useState(typologies[0]?.id ?? '');
@@ -90,9 +90,12 @@ export function TabsSection({ units, showPrice }: { units: Unit[]; showPrice: bo
         <div className="space-y-6">
           <div>
             <h2 className="font-[family-name:var(--theme-font-heading)] text-4xl font-light text-[var(--theme-text)] mb-2">{activeData.label}</h2>
-            <div className="text-[var(--theme-accent)] tracking-wide">
-              {activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios'}
-            </div>
+            {/* Un lote es terreno — no tiene dormitorios que anunciar. */}
+            {!unitIsLand && (
+              <div className="text-[var(--theme-accent)] tracking-wide">
+                {activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios'}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">

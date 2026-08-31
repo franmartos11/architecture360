@@ -37,7 +37,8 @@ export default function FloorPlanViewer({
   initialFloor = 1,
   typeConfig,
 }: FloorPlanViewerProps) {
-  const { showPrice, showStatus, showLeads, unitIsLand } = typeConfig;
+  const { showPrice, showStatus, showLeads, unitIsLand, hasFloorStep, unitLabel } = typeConfig;
+  const unitLabelLower = unitLabel.toLowerCase();
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const [activeFloor, setActiveFloor] = useState(initialFloor);
@@ -63,7 +64,8 @@ export default function FloorPlanViewer({
   const handleShare = async () => {
     if (!selectedUnit) return;
     const url = `${window.location.origin}${basePath}/edificio/${building.id}/unidad/${selectedUnit.id}`;
-    await shareLink(url, `Unidad ${selectedUnit.name} - ${projectSlug}`, `Mirá esta unidad: ${selectedUnit.name} (${selectedUnit.modelName})`);
+    const modelSuffix = !unitIsLand && selectedUnit.modelName ? ` (${selectedUnit.modelName})` : '';
+    await shareLink(url, `Unidad ${selectedUnit.name} - ${projectSlug}`, `Mirá esta unidad: ${selectedUnit.name}${modelSuffix}`);
   };
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
@@ -204,7 +206,9 @@ export default function FloorPlanViewer({
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mb-4 uppercase tracking-wide">{selectedUnit.modelName}</p>
+              {!unitIsLand && selectedUnit.modelName && (
+                <p className="text-sm text-gray-500 mb-4 uppercase tracking-wide">{selectedUnit.modelName}</p>
+              )}
 
               {/* Price / Consult */}
               {showPrice && (
@@ -235,8 +239,12 @@ export default function FloorPlanViewer({
                 </button>
               )}
 
-              {/* Specs */}
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Instalaciones</h4>
+              {/* Specs — un lote es terreno: solo el área total tiene sentido,
+                  el resto (áreas internas, dormitorios, cuarto de servicio) es
+                  de vivienda. */}
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+                {unitIsLand ? 'Datos del lote' : 'Instalaciones'}
+              </h4>
               <motion.div
                 initial="hidden"
                 animate="visible"
@@ -247,17 +255,21 @@ export default function FloorPlanViewer({
                 className="space-y-2.5"
               >
                 <SpecRow icon="area-total" label={`Área total ${selectedUnit.totalArea} m²`} />
-                <SpecRow icon="area-inner" label={`Área interna ${selectedUnit.innerArea} m²`} />
-                {selectedUnit.balconyArea > 0 && (
-                  <SpecRow icon="balcony" label={`Área balcones ${selectedUnit.balconyArea} m²`} />
-                )}
-                {selectedUnit.externalArea > 0 && (
-                  <SpecRow icon="external" label={`Área externa ${selectedUnit.externalArea} m²`} />
-                )}
-                <SpecRow icon="bed" label={`${selectedUnit.bedrooms} Dormitorio${selectedUnit.bedrooms !== 1 ? 's' : ''}`} />
-                <SpecRow icon="bath" label={`${selectedUnit.bathrooms} Baños`} />
-                {selectedUnit.hasServiceRoom && (
-                  <SpecRow icon="service" label="Cuarto de Servicio" />
+                {!unitIsLand && (
+                  <>
+                    <SpecRow icon="area-inner" label={`Área interna ${selectedUnit.innerArea} m²`} />
+                    {selectedUnit.balconyArea > 0 && (
+                      <SpecRow icon="balcony" label={`Área balcones ${selectedUnit.balconyArea} m²`} />
+                    )}
+                    {selectedUnit.externalArea > 0 && (
+                      <SpecRow icon="external" label={`Área externa ${selectedUnit.externalArea} m²`} />
+                    )}
+                    <SpecRow icon="bed" label={`${selectedUnit.bedrooms} Dormitorio${selectedUnit.bedrooms !== 1 ? 's' : ''}`} />
+                    <SpecRow icon="bath" label={`${selectedUnit.bathrooms} Baños`} />
+                    {selectedUnit.hasServiceRoom && (
+                      <SpecRow icon="service" label="Cuarto de Servicio" />
+                    )}
+                  </>
                 )}
               </motion.div>
 
@@ -333,10 +345,12 @@ export default function FloorPlanViewer({
               )}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                 <h2 className="text-3xl font-bold text-white drop-shadow-lg">{building.name}</h2>
-                <span className="text-sm font-semibold text-gray-900 bg-white/90 px-4 py-1.5 rounded-full mt-3 shadow-md">
-                  Planta {activeFloor}
-                  {floor?.floorKind && floor.floorKind !== 'units' && ` · ${FLOOR_KIND_ICON[floor.floorKind]} ${FLOOR_KIND_LABEL[floor.floorKind]}`}
-                </span>
+                {(hasFloorStep || (floor?.floorKind && floor.floorKind !== 'units')) && (
+                  <span className="text-sm font-semibold text-gray-900 bg-white/90 px-4 py-1.5 rounded-full mt-3 shadow-md">
+                    {hasFloorStep && `Planta ${activeFloor}`}
+                    {floor?.floorKind && floor.floorKind !== 'units' && `${hasFloorStep ? ' · ' : ''}${FLOOR_KIND_ICON[floor.floorKind]} ${FLOOR_KIND_LABEL[floor.floorKind]}`}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -360,13 +374,13 @@ export default function FloorPlanViewer({
 
                   <div className="space-y-4 mb-6">
                     <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                      <span className="text-sm text-gray-500">Unidades Totales</span>
+                      <span className="text-sm text-gray-500 capitalize">{unitLabelLower}s totales</span>
                       <span className="text-sm font-semibold text-gray-900">{unitsOnFloor.length}</span>
                     </div>
                     {showStatus && (
                       <>
                         <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                          <span className="text-sm text-gray-500">Unidades Disponibles</span>
+                          <span className="text-sm text-gray-500 capitalize">{unitLabelLower}s disponibles</span>
                           <span className="text-sm font-semibold text-emerald-600">
                             {unitsOnFloor.filter(u => u.status === 'available').length}
                           </span>
@@ -525,7 +539,7 @@ export default function FloorPlanViewer({
                     >
                       <div className="bg-white shadow-lg rounded-lg px-3 py-1.5 text-center whitespace-nowrap border border-gray-100">
                         <p className="text-xs font-semibold text-gray-900">{hu.name}</p>
-                        <p className="text-[10px] text-gray-500">{hu.modelName} · {hu.totalArea}m²</p>
+                        <p className="text-[10px] text-gray-500">{!unitIsLand && hu.modelName ? `${hu.modelName} · ` : ''}{hu.totalArea}m²</p>
                       </div>
                     </div>
                   );
@@ -713,10 +727,16 @@ export default function FloorPlanViewer({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{mobilePreviewUnit.modelName}</p>
+                {!unitIsLand && mobilePreviewUnit.modelName && (
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{mobilePreviewUnit.modelName}</p>
+                )}
                 <div className="flex gap-3 text-xs text-gray-600">
-                  <span>🛏 {mobilePreviewUnit.bedrooms}</span>
-                  <span>🚿 {mobilePreviewUnit.bathrooms}</span>
+                  {!unitIsLand && (
+                    <>
+                      <span>🛏 {mobilePreviewUnit.bedrooms}</span>
+                      <span>🚿 {mobilePreviewUnit.bathrooms}</span>
+                    </>
+                  )}
                   <span>📐 {mobilePreviewUnit.totalArea}m²</span>
                 </div>
                 {showPrice && mobilePreviewUnit.price && (
