@@ -57,9 +57,10 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   const toast = useToast();
   const confirmDialog = useConfirm();
 
-  const load = () => {
-    setLoading(true);
-    setLoadError(false);
+  // Sin resets sincrónicos: se usa directo como callback del efecto de
+  // montaje (los valores iniciales de loading/loadError ya son los
+  // correctos para esa primera carga).
+  const fetchData = () => {
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -79,7 +80,13 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
       });
   };
 
-  useEffect(load, []);
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
+    fetchData();
+  };
+
+  useEffect(fetchData, []);
 
   const handleCalculateTimes = async () => {
     if (!projectId) return;
@@ -295,7 +302,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tiempos de viaje (minutos, opcional — o usá "Calcular tiempos automáticamente" arriba una vez que tenga coordenadas)
+              Tiempos de viaje (minutos, opcional — o usá &quot;Calcular tiempos automáticamente&quot; arriba una vez que tenga coordenadas)
             </label>
             <div className="grid grid-cols-3 gap-4">
               <Input

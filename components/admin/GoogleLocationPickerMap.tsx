@@ -25,10 +25,15 @@ export default function GoogleLocationPickerMap({ latitude, longitude, onChange,
   const mapRef = useRef<GMap | null>(null);
   const markerRef = useRef<GMarker | null>(null);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
   const [error, setError] = useState(false);
 
   const hasPosition = latitude != null && longitude != null;
+
+  // Mantiene la ref con el último onChange — se escribe en un efecto (no
+  // durante el render) para no pisar refs mientras React está renderizando.
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   // Init una sola vez.
   useEffect(() => {

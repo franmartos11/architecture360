@@ -13,9 +13,8 @@ declare module 'marzipano' {
     fov: number;
   }
 
-  interface ViewLimiter {
-    // opaque limiter
-  }
+  // opaque limiter
+  type ViewLimiter = object;
 
   interface AutorotateOpts {
     yawSpeed: number;
@@ -55,6 +54,7 @@ declare module 'marzipano' {
     setYaw(yaw: number): void;
     setPitch(pitch: number): void;
     setFov(fov: number): void;
+    setParameters(params: Partial<ViewParams>): void;
     screenToCoordinates(point: { x: number; y: number }): { yaw: number; pitch: number };
   }
 
@@ -68,7 +68,10 @@ declare module 'marzipano' {
     view(): RectilinearView;
   }
 
-  export function autorotate(opts: AutorotateOpts): any;
+  // opaque movement token passed to Viewer#setIdleMovement / #startMovement
+  type Autorotate = object;
+
+  export function autorotate(opts: AutorotateOpts): Autorotate;
 
   export class HotspotContainer {
     createHotspot(

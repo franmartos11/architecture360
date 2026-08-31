@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -65,8 +65,10 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   const confirmDialog = useConfirm();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/units/${unitId}`)
       .then(res => res.json())
       .then(unit => {
@@ -111,12 +113,17 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
 
   // Cuando cambia la planta activa, el lienzo de delimitación arranca de
   // cero con los puntos ya guardados de esa planta (los de la anterior no
-  // aplican a esta imagen).
-  useEffect(() => {
+  // aplican a esta imagen) — se resuelve durante el render, comparando
+  // contra el índice/clave de planta del render anterior, en vez de en un
+  // efecto.
+  const [prevActiveLevelIdx, setPrevActiveLevelIdx] = useState(activeLevelIdx);
+  const [prevActiveLevelKey, setPrevActiveLevelKey] = useState(activeLevel.key);
+  if (activeLevelIdx !== prevActiveLevelIdx || activeLevel.key !== prevActiveLevelKey) {
+    setPrevActiveLevelIdx(activeLevelIdx);
+    setPrevActiveLevelKey(activeLevel.key);
     setPoints(Object.fromEntries(activeLevel.rooms.map(r => [r.id, r.polygon ?? []])));
     setActiveId(activeLevel.rooms[0]?.id ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLevelIdx, activeLevel.key]);
+  }
 
   // Unidades candidatas para "copiar diseño": cualquier otra unidad del
   // proyecto que ya tenga ambientes o recorrido 360° cargado.
@@ -324,7 +331,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
+            Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
           </p>
         </div>
         <Link

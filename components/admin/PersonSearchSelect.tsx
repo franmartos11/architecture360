@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 
 export interface PersonSearchResult {
   handle: string;
@@ -26,7 +26,7 @@ export default function PersonSearchSelect({ selected, onSelect, onClear, placeh
 
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setResults([]); return; }
+    if (!q) { startTransition(() => { setResults([]); }); return; }
     let cancelled = false;
     const timer = setTimeout(() => {
       fetch(`/api/profiles/search?q=${encodeURIComponent(q)}`)

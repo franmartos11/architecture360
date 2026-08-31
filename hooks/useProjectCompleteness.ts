@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { resolveSectionList, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 
@@ -20,7 +20,9 @@ export function useProjectCompleteness(typeConfig: ProjectTypeConfig) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    startTransition(() => {
+      setLoading(true);
+    });
     fetch('/api/admin/project/preview')
       .then(res => res.json())
       .then(data => {

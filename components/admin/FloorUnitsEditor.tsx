@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -228,8 +228,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   );
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/units?floorId=${floorId}`)
       .then(res => res.json())
       .then((unitsData) => {

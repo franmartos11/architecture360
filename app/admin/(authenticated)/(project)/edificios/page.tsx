@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -45,8 +45,10 @@ export default function AdminBuildingsPage() {
   const confirmDialog = useConfirm();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     // Para casa solo hace falta el edificio (para el redirect); el resto
     // (slides de la vista frontal) no se muestra porque no se llega a
     // renderizar la lista.

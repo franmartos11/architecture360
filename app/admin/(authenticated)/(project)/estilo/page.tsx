@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -44,8 +44,10 @@ export default function AdminEstiloPage() {
   const toast = useToast();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     Promise.all([
       fetch('/api/admin/project/preview').then(r => r.json()),
       fetch('/api/admin/fonts').then(r => r.json()),

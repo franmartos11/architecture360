@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
@@ -180,15 +180,21 @@ export default function UnitViewer({
     [amenities, buildingId]
   );
 
-  useEffect(() => {
+  // Apagar el comparador al salir de 360° — ajustado durante el render
+  // comparando contra el tab anterior, en vez de en un efecto.
+  const [prevActiveTabForCompare, setPrevActiveTabForCompare] = useState(activeTab);
+  if (activeTab !== prevActiveTabForCompare) {
+    setPrevActiveTabForCompare(activeTab);
     if (activeTab !== 'tour360') setComparing(false);
-  }, [activeTab]);
+  }
 
   useEffect(() => {
     if (activeTab === 'amenities' && !activeAmenity && relevantAmenities.length > 0) {
-      setActiveAmenity(relevantAmenities[0]);
-      setAmenityImageIndex(0);
-      setAmenityViewMode('fotos');
+      startTransition(() => {
+        setActiveAmenity(relevantAmenities[0]);
+        setAmenityImageIndex(0);
+        setAmenityViewMode('fotos');
+      });
     }
   }, [activeTab, activeAmenity, relevantAmenities]);
 

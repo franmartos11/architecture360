@@ -16,6 +16,23 @@ interface AppShellProps {
   avatarImage: string | null;
 }
 
+// Definido a nivel de módulo (no dentro de AppShell) — si viviera dentro del
+// render, React lo vería como un tipo de componente nuevo en cada render de
+// AppShell y desmontaría/remontaría este subárbol todo el tiempo. Recibe
+// avatarImage por prop en vez de cerrar sobre el del render de AppShell.
+function AvatarCircle({ avatarImage, size = 'w-8 h-8' }: { avatarImage: string | null; size?: string }) {
+  return (
+    <div className={`relative ${size} rounded-full overflow-hidden shrink-0 bg-white/10 flex items-center justify-center`}>
+      {avatarImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarImage} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <User className="w-4 h-4 text-white/50" />
+      )}
+    </div>
+  );
+}
+
 // Barra de identidad persistente para toda la cuenta logueada — antes cada
 // zona (feed/directorio, "Mis proyectos", el portfolio, y cada pantalla
 // dentro de un proyecto) armaba su propio header suelto, así que moverse
@@ -49,17 +66,6 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
 
   const profileHref = profileHandle ? `/portfolio/${profileHandle}` : '/admin/portfolio';
   const isActive = (href: string) => pathname === href || (href !== '/feed' && pathname?.startsWith(href));
-
-  const AvatarCircle = ({ size = 'w-8 h-8' }: { size?: string }) => (
-    <div className={`relative ${size} rounded-full overflow-hidden shrink-0 bg-white/10 flex items-center justify-center`}>
-      {avatarImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarImage} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <User className="w-4 h-4 text-white/50" />
-      )}
-    </div>
-  );
 
   return (
     <>
@@ -137,7 +143,7 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                   aria-label="Mi cuenta"
                   aria-expanded={menuOpen}
                 >
-                  <AvatarCircle />
+                  <AvatarCircle avatarImage={avatarImage} />
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
                 {menuOpen && (
@@ -206,7 +212,7 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
               Mensajes
             </Link>
             <Link href={profileHref} className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] ${isActive(profileHref) ? 'text-white' : 'text-white/50'}`}>
-              <AvatarCircle size="w-5 h-5" />
+              <AvatarCircle avatarImage={avatarImage} size="w-5 h-5" />
               Perfil
             </Link>
           </>

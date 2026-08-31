@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { X, Send } from 'lucide-react';
 import { useToast } from '@/components/ui/ToastProvider';
 
@@ -21,7 +21,7 @@ export default function SendPostModal({ postId, onClose }: { postId: string; onC
 
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setResults([]); return; }
+    if (!q) { startTransition(() => setResults([])); return; }
     const timer = setTimeout(() => {
       fetch(`/api/profiles/search?q=${encodeURIComponent(q)}`)
         .then(res => res.json())

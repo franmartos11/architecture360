@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
@@ -34,8 +34,10 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     Promise.all([
       fetch(`/api/admin/buildings/${buildingId}`).then(res => res.json()),
       fetch(`/api/admin/units?floorId=${floorId}`).then(res => res.json()),

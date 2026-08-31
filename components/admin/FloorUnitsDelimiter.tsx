@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, startTransition } from 'react';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -52,8 +52,10 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   const toast = useToast();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     Promise.all([
       fetch(`/api/admin/buildings/${buildingId}`).then(res => res.json()),
       fetch(`/api/admin/units?floorId=${floorId}`).then(res => res.json()),
@@ -365,7 +367,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
           <div className="px-5 py-3 border-b border-amber-100 bg-amber-50">
             <h3 className="font-semibold text-amber-900 text-sm">Pines huérfanos</h3>
             <p className="text-xs text-amber-700 mt-0.5">
-              Estos aparecen como "?" en el sitio público — no coinciden con ningún {unitLabelLower} cargado. Se pueden borrar.
+              Estos aparecen como &quot;?&quot; en el sitio público — no coinciden con ningún {unitLabelLower} cargado. Se pueden borrar.
             </p>
           </div>
           <div className="divide-y divide-gray-100">

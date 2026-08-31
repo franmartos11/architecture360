@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import { Rss, Repeat2, Send, Share2, X } from 'lucide-react';
 import ShareMenu from '@/components/ui/ShareMenu';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -71,7 +71,7 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
   const canPost = authorHandle === undefined ? loggedIn && !!currentProfileHandle : authorHandle === currentProfileHandle;
 
   useEffect(() => {
-    setLoading(true);
+    startTransition(() => setLoading(true));
     fetch(buildQuery())
       .then(res => res.json())
       .then(data => {

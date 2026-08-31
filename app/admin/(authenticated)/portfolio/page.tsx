@@ -218,7 +218,13 @@ function ExperienceModal({ isOpen, onClose, item, onSave, saving }: {
   item: ProfileExperience | null; onSave: (v: ProfileExperience) => void;
 }) {
   const [form, setForm] = useState<ProfileExperience>(item ?? EMPTY_EXP);
-  useEffect(() => { setForm(item ?? EMPTY_EXP); }, [item, isOpen]);
+  const [prevItem, setPrevItem] = useState(item);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (item !== prevItem || isOpen !== prevIsOpen) {
+    setPrevItem(item);
+    setPrevIsOpen(isOpen);
+    setForm(item ?? EMPTY_EXP);
+  }
 
   return (
     <ProfileModal isOpen={isOpen} onClose={onClose}
@@ -266,7 +272,13 @@ function EducationModal({ isOpen, onClose, item, onSave, saving }: {
   item: ProfileEducation | null; onSave: (v: ProfileEducation) => void;
 }) {
   const [form, setForm] = useState<ProfileEducation>(item ?? EMPTY_EDU);
-  useEffect(() => { setForm(item ?? EMPTY_EDU); }, [item, isOpen]);
+  const [prevItem, setPrevItem] = useState(item);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (item !== prevItem || isOpen !== prevIsOpen) {
+    setPrevItem(item);
+    setPrevIsOpen(isOpen);
+    setForm(item ?? EMPTY_EDU);
+  }
 
   return (
     <ProfileModal isOpen={isOpen} onClose={onClose}
@@ -310,7 +322,13 @@ function CertificationModal({ isOpen, onClose, item, onSave, saving }: {
   item: ProfileCertification | null; onSave: (v: ProfileCertification) => void;
 }) {
   const [form, setForm] = useState<ProfileCertification>(item ?? EMPTY_CERT);
-  useEffect(() => { setForm(item ?? EMPTY_CERT); }, [item, isOpen]);
+  const [prevItem, setPrevItem] = useState(item);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (item !== prevItem || isOpen !== prevIsOpen) {
+    setPrevItem(item);
+    setPrevIsOpen(isOpen);
+    setForm(item ?? EMPTY_CERT);
+  }
 
   return (
     <ProfileModal isOpen={isOpen} onClose={onClose}
@@ -419,7 +437,6 @@ export default function AdminPortfolioPage() {
   const toast = useToast();
 
   const load = useCallback(() => {
-    setLoading(true);
     Promise.all([
       fetch('/api/admin/profile').then(r => r.json()),
       fetch('/api/admin/projects').then(r => r.json()),

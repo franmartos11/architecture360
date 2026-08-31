@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -35,12 +35,17 @@ export default function PlanoTab({
   const [activeLevelIdx, setActiveLevelIdx] = useState(0);
   const activeLevel = levels[activeLevelIdx] ?? levels[0];
 
-  // Si se pidió resaltar un ambiente, saltar a la planta que lo contiene.
-  useEffect(() => {
-    if (!focusRoomId) return;
-    const idx = levels.findIndex(l => l.rooms.some(r => r.id === focusRoomId));
-    if (idx >= 0) setActiveLevelIdx(idx);
-  }, [focusRoomId, levels]);
+  // Si se pidió resaltar un ambiente, saltar a la planta que lo contiene —
+  // ajustado durante el render comparando contra el focusRoomId anterior,
+  // en vez de en un efecto.
+  const [prevFocusRoomId, setPrevFocusRoomId] = useState(focusRoomId);
+  if (focusRoomId !== prevFocusRoomId) {
+    setPrevFocusRoomId(focusRoomId);
+    if (focusRoomId) {
+      const idx = levels.findIndex(l => l.rooms.some(r => r.id === focusRoomId));
+      if (idx >= 0) setActiveLevelIdx(idx);
+    }
+  }
 
   return (
     <motion.div

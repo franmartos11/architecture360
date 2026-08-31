@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { startTransition, useState, useEffect, useCallback, useRef } from 'react';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 
 export interface ApiMessage {
@@ -27,11 +27,16 @@ export function useConversationMessages(conversationId: string) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const messagesRef = useRef<ApiMessage[]>([]);
-  messagesRef.current = messages;
 
   useEffect(() => {
-    setLoading(true);
-    setMessages([]);
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    startTransition(() => {
+      setLoading(true);
+      setMessages([]);
+    });
     fetch(`/api/conversations/${conversationId}/messages`)
       .then(res => res.json())
       .then((data: { messages: ApiMessage[]; hasMore: boolean }) => {

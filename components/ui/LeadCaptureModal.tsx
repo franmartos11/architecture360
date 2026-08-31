@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -50,8 +50,10 @@ export default function LeadCaptureModal({
 
   useEffect(() => {
     if (isOpen) {
-      setMessage(defaultMessage);
-      setIsSuccess(false);
+      startTransition(() => {
+        setMessage(defaultMessage);
+        setIsSuccess(false);
+      });
     }
   }, [isOpen, defaultMessage]);
 

@@ -52,9 +52,14 @@ export default function ProjectAdminShell({
     if (pathname === '/admin/leads') markLeadsSeen();
   }, [pathname, markLeadsSeen]);
 
-  useEffect(() => {
+  // Cierra el menú mobile al navegar — se resetea durante el render (no en
+  // un efecto) siguiendo el patrón de React para "ajustar estado cuando
+  // cambia una prop": https://react.dev/learn/you-might-not-need-an-effect
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setMobileNavOpen(false);
-  }, [pathname]);
+  }
 
   // "Proyecto" agrupa varias sub-pantallas que antes solo se llegaba a
   // ellas por links sueltos dentro de /admin/proyecto (Amenidades,

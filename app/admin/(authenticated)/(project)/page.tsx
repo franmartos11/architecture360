@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, startTransition } from 'react';
 import type { Unit, Lead } from '@/types';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -30,8 +30,10 @@ export default function AdminDashboard() {
   const [error, setError] = useState(false);
 
   const load = useCallback(() => {
-    setLoading(true);
-    setError(false);
+    startTransition(() => {
+      setLoading(true);
+      setError(false);
+    });
     Promise.all([
       fetch('/api/admin/units').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
       fetch('/api/admin/leads').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),

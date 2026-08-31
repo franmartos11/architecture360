@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, startTransition } from 'react';
 import EmojiPicker from '@/components/ui/EmojiPicker';
 
 interface MentionResult {
@@ -48,7 +48,7 @@ export default function MentionTextarea({ value, onChange, rows = 3, maxLength, 
 
   useEffect(() => {
     const q = mention?.query.trim();
-    if (!q) { setResults([]); return; }
+    if (!q) { startTransition(() => setResults([])); return; }
     let cancelled = false;
     const timer = setTimeout(() => {
       fetch(`/api/profiles/search?q=${encodeURIComponent(q)}`)

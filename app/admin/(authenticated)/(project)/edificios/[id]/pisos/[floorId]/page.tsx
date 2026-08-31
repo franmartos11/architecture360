@@ -5,7 +5,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsEditor from '@/components/admin/FloorUnitsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 
@@ -28,8 +28,10 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
     // (el link "volver" va a Proyecto). Nos ahorramos el fetch — FloorUnitsEditor
     // hace su propia carga.
     if (isSingleHouse) return;
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/buildings/${buildingId}`)
       .then(res => res.json())
       .then(data => {

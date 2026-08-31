@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useCallback } from 'react';
+import { useState, useEffect, use, useCallback, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
 import type { TourData } from '@/types';
@@ -16,8 +16,10 @@ export default function AdminUnitTourPage({ params }: { params: Promise<{ id: st
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/units/${unitId}`)
       .then(res => res.json())
       .then(unit => {
@@ -52,7 +54,7 @@ export default function AdminUnitTourPage({ params }: { params: Promise<{ id: st
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}`} className="text-sm text-gray-500 hover:text-gray-700">← {unitCode}</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Creá tu recorrido — Depto {unitCode}</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Cada ambiente necesita una panorámica 360° (imagen equirectangular). Los "id" de los ambientes acá pueden coincidir con el "Tour node id" que le pusiste a cada ambiente en la pantalla de Ambientes, para que tocar el plano salte directo a la panorámica correspondiente.
+          Cada ambiente necesita una panorámica 360° (imagen equirectangular). Los &quot;id&quot; de los ambientes acá pueden coincidir con el &quot;Tour node id&quot; que le pusiste a cada ambiente en la pantalla de Ambientes, para que tocar el plano salte directo a la panorámica correspondiente.
         </p>
       </div>
 

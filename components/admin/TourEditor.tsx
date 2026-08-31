@@ -463,7 +463,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
           {/* Lista de hotspots del nodo activo */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">Hotspots de "{activeNode.name}"</h3>
+              <h3 className="font-semibold text-gray-900 text-sm">Hotspots de &quot;{activeNode.name}&quot;</h3>
               <span className="text-xs text-gray-400 font-medium">
                 {(activeNode.linkHotspots?.length ?? 0) + (activeNode.infoHotspots?.length ?? 0)}
               </span>
@@ -489,7 +489,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-gray-900 font-medium truncate">{tour.nodes.find(n => n.id === h.targetNodeId)?.name ?? h.targetNodeId}</p>
-                            {h.label && <p className="text-xs text-gray-400 truncate">"{h.label}"</p>}
+                            {h.label && <p className="text-xs text-gray-400 truncate">&quot;{h.label}&quot;</p>}
                           </div>
                           <button
                             onClick={() => handleDeleteLinkHotspot(i)}

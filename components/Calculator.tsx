@@ -15,8 +15,6 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
   const [prima, setPrima] = useState(15);
   const [tasa, setTasa] = useState(6.5);
   const [plazo, setPlazo] = useState(25);
-  const [monto, setMonto] = useState(0);
-  const [resultado, setResultado] = useState(0);
   const [primaOptions, setPrimaOptions] = useState([15, 20, 25, 30]);
   const [tasaOptions, setTasaOptions] = useState([6.5, 7, 8]);
   const [plazoOptions, setPlazoOptions] = useState([20, 25, 30]);
@@ -45,25 +43,18 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
       });
   }, [projectSlug]);
 
-  useEffect(() => {
-    // Fórmula monto: modelo - (modelo * prima / 100)
-    const m = modelo - (modelo * prima / 100);
-    setMonto(m);
+  // Fórmula monto: modelo - (modelo * prima / 100)
+  const monto = modelo - (modelo * prima / 100);
 
-    // Fórmula cuota:
+  // Fórmula cuota: derivada de modelo/prima/tasa/plazo, no necesita estado
+  // ni efecto propio — se recalcula sola en cada render.
+  const resultado = (() => {
     const r = tasa / 12 / 100;
     const n = plazo * 12;
-    
-    let res = 0;
-    if (r === 0) {
-      res = m / n;
-    } else {
-      const pow = Math.pow(1 + r, n);
-      res = (m * (r * pow)) / (pow - 1);
-    }
-    
-    setResultado(res);
-  }, [modelo, prima, tasa, plazo]);
+    if (r === 0) return monto / n;
+    const pow = Math.pow(1 + r, n);
+    return (monto * (r * pow)) / (pow - 1);
+  })();
 
   const formatUSD = (val: number) => {
     return "$" + val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " USD";

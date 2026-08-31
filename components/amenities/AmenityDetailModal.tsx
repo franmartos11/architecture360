@@ -19,9 +19,13 @@ export default function AmenityDetailModal({ amenity, building, onClose }: Ameni
   const basePath = useProjectBasePath();
   const [index, setIndex] = useState(0);
 
-  useEffect(() => {
+  // Reset del índice del carrusel al cambiar de amenity — ajustado durante
+  // el render comparando contra el id anterior, en vez de en un efecto.
+  const [prevAmenityId, setPrevAmenityId] = useState(amenity?.id);
+  if (amenity?.id !== prevAmenityId) {
+    setPrevAmenityId(amenity?.id);
     setIndex(0);
-  }, [amenity?.id]);
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

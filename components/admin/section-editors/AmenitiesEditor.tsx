@@ -36,9 +36,10 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   const toast = useToast();
   const confirmDialog = useConfirm();
 
-  const load = () => {
-    setLoading(true);
-    setLoadError(false);
+  // Sin resets sincrónicos: se usa directo como callback del efecto de
+  // montaje (los valores iniciales de loading/loadError ya son los
+  // correctos para esa primera carga).
+  const fetchData = () => {
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -54,7 +55,13 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       });
   };
 
-  useEffect(load, []);
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
+    fetchData();
+  };
+
+  useEffect(fetchData, []);
 
   const availableNodes = useMemo(() => {
     if (!form.buildingId) return commonAreasTour?.nodes ?? [];

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Button from '@/components/ui/Button';
@@ -62,25 +62,30 @@ export default function AdminInventory() {
     });
   }, [units, search, buildingFilter, statusFilter, typeFilter]);
 
+  const fetchUnits = () => {
+    startTransition(() => {
+      setLoading(true);
+      setError(false);
+    });
+    fetch('/api/admin/units')
+      .then(res => {
+        if (!res.ok) throw new Error('Request failed');
+        return res.json();
+      })
+      .then(data => {
+        setUnits(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(true);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     fetchUnits();
   }, []);
-
-  const fetchUnits = async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch('/api/admin/units');
-      if (!res.ok) throw new Error('Request failed');
-      const data = await res.json();
-      setUnits(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error(error);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleUpdateUnit = async (id: string, updates: Partial<Pick<UnitRow, 'status' | 'price'>>) => {
     setSavingId(id);

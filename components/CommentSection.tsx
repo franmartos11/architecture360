@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, startTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/ToastProvider';
 import { CommentSkeleton } from '@/components/ui/Skeleton';
@@ -56,7 +56,7 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    setLoading(true);
+    startTransition(() => { setLoading(true); });
     fetch(`${apiBase}?${idParam}=${entityId}`)
       .then(res => res.json())
       .then(data => {

@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useState, useEffect, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -39,7 +38,7 @@ export default function MisProyectosPage() {
   const toast = useToast();
 
   const load = () => {
-    setLoading(true);
+    startTransition(() => { setLoading(true); });
     fetch('/api/admin/projects')
       .then(res => {
         if (!res.ok) throw new Error(String(res.status));
@@ -68,15 +67,16 @@ export default function MisProyectosPage() {
     return res.ok;
   };
 
-  const enterProject = async (id: string) => {
+  const enterProject = (id: string) => {
     setSelectingId(id);
-    const ok = await setActiveProject(id);
-    if (ok) {
-      window.location.href = '/admin'; // fuerza reload para que las rutas API lean la cookie nueva
-    } else {
-      setSelectingId(null);
-      toast('No se pudo entrar a ese proyecto.', 'error');
-    }
+    setActiveProject(id).then(ok => {
+      if (ok) {
+        window.location.href = '/admin'; // fuerza reload para que las rutas API lean la cookie nueva
+      } else {
+        setSelectingId(null);
+        toast('No se pudo entrar a ese proyecto.', 'error');
+      }
+    });
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -235,7 +235,7 @@ export default function MisProyectosPage() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-2">Por ejemplo: un estudiante de arquitectura mostrando su proyecto de estudio elegiría "Solo para mostrar" — sin precio, sin estado de venta, sin formulario de contacto.</p>
+              <p className="text-xs text-gray-400 mt-2">Por ejemplo: un estudiante de arquitectura mostrando su proyecto de estudio elegiría &quot;Solo para mostrar&quot; — sin precio, sin estado de venta, sin formulario de contacto.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 items-end">
@@ -253,7 +253,7 @@ export default function MisProyectosPage() {
               </Button>
             </div>
             <p className="text-xs text-gray-400">
-              El link para compartirlo se genera solo a partir del nombre — lo vas a poder ver en "Proyecto" apenas lo crees.
+              El link para compartirlo se genera solo a partir del nombre — lo vas a poder ver en &quot;Proyecto&quot; apenas lo crees.
             </p>
           </form>
           {error && <p className="px-6 pb-4 text-sm text-red-500">{error}</p>}

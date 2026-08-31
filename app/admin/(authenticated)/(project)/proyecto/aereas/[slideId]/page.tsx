@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useMemo } from 'react';
+import { useState, useEffect, use, useMemo, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
@@ -48,8 +48,10 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const toast = useToast();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -139,7 +141,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
         <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{typeConfig.hasUnitStep ? `Delimitar ${buildingLabelLower}s` : `Marcar la ${buildingLabelLower}`} — {slide.label}</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Elegí {un} {buildingLabelLower} de la lista y marcá su silueta en la foto. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — cualquier punto se puede arrastrar para ajustarlo, doble click lo borra. El pin (📍) se ubica solo en el centro de la silueta — usá <strong>Pin</strong> para arrastrarlo a mano, o doble click sobre el pin para volver al automático. Si te equivocás, "Deshacer" (o Ctrl/Cmd+Z) vuelve un paso atrás.
+          Elegí {un} {buildingLabelLower} de la lista y marcá su silueta en la foto. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — cualquier punto se puede arrastrar para ajustarlo, doble click lo borra. El pin (📍) se ubica solo en el centro de la silueta — usá <strong>Pin</strong> para arrastrarlo a mano, o doble click sobre el pin para volver al automático. Si te equivocás, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás.
         </p>
       </div>
 

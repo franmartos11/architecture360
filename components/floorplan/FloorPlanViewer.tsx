@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, startTransition } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -84,13 +84,15 @@ export default function FloorPlanViewer({
   useEffect(() => {
     if (unitsOnFloor.length > 0) {
       if (!selectedUnit || selectedUnit.floor !== activeFloor) {
-        setSelectedUnit(unitsOnFloor[0]);
-        // On mobile: don't auto-open the full panel, just pre-select silently
-        if (!isMobileRef.current) {
-          setPanelOpen(true);
-        } else {
-          setMobilePreviewUnit(null);
-        }
+        startTransition(() => {
+          setSelectedUnit(unitsOnFloor[0]);
+          // On mobile: don't auto-open the full panel, just pre-select silently
+          if (!isMobileRef.current) {
+            setPanelOpen(true);
+          } else {
+            setMobilePreviewUnit(null);
+          }
+        });
       }
     }
   }, [activeFloor, unitsOnFloor, selectedUnit]);

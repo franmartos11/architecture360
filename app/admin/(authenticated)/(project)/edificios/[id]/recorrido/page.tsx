@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
@@ -20,8 +20,10 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/buildings/${id}`)
       .then(res => res.json())
       .then(data => {

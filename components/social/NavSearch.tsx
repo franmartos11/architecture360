@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -21,7 +21,7 @@ export default function NavSearch() {
   useEffect(() => {
     const q = query.trim();
     if (!q) {
-      setResults([]);
+      startTransition(() => setResults([]));
       return;
     }
     const timer = setTimeout(() => {

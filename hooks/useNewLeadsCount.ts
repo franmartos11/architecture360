@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'leads-last-seen-at';
 const POLL_INTERVAL_MS = 30000;
@@ -31,7 +31,9 @@ export function useNewLeadsCount() {
   }, []);
 
   useEffect(() => {
-    check();
+    startTransition(() => {
+      check();
+    });
     const interval = setInterval(check, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [check]);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 interface TourOrientationControlProps {
   hint: string;
@@ -30,9 +30,16 @@ export default function TourOrientationControl({ hint, value, onChange, disabled
   const [dragging, setDragging] = useState(false);
   const [localDeg, setLocalDeg] = useState(value);
 
-  useEffect(() => {
+  // Si cambia `value` (o se suelta el arrastre) y no se está arrastrando
+  // ahora, el dial vuelve a reflejar el valor externo — durante el render,
+  // no en un efecto, para no pisar la posición mientras el usuario arrastra.
+  const [prevValue, setPrevValue] = useState(value);
+  const [prevDragging, setPrevDragging] = useState(dragging);
+  if (value !== prevValue || dragging !== prevDragging) {
+    setPrevValue(value);
+    setPrevDragging(dragging);
     if (!dragging) setLocalDeg(value);
-  }, [value, dragging]);
+  }
 
   const commit = (deg: number | undefined) => onChange(deg === undefined ? undefined : ((deg % 360) + 360) % 360);
 

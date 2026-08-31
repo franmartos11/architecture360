@@ -114,12 +114,16 @@ export default function AerialView({ project }: AerialViewProps) {
     return { x: (pixelX / cw) * 100, y: (pixelY / ch) * 100 };
   }, [containerSize, naturalSize]);
 
-  // Reset interacción al cambiar de slide
-  useEffect(() => {
+  // Reset interacción al cambiar de slide — ajustado durante el render
+  // (no en un efecto) comparando contra el valor anterior de currentSlide,
+  // como recomienda la doc de React para "adjusting state on a prop change".
+  const [prevSlideForReset, setPrevSlideForReset] = useState(currentSlide);
+  if (currentSlide !== prevSlideForReset) {
+    setPrevSlideForReset(currentSlide);
     setMediaLoaded(false);
     setAnimationDone(false);
     setHoveredBuildingId(null);
-  }, [currentSlide]);
+  }
 
   // Autoplay carousel
   useEffect(() => {

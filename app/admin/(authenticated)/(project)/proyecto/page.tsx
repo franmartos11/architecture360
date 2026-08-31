@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -86,8 +86,10 @@ export default function AdminProjectPage() {
   const shareLink = useShareLink();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -111,7 +113,9 @@ export default function AdminProjectPage() {
   // Se completa recién en el cliente para no desalinear el render de
   // servidor — antes de eso mostramos solo la ruta, sin el dominio.
   const [origin, setOrigin] = useState('');
-  useEffect(() => setOrigin(window.location.origin), []);
+  useEffect(() => {
+    startTransition(() => setOrigin(window.location.origin));
+  }, []);
 
   const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();

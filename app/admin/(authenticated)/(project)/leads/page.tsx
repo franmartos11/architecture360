@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
@@ -11,25 +11,30 @@ export default function AdminLeads() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  const fetchLeads = () => {
+    startTransition(() => {
+      setLoading(true);
+      setError(false);
+    });
+    fetch('/api/admin/leads')
+      .then(res => {
+        if (!res.ok) throw new Error('Request failed');
+        return res.json();
+      })
+      .then(data => {
+        setLeads(data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error(error);
+        setError(true);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     fetchLeads();
   }, []);
-
-  const fetchLeads = async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch('/api/admin/leads');
-      if (!res.ok) throw new Error('Request failed');
-      const data = await res.json();
-      setLeads(data);
-    } catch (error) {
-      console.error(error);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleWhatsApp = (phone: string | null, name: string | null) => {
     if (!phone) return;

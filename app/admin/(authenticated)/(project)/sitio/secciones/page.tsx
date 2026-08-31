@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, startTransition } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -33,8 +33,10 @@ export default function AdminSeccionesPage() {
   }, [sections]);
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch('/api/admin/project/preview')
       .then(res => res.json())
       .then(data => {

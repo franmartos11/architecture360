@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -46,8 +46,10 @@ export default function AdminSitioPage() {
   const [editingPortada, setEditingPortada] = useState(false);
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     Promise.all([
       fetch('/api/admin/project/preview').then(res => res.json()),
       fetch('/api/admin/fonts').then(res => res.json()),
@@ -118,7 +120,7 @@ export default function AdminSitioPage() {
         <CardHeader>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Secciones</h3>
-            <p className="text-sm text-gray-500">En el orden real de la página — para reordenarlas o apagarlas, andá a "Secciones".</p>
+            <p className="text-sm text-gray-500">En el orden real de la página — para reordenarlas o apagarlas, andá a &quot;Secciones&quot;.</p>
           </div>
           <Link href="/admin/sitio/secciones" className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0">
             Reordenar / mostrar-ocultar →

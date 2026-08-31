@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -50,8 +50,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const confirmDialog = useConfirm();
 
   const load = () => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch(`/api/admin/buildings/${id}`)
       .then(res => res.json())
       .then(data => {
@@ -210,7 +212,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         </form>
         {hasFloorStep && (
           <p className="px-6 pb-4 text-xs text-gray-500">
-            "Pisos declarados" es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en "Guardar".
+            &quot;Pisos declarados&quot; es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en &quot;Guardar&quot;.
           </p>
         )}
       </Card>

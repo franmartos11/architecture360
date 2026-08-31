@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -121,17 +121,19 @@ function AdminWizardPageInner() {
   // edificio puntual), ese contexto manda por sobre cualquier sesión vieja
   // guardada en el navegador. Si no, retoma donde quedó la última vez.
   useEffect(() => {
-    if (deepLinkBuildingId) {
-      setBuildingId(deepLinkBuildingId);
-      if (deepLinkStep) setStep(deepLinkStep);
-      return;
-    }
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-      if (saved?.buildingId) setBuildingId(saved.buildingId);
-      if (saved?.floorId) setFloorId(saved.floorId);
-      if (saved?.step) setStep(saved.step);
-    } catch { /* ignore */ }
+    startTransition(() => {
+      if (deepLinkBuildingId) {
+        setBuildingId(deepLinkBuildingId);
+        if (deepLinkStep) setStep(deepLinkStep);
+        return;
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+        if (saved?.buildingId) setBuildingId(saved.buildingId);
+        if (saved?.floorId) setFloorId(saved.floorId);
+        if (saved?.step) setStep(saved.step);
+      } catch { /* ignore */ }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -143,17 +145,17 @@ function AdminWizardPageInner() {
   // de proyecto actual — ej. se retoma en "Piso"/"Casa" un flujo que no
   // tiene ese paso. Sin esto el stepper queda sin nada activo y goPrev()
   // puede indexar fuera del array. Se vuelve al primer paso del flujo
-  // actual (siempre existe → no cicla).
-  useEffect(() => {
-    if (!STEPS.some(s => s.id === step)) {
-      setStep(STEPS[0].id);
-      setFloorId(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFloorStep, hasUnitStep, step]);
+  // actual (siempre existe → no cicla). Corrección derivada y pura —
+  // se hace durante el render (no en un efecto): STEPS/step ya están
+  // disponibles acá, y apenas se corrige la condición pasa a ser falsa,
+  // así que no vuelve a dispararse.
+  if (!STEPS.some(s => s.id === step)) {
+    setStep(STEPS[0].id);
+    setFloorId(null);
+  }
 
   const loadBuildings = useCallback(() => {
-    setLoadingBuildings(true);
+    startTransition(() => setLoadingBuildings(true));
     fetch('/api/admin/buildings')
       .then(res => res.json())
       .then(data => {
@@ -176,9 +178,11 @@ function AdminWizardPageInner() {
     if (loadingBuildings || staleCheckedRef.current) return;
     staleCheckedRef.current = true;
     if (buildingId && !buildings.some(b => b.id === buildingId)) {
-      setBuildingId(null);
-      setFloorId(null);
-      setStep(STEPS[0].id);
+      startTransition(() => {
+        setBuildingId(null);
+        setFloorId(null);
+        setStep(STEPS[0].id);
+      });
       localStorage.removeItem(STORAGE_KEY);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,8 +222,8 @@ function AdminWizardPageInner() {
   }, [hasUnitStep, loadingBuildings, buildings.length, projectName, loadBuildings]);
 
   const loadFloors = useCallback(() => {
-    if (!buildingId) { setFloors([]); return; }
-    setLoadingFloors(true);
+    if (!buildingId) { startTransition(() => setFloors([])); return; }
+    startTransition(() => setLoadingFloors(true));
     fetch(`/api/admin/buildings/${buildingId}`)
       .then(res => res.json())
       .then(data => {
@@ -233,27 +237,26 @@ function AdminWizardPageInner() {
 
   // "casa" es UNA sola — si ya existe, se selecciona sola: no hay lista que
   // elegir ni alta que ofrecer (ver el render del paso "edificio").
-  useEffect(() => {
-    if (!hasUnitStep && !buildingId && buildings.length > 0) {
-      setBuildingId(buildings[0].id);
-    }
-  }, [hasUnitStep, buildingId, buildings]);
+  // Corrección derivada y pura — se hace durante el render (no en un
+  // efecto): apenas se asigna, la condición pasa a ser falsa y no cicla.
+  if (!hasUnitStep && !buildingId && buildings.length > 0) {
+    setBuildingId(buildings[0].id);
+  }
 
   // Sin paso "Piso" no hay dónde elegirlo a mano — en cuanto se sabe qué
   // piso (único) tiene el building activo, se selecciona solo. Cubre
   // tanto elegir un building ya existente de la lista como, de rebote,
   // el que se acaba de crear (aunque ahí ya se setea explícito arriba).
-  useEffect(() => {
-    if (!hasFloorStep && floors.length > 0 && !floorId) {
-      setFloorId(floors[0].id);
-    }
-  }, [hasFloorStep, floors, floorId]);
+  // Misma corrección derivada y pura durante el render.
+  if (!hasFloorStep && floors.length > 0 && !floorId) {
+    setFloorId(floors[0].id);
+  }
 
   // Se carga independiente del paso "Unidades" — si se retoma la carga
   // guiada directo en "Delimitación" o "Ambientes" (desde localStorage),
   // esos pasos igual necesitan saber qué unidades tiene el piso.
   const loadUnits = useCallback(() => {
-    if (!floorId) { setUnits([]); return; }
+    if (!floorId) { startTransition(() => setUnits([])); return; }
     fetch(`/api/admin/units?floorId=${floorId}`)
       .then(res => res.json())
       .then(data => setUnits(Array.isArray(data) ? data : []))
@@ -261,7 +264,16 @@ function AdminWizardPageInner() {
   }, [floorId]);
 
   useEffect(loadUnits, [loadUnits]);
-  useEffect(() => setActiveUnitId(null), [floorId]);
+
+  // Al cambiar de piso, la unidad activa del paso "Ambientes" ya no
+  // corresponde — se resetea. Usamos el patrón de "valor anterior" en vez
+  // de un efecto: comparamos floorId contra el floorId del render pasado y
+  // solo reseteamos justo cuando cambió, no en cada render.
+  const [prevFloorIdForActiveUnit, setPrevFloorIdForActiveUnit] = useState(floorId);
+  if (floorId !== prevFloorIdForActiveUnit) {
+    setPrevFloorIdForActiveUnit(floorId);
+    setActiveUnitId(null);
+  }
 
   const selectedBuilding = buildings.find(b => b.id === buildingId) ?? null;
   const selectedFloor = floors.find(f => f.id === floorId) ?? null;
@@ -681,7 +693,7 @@ function AdminWizardPageInner() {
                 <CardHeader><h3 className="text-sm font-semibold text-gray-900">Plano de {selectedFloor.label}</h3></CardHeader>
                 <div className="p-5">
                   <ImageUploader value={selectedFloor.plan_image ?? ''} onChange={handleUpdateFloorPlan} folder="floorplans" />
-                  <p className="text-xs text-gray-400 mt-2">Este es el plano sobre el que vas a delimitar {unitLabel.toLowerCase()}s en el paso "Delimitación".</p>
+                  <p className="text-xs text-gray-400 mt-2">Este es el plano sobre el que vas a delimitar {unitLabel.toLowerCase()}s en el paso &quot;Delimitación&quot;.</p>
                 </div>
               </Card>
             )}

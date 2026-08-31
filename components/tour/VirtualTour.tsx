@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { TourData, TourNode, TourLinkHotspot, TourInfoHotspot } from '@/types';
+import type { TourData } from '@/types';
+import type { Scene, Viewer } from 'marzipano';
 import type { SunAzimuths } from '@/lib/sun-position';
 
 interface VirtualTourProps {
@@ -24,7 +25,7 @@ interface VirtualTourProps {
 export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId, hideNodeNav, orientationDegrees, sunAzimuths }: VirtualTourProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
-  const scenesRef = useRef<Record<string, any>>({});
+  const scenesRef = useRef<Record<string, Scene>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(focusNodeId || tourData?.initialNodeId || null);
@@ -32,7 +33,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
   const sunsetMarkerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let viewer: any = null;
+    let viewer: Viewer | null = null;
 
     async function initMarzipano() {
       if (!containerRef.current) return;
@@ -65,7 +66,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
               limiter
             );
 
-            const scene = viewer.createScene({
+            const scene = viewer!.createScene({
               source,
               geometry,
               view,

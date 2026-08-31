@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 
 // Si hay API key de Google, el mapa interactivo es Google Maps; si no, el
@@ -42,8 +42,8 @@ export default function LocationPicker({ latitude, longitude, onChange, label = 
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 3) { setResults([]); return; }
-    setSearching(true);
+    if (q.length < 3) { startTransition(() => { setResults([]); }); return; }
+    startTransition(() => { setSearching(true); });
     const timer = setTimeout(() => {
       fetch(`/api/admin/geocode?q=${encodeURIComponent(q)}`)
         .then(res => res.json())

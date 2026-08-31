@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
@@ -17,8 +17,10 @@ export default function AdminCommonAreasTourPage() {
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
-    setLoading(true);
-    setLoadError(false);
+    startTransition(() => {
+      setLoading(true);
+      setLoadError(false);
+    });
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => {
@@ -64,7 +66,7 @@ export default function AdminCommonAreasTourPage() {
         <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Recorrido de espacios comunes</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Pasillos, pileta, parrilla, gimnasio y demás áreas comunes del edificio — el recorrido que se ve en "Recorrer el edificio" desde la vista aérea.
+          Pasillos, pileta, parrilla, gimnasio y demás áreas comunes del edificio — el recorrido que se ve en &quot;Recorrer el edificio&quot; desde la vista aérea.
         </p>
       </div>
 
