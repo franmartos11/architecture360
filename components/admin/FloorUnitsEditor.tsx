@@ -426,7 +426,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     price: form.price === '' ? null : Number(form.price),
     currency: form.currency || 'USD',
     status: form.status,
-    orientation: form.orientation || null,
+    orientation: unitIsLand ? null : (form.orientation || null),
     interiorImageUrl: form.interiorImageUrl || null,
     galleryImages: form.galleryImages.filter(Boolean),
     floorPlan3dUrl: form.floorPlan3dUrl || null,
@@ -779,8 +779,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               </div>
             )}
-            {/* Casa: la orientación se carga con la brújula de abajo, no acá. */}
-            {hasUnitStep && (
+            {/* Casa: la orientación se carga con la brújula de abajo. Lote:
+                es terreno, no lleva orientación. */}
+            {hasUnitStep && !unitIsLand && (
               <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
             )}
           </div>

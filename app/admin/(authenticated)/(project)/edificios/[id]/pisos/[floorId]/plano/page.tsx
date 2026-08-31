@@ -65,7 +65,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
           <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Datos {agree.del} {buildingLabel.toLowerCase()}</Link>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Plano y ambientes {agree.del} {buildingLabel.toLowerCase()}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo. Cada cambio se guarda solo.
+            Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. Cada cambio se guarda solo.
           </p>
         </div>
         {units.length === 0 ? (
@@ -85,7 +85,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {unitLabelLower}s en el plano</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
+          Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno; cuando terminaste tocá <strong>Listo</strong> (o Escape) y queda guardado. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
         </p>
       </div>
 

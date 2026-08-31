@@ -409,7 +409,7 @@ export default function UnitViewer({
               <SpecRow label={`${unit.otherRoomsCount} ambiente${unit.otherRoomsCount !== 1 ? 's' : ''} más${unit.otherRoomsDescription ? ` (${unit.otherRoomsDescription})` : ''}`} />
             )}
             {!unitIsLand && !!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
-            {!!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
+            {!unitIsLand && !!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
             {!unitIsLand && unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
             {!unitIsLand && !!unit.garageSpaces && (
               <SpecRow label={`${unit.garageSpaces} Cochera${unit.garageSpaces !== 1 ? 's' : ''}${unit.garageType ? ` (${unit.garageType})` : ''}`} />

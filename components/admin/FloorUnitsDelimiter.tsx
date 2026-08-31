@@ -144,15 +144,6 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     setPoints(prev => ({ ...prev, [id]: [] }));
   };
 
-  // "Cancelar" / Escape: descarta lo dibujado sin guardar y repone la
-  // silueta + el pin desde lo último persistido.
-  const handleCancelShape = (id: string) => {
-    const unit = units.find(u => u.id === id);
-    setPoints(prev => ({ ...prev, [id]: unit?.polygon ?? [] }));
-    const dot = unitDots.find(d => d.unitId === unit?.code);
-    setPinOverrides(prev => ({ ...prev, [id]: dot ? { x: dot.x, y: dot.y } : null }));
-  };
-
   // Pines de floor.unit_dots que apuntan a un unitId que ya no existe (unidad
   // borrada, o quedó de una carga vieja) — el visor público los muestra como
   // un "?" en vez del pin dorado con el nombre. Se pueden borrar acá.
@@ -269,7 +260,6 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
           mode={mode}
           onPointsChange={handlePointsChange}
           onComplete={handleSave}
-          onCancel={handleCancelShape}
           pinPoint={activeId ? (pinOverrides[activeId] ?? (points[activeId]?.length >= 3 ? centroid(points[activeId]) : null)) : null}
           onPinPlace={point => activeId && setPinOverrides(prev => ({ ...prev, [activeId]: point }))}
           pinColor={activeId ? (pinColors[activeId] || getStatusColor(units.find(u => u.id === activeId)?.status ?? '')) : undefined}
