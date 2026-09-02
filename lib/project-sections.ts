@@ -2,10 +2,9 @@ import type { ProjectTypeConfig } from './project-types';
 
 // Fuente única de verdad para qué secciones tiene la landing pública de
 // un proyecto y en qué orden por defecto — usado tanto por la landing
-// (app/proyecto/[slug]/page.tsx) como por el panel de admin
-// (sitio/secciones). Hero, Comentarios y Footer quedan fuera de este
-// sistema a propósito: son "chrome" fijo de la página, no contenido
-// reordenable.
+// (app/proyecto/[slug]/page.tsx) como por el panel de admin (/admin/sitio).
+// Hero, Comentarios y Footer quedan fuera de este sistema a propósito: son
+// "chrome" fijo de la página, no contenido reordenable.
 export type SectionKey =
   | 'about'
   | 'before_after'
@@ -135,8 +134,8 @@ interface EmptyCheckProject {
 
 // Qué secciones DISPONIBLES no tienen nada para mostrar todavía — mismo
 // criterio de contenido que usa cada componente de
-// components/project-landing/ para devolver null. Compartido entre
-// /admin/sitio/secciones y /admin/sitio para no duplicar el criterio.
+// components/project-landing/ para devolver null. Lo usa /admin/sitio
+// para marcar el estado "vacía" en la lista y en el resumen.
 //
 // 'masterplan' SÍ se marca vacío sin aerialSlides — antes se asumía que
 // "siempre tiene fallback" y se dejaba afuera de este chequeo, pero el

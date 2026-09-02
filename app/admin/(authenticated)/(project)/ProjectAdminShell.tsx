@@ -82,17 +82,14 @@ export default function ProjectAdminShell({
   ];
   const isProjectSection = pathname === '/admin/proyecto' || pathname.startsWith('/admin/proyecto/') || pathname.startsWith('/admin/edificios');
 
-  // "Sitio web" agrupa edición de contenido y presentación — "Gestión" es
-  // el hub de contenido/secciones (lo mismo que ya se ve al clickear
-  // "Sitio web" arriba, solo que nombrado explícitamente como sub-ítem),
-  // "Estilo" la paleta/tipografía, y "Secciones" el orden y prendido/
-  // apagado de cada bloque de la landing — antes vivía bajo "Proyecto",
-  // separado de Estilo, aunque las dos son la misma tarea de personalizar
-  // el sitio. Mismo mecanismo de expandirse que "Proyecto".
+  // "Sitio web" agrupa edición de contenido y presentación — "Secciones"
+  // es la lista + panel de edición de cada bloque de la landing (orden,
+  // mostrar/ocultar y contenido, todo en una sola pantalla — ver
+  // lib/project-sections.ts) y "Estilo" la paleta/tipografía. Mismo
+  // mecanismo de expandirse que "Proyecto".
   const sitioSubItems = [
-    { label: 'Gestión', href: '/admin/sitio' },
+    { label: 'Secciones', href: '/admin/sitio' },
     { label: 'Estilo', href: '/admin/estilo' },
-    { label: 'Secciones', href: '/admin/sitio/secciones' },
   ];
   const isSitioSection = pathname === '/admin/sitio' || pathname.startsWith('/admin/sitio/') || pathname.startsWith('/admin/estilo');
 
