@@ -483,7 +483,7 @@ export default function FloorPlanViewer({
               doubleClick={{ disabled: false, step: 0.5 }}
               pinch={{ step: 5 }}
             >
-              <TransformComponent wrapperClass="w-full h-full !flex items-center justify-center" contentClass="relative w-full max-w-[1400px]">
+              <TransformComponent wrapperClass="!w-full !h-full !flex items-center justify-center" contentClass="relative !w-full max-w-[1400px]">
                 <Image
                   src={floor.planImage}
                   alt={floor.label}
