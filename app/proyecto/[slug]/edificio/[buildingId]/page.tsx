@@ -13,11 +13,21 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId } = await params;
   const project = await getProjectBySlug(slug);
-  const building = project?.buildings.find(b => b.id === buildingId);
-  if (!building || !project) return { title: 'Edificio no encontrado' };
+  if (!project) return { title: 'Proyecto no encontrado' };
 
-  const title = `${building.name} | Plano de Pisos`;
-  const description = `Explorá el plano de pisos de ${building.name} en ${project.name}, con disponibilidad de unidades en tiempo real.`;
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const building = project.buildings.find(b => b.id === buildingId);
+  if (!building) {
+    return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
+  }
+
+  const unitLabelLower = typeConfig.unitLabel.toLowerCase();
+  const title = typeConfig.hasFloorStep
+    ? `${building.name} | Plano de Pisos`
+    : `${building.name} | Plano de ${typeConfig.unitLabel}s`;
+  const description = typeConfig.hasFloorStep
+    ? `Explorá el plano de pisos de ${building.name} en ${project.name}, con disponibilidad de unidades en tiempo real.`
+    : `Explorá el plano de ${unitLabelLower}s de ${building.name} en ${project.name}, con disponibilidad de ${unitLabelLower}s en tiempo real.`;
   const image = project.masterplanImage || undefined;
 
   return {

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
 import { getBuildingById, getProjectBySlug } from '@/data/project-repository';
+import { getProjectTypeConfig } from '@/lib/project-types';
 import { getSunAzimuths } from '@/lib/sun-position';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
@@ -12,8 +13,13 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId } = await params;
-  const building = await getBuildingById(slug, buildingId);
-  if (!building) return { title: 'Torre no encontrada' };
+  const project = await getProjectBySlug(slug);
+  if (!project) return { title: 'Proyecto no encontrado' };
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const building = project.buildings.find(b => b.id === buildingId);
+  if (!building) {
+    return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
+  }
   return {
     title: `${building.name} | Amenities en 360°`,
     description: `Recorré en 360° las amenities exclusivas de ${building.name}.`,

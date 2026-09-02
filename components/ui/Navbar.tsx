@@ -5,11 +5,13 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 
-export default function Navbar({ showCalculator, hasTour, singleUnit }: {
+export default function Navbar({ showCalculator, hasTour, singleUnit, unitsLabel: unitsLabelProp }: {
   showCalculator: boolean;
   hasTour: boolean;
   /** Tipo "casa": una sola unidad — el link va directo a ella y se llama como la casa. */
   singleUnit?: { buildingId: string; unitId: string; label: string };
+  /** Plural de unitLabel del tipo de proyecto (ej. "Lotes", "Unidades") — para el link cuando no hay singleUnit. */
+  unitsLabel?: string;
 }) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -24,7 +26,7 @@ export default function Navbar({ showCalculator, hasTour, singleUnit }: {
   const unitsHref = singleUnit
     ? `${basePath}/edificio/${singleUnit.buildingId}/unidad/${singleUnit.unitId}`
     : `${basePath}/unidades`;
-  const unitsLabel = singleUnit?.label ?? 'Unidades';
+  const unitsLabel = singleUnit?.label ?? unitsLabelProp ?? 'Unidades';
   const amenitiesHref = `${basePath}/amenities`;
   const locationHref = `${basePath}/ubicacion`;
   const calculatorHref = `${basePath}#cotizador`;

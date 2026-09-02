@@ -65,6 +65,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         singleUnit={!typeConfig.hasUnitStep && project.units[0]
           ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
           : undefined}
+        unitsLabel={`${typeConfig.unitLabel}s`}
       />
 
       {/* Hero Section */}

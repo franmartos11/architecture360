@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<UnitStatus | 'all', string> = {
 
 export default function UnitsListView({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
   const basePath = useProjectBasePath();
-  const { hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, buildingLabel, unitLabel } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const [buildingFilter, setBuildingFilter] = useState<string>(
@@ -87,7 +87,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
           >
             ← {project.name.toUpperCase()}
           </Link>
-          <div className="text-trevo-lightgreen tracking-widest text-sm font-semibold mt-6">UNIDADES DISPONIBLES</div>
+          <div className="text-trevo-lightgreen tracking-widest text-sm font-semibold mt-6">{unitLabel.toUpperCase()}S DISPONIBLES</div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-thin tracking-wide text-white leading-tight mt-3 max-w-2xl">
             {typeConfig.unitIsLand
               ? <>Encontrá tu <span className="font-medium">próximo terreno</span></>
@@ -166,7 +166,7 @@ export default function UnitsListView({ project, initialBuildingFilter, typeConf
                   buildingName={project.buildings.find(b => b.id === u.buildingId)?.name}
                   showPrice={typeConfig.showPrice}
                   showStatus={typeConfig.showStatus}
-                  hasUnitStep={hasUnitStep}
+                  hasFloorStep={hasFloorStep}
                   unitIsLand={typeConfig.unitIsLand}
                 />
               ))}
@@ -218,14 +218,14 @@ function UnitCard({
   buildingName,
   showPrice,
   showStatus,
-  hasUnitStep,
+  hasFloorStep,
   unitIsLand,
 }: {
   unit: Unit;
   buildingName?: string;
   showPrice: boolean;
   showStatus: boolean;
-  hasUnitStep: boolean;
+  hasFloorStep: boolean;
   unitIsLand: boolean;
 }) {
   const basePath = useProjectBasePath();
@@ -258,7 +258,7 @@ function UnitCard({
         )}
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <p className="text-xs text-white/70 tracking-widest uppercase font-medium">
-            {(hasUnitStep
+            {(hasFloorStep
               ? [buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`]
               : [buildingName]
             ).filter(Boolean).join(' · ')}

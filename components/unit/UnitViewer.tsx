@@ -346,7 +346,9 @@ export default function UnitViewer({
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-400 uppercase tracking-wide mb-4">{unit.modelName}</p>
+          {!unitIsLand && (
+            <p className="text-sm text-gray-400 uppercase tracking-wide mb-4">{unit.modelName}</p>
+          )}
 
           {/* Price & Calculator */}
           {(showLeads || showCalculator) && (

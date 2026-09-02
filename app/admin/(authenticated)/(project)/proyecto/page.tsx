@@ -661,7 +661,7 @@ export default function AdminProjectPage() {
                     href={`/admin/proyecto/aereas/${slide.id}`}
                     className="text-sm font-medium text-brand-600 hover:text-brand-700"
                   >
-                    {hasUnitStep ? 'Delimitar torres →' : 'Marcar la casa →'}
+                    {hasUnitStep ? `Delimitar ${buildingLabelLower}s →` : 'Marcar la casa →'}
                   </Link>
                   <button
                     onClick={() => handleDeleteSlide(slide.id)}
@@ -702,7 +702,7 @@ export default function AdminProjectPage() {
                 <p className="text-xs text-gray-400">
                   Para agregar o mover un hotspot, usá{' '}
                   <Link href={`/admin/proyecto/aereas/${slide.id}`} className="text-brand-600 hover:text-brand-700 font-medium">
-                    {hasUnitStep ? 'Delimitar torres →' : 'Marcar la casa →'}
+                    {hasUnitStep ? `Delimitar ${buildingLabelLower}s →` : 'Marcar la casa →'}
                   </Link>{' '}
                   y ubicalo con un clic directo sobre la foto.
                 </p>
