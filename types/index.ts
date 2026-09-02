@@ -48,6 +48,8 @@ export interface TourNode {
   initialView?: { yaw: number; pitch: number; fov: number };
   linkHotspots?: TourLinkHotspot[];
   infoHotspots?: TourInfoHotspot[];
+  /** Cartel corto opcional que aparece en el visor público al entrar a este ambiente. */
+  note?: string;
 }
 
 export interface TourData {

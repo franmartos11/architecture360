@@ -22,6 +22,8 @@ interface VirtualTourProps {
   sunAzimuths?: SunAzimuths | null;
 }
 
+const NOTE_HIDE_MS = 5000;
+
 export default function VirtualTour({ imageUrl, tourData, initialView, focusNodeId, hideNodeNav, orientationDegrees, sunAzimuths }: VirtualTourProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
@@ -31,6 +33,27 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(focusNodeId || tourData?.initialNodeId || null);
   const sunriseMarkerRef = useRef<HTMLDivElement>(null);
   const sunsetMarkerRef = useRef<HTMLDivElement>(null);
+  const currentNote = tourData?.nodes.find(n => n.id === currentNodeId)?.note;
+  const [noteVisible, setNoteVisible] = useState(!!currentNote);
+
+  // El cartel del ambiente se muestra de nuevo cada vez que se entra a un
+  // nodo con nota (incluso si es el mismo texto de antes, ej. al volver) —
+  // se decide acá, durante el render, comparando contra el nodo anterior
+  // (mismo patrón que TourOrientationControl) en vez de en un efecto, para
+  // no disparar un setState síncrono apenas monta.
+  const [noteNodeId, setNoteNodeId] = useState(currentNodeId);
+  if (currentNodeId !== noteNodeId) {
+    setNoteNodeId(currentNodeId);
+    setNoteVisible(!!currentNote);
+  }
+
+  // El retiro automático sí es un efecto legítimo: se retira sola a los
+  // pocos segundos, no es un elemento persistente como el indicador de sol.
+  useEffect(() => {
+    if (!noteVisible) return;
+    const t = setTimeout(() => setNoteVisible(false), NOTE_HIDE_MS);
+    return () => clearTimeout(t);
+  }, [noteVisible, currentNodeId]);
 
   useEffect(() => {
     let viewer: Viewer | null = null;
@@ -301,6 +324,17 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
               {node.name}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Cartel del ambiente ("texto en el visor" del editor admin) */}
+      {!isLoading && !error && currentNote && (
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 z-10 max-w-[min(90vw,420px)] px-4 py-2.5 rounded-xl bg-gray-900/70 backdrop-blur-sm border border-white/10 shadow-lg text-center text-sm text-white/90 transition-opacity duration-500 pointer-events-none ${
+            !hideNodeNav && tourData && tourData.nodes.length > 1 ? 'top-24' : 'top-6'
+          } ${noteVisible ? 'opacity-100' : 'opacity-0'}`}
+        >
+          {currentNote}
         </div>
       )}
 
