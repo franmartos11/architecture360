@@ -276,12 +276,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: transform 0.2s;
   pointer-events: auto;
-}
-.link-hotspot:hover,
-.link-hotspot:focus-visible {
-  transform: scale(1.1);
 }
 .link-hotspot:focus-visible {
   outline: 2px solid white;
@@ -299,6 +294,16 @@ body {
   justify-content: center;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   animation: pulse-ring 2s infinite;
+  /* El transform de posicionamiento vive en el elemento raíz (.link-hotspot),
+     escrito por Marzipano en cada frame de render. El scale de hover se
+     aplica acá, en un hijo, para no pelear con esos writes por frame:
+     transicionar el transform del propio elemento posicionado hace que
+     arrastre/rote con lag detrás de su posición real en cada frame. */
+  transition: transform 0.2s;
+}
+.link-hotspot:hover .hotspot-icon,
+.link-hotspot:focus-visible .hotspot-icon {
+  transform: scale(1.1);
 }
 .link-hotspot .hotspot-icon svg {
   width: 20px;
@@ -403,15 +408,9 @@ body {
      superponer entre ellos cuando están cerca. */
   gap: 6px;
   pointer-events: auto;
-  transition: transform 0.15s;
-}
-.admin-tour-marker:hover {
-  transform: scale(1.06);
 }
 .admin-tour-marker.is-dragging {
-  transform: scale(1.15);
   z-index: 20;
-  transition: none;
 }
 .admin-tour-marker .marker-icon {
   position: relative;
@@ -429,6 +428,19 @@ body {
      dispara scroll/zoom del navegador antes de llegar a nuestro
      pointerdown/pointermove. */
   touch-action: none;
+  /* El transform de posicionamiento vive en el elemento raíz (.admin-tour-marker),
+     escrito por Marzipano en cada frame de render (drag incluido). El scale de
+     hover/drag se aplica acá, en un hijo, para no pelear con esos writes por
+     frame: transicionar el transform del propio elemento posicionado hace que
+     arrastre con lag detrás de su posición real en cada frame. */
+  transition: transform 0.15s;
+}
+.admin-tour-marker:hover .marker-icon {
+  transform: scale(1.06);
+}
+.admin-tour-marker.is-dragging .marker-icon {
+  transform: scale(1.15);
+  transition: none;
 }
 .admin-tour-marker .marker-icon:active {
   cursor: grabbing;
