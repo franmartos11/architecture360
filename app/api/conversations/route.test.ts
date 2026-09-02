@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
+vi.mock('@/lib/blocks', () => ({ isBlockedEitherWay: vi.fn().mockResolvedValue(false) }));
 
 import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { isBlockedEitherWay } from '@/lib/blocks';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
 
@@ -46,21 +48,27 @@ describe('GET /api/conversations', () => {
     expect(await res.json()).toEqual({ conversations: [] });
   });
 
-  it('con conversaciones: arma "other" según quién soy, último mensaje y no-leídos', async () => {
+  it('con conversaciones: arma "other" según quién soy, último mensaje (denormalizado) y no-leídos', async () => {
     const other1 = { id: 'p2', handle: 'beto', display_name: 'Beto', avatar_image: null };
     const other2 = { id: 'p3', handle: 'caro', display_name: 'Caro', avatar_image: null };
     const rows = [
-      { id: 'conv-1', participant_one: 'me-1', participant_two: 'p2', last_message_at: '2026-01-02T00:00:00Z', one: null, two: other1 },
-      { id: 'conv-2', participant_one: 'p3', participant_two: 'me-1', last_message_at: '2026-01-01T00:00:00Z', one: other2, two: null },
-    ];
-    const lastMessages = [
-      { conversation_id: 'conv-1', body: 'hola', sender_id: 'p2', created_at: '2026-01-02T00:00:00Z' },
-      { conversation_id: 'conv-2', body: 'hey', sender_id: 'me-1', created_at: '2026-01-01T00:00:00Z' },
+      {
+        id: 'conv-1', participant_one: 'me-1', participant_two: 'p2', last_message_at: '2026-01-02T00:00:00Z',
+        last_message_body: 'hola', last_message_sender_id: 'p2', one: null, two: other1,
+      },
+      {
+        id: 'conv-2', participant_one: 'p3', participant_two: 'me-1', last_message_at: '2026-01-01T00:00:00Z',
+        last_message_body: 'hey', last_message_sender_id: 'me-1', one: other2, two: null,
+      },
+      {
+        id: 'conv-3', participant_one: 'me-1', participant_two: 'p4', last_message_at: '2026-01-03T00:00:00Z',
+        last_message_body: null, last_message_sender_id: null, one: null, two: { id: 'p4', handle: 'dani', display_name: 'Dani', avatar_image: null },
+      },
     ];
     const unreadRows = [{ conversation_id: 'conv-1' }, { conversation_id: 'conv-1' }];
     const supabase = mockSupabase({
       user: { id: 'me-1' },
-      results: [{ data: rows, error: null }, { data: lastMessages }, { data: unreadRows }],
+      results: [{ data: rows, error: null }, { data: unreadRows }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -68,8 +76,9 @@ describe('GET /api/conversations', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       conversations: [
-        { id: 'conv-1', other: other1, lastMessage: lastMessages[0], unreadCount: 2, lastMessageAt: '2026-01-02T00:00:00Z' },
-        { id: 'conv-2', other: other2, lastMessage: lastMessages[1], unreadCount: 0, lastMessageAt: '2026-01-01T00:00:00Z' },
+        { id: 'conv-1', other: other1, lastMessage: { body: 'hola', sender_id: 'p2', created_at: '2026-01-02T00:00:00Z' }, unreadCount: 2, lastMessageAt: '2026-01-02T00:00:00Z' },
+        { id: 'conv-2', other: other2, lastMessage: { body: 'hey', sender_id: 'me-1', created_at: '2026-01-01T00:00:00Z' }, unreadCount: 0, lastMessageAt: '2026-01-01T00:00:00Z' },
+        { id: 'conv-3', other: { id: 'p4', handle: 'dani', display_name: 'Dani', avatar_image: null }, lastMessage: null, unreadCount: 0, lastMessageAt: '2026-01-03T00:00:00Z' },
       ],
     });
   });
@@ -79,6 +88,7 @@ describe('POST /api/conversations', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
     vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
+    vi.mocked(isBlockedEitherWay).mockReset().mockResolvedValue(false);
   });
 
   it('sin sesión: 401', async () => {
@@ -137,6 +147,19 @@ describe('POST /api/conversations', () => {
     const res = await POST(postReq({ handle: 'self' }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('No podés mandarte un mensaje a vos mismo.');
+  });
+
+  it('alguno de los dos bloqueó al otro: 403, no llega a chequear/crear la conversación', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'me-1' },
+      results: [{ data: { id: 'me-1' } }, { data: { id: 'p2' } }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(isBlockedEitherWay).mockResolvedValue(true);
+
+    const res = await POST(postReq({ handle: 'beto' }));
+    expect(res.status).toBe(403);
+    expect(isBlockedEitherWay).toHaveBeenCalledWith(supabase, 'me-1', 'p2');
   });
 
   it('ya existe conversación con ese perfil: devuelve la existente (200), no inserta', async () => {

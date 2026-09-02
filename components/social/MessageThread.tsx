@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Paperclip, Mic, Square, FileText } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
@@ -9,9 +10,89 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 import { useConversationMessages, type ApiMessage } from '@/hooks/useConversationMessages';
 import EmbeddedPostCard from '@/components/social/EmbeddedPostCard';
 import EmojiPicker from '@/components/ui/EmojiPicker';
+import KebabMenu from '@/components/ui/KebabMenu';
 import { useIsOnline } from '@/lib/presence-context';
 
 const MAX_ATTACHMENT_SIZE = 15 * 1024 * 1024;
+const MAX_REPORT_REASON_LENGTH = 500;
+
+// Modal chiquito y autocontenido para las dos únicas acciones que
+// necesita el menú "⋯" del hilo — no vale la pena traer ConfirmProvider
+// acá (vive solo bajo /admin hoy, montarlo en el layout social para esto
+// solo sería blast radius de más) ni un textarea-modal genérico para un
+// único uso.
+function ThreadActionDialog({
+  kind, otherName, onCancel, onConfirmBlock, onSubmitReport, submitting,
+}: {
+  kind: 'block' | 'report';
+  otherName: string;
+  onCancel: () => void;
+  onConfirmBlock: () => void;
+  onSubmitReport: (reason: string) => void;
+  submitting: boolean;
+}) {
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[300] p-4" onClick={onCancel}>
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
+        onClick={e => e.stopPropagation()}
+        role="alertdialog"
+        aria-modal="true"
+      >
+        {kind === 'block' ? (
+          <>
+            <h3 className="text-lg font-semibold text-trevo-dark mb-1.5">¿Bloquear a {otherName}?</h3>
+            <p className="text-sm text-trevo-dark/60">
+              No van a poder mandarse mensajes nuevos en ninguna dirección. Podés desbloquear cuando quieras.
+            </p>
+            <div className="flex items-center gap-3 mt-5 justify-end">
+              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium text-trevo-dark/60 hover:bg-trevo-dark/5 transition-colors">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmBlock}
+                disabled={submitting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                Bloquear
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="text-lg font-semibold text-trevo-dark mb-1.5">Reportar a {otherName}</h3>
+            <p className="text-sm text-trevo-dark/60 mb-3">Contanos brevemente qué pasó — lo revisamos nosotros, {otherName} no se entera.</p>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              maxLength={MAX_REPORT_REASON_LENGTH}
+              rows={4}
+              autoFocus
+              placeholder="Qué pasó..."
+              className="w-full px-3 py-2 rounded-xl border border-trevo-dark/15 text-sm text-trevo-dark placeholder:text-trevo-dark/30 focus:ring-2 focus:ring-trevo-dark/20 outline-none resize-none"
+            />
+            <div className="flex items-center gap-3 mt-4 justify-end">
+              <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium text-trevo-dark/60 hover:bg-trevo-dark/5 transition-colors">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => onSubmitReport(reason.trim())}
+                disabled={submitting || !reason.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-trevo-dark disabled:opacity-40 transition-colors"
+              >
+                Enviar denuncia
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function attachmentFileName(url: string): string {
   try {
@@ -74,6 +155,11 @@ export default function MessageThread({ conversationId, other }: { conversationI
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toast = useToast();
   const otherOnline = useIsOnline(other?.id);
+  const router = useRouter();
+  const [blockedByMe, setBlockedByMe] = useState(false);
+  const [canMessage, setCanMessage] = useState(true);
+  const [dialog, setDialog] = useState<'block' | 'report' | null>(null);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -83,6 +169,63 @@ export default function MessageThread({ conversationId, other }: { conversationI
   useEffect(() => {
     fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {});
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!other?.handle) return;
+    fetch(`/api/blocks/${other.handle}`)
+      .then(res => res.json())
+      .then(data => {
+        setBlockedByMe(!!data.isBlockedByMe);
+        setCanMessage(data.canMessage !== false);
+      })
+      .catch(() => {});
+  }, [other?.handle]);
+
+  const handleUnblock = async () => {
+    if (!other?.handle) return;
+    const res = await fetch(`/api/blocks/${other.handle}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setBlockedByMe(false);
+      setCanMessage(data.canMessage !== false);
+      toast('Desbloqueado.', 'success');
+    } else {
+      toast('No se pudo desbloquear.', 'error');
+    }
+  };
+
+  const handleConfirmBlock = async () => {
+    if (!other?.handle) return;
+    setActionSubmitting(true);
+    const res = await fetch(`/api/blocks/${other.handle}`, { method: 'POST' });
+    setActionSubmitting(false);
+    setDialog(null);
+    if (res.ok) {
+      toast(`Bloqueaste a ${other.display_name}.`, 'success');
+      router.push('/mensajes');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'No se pudo bloquear.', 'error');
+    }
+  };
+
+  const handleSubmitReport = async (reason: string) => {
+    if (!other?.handle || !reason) return;
+    setActionSubmitting(true);
+    const res = await fetch(`/api/reports/${other.handle}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, entityId: conversationId }),
+    });
+    setActionSubmitting(false);
+    if (res.ok) {
+      setDialog(null);
+      toast('Denuncia enviada — gracias por avisarnos.', 'success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'No se pudo enviar la denuncia.', 'error');
+    }
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
@@ -110,16 +253,15 @@ export default function MessageThread({ conversationId, other }: { conversationI
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folder', 'messages');
-    const uploadRes = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+    const uploadRes = await fetch(`/api/conversations/${conversationId}/attachments`, { method: 'POST', body: formData });
     if (!uploadRes.ok) {
       setUploading(false);
       const data = await uploadRes.json().catch(() => ({}));
       toast(data.error ?? 'No se pudo subir el archivo.', 'error');
       return;
     }
-    const { url } = await uploadRes.json();
-    const res = await sendMessage('', { url, type });
+    const { path } = await uploadRes.json();
+    const res = await sendMessage('', { path, type });
     setUploading(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -193,7 +335,30 @@ export default function MessageThread({ conversationId, other }: { conversationI
           </Link>
           {otherOnline && <p className="text-xs text-green-600">En línea</p>}
         </div>
+        {other && (
+          <div className="ml-auto">
+            <KebabMenu
+              items={[
+                blockedByMe
+                  ? { label: 'Desbloquear', onClick: handleUnblock }
+                  : { label: 'Bloquear', onClick: () => setDialog('block'), danger: true },
+                { label: 'Reportar', onClick: () => setDialog('report') },
+              ]}
+            />
+          </div>
+        )}
       </div>
+
+      {dialog && other && (
+        <ThreadActionDialog
+          kind={dialog}
+          otherName={other.display_name}
+          onCancel={() => setDialog(null)}
+          onConfirmBlock={handleConfirmBlock}
+          onSubmitReport={handleSubmitReport}
+          submitting={actionSubmitting}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {hasMore && (
@@ -246,6 +411,11 @@ export default function MessageThread({ conversationId, other }: { conversationI
         <div ref={bottomRef} />
       </div>
 
+      {!canMessage ? (
+        <div className="px-4 py-3 border-t border-trevo-dark/10 shrink-0 text-center text-sm text-trevo-dark/40">
+          Ya no podés mandar mensajes en esta conversación.
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 border-t border-trevo-dark/10 shrink-0">
         <input
           ref={fileInputRef}
@@ -303,6 +473,7 @@ export default function MessageThread({ conversationId, other }: { conversationI
           </button>
         )}
       </form>
+      )}
     </div>
   );
 }

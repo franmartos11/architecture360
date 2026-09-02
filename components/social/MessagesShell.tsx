@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import ConversationList, { type ConversationRow } from '@/components/social/ConversationList';
 import MessageThread from '@/components/social/MessageThread';
 
-const POLL_INTERVAL_MS = 8000;
+// Red de contención por si el socket de Realtime se corta sin avisar — el
+// disparador normal de load() es el evento de postgres_changes de abajo
+// (antes era polling puro cada 8s, sin importar si había algo nuevo o no).
+const FALLBACK_POLL_INTERVAL_MS = 30000;
 
 // Layout de dos paneles en desktop (lista + hilo abierto), un panel a la
 // vez en mobile — patrón nuevo en el proyecto, no hay nada parecido hoy.
@@ -23,8 +27,23 @@ export default function MessagesShell({ activeConversationId }: { activeConversa
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+
+    // Sin filtro de columna a propósito: postgres_changes ya viene
+    // acotado por RLS al conjunto de conversaciones donde participo, así
+    // que cualquier INSERT/UPDATE de messages que efectivamente me llega
+    // es relevante para esta lista (mensaje nuevo, o marcado como leído
+    // desde otra pestaña).
+    const supabase = createClient();
+    const channel = supabase
+      .channel('conversations:mine')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => load())
+      .subscribe();
+
+    const fallback = setInterval(load, FALLBACK_POLL_INTERVAL_MS);
+    return () => {
+      clearInterval(fallback);
+      supabase.removeChannel(channel);
+    };
   }, [load]);
 
   const active = conversations?.find(c => c.id === activeConversationId) ?? null;

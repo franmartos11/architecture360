@@ -8,9 +8,20 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 interface NotificationRow {
   id: string;
   type: 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention';
+  entity_id: string | null;
   read_at: string | null;
   created_at: string;
   actor: { handle: string; display_name: string; avatar_image: string | null } | null;
+}
+
+// entity_id de un 'message' es el id de la conversación (ver notify() en
+// app/api/conversations/[id]/messages/route.ts) — antes esto ignoraba el
+// campo y mandaba siempre al perfil del que escribió, nunca al hilo.
+function notificationHref(n: NotificationRow): string {
+  if (n.type === 'collaboration_invite') return '/admin/portfolio';
+  if (n.type === 'message' && n.entity_id) return `/mensajes/${n.entity_id}`;
+  if (n.actor) return `/portfolio/${n.actor.handle}`;
+  return '#';
 }
 
 const TEXT_BY_TYPE: Record<NotificationRow['type'], string> = {
@@ -51,7 +62,7 @@ export default function NotificationsPanel({ onRead }: { onRead: () => void }) {
           {notifications.map(n => (
             <li key={n.id}>
               <Link
-                href={n.type === 'collaboration_invite' ? '/admin/portfolio' : n.actor ? `/portfolio/${n.actor.handle}` : '#'}
+                href={notificationHref(n)}
                 className={`flex items-center gap-3 px-4 py-3 hover:bg-trevo-dark/5 transition-colors ${!n.read_at ? 'bg-brand-50/60' : ''}`}
               >
                 <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0 bg-trevo-dark/10 flex items-center justify-center">

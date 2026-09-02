@@ -1,6 +1,28 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+
+// Fake mínimo del cliente de Realtime — expone `emit()` para simular el
+// evento de postgres_changes que dispararía Supabase cuando llega un
+// mensaje nuevo a la conversación.
+function fakeRealtimeClient() {
+  let handler: ((payload: unknown) => void) | null = null;
+  const channel = {
+    on: vi.fn((_event: string, _filter: unknown, cb: (payload: unknown) => void) => {
+      handler = cb;
+      return channel;
+    }),
+    subscribe: vi.fn(() => channel),
+  };
+  return {
+    client: { channel: vi.fn(() => channel), removeChannel: vi.fn() },
+    emit: () => handler?.({}),
+  };
+}
+
+const realtime = fakeRealtimeClient();
+vi.mock('@/lib/supabase/client', () => ({ createClient: () => realtime.client }));
+
 import { useConversationMessages } from './useConversationMessages';
 import type { ApiMessage } from './useConversationMessages';
 
@@ -62,7 +84,23 @@ describe('useConversationMessages', () => {
     expect(fetchMock).toHaveBeenLastCalledWith('/api/conversations/conv-2/messages');
   });
 
-  it('el polling agrega solo los mensajes nuevos — no duplica los que ya tenía', async () => {
+  it('evento de Realtime (mensaje nuevo insertado): agrega solo los que todavía no tenía', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(messagesResponse([msg('1', '2026-01-01T00:01:00Z')]))
+      .mockResolvedValueOnce(
+        messagesResponse([msg('2', '2026-01-01T00:02:00Z'), msg('1', '2026-01-01T00:01:00Z')])
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useConversationMessages('conv-1'));
+    await waitFor(() => expect(result.current.messages.map(m => m.id)).toEqual(['1']));
+
+    await act(async () => { realtime.emit(); });
+    await waitFor(() => expect(result.current.messages.map(m => m.id)).toEqual(['1', '2']));
+  });
+
+  it('fallback poll: si el socket no avisa nada, igual refresca a intervalo largo', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(messagesResponse([msg('1', '2026-01-01T00:01:00Z')]))
@@ -76,7 +114,7 @@ describe('useConversationMessages', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(result.current.messages.map(m => m.id)).toEqual(['1']);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(25000); });
     expect(result.current.messages.map(m => m.id)).toEqual(['1', '2']);
   });
 

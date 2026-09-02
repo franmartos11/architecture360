@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { HANDLE_RE } from '@/lib/validate';
+import { isBlockedEitherWay } from '@/lib/blocks';
 
 const PARTICIPANT_SELECT = 'id, handle, display_name, avatar_image';
 
@@ -16,7 +17,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('conversations')
     .select(`
-      id, participant_one, participant_two, last_message_at,
+      id, participant_one, participant_two, last_message_at, last_message_body, last_message_sender_id,
       one:profiles!conversations_participant_one_fkey(${PARTICIPANT_SELECT}),
       two:profiles!conversations_participant_two_fkey(${PARTICIPANT_SELECT})
     `)
@@ -27,21 +28,24 @@ export async function GET() {
 
   const rows = (data ?? []) as unknown as {
     id: string; participant_one: string; participant_two: string; last_message_at: string;
+    last_message_body: string | null; last_message_sender_id: string | null;
     one: { id: string; handle: string; display_name: string; avatar_image: string | null } | null;
     two: { id: string; handle: string; display_name: string; avatar_image: string | null } | null;
   }[];
   const ids = rows.map(r => r.id);
   if (ids.length === 0) return NextResponse.json({ conversations: [] });
 
-  const [{ data: lastMessages }, { data: unreadRows }] = await Promise.all([
-    supabase.from('messages').select('conversation_id, body, sender_id, created_at').in('conversation_id', ids).order('created_at', { ascending: false }),
-    supabase.from('messages').select('conversation_id').in('conversation_id', ids).is('read_at', null).neq('sender_id', user.id),
-  ]);
+  // El último mensaje ya viene en la propia fila de conversations
+  // (last_message_body/last_message_sender_id, ver POST de
+  // .../messages) — no hace falta traer mensajes acá, solo el conteo de
+  // no leídos, acotado a las conversaciones de este usuario.
+  const { data: unreadRows } = await supabase
+    .from('messages')
+    .select('conversation_id')
+    .in('conversation_id', ids)
+    .is('read_at', null)
+    .neq('sender_id', user.id);
 
-  const lastByConversation = new Map<string, { body: string | null; sender_id: string; created_at: string }>();
-  for (const m of (lastMessages ?? [])) {
-    if (!lastByConversation.has(m.conversation_id)) lastByConversation.set(m.conversation_id, m);
-  }
   const unreadCountByConversation = new Map<string, number>();
   for (const m of (unreadRows ?? [])) {
     unreadCountByConversation.set(m.conversation_id, (unreadCountByConversation.get(m.conversation_id) ?? 0) + 1);
@@ -50,7 +54,9 @@ export async function GET() {
   const conversations = rows.map(r => ({
     id: r.id,
     other: r.participant_one === user.id ? r.two : r.one,
-    lastMessage: lastByConversation.get(r.id) ?? null,
+    lastMessage: r.last_message_body !== null
+      ? { body: r.last_message_body, sender_id: r.last_message_sender_id, created_at: r.last_message_at }
+      : null,
     unreadCount: unreadCountByConversation.get(r.id) ?? 0,
     lastMessageAt: r.last_message_at,
   }));
@@ -78,6 +84,10 @@ export async function POST(request: Request) {
   const { data: target } = await supabase.from('profiles').select('id').eq('handle', handle).maybeSingle();
   if (!target) return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
   if (target.id === me.id) return NextResponse.json({ error: 'No podés mandarte un mensaje a vos mismo.' }, { status: 400 });
+
+  if (await isBlockedEitherWay(supabase, me.id, target.id)) {
+    return NextResponse.json({ error: 'No podés iniciar una conversación con este perfil.' }, { status: 403 });
+  }
 
   const [participantOne, participantTwo] = [me.id, target.id].sort();
 

@@ -1,6 +1,25 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+
+function fakeRealtimeClient() {
+  let handler: ((payload: unknown) => void) | null = null;
+  const channel = {
+    on: vi.fn((_event: string, _filter: unknown, cb: (payload: unknown) => void) => {
+      handler = cb;
+      return channel;
+    }),
+    subscribe: vi.fn(() => channel),
+  };
+  return {
+    client: { channel: vi.fn(() => channel), removeChannel: vi.fn() },
+    emit: () => handler?.({}),
+  };
+}
+
+const realtime = fakeRealtimeClient();
+vi.mock('@/lib/supabase/client', () => ({ createClient: () => realtime.client }));
+
 import { useUnreadMessagesCount } from './useUnreadMessagesCount';
 
 function countResponse(count: number) {
@@ -34,7 +53,17 @@ describe('useUnreadMessagesCount', () => {
     expect(result.current).toBe(0);
   });
 
-  it('vuelve a pedir el conteo cada 30s mientras está habilitado', async () => {
+  it('evento de Realtime (mensaje insertado/actualizado): vuelve a pedir el conteo', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(countResponse(1)).mockResolvedValueOnce(countResponse(2));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useUnreadMessagesCount(true));
+
+    await waitFor(() => expect(result.current).toBe(1));
+    await act(async () => { realtime.emit(); });
+    await waitFor(() => expect(result.current).toBe(2));
+  });
+
+  it('fallback poll: si el socket no avisa nada, igual vuelve a pedir el conteo a intervalo largo', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(countResponse(1));
     vi.stubGlobal('fetch', fetchMock);
@@ -43,7 +72,7 @@ describe('useUnreadMessagesCount', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -55,7 +84,7 @@ describe('useUnreadMessagesCount', () => {
 
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     unmount();
-    await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(120000); });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

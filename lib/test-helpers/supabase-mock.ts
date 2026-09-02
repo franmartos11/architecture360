@@ -65,6 +65,8 @@ export interface MockSupabaseOptions {
     upload?: MockResult;
     remove?: MockResult;
     getPublicUrl?: { data: { publicUrl: string } };
+    /** Para rutas que firman URLs de adjuntos privados (ver .../messages). */
+    createSignedUrls?: { data: ({ path: string; signedUrl: string } | null)[] | null; error?: unknown };
   };
 }
 
@@ -88,6 +90,7 @@ export function mockSupabase({ results = [], user = null, storage }: MockSupabas
         upload: vi.fn().mockResolvedValue(storage?.upload ?? { data: null, error: null }),
         remove: vi.fn().mockResolvedValue(storage?.remove ?? { data: null, error: null }),
         getPublicUrl: vi.fn().mockReturnValue(storage?.getPublicUrl ?? { data: { publicUrl: 'https://xxx.supabase.co/storage/v1/object/public/project-media/mock.png' } }),
+        createSignedUrls: vi.fn().mockResolvedValue(storage?.createSignedUrls ?? { data: [], error: null }),
       })),
     },
   };

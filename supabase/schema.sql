@@ -821,6 +821,16 @@ create policy "public read project-media"
 -- service_role key (ver lib/supabase/admin.ts), igual que el resto
 -- de las escrituras de administración.
 
+-- Bucket privado aparte para adjuntos de mensajería directa. A diferencia
+-- de project-media (público, pensado para landing pages que cualquiera
+-- visita), un adjunto de DM es privado: se sirve siempre por URL firmada
+-- de corta duración (ver POST/GET de app/api/conversations/[id]/attachments
+-- y app/api/conversations/[id]/messages), nunca por URL pública — por eso
+-- no hay policy de "public read" acá, a propósito.
+insert into storage.buckets (id, name, public)
+values ('message-attachments', 'message-attachments', false)
+on conflict (id) do nothing;
+
 -- ─── Índices útiles ──────────────────────────────────────────────────
 create index if not exists idx_buildings_project on buildings(project_id);
 create index if not exists idx_floors_building on floors(building_id);
@@ -900,6 +910,85 @@ alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
   check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention'));
 
+-- ─── Bloqueos y denuncias ────────────────────────────────────────────
+-- Va antes de mensajería porque las policies de conversations/messages
+-- de más abajo consultan user_blocks — tiene que existir primero.
+--
+-- Bloquear a alguien corta mensajería en ambos sentidos (ver policies de
+-- conversations/messages) — no es un sistema de "amistad", es
+-- unidireccional: A puede bloquear a B sin que B se entere ni pueda
+-- desbloquearse a sí mismo.
+create table if not exists user_blocks (
+  blocker_id uuid not null references profiles(id) on delete cascade,
+  blocked_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+
+create index if not exists user_blocks_blocked_id_idx on user_blocks(blocked_id);
+
+alter table user_blocks enable row level security;
+
+drop policy if exists "own read blocks" on user_blocks;
+create policy "own read blocks" on user_blocks for select to authenticated
+  using (blocker_id = auth.uid());
+
+drop policy if exists "own write blocks" on user_blocks;
+create policy "own write blocks" on user_blocks for all to authenticated
+  using (blocker_id = auth.uid())
+  with check (blocker_id = auth.uid());
+
+-- Las policies de conversations/messages más abajo necesitan chequear "¿A
+-- bloqueó a B O B bloqueó a A?" — pero la policy "own read blocks" de
+-- arriba solo deja ver los bloqueos que ARMASTE vos (blocker_id =
+-- auth.uid()), nunca los que te hicieron a vos. Un subquery común hereda
+-- el RLS de la tabla que consulta bajo el mismo rol, así que nunca vería
+-- "me bloquearon" desde la policy del que manda el mensaje. security
+-- definer corre con los privilegios del dueño de la función (bypasea RLS
+-- de user_blocks acá adentro) sin exponer las filas en sí — el que llama
+-- a esta función solo se entera de un booleano, nunca de quién bloqueó a
+-- quién.
+create or replace function is_blocked_either_way(user_a uuid, user_b uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from user_blocks
+    where (blocker_id = user_a and blocked_id = user_b)
+       or (blocker_id = user_b and blocked_id = user_a)
+  );
+$$;
+
+revoke all on function is_blocked_either_way(uuid, uuid) from public;
+grant execute on function is_blocked_either_way(uuid, uuid) to authenticated;
+
+-- entity_type/entity_id son polimórficos igual que notifications.entity_id
+-- — hoy solo se reporta desde mensajería (entity_type = 'conversation'),
+-- pensado para poder reusarse después (posts, comments) sin migrar de
+-- nuevo. Sin policy de select: los reportes los revisa un humano por
+-- fuera de la app con la service_role key, no hace falta exponerlos por API.
+create table if not exists user_reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null references profiles(id) on delete cascade,
+  reported_id uuid not null references profiles(id) on delete cascade,
+  entity_type text not null check (entity_type in ('conversation', 'post', 'comment')),
+  entity_id uuid,
+  reason text not null,
+  created_at timestamptz not null default now(),
+  check (reporter_id <> reported_id)
+);
+
+create index if not exists user_reports_reported_id_idx on user_reports(reported_id, created_at desc);
+
+alter table user_reports enable row level security;
+
+drop policy if exists "insert own reports" on user_reports;
+create policy "insert own reports" on user_reports for insert to authenticated
+  with check (reporter_id = auth.uid());
+
 -- ─── Mensajería directa ──────────────────────────────────────────────
 -- participant_one siempre el uuid menor de los dos (se normaliza al
 -- crear la conversación, ver POST /api/conversations) — permite un
@@ -924,9 +1013,17 @@ drop policy if exists "participants read conversations" on conversations;
 create policy "participants read conversations" on conversations for select to authenticated
   using (auth.uid() = participant_one or auth.uid() = participant_two);
 
+-- No se puede crear una conversación entre dos personas donde una
+-- bloqueó a la otra, en cualquier dirección — defensa en profundidad,
+-- la ruta (POST /api/conversations) hace el mismo chequeo antes para
+-- devolver un error legible, esto cubre el caso de que algo le pegue
+-- directo a la tabla.
 drop policy if exists "participants insert conversations" on conversations;
 create policy "participants insert conversations" on conversations for insert to authenticated
-  with check (auth.uid() = participant_one or auth.uid() = participant_two);
+  with check (
+    (auth.uid() = participant_one or auth.uid() = participant_two)
+    and not is_blocked_either_way(participant_one, participant_two)
+  );
 
 -- last_message_at se actualiza al mandar un mensaje — cualquiera de los
 -- dos participantes necesita poder tocar la fila, no solo quien la creó.
@@ -958,6 +1055,9 @@ create policy "participants read messages" on messages for select to authenticat
       and (c.participant_one = auth.uid() or c.participant_two = auth.uid())
   ));
 
+-- Mismo chequeo de bloqueo que el insert de conversations: si ya existía
+-- la conversación de antes de que alguno bloqueara al otro, esto igual
+-- corta el envío de mensajes nuevos.
 drop policy if exists "participants send messages" on messages;
 create policy "participants send messages" on messages for insert to authenticated
   with check (
@@ -966,6 +1066,7 @@ create policy "participants send messages" on messages for insert to authenticat
       select 1 from conversations c
       where c.id = messages.conversation_id
         and (c.participant_one = auth.uid() or c.participant_two = auth.uid())
+        and not is_blocked_either_way(c.participant_one, c.participant_two)
     )
   );
 
@@ -997,6 +1098,82 @@ alter table messages add constraint messages_shared_post_id_fkey foreign key (sh
 -- renderizarlo en el hilo ('image' | 'audio' | 'file').
 alter table messages add column if not exists attachment_url text;
 alter table messages add column if not exists attachment_type text;
+
+-- Denormalización del último mensaje en conversations: evita que
+-- GET /api/conversations tenga que traer TODO el historial de mensajes
+-- del usuario para quedarse con el más reciente de cada conversación —
+-- ahora la fila de conversations ya trae el preview armado (se escribe
+-- en el mismo update que ya tocaba last_message_at al mandar un mensaje,
+-- ver POST de app/api/conversations/[id]/messages/route.ts).
+alter table conversations add column if not exists last_message_body text;
+alter table conversations add column if not exists last_message_sender_id uuid references profiles(id) on delete set null;
+
+-- Backfill único para conversaciones que ya tenían mensajes antes de que
+-- existieran estas columnas — recalcula el preview con el mismo criterio
+-- que usa messagePreview() en app/api/conversations/[id]/messages/route.ts.
+-- Se vuelve no-op en cuanto toda fila con al menos un mensaje queda
+-- backfillada (deja de cumplir "last_message_body is null"); para
+-- conversaciones sin mensajes el join de abajo no encuentra nada, así que
+-- seguir corriendo esto en cada deploy es barato.
+update conversations c set
+  last_message_body = lm.preview,
+  last_message_sender_id = lm.sender_id
+from (
+  select distinct on (conversation_id)
+    conversation_id, sender_id,
+    coalesce(
+      nullif(trim(body), ''),
+      case attachment_type
+        when 'image' then '📷 Foto'
+        when 'audio' then '🎙️ Nota de voz'
+        when 'file' then '📎 Archivo'
+        else null
+      end,
+      case when shared_post_id is not null then '🔗 Publicación compartida' else null end
+    ) as preview
+  from messages
+  order by conversation_id, created_at desc
+) lm
+where c.id = lm.conversation_id and c.last_message_body is null;
+
+-- Índices que faltaban para queries que ya corrían en caliente: el
+-- chequeo de rate-limit de POST /messages filtra por sender_id +
+-- created_at (antes solo existía el índice por conversation_id); el
+-- conteo de no leídos filtra conversation_id con read_at is null —
+-- índice parcial porque las filas ya leídas (la mayoría, con el tiempo)
+-- ni entran en él.
+create index if not exists messages_sender_created_idx on messages(sender_id, created_at);
+create index if not exists messages_unread_idx on messages(conversation_id) where read_at is null;
+
+-- Suma messages/conversations/notifications a la publicación de Realtime
+-- que ya usa presence-context.tsx (la de presencia usa un canal de
+-- broadcast, no postgres_changes, así que no tocaba estas tablas antes) —
+-- de acá en más los hooks de mensajes/notificaciones escuchan cambios en
+-- vivo en vez de hacer polling a intervalo fijo. `alter publication ...
+-- add table` no admite "if not exists" en Postgres, así que se guarda con
+-- un chequeo contra pg_publication_tables para que sea seguro re-correr
+-- este archivo entero de nuevo.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table messages;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'conversations'
+  ) then
+    alter publication supabase_realtime add table conversations;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table notifications;
+  end if;
+end $$;
 
 -- ─── Tipografías propias y temas guardados (cuenta, no proyecto) ────
 -- Ambas viven a nivel de cuenta (owner_id) en vez de project_id a
