@@ -276,6 +276,8 @@ export interface ThemeConfig {
   bodyFont?: string;
   customColors?: ThemeColorOverrides;
   backgroundImageUrl?: string;
+  /** Pisa el radio de esquinas del preset — mismo formato que ThemePreset.tokens.radius (valor CSS, ej. '0px'). */
+  radius?: string;
 }
 
 export interface CustomFont {

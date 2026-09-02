@@ -103,6 +103,16 @@ export const THEME_PRESETS: ThemePreset[] = [
 
 export const DEFAULT_PRESET_KEY = 'natural';
 
+// Opciones de "Esquinas" del panel de Estilo — los mismos valores que ya
+// usan los presets de arriba (0px/0.5rem/1.25rem/2rem), para que elegir
+// una quede coherente con el rango real en vez de inventar una escala aparte.
+export const RADIUS_OPTIONS: { label: string; value: string }[] = [
+  { label: 'Rectas', value: '0px' },
+  { label: 'Suaves', value: '0.5rem' },
+  { label: 'Redondeadas', value: '1.25rem' },
+  { label: 'Muy suaves', value: '2rem' },
+];
+
 export function getPreset(key: string | undefined): ThemePreset {
   return THEME_PRESETS.find(p => p.key === key) ?? THEME_PRESETS[0];
 }
