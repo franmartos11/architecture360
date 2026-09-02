@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsEditor from '@/components/admin/FloorUnitsEditor';
+import LotsEditor from '@/components/admin/LotsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useState, useEffect, startTransition } from 'react';
@@ -12,7 +13,7 @@ import { buildingAgreement } from '@/lib/project-types';
 export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
   const { id: buildingId, floorId } = use(params);
   const typeConfig = useProjectTypeConfig();
-  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
+  const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, unitIsLand } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   // casa: la pantalla de edificio redirige acá, así que "volver" ahí no
   // tiene sentido — se sube a Proyecto.
@@ -49,6 +50,13 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
 
   if (loading) return <LoadingSpinner text="Cargando piso..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudo cargar el piso." />;
+
+  // Loteo: pantalla propia (lista + panel, con CSV/bulk/estado de
+  // delimitación) en vez del formulario genérico — un lote no tiene la
+  // mitad de los campos que sí tiene un depto (ver LotsEditor.tsx).
+  if (unitIsLand) {
+    return <LotsEditor buildingId={buildingId} floorId={floorId} buildingName={buildingName} />;
+  }
 
   return (
     <div className="space-y-6">
