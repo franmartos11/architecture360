@@ -167,6 +167,7 @@ export interface AmenityRow {
   tour_node_id: string | null;
   tour_3d_url: string | null;
   sort_order: number;
+  visible: boolean;
   created_at: string;
 }
 

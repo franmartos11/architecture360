@@ -517,12 +517,16 @@ create table if not exists amenities (
   tour_node_id text,
   tour_3d_url text,
   sort_order int not null default 0,
+  visible boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 -- Para bases que ya tenían amenities creada antes de que existiera la
 -- columna tour_3d_url (el CREATE TABLE de arriba no la agrega retroactivamente).
 alter table amenities add column if not exists tour_3d_url text;
+-- Idem para "visible" — antes la única señal de oculta era implícita
+-- (sin fotos no se mostraba en la landing).
+alter table amenities add column if not exists visible boolean not null default true;
 
 -- ─── Puntos de interés (colegios, salud, comercios, etc.) ────────────
 -- Georreferencian el entorno del proyecto para la sección de Ubicación.

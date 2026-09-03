@@ -113,6 +113,7 @@ function mapProject(
   }));
 
   const amenities: Amenity[] = amenityRows
+    .filter(a => a.visible)
     .sort((a, b) => a.sort_order - b.sort_order)
     .map(a => ({
       id: a.id,

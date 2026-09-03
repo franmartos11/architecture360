@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       tour_node_id: body.tourNodeId ?? null,
       tour_3d_url: body.tour3dUrl ?? null,
       sort_order: body.sortOrder ?? 0,
+      visible: body.visible ?? true,
     })
     .select()
     .single();

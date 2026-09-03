@@ -27,6 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.tourNodeId !== undefined) updates.tour_node_id = body.tourNodeId;
   if (body.tour3dUrl !== undefined) updates.tour_3d_url = body.tour3dUrl;
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;
+  if (body.visible !== undefined) updates.visible = body.visible;
 
   const { data, error } = await supabase.from('amenities').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
