@@ -20,23 +20,50 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Conteo de pisos + id del primer piso por edificio (este último lo usa
-  // el redirect de "casa" para ir directo al editor sin un fetch extra).
+  // el redirect de "casa" para ir directo al editor sin un fetch extra),
+  // más las señales de progreso para la tarjeta de "Mis edificios": pisos
+  // con plano, unidades totales y si ya tiene silueta marcada en la foto
+  // aérea — todo en lotes agrupados por building_id, mismo patrón que ya
+  // usa GET /api/admin/projects para el progreso de "Mis proyectos".
   const buildingIds = (buildings ?? []).map(b => b.id);
-  const { data: floors } = buildingIds.length
-    ? await supabase.from('floors').select('id, building_id, number').in('building_id', buildingIds).order('number')
-    : { data: [] };
+  const [{ data: floors }, { data: hotspots }] = await Promise.all([
+    buildingIds.length
+      ? supabase.from('floors').select('id, building_id, number, plan_image').in('building_id', buildingIds).order('number')
+      : Promise.resolve({ data: [] }),
+    buildingIds.length
+      ? supabase.from('aerial_hotspots').select('building_id').in('building_id', buildingIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const floorCountByBuilding = new Map<string, number>();
+  const floorsWithPlanByBuilding = new Map<string, number>();
   const firstFloorByBuilding = new Map<string, string>();
   for (const f of floors ?? []) {
     floorCountByBuilding.set(f.building_id, (floorCountByBuilding.get(f.building_id) ?? 0) + 1);
+    if (f.plan_image) floorsWithPlanByBuilding.set(f.building_id, (floorsWithPlanByBuilding.get(f.building_id) ?? 0) + 1);
     if (!firstFloorByBuilding.has(f.building_id)) firstFloorByBuilding.set(f.building_id, f.id);
   }
+
+  const floorIds = (floors ?? []).map(f => f.id);
+  const buildingIdByFloor = new Map((floors ?? []).map(f => [f.id, f.building_id as string]));
+  const { data: units } = floorIds.length
+    ? await supabase.from('units').select('floor_id').in('floor_id', floorIds)
+    : { data: [] };
+  const unitsCountByBuilding = new Map<string, number>();
+  for (const u of units ?? []) {
+    const buildingId = buildingIdByFloor.get(u.floor_id);
+    if (buildingId) unitsCountByBuilding.set(buildingId, (unitsCountByBuilding.get(buildingId) ?? 0) + 1);
+  }
+
+  const buildingsWithSilhouette = new Set((hotspots ?? []).map(h => h.building_id as string));
 
   return NextResponse.json(
     (buildings ?? []).map(b => ({
       ...b,
       floors_loaded: floorCountByBuilding.get(b.id) ?? 0,
+      floors_with_plan: floorsWithPlanByBuilding.get(b.id) ?? 0,
+      units_count: unitsCountByBuilding.get(b.id) ?? 0,
+      has_silhouette: buildingsWithSilhouette.has(b.id),
       first_floor_id: firstFloorByBuilding.get(b.id) ?? null,
     }))
   );

@@ -63,10 +63,12 @@ describe('GET /api/admin/buildings', () => {
         { data: [{ id: 'building-1', slug: 'torre', name: 'Torre del Mar' }] }, // .from('buildings')
         {
           data: [
-            { id: 'floor-1', building_id: 'building-1', number: 1 },
-            { id: 'floor-2', building_id: 'building-1', number: 2 },
+            { id: 'floor-1', building_id: 'building-1', number: 1, plan_image: 'https://x/plan1.jpg' },
+            { id: 'floor-2', building_id: 'building-1', number: 2, plan_image: null },
           ],
         }, // .from('floors')
+        { data: [] }, // .from('aerial_hotspots')
+        { data: [{ floor_id: 'floor-1' }, { floor_id: 'floor-1' }] }, // .from('units')
       ],
     });
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
@@ -74,7 +76,10 @@ describe('GET /api/admin/buildings', () => {
     const res = await GET(get('http://localhost/api/admin/buildings'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { id: 'building-1', slug: 'torre', name: 'Torre del Mar', floors_loaded: 2, first_floor_id: 'floor-1' },
+      {
+        id: 'building-1', slug: 'torre', name: 'Torre del Mar',
+        floors_loaded: 2, floors_with_plan: 1, units_count: 2, has_silhouette: false, first_floor_id: 'floor-1',
+      },
     ]);
   });
 });

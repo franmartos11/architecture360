@@ -45,6 +45,9 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [newFloor, setNewFloor] = useState({ number: '', label: '', planImage: '', floorKind: 'units' as DbFloorRow['floor_kind'], floorKindDescription: '' });
   const toast = useToast();
   const confirmDialog = useConfirm();
@@ -150,6 +153,83 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [duplicateTarget, setDuplicateTarget] = useState<FloorRow | null>(null);
   const [applyTemplateTarget, setApplyTemplateTarget] = useState<FloorRow | null>(null);
 
+  // Stats agregados y el "gap" entre lo declarado y lo cargado — se derivan
+  // acá mismo de floors/unitSummaries, sin pedir nada nuevo al server.
+  const floorsWithPlan = floors.filter(f => f.plan_image).length;
+  const totalUnits = unitSummaries.length;
+  const readyFloors = floors.filter(f => f.plan_image && unitSummaries.some(u => u.floor_id === f.id)).length;
+  const missingFloors = Math.max(0, (building?.total_floors ?? 0) - floors.length);
+  const floorsWithoutPlan = floors.length - floorsWithPlan;
+
+  const generateMissingFloors = async () => {
+    if (missingFloors === 0) return;
+    setGenerating(true);
+    const start = floors.length ? Math.max(...floors.map(f => f.number)) : 0;
+    for (let i = 1; i <= missingFloors; i++) {
+      await fetch('/api/admin/floors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buildingId: id, number: start + i, label: `Planta ${start + i}` }),
+      });
+    }
+    setGenerating(false);
+    load();
+  };
+
+  const toggleSel = (floorId: string) => setSel(prev => {
+    const next = new Set(prev);
+    if (next.has(floorId)) next.delete(floorId); else next.add(floorId);
+    return next;
+  });
+  const visibleFloorIds = floors.map(f => f.id);
+  const allSelected = sel.size > 0 && visibleFloorIds.every(id => sel.has(id));
+  const toggleSelAll = () => setSel(allSelected ? new Set() : new Set(visibleFloorIds));
+
+  const bulkApplyFirstFloorPlan = async () => {
+    const firstFloor = floors.slice().sort((a, b) => a.number - b.number)[0];
+    if (!firstFloor?.plan_image) return;
+    setBulkBusy(true);
+    await Promise.all(Array.from(sel).map(floorId =>
+      fetch(`/api/admin/floors/${floorId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planImage: firstFloor.plan_image }),
+      })
+    ));
+    setBulkBusy(false);
+    setSel(new Set());
+    load();
+  };
+
+  const bulkCycleType = async () => {
+    const kinds = FLOOR_KIND_OPTIONS.map(o => o.value);
+    setBulkBusy(true);
+    await Promise.all(Array.from(sel).map(floorId => {
+      const f = floors.find(x => x.id === floorId);
+      if (!f) return Promise.resolve();
+      const nextKind = kinds[(kinds.indexOf(f.floor_kind) + 1) % kinds.length];
+      return fetch(`/api/admin/floors/${floorId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ floorKind: nextKind }),
+      });
+    }));
+    setBulkBusy(false);
+    setSel(new Set());
+    load();
+  };
+
+  const bulkDeleteFloors = async () => {
+    const ok = await confirmDialog({
+      message: `¿Borrar ${sel.size} piso${sel.size === 1 ? '' : 's'} y todas sus unidades? No se puede deshacer.`,
+      confirmLabel: 'Borrar', danger: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    await Promise.all(Array.from(sel).map(floorId => fetch(`/api/admin/floors/${floorId}`, { method: 'DELETE' })));
+    setBulkBusy(false);
+    setSel(new Set());
+    load();
+  };
+
   if (loading) return <LoadingSpinner text={`Cargando ${buildingLabelLower}...`} tone="light" />;
   if (loadError || !building) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el edificio' : `${agree.el} ${buildingLabelLower}`}.`} onRetry={load} />;
   if (isSingleHouse) {
@@ -218,7 +298,32 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       </Card>
 
       {hasFloorStep ? (
-        <Card>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <StatCard value={`${floors.length} / ${building.total_floors}`} label="pisos cargados de los declarados" warn={floors.length < building.total_floors} />
+            <StatCard value={`${floorsWithPlan} / ${floors.length}`} label="pisos con su plano subido" warn={floorsWithPlan < floors.length} />
+            <StatCard value={String(totalUnits)} label={totalUnits ? `unidades en ${readyFloors} pisos publicables` : 'unidades — todavía ninguna'} warn={totalUnits === 0} />
+          </div>
+
+          {(missingFloors > 0 || floorsWithoutPlan > 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+              <p className="flex-1 min-w-[220px] text-sm text-amber-800">
+                {missingFloors > 0
+                  ? `Declaraste ${building.total_floors} pisos y tenés ${floors.length} cargados. Puedo crear los ${missingFloors} que faltan, vacíos y numerados.`
+                  : `${floorsWithoutPlan} piso${floorsWithoutPlan === 1 ? '' : 's'} todavía no ${floorsWithoutPlan === 1 ? 'tiene' : 'tienen'} plano: el sitio no puede mostrar sus deptos hasta que lo subas.`}
+              </p>
+              {missingFloors > 0 && (
+                <button
+                  type="button" onClick={generateMissingFloors} disabled={generating}
+                  className="h-8 px-3 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shrink-0"
+                >
+                  {generating ? 'Creando...' : `Crear los ${missingFloors} pisos`}
+                </button>
+              )}
+            </div>
+          )}
+
+          <Card>
           <CardHeader>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Pisos</h3>
@@ -232,10 +337,23 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             </Link>
           </CardHeader>
 
+          {sel.size > 0 && (
+            <div className="mx-6 mt-4 bg-gray-900 rounded-xl px-4 py-2.5 flex items-center gap-2 flex-wrap">
+              <p className="flex-1 min-w-[140px] text-sm font-medium text-white">{sel.size} piso{sel.size === 1 ? '' : 's'} seleccionado{sel.size === 1 ? '' : 's'}</p>
+              <button type="button" onClick={bulkApplyFirstFloorPlan} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Usar el plano del piso 1</button>
+              <button type="button" onClick={bulkCycleType} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Cambiar tipo</button>
+              <button type="button" onClick={bulkDeleteFloors} disabled={bulkBusy} className="h-8 px-2.5 border border-red-400/50 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-50">Borrar</button>
+              <button type="button" onClick={() => setSel(new Set())} aria-label="Deseleccionar todo" className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white">×</button>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-3 w-10">
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelAll} aria-label="Seleccionar todos los pisos" className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                  </th>
                   <th className="px-6 py-3 text-sm font-semibold text-gray-900 w-24">Número</th>
                   <th className="px-6 py-3 text-sm font-semibold text-gray-900">Etiqueta</th>
                   <th className="px-6 py-3 text-sm font-semibold text-gray-900">Tipo</th>
@@ -249,7 +367,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                   const c = completeness(f.id);
                   const isUnitsFloor = f.floor_kind === 'units';
                   return (
-                  <tr key={f.id}>
+                  <tr key={f.id} className={sel.has(f.id) ? 'bg-brand-50/50' : ''}>
+                    <td className="px-6 py-3">
+                      <input type="checkbox" checked={sel.has(f.id)} onChange={() => toggleSel(f.id)} aria-label={`Seleccionar piso ${f.number}`} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                    </td>
                     <td className="px-6 py-3 text-sm text-gray-600">{f.number}</td>
                     <td className="px-6 py-3">
                       <input
@@ -321,7 +442,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                   );
                 })}
                 {floors.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
                 )}
               </tbody>
             </table>
@@ -375,7 +496,8 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
               folder="floorplans"
             />
           </form>
-        </Card>
+          </Card>
+        </>
       ) : !hasUnitStep ? (
         // Cada building tiene un único piso interno invisible, y ese piso
         // una única unidad — la building ES la unidad (ver hasUnitStep en
@@ -478,6 +600,15 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           onDone={() => { setApplyTemplateTarget(null); load(); }}
         />
       )}
+    </div>
+  );
+}
+
+function StatCard({ value, label, warn }: { value: string; label: string; warn: boolean }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3.5">
+      <p className={`text-xl font-semibold leading-none ${warn ? 'text-amber-600' : 'text-gray-900'}`}>{value}</p>
+      <p className="text-xs text-gray-500 mt-1.5">{label}</p>
     </div>
   );
 }
