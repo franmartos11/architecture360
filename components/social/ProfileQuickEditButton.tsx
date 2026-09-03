@@ -18,7 +18,13 @@ import type { Portfolio } from '@/data/profile-repository';
 // mandamos skills/experiences/etc se pisan con vacío. Por eso el body
 // siempre parte del `portfolio` completo ya cargado y solo pisa los
 // campos que edita este modal.
-export default function ProfileQuickEditButton({ portfolio }: { portfolio: Portfolio }) {
+interface ProfileQuickEditButtonProps {
+  portfolio: Portfolio;
+  /** Trigger visual alternativo (ej. "Cambiar portada" sobre el banner) — mismo modal, mismo estado, solo cambia el botón que lo abre. Default: el botón "Editar perfil". */
+  trigger?: (props: { onClick: () => void }) => React.ReactNode;
+}
+
+export default function ProfileQuickEditButton({ portfolio, trigger }: ProfileQuickEditButtonProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -64,13 +70,15 @@ export default function ProfileQuickEditButton({ portfolio }: { portfolio: Portf
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-stone-200 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900 transition-colors shrink-0"
-      >
-        <Pencil className="w-3.5 h-3.5" />
-        Editar perfil
-      </button>
+      {trigger ? trigger({ onClick: () => setOpen(true) }) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 h-[38px] px-4 rounded-[10px] bg-trevo-dark text-white text-sm font-medium hover:bg-trevo-dark/85 transition-colors shrink-0"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Editar perfil
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4" onClick={() => !saving && setOpen(false)}>

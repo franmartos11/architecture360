@@ -20,6 +20,8 @@ export interface PortfolioTeamMember {
 export interface Portfolio extends Profile {
   /** profiles.id (= auth.uid() de esa cuenta) — para que la página pueda saber si el visitante es el dueño. */
   id: string;
+  /** profiles.created_at — para mostrar "Miembro desde <año>" en el header del perfil. */
+  createdAt: string;
   projects: PortfolioProjectSummary[];
   /** Proyectos ajenos donde esta cuenta tiene un crédito confirmado. */
   collaborations: PortfolioCollaboration[];
@@ -120,6 +122,7 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
 
   return {
     id: row.id,
+    createdAt: row.created_at,
     handle: row.handle,
     displayName: row.display_name,
     accountType: row.account_type,
