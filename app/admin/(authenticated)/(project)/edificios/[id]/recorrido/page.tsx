@@ -74,6 +74,8 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
         </p>
       </div>
 
+      <TourEditor initialTourData={tourData} onPersist={handlePersist} />
+
       <Card>
         <CardHeader className="block">
           <h3 className="text-lg font-semibold text-gray-900">Orientación del recorrido</h3>
@@ -88,8 +90,6 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
           />
         </div>
       </Card>
-
-      <TourEditor initialTourData={tourData} onPersist={handlePersist} />
     </div>
   );
 }
