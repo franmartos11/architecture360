@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { getProjectBySlug } from '@/data/project-repository';
+import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getPortfolioDirectory } from '@/data/profile-repository';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
-  const project = await getProjectBySlug(DEFAULT_PROJECT_SLUG);
+  const project = await getPublicProjectBySlug(DEFAULT_PROJECT_SLUG);
   if (!project) return [{ url: SITE_URL, lastModified: new Date() }, ...profileRoutes];
 
   const projectHref = `${SITE_URL}/proyecto/${project.slug}`;

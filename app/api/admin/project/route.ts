@@ -41,6 +41,7 @@ const projectPatchSchema = z.object({
   processGallery: z.unknown().optional(),
   beforeAfter: z.unknown().optional(),
   showInPortfolio: z.boolean().optional(),
+  published: z.boolean().optional(),
 });
 
 export async function GET(request: Request) {
@@ -149,6 +150,7 @@ export async function PATCH(request: Request) {
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;
+  if (body.published !== undefined) updates.published = body.published;
   updates.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase

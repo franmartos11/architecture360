@@ -51,6 +51,11 @@ describe('GET /api/admin/projects', () => {
         { data: [{ id: 'project-1', name: 'Torre del Mar' }, { id: 'project-2', name: 'Casa Roble' }] }, // .from('projects')
         { data: [{ project_id: 'project-1' }, { project_id: 'project-1' }] }, // .from('leads') status=nuevo
         { data: [{ project_id: 'project-2' }] }, // .from('project_comments')
+        { data: [] }, // .from('buildings')
+        { data: [] }, // .from('amenities')
+        { data: [] }, // .from('aerial_slides')
+        { data: [] }, // .from('points_of_interest')
+        { data: [] }, // .from('project_collaborators')
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -58,10 +63,13 @@ describe('GET /api/admin/projects', () => {
 
     const res = await GET();
     expect(res.status).toBe(200);
+    // Sin type/saleMode en el mock, getProjectTypeConfig cae a los defaults
+    // (edificio/venta) — de ahí el total=6 (about/team/amenities/masterplan/
+    // typologies/location; before_after/process quedan afuera por no ser showcase).
     expect(await res.json()).toEqual({
       projects: [
-        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0 },
-        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1 },
+        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0, progress: { done: 0, total: 6 } },
+        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1, progress: { done: 0, total: 6 } },
       ],
       activeProjectId: 'project-1',
     });

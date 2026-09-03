@@ -12,15 +12,16 @@ import type { ProjectSaleMode, ProjectType } from '@/types';
 export default function SettingsPage() {
   const { showCalculator } = useProjectTypeConfig();
   const toast = useToast();
-  const [project, setProject] = useState<{ id: string; name: string; project_type: string; sale_mode: string } | null>(null);
+  const [project, setProject] = useState<{ id: string; name: string; project_type: string; sale_mode: string; published: boolean } | null>(null);
   const [savingMode, setSavingMode] = useState(false);
+  const [savingPublished, setSavingPublished] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/project')
       .then(res => res.json())
       .then(data => setProject(data.project
-        ? { id: data.project.id, name: data.project.name, project_type: data.project.project_type, sale_mode: data.project.sale_mode }
+        ? { id: data.project.id, name: data.project.name, project_type: data.project.project_type, sale_mode: data.project.sale_mode, published: data.project.published }
         : null))
       .catch(() => {});
   }, []);
@@ -50,12 +51,58 @@ export default function SettingsPage() {
     }
   };
 
+  const handleTogglePublished = async () => {
+    if (!project) return;
+    const published = !project.published;
+    setSavingPublished(true);
+    const res = await fetch('/api/admin/project', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ published }),
+    });
+    setSavingPublished(false);
+    if (res.ok) setProject({ ...project, published });
+    else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'No se pudo cambiar la visibilidad del proyecto.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Configuración</h2>
         <p className="text-sm text-gray-500 mt-1">Ajusta los parámetros de este proyecto y sus herramientas de venta.</p>
       </div>
+
+      {project && (
+        <Card>
+          <CardHeader className="block">
+            <h3 className="text-lg font-semibold text-gray-900">Visibilidad del sitio</h3>
+            <p className="text-sm text-gray-500">
+              En borrador, el sitio público de este proyecto deja de responder (404) — vos seguís viéndolo desde el preview de &quot;Sitio web&quot; en el admin mientras lo terminás de cargar.
+            </p>
+          </CardHeader>
+          <div className="p-6">
+            <button
+              type="button"
+              onClick={handleTogglePublished}
+              disabled={savingPublished}
+              className="flex items-center gap-3 text-left disabled:opacity-60"
+            >
+              <span className={`w-10 h-6 shrink-0 rounded-full p-0.5 flex transition-colors ${project.published ? 'bg-brand-500 justify-end' : 'bg-gray-300 justify-start'}`}>
+                <span className="w-5 h-5 rounded-full bg-white shadow" />
+              </span>
+              <span>
+                <span className="block text-sm font-medium text-gray-900">{project.published ? 'Publicado' : 'Borrador'}</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  {project.published ? 'El sitio público está en línea.' : 'El sitio público no es accesible todavía.'}
+                </span>
+              </span>
+            </button>
+          </div>
+        </Card>
+      )}
 
       {project && (
         <Card>

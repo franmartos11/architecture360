@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
-import { getProjectBySlug, getUnitById } from '@/data/project-repository';
+import { getPublicProjectBySlug, getUnitById } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import type { UnitViewTab } from '@/types';
 
@@ -33,7 +33,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
   const { slug, buildingId, unitId } = await params;
   const { tab } = await searchParams;
 
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   const building = project?.buildings.find(b => b.id === buildingId);
   const unit = await getUnitById(slug, unitId);
 

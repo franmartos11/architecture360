@@ -199,6 +199,20 @@ function mapProject(
   };
 }
 
+// Para las páginas públicas (y el sitemap) — a diferencia de
+// getProjectBySlug, que también usa /admin/sitio para su preview en vivo
+// y por eso NO puede filtrar por published (el modo borrador existe
+// justamente para poder previsualizar antes de publicar).
+export const getPublicProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
+  if (!SUPABASE_CONFIGURED) {
+    return getProjectBySlug(slug);
+  }
+  const supabase = await createClient();
+  const { data: row } = await supabase.from('projects').select('published').eq('slug', slug).maybeSingle();
+  if (!row || row.published === false) return undefined;
+  return getProjectBySlug(slug);
+});
+
 export const getProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
   if (!SUPABASE_CONFIGURED) {
     return slug === demoProject.slug ? demoProject : undefined;

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getProjectBySlug } from '@/data/project-repository';
+import { getPublicProjectBySlug } from '@/data/project-repository';
 import LocationView from '@/components/location/LocationView';
 
 interface PageProps {
@@ -9,7 +9,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: `${project.name} | Ubicación`,
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function UbicacionPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
   return <LocationView project={project} />;

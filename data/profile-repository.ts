@@ -55,6 +55,7 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
     .select('slug, name, description, masterplan_image, project_type, academic_year, created_at')
     .eq('owner_id', row.id)
     .eq('show_in_portfolio', true)
+    .eq('published', true)
     .order('created_at', { ascending: false });
 
   const projects: PortfolioProjectSummary[] = ((projectRows ?? []) as Pick<ProjectRow,
@@ -161,6 +162,7 @@ export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]>
     .from('projects')
     .select('owner_id')
     .eq('show_in_portfolio', true)
+    .eq('published', true)
     .in('owner_id', profiles.map(p => p.id));
 
   const countByOwner = new Map<string, number>();
@@ -189,6 +191,7 @@ async function toDirectoryProfiles(profiles: ProfileJoinRow[]): Promise<Director
     .from('projects')
     .select('owner_id')
     .eq('show_in_portfolio', true)
+    .eq('published', true)
     .in('owner_id', profiles.map(p => p.id));
 
   const countByOwner = new Map<string, number>();

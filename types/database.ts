@@ -32,6 +32,7 @@ export interface ProjectRow {
   process_gallery: string[];
   before_after: BeforeAfterPair[];
   show_in_portfolio: boolean;
+  published: boolean;
   created_at: string;
   updated_at: string;
 }

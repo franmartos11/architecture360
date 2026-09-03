@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import CommentSection from '@/components/CommentSection';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { getProjectBySlug } from '@/data/project-repository';
+import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
@@ -20,7 +20,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: project.name,
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProjectLandingPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
   const basePath = await getProjectBasePath(slug);

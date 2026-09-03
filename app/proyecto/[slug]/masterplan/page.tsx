@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import AerialViewWrapper from '@/components/aerial/AerialViewWrapper';
-import { getProjectBySlug } from '@/data/project-repository';
+import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
@@ -10,7 +10,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   const { aerialLabel } = getProjectTypeConfig(project.projectType, project.saleMode);
   return {
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProjectMasterplanPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getProjectBySlug(slug);
+  const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
   return <AerialViewWrapper project={project} />;

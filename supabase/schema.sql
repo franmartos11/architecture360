@@ -211,6 +211,27 @@ create index if not exists idx_post_comments_post on post_comments(post_id, crea
 -- no automático a partir de tener profiles.handle.
 alter table projects add column if not exists show_in_portfolio boolean not null default false;
 
+-- ─── Publicado / borrador ─────────────────────────────────────────────
+-- Con published=false el sitio público del proyecto deja de responder
+-- (ver getPublicProjectBySlug en data/project-repository.ts) pero el
+-- preview en vivo de /admin/sitio lo sigue mostrando — para eso existe
+-- el modo borrador. Default true: los proyectos existentes no se caen.
+alter table projects add column if not exists published boolean not null default true;
+
+-- updated_at se ponía una sola vez al crear y nunca más se tocaba (ningún
+-- UPDATE lo pisaba) — sin esto "Mis proyectos" no puede mostrar "Editado
+-- hace X" de verdad.
+create or replace function set_updated_at() returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists projects_set_updated_at on projects;
+create trigger projects_set_updated_at before update on projects
+  for each row execute function set_updated_at();
+
 -- ─── Colaboradores / créditos de proyecto ────────────────────────────
 -- Quién trabajó en un proyecto, más allá de quién es su dueño. El dueño
 -- acredita a otra cuenta (por su profiles.handle) con lo que hizo; ese
