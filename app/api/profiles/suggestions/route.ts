@@ -32,6 +32,24 @@ export async function GET(request: Request) {
     .not('id', 'in', `(${excludedIds.join(',')})`)
     .limit(limit);
 
+  const suggestedIds = (suggestions ?? []).map(p => p.id);
+
+  // "Contactos en común": de la gente sugerida, cuántos de mis propios
+  // seguidos ya siguen a esa persona — no es una recomendación real
+  // (eso sigue siendo el TODO de arriba), solo la métrica que se muestra
+  // junto a cada sugerencia.
+  const mutualCountById = new Map<string, number>();
+  if (followingIds.length > 0 && suggestedIds.length > 0) {
+    const { data: mutualRows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .in('follower_id', followingIds)
+      .in('following_id', suggestedIds);
+    for (const row of (mutualRows ?? []) as { following_id: string }[]) {
+      mutualCountById.set(row.following_id, (mutualCountById.get(row.following_id) ?? 0) + 1);
+    }
+  }
+
   // Parsear a camelCase
   const parsed = (suggestions ?? []).map(p => ({
     id: p.id,
@@ -39,7 +57,8 @@ export async function GET(request: Request) {
     displayName: p.display_name,
     avatarImage: p.avatar_image,
     accountType: p.account_type,
-    bio: p.bio
+    bio: p.bio,
+    mutualCount: mutualCountById.get(p.id) ?? 0,
   }));
 
   return NextResponse.json({ suggestions: parsed });

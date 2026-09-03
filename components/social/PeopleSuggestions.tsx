@@ -12,6 +12,7 @@ interface Suggestion {
   avatarImage: string | null;
   accountType: 'person' | 'company';
   bio: string | null;
+  mutualCount: number;
 }
 
 export default function PeopleSuggestions() {
@@ -30,29 +31,40 @@ export default function PeopleSuggestions() {
 
   if (loading || suggestions.length === 0) return null;
 
+  // Calcado del mockup Feed.dc.html — valores arbitrarios en vez de
+  // tokens trevo-*, a propósito: es el look específico de ese diseño,
+  // scopeado a este componente.
   return (
-    <div className="bg-white rounded-2xl border border-trevo-dark/10 p-5">
-      <h3 className="font-bold text-trevo-dark text-lg mb-4">Añadir a tu feed</h3>
-      <div className="space-y-5">
+    <div className="bg-white rounded-2xl p-[17px]" style={{ border: '1px solid rgba(28,25,23,0.07)' }}>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="font-semibold text-[13.5px] text-[#1c1a17]">Añadir a tu feed</h3>
+        <span className="text-[11px] text-[rgba(28,25,23,0.4)] shrink-0">Basado en tu red</span>
+      </div>
+      <div className="flex flex-col gap-3.5 mt-3.5">
         {suggestions.map(s => (
-          <div key={s.handle} className="flex items-start gap-3">
-            <Link href={`/portfolio/${s.handle}`} className="shrink-0 relative w-14 h-14 rounded-full bg-trevo-dark/5 overflow-hidden">
+          <div key={s.handle} className="flex items-start gap-2.5">
+            <Link href={`/portfolio/${s.handle}`} className="shrink-0 relative w-10 h-10 rounded-full bg-trevo-dark/5 overflow-hidden">
               {s.avatarImage ? (
-                <Image src={s.avatarImage} alt={s.displayName} fill sizes="56px" className="object-cover" />
+                <Image src={s.avatarImage} alt={s.displayName} fill sizes="40px" className="object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-trevo-dark/40 font-medium text-lg">
+                <div className="w-full h-full flex items-center justify-center text-trevo-dark/40 font-medium">
                   {s.displayName.charAt(0).toUpperCase()}
                 </div>
               )}
             </Link>
-            <div className="flex-1 min-w-0 pt-0.5">
-              <Link href={`/portfolio/${s.handle}`} className="block font-bold text-trevo-dark leading-snug hover:underline">
+            <div className="flex-1 min-w-0">
+              <Link href={`/portfolio/${s.handle}`} className="block font-semibold text-[12.5px] leading-[1.3] text-[#1c1a17] truncate hover:underline">
                 {s.displayName}
               </Link>
               {s.bio && (
-                <p className="text-sm text-trevo-dark/50 line-clamp-1 mt-0.5">{s.bio}</p>
+                <p className="font-light text-[11px] leading-[1.4] text-[rgba(28,25,23,0.5)] line-clamp-1 mt-0.5">{s.bio}</p>
               )}
-              <div className="mt-2.5">
+              {s.mutualCount > 0 && (
+                <p className="text-[10.5px] text-[rgba(28,25,23,0.38)] mt-[3px]">
+                  {s.mutualCount} contacto{s.mutualCount === 1 ? '' : 's'} en común
+                </p>
+              )}
+              <div className="mt-2">
                 <FollowButton
                   handle={s.handle}
                   initialFollowing={false}
@@ -64,8 +76,8 @@ export default function PeopleSuggestions() {
           </div>
         ))}
       </div>
-      <div className="mt-5 pt-4 border-t border-trevo-dark/5">
-        <Link href="/directorio" className="flex items-center gap-1 text-sm font-medium text-trevo-dark/60 hover:text-trevo-dark transition-colors">
+      <div className="mt-3.5 pt-3 border-t" style={{ borderColor: 'rgba(28,25,23,0.07)' }}>
+        <Link href="/directorio" className="text-xs font-medium text-[#4a6647]">
           Ver todas las recomendaciones →
         </Link>
       </div>

@@ -45,6 +45,7 @@ describe('GET /api/profiles/suggestions', () => {
             { id: 'user-3', handle: 'ana', display_name: 'Ana', avatar_image: null, account_type: 'pro', bio: 'hola' },
           ],
         }, // suggestions
+        { data: [{ following_id: 'user-3' }] }, // follows (contactos en común: user-2 ya sigue a user-3)
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -53,7 +54,7 @@ describe('GET /api/profiles/suggestions', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.suggestions).toEqual([
-      { id: 'user-3', handle: 'ana', displayName: 'Ana', avatarImage: null, accountType: 'pro', bio: 'hola' },
+      { id: 'user-3', handle: 'ana', displayName: 'Ana', avatarImage: null, accountType: 'pro', bio: 'hola', mutualCount: 1 },
     ]);
   });
 
@@ -67,6 +68,23 @@ describe('GET /api/profiles/suggestions', () => {
     const res = await GET(get('http://localhost/api/profiles/suggestions?limit=10'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ suggestions: [] });
+  });
+
+  it('con gente seguida pero sin contactos en común: mutualCount 0, no rompe', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'user-1' } }, // myProfile
+        { data: [{ following_id: 'user-2' }] }, // follows
+        { data: [{ id: 'user-3', handle: 'ana', display_name: 'Ana', avatar_image: null, account_type: 'pro', bio: null }] }, // suggestions
+        { data: [] }, // follows (sin contactos en común)
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/profiles/suggestions'));
+    const body = await res.json();
+    expect(body.suggestions[0].mutualCount).toBe(0);
   });
 
   it('sin gente seguida todavía: igual sugiere (excludedIds = solo yo mismo)', async () => {

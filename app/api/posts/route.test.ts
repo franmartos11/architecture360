@@ -36,7 +36,7 @@ describe('GET /api/posts', () => {
     const body = await res.json();
     expect(body.hasMore).toBe(false);
     expect(body.posts).toEqual([
-      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1, savedByMe: false },
+      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1, savedByMe: false, sampleLikers: [] },
     ]);
   });
 
@@ -195,6 +195,22 @@ describe('GET /api/posts', () => {
     const res = await GET(get('http://localhost/api/posts'));
     const body = await res.json();
     expect(body.posts[0].shared_post).toEqual({ id: 'p0', body: 'original', image_url: null, created_at: 't', author: { handle: 'orig' } });
+  });
+
+  it('con likes: sampleLikers trae display_name/avatar_image en snake_case (shape real de Supabase)', async () => {
+    const supabase = mockSupabase({
+      user: null,
+      results: [
+        { data: [{ id: 'p1', shared_post_id: null }] }, // posts
+        { data: [{ post_id: 'p1', profile_id: 'liker-1', profile: { display_name: 'Ana', avatar_image: null } }] }, // post_likes
+        { data: [] }, // post_comments
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts'));
+    const body = await res.json();
+    expect(body.posts[0].sampleLikers).toEqual([{ display_name: 'Ana', avatar_image: null }]);
   });
 
   it('error de la base: 200 con lista vacía', async () => {

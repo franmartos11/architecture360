@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
-import { Rss, Repeat2, Send, Share2, Bookmark, X } from 'lucide-react';
+import { Rss, Repeat2, Send, Share2, Bookmark, Heart, MessageCircle, X } from 'lucide-react';
+import { extractHashtags } from '@/lib/hashtags';
 import ShareMenu from '@/components/ui/ShareMenu';
 import ImageUploader from '@/components/admin/ImageUploader';
 import EmptyState from '@/components/ui/EmptyState';
@@ -18,18 +19,28 @@ import KebabMenu from '@/components/ui/KebabMenu';
 import { PostSkeleton } from '@/components/ui/Skeleton';
 import { formatRelativeTime } from '@/lib/relativeTime';
 
+interface SampleLiker {
+  display_name: string;
+  avatar_image: string | null;
+}
+
 interface ApiPost {
   id: string;
   body: string;
   image_url: string | null;
   created_at: string;
-  author: { handle: string; display_name: string; avatar_image: string | null } | null;
+  author: { handle: string; display_name: string; avatar_image: string | null; bio: string | null } | null;
   shared_post: EmbeddedPost | null;
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
   savedByMe: boolean;
+  sampleLikers: SampleLiker[];
 }
+
+// Mismo puñado de colores de avatar del mockup Feed.dc.html, para el
+// facepile de "quién le dio like" cuando esa persona no tiene foto.
+const AVATAR_FALLBACK_COLORS = ['#c98a5e', '#5c7a58', '#7d8fa3', '#9a8560'];
 
 interface PostFeedProps {
   /** Sin esto, es el feed global (todos los posts). Con esto, solo los de ese perfil. */
@@ -303,12 +314,29 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                       {formatRelativeTime(post.created_at)}
                     </span>
                   </div>
+                  {post.author?.bio && (
+                    <p className="font-normal text-[11.5px] text-[rgba(28,25,23,0.45)] mt-px truncate">{post.author.bio}</p>
+                  )}
                   {post.body && <p className="text-trevo-dark/80 font-light mt-1 whitespace-pre-line"><MentionText text={post.body} /></p>}
                 </div>
                 {post.author?.handle === currentProfileHandle && (
                   <KebabMenu items={[{ label: 'Borrar', onClick: () => handleDelete(post.id), danger: true }]} />
                 )}
               </div>
+
+              {(() => {
+                const tags = extractHashtags(post.body);
+                return tags.length > 0 ? (
+                  <div className="flex gap-1.5 flex-wrap mt-2.5">
+                    {tags.map(tag => (
+                      <span key={tag} className="h-6 px-2.5 rounded-[6px] bg-[#f5f4f0] text-[11px] font-medium text-[rgba(28,25,23,0.6)] flex items-center">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
               {post.image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={post.image_url} alt="" className="w-full rounded-xl mt-3 max-h-96 object-cover" />
@@ -318,18 +346,47 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                   <EmbeddedPostCard post={post.shared_post} />
                 </div>
               )}
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-trevo-dark/5">
+
+              {(post.likeCount > 0 || post.commentCount > 0) && (
+                <div className="flex items-center gap-2 mt-3 text-[11.5px] text-[rgba(28,25,23,0.45)]">
+                  {post.sampleLikers.length > 0 && (
+                    <div className="flex items-center">
+                      {post.sampleLikers.map((liker, i) => (
+                        <span
+                          key={i}
+                          className="w-[19px] h-[19px] rounded-full border-2 border-white flex items-center justify-center overflow-hidden text-[8px] font-semibold text-white/90"
+                          style={{ background: AVATAR_FALLBACK_COLORS[i % AVATAR_FALLBACK_COLORS.length], marginLeft: i > 0 ? '-7px' : 0 }}
+                        >
+                          {liker.avatar_image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={liker.avatar_image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (liker.display_name || 'U').charAt(0).toUpperCase()
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {post.likeCount > 0 && <span>{post.likeCount} reacción{post.likeCount === 1 ? '' : 'es'}</span>}
+                  <span className="flex-1" />
+                  {post.commentCount > 0 && <span>{post.commentCount} comentario{post.commentCount === 1 ? '' : 's'}</span>}
+                </div>
+              )}
+
+              <div className="flex gap-0.5 mt-2.5 pt-[9px] border-t" style={{ borderColor: 'rgba(28,25,23,0.07)' }}>
                 <button
                   onClick={() => handleToggleLike(post)}
-                  className={`text-sm flex items-center gap-1.5 transition-colors ${post.likedByMe ? 'text-red-500 font-medium' : 'text-trevo-dark/50 hover:text-trevo-dark'}`}
+                  className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0]"
+                  style={post.likedByMe ? { color: '#4a6647', background: 'rgba(92,122,88,0.09)' } : { color: 'rgba(28,25,23,0.6)' }}
                 >
-                  {post.likedByMe ? '♥' : '♡'} {post.likeCount > 0 && post.likeCount}
+                  <Heart className="w-4 h-4" fill={post.likedByMe ? 'currentColor' : 'none'} /> Me gusta
                 </button>
                 <button
                   onClick={() => setExpandedPostId(prev => (prev === post.id ? null : post.id))}
-                  className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors"
+                  className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0] hover:text-[#1c1a17]"
+                  style={{ color: 'rgba(28,25,23,0.6)' }}
                 >
-                  💬 {post.commentCount > 0 ? post.commentCount : 'Comentar'}
+                  <MessageCircle className="w-4 h-4" /> Comentar
                 </button>
                 <button
                   onClick={() => {
@@ -337,16 +394,25 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                     setRepostingPost(post);
                     setRepostText('');
                   }}
-                  className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors flex items-center gap-1.5"
+                  className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0] hover:text-[#1c1a17]"
+                  style={{ color: 'rgba(28,25,23,0.6)' }}
                 >
                   <Repeat2 className="w-4 h-4" /> Repostear
+                </button>
+                <button
+                  onClick={() => handleToggleSave(post)}
+                  className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0]"
+                  style={post.savedByMe ? { color: '#4a6647', background: 'rgba(92,122,88,0.09)' } : { color: 'rgba(28,25,23,0.6)' }}
+                >
+                  <Bookmark className="w-4 h-4" fill={post.savedByMe ? 'currentColor' : 'none'} /> Guardar
                 </button>
                 <button
                   onClick={() => {
                     if (!loggedIn) { toast('Iniciá sesión para enviar posts.', 'error'); return; }
                     setSendingPostId(post.shared_post ? post.shared_post.id : post.id);
                   }}
-                  className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors flex items-center gap-1.5"
+                  className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0] hover:text-[#1c1a17]"
+                  style={{ color: 'rgba(28,25,23,0.6)' }}
                 >
                   <Send className="w-4 h-4" /> Enviar
                 </button>
@@ -358,20 +424,14 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                     {(trigger) => (
                       <button
                         {...trigger}
-                        className="text-sm text-trevo-dark/50 hover:text-trevo-dark transition-colors flex items-center gap-1.5"
+                        className="flex-1 h-9 flex items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium transition-colors hover:bg-[#f5f4f0] hover:text-[#1c1a17]"
+                        style={{ color: 'rgba(28,25,23,0.6)' }}
                       >
                         <Share2 className="w-4 h-4" /> Compartir
                       </button>
                     )}
                   </ShareMenu>
                 )}
-                <button
-                  onClick={() => handleToggleSave(post)}
-                  className={`text-sm flex items-center gap-1.5 transition-colors ${post.savedByMe ? 'font-medium' : 'text-trevo-dark/50 hover:text-trevo-dark'}`}
-                  style={post.savedByMe ? { color: '#4a6647' } : undefined}
-                >
-                  <Bookmark className="w-4 h-4" fill={post.savedByMe ? 'currentColor' : 'none'} /> Guardar
-                </button>
               </div>
               {expandedPostId === post.id && (
                 <div className="mt-4 pt-4 border-t border-trevo-dark/5">

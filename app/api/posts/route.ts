@@ -24,10 +24,17 @@ const RATE_LIMIT_MAX_POSTS = 5;
 // depender de eso, se trae con una segunda query plana y se mergea acá,
 // mismo patrón que likeCount/commentCount.
 const SHARED_POST_SELECT = 'id, body, image_url, created_at, author:profiles(handle, display_name, avatar_image)';
-const AUTHOR_SELECT = '*, author:profiles(handle, display_name, avatar_image)';
+const AUTHOR_SELECT = '*, author:profiles(handle, display_name, avatar_image, bio)';
+const SAMPLE_LIKERS_PER_POST = 3;
 
-// Suma likeCount/likedByMe/commentCount/savedByMe/shared_post a cada post
-// en una sola pasada — evita que el cliente tenga que pedirlo post por post.
+interface SampleLiker {
+  display_name: string;
+  avatar_image: string | null;
+}
+
+// Suma likeCount/likedByMe/commentCount/savedByMe/sampleLikers/shared_post
+// a cada post en una sola pasada — evita que el cliente tenga que pedirlo
+// post por post.
 async function withCounts(
   supabase: Awaited<ReturnType<typeof createClient>>,
   posts: { id: string; shared_post_id: string | null }[],
@@ -35,10 +42,16 @@ async function withCounts(
 ) {
   const postIds = posts.map(p => p.id);
   const sharedPostIds = [...new Set(posts.map(p => p.shared_post_id).filter((id): id is string => !!id))];
-  if (postIds.length === 0) return posts.map(p => ({ ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0, savedByMe: false }));
+  if (postIds.length === 0) return posts.map(p => ({ ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0, savedByMe: false, sampleLikers: [] as SampleLiker[] }));
 
   const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }] = await Promise.all([
-    supabase.from('post_likes').select('post_id, profile_id').in('post_id', postIds),
+    // Se pide más reciente primero y con el perfil embebido: sirve tanto
+    // para el conteo/likedByMe como para el facepile de "quién le dio
+    // like" sin una query aparte.
+    supabase.from('post_likes')
+      .select('post_id, profile_id, profile:profiles(display_name, avatar_image)')
+      .in('post_id', postIds)
+      .order('created_at', { ascending: false }),
     supabase.from('post_comments').select('post_id').in('post_id', postIds),
     sharedPostIds.length > 0
       ? supabase.from('posts').select(SHARED_POST_SELECT).in('id', sharedPostIds)
@@ -50,9 +63,21 @@ async function withCounts(
 
   const likeCountByPost = new Map<string, number>();
   const likedByMe = new Set<string>();
-  for (const l of (likeRows ?? [])) {
+  const sampleLikersByPost = new Map<string, SampleLiker[]>();
+  for (const l of (likeRows ?? []) as unknown as { post_id: string; profile_id: string; profile: SampleLiker | SampleLiker[] | null }[]) {
     likeCountByPost.set(l.post_id, (likeCountByPost.get(l.post_id) ?? 0) + 1);
     if (currentUserId && l.profile_id === currentUserId) likedByMe.add(l.post_id);
+    // El cliente de Supabase tipa el embed a-uno como array en algunos
+    // casos y como objeto en otros, según cómo infiera la relación — se
+    // normaliza acá en vez de depender de una forma fija.
+    const profile = Array.isArray(l.profile) ? l.profile[0] : l.profile;
+    if (profile) {
+      const existing = sampleLikersByPost.get(l.post_id) ?? [];
+      if (existing.length < SAMPLE_LIKERS_PER_POST) {
+        existing.push(profile);
+        sampleLikersByPost.set(l.post_id, existing);
+      }
+    }
   }
   const commentCountByPost = new Map<string, number>();
   for (const c of (commentRows ?? [])) {
@@ -68,6 +93,7 @@ async function withCounts(
     likedByMe: likedByMe.has(p.id),
     commentCount: commentCountByPost.get(p.id) ?? 0,
     savedByMe: savedByMe.has(p.id),
+    sampleLikers: sampleLikersByPost.get(p.id) ?? [],
   }));
 }
 
