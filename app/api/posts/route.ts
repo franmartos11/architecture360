@@ -26,8 +26,8 @@ const RATE_LIMIT_MAX_POSTS = 5;
 const SHARED_POST_SELECT = 'id, body, image_url, created_at, author:profiles(handle, display_name, avatar_image)';
 const AUTHOR_SELECT = '*, author:profiles(handle, display_name, avatar_image)';
 
-// Suma likeCount/likedByMe/commentCount/shared_post a cada post en una
-// sola pasada — evita que el cliente tenga que pedirlo post por post.
+// Suma likeCount/likedByMe/commentCount/savedByMe/shared_post a cada post
+// en una sola pasada — evita que el cliente tenga que pedirlo post por post.
 async function withCounts(
   supabase: Awaited<ReturnType<typeof createClient>>,
   posts: { id: string; shared_post_id: string | null }[],
@@ -35,13 +35,16 @@ async function withCounts(
 ) {
   const postIds = posts.map(p => p.id);
   const sharedPostIds = [...new Set(posts.map(p => p.shared_post_id).filter((id): id is string => !!id))];
-  if (postIds.length === 0) return posts.map(p => ({ ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0 }));
+  if (postIds.length === 0) return posts.map(p => ({ ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0, savedByMe: false }));
 
-  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }] = await Promise.all([
+  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }] = await Promise.all([
     supabase.from('post_likes').select('post_id, profile_id').in('post_id', postIds),
     supabase.from('post_comments').select('post_id').in('post_id', postIds),
     sharedPostIds.length > 0
       ? supabase.from('posts').select(SHARED_POST_SELECT).in('id', sharedPostIds)
+      : Promise.resolve({ data: [] }),
+    currentUserId
+      ? supabase.from('saved_posts').select('post_id').eq('profile_id', currentUserId).in('post_id', postIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -56,6 +59,7 @@ async function withCounts(
     commentCountByPost.set(c.post_id, (commentCountByPost.get(c.post_id) ?? 0) + 1);
   }
   const sharedPostById = new Map((sharedPostRows as EmbeddedPost[] ?? []).map(sp => [sp.id, sp]));
+  const savedByMe = new Set((savedRows as { post_id: string }[] ?? []).map(r => r.post_id));
 
   return posts.map(p => ({
     ...p,
@@ -63,22 +67,44 @@ async function withCounts(
     likeCount: likeCountByPost.get(p.id) ?? 0,
     likedByMe: likedByMe.has(p.id),
     commentCount: commentCountByPost.get(p.id) ?? 0,
+    savedByMe: savedByMe.has(p.id),
   }));
 }
 
-// Sin authorHandle → feed global o feed de siguiendo (según scope).
-// Con authorHandle → solo los posts de ese perfil.
+// Resuelve el conjunto de project ids donde el usuario es dueño o
+// colaborador aceptado — base tanto para saber "en qué proyectos trabajo"
+// como, a partir de ahí, "con quién trabajo" (scope=collaborations).
+async function getMyProjectIds(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string[]> {
+  const [{ data: owned }, { data: collabs }] = await Promise.all([
+    supabase.from('projects').select('id').eq('owner_id', userId),
+    supabase.from('project_collaborators').select('project_id').eq('profile_id', userId).eq('status', 'accepted'),
+  ]);
+  return [...new Set([...(owned ?? []).map((p: { id: string }) => p.id), ...(collabs ?? []).map((r: { project_id: string }) => r.project_id)])];
+}
+
+// Ventana sobre la que se calcula "Destacados" — no hay paginación por
+// scroll infinito en este modo (ver comentario más abajo), así que alcanza
+// con mirar los posts recientes en vez de la tabla entera.
+const TOP_SORT_WINDOW = 100;
+
+// Sin authorHandle → feed global, de siguiendo, de colaboraciones o de
+// guardados (según scope). Con authorHandle → solo los posts de ese perfil.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const authorHandle = searchParams.get('authorHandle');
   const before = searchParams.get('before');
-  const scope = searchParams.get('scope'); // 'following' | null
+  const scope = searchParams.get('scope'); // 'following' | 'collaborations' | 'saved' | null
+  const sort = searchParams.get('sort'); // 'top' | null (default: más recientes primero)
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let query = supabase.from('posts').select(AUTHOR_SELECT).order('created_at', { ascending: false }).limit(PAGE_SIZE + 1);
-  if (before) query = query.lt('created_at', before);
+  const isTopSort = sort === 'top';
+  let query = supabase.from('posts').select(AUTHOR_SELECT).order('created_at', { ascending: false })
+    .limit(isTopSort ? TOP_SORT_WINDOW : PAGE_SIZE + 1);
+  // "Destacados" siempre mira la ventana reciente completa de nuevo — no
+  // tiene cursor propio, así que ignora `before`.
+  if (before && !isTopSort) query = query.lt('created_at', before);
 
   if (authorHandle) {
     // Feed de perfil específico
@@ -96,6 +122,27 @@ export async function GET(request: Request) {
       const ids = [...new Set([...followingIds, myProfile.id])];
       query = query.in('author_id', ids);
     }
+  } else if (scope === 'collaborations' && user) {
+    // Posts de gente con la que trabajo: dueños y colaboradores aceptados
+    // de cualquier proyecto donde yo sea dueño o colaborador aceptado.
+    const projectIds = await getMyProjectIds(supabase, user.id);
+    if (projectIds.length === 0) return NextResponse.json({ posts: [], hasMore: false });
+    const [{ data: projectOwners }, { data: collaboratorRows }] = await Promise.all([
+      supabase.from('projects').select('owner_id').in('id', projectIds),
+      supabase.from('project_collaborators').select('profile_id').in('project_id', projectIds).eq('status', 'accepted'),
+    ]);
+    const authorIds = [...new Set([
+      ...(projectOwners ?? []).map((p: { owner_id: string }) => p.owner_id),
+      ...(collaboratorRows ?? []).map((r: { profile_id: string }) => r.profile_id),
+    ])];
+    if (authorIds.length === 0) return NextResponse.json({ posts: [], hasMore: false });
+    query = query.in('author_id', authorIds);
+  } else if (scope === 'saved' && user) {
+    // Solo mis posts guardados — requiere perfil propio (saved_posts.profile_id).
+    const { data: savedRows } = await supabase.from('saved_posts').select('post_id').eq('profile_id', user.id);
+    const savedIds = (savedRows ?? []).map((r: { post_id: string }) => r.post_id);
+    if (savedIds.length === 0) return NextResponse.json({ posts: [], hasMore: false });
+    query = query.in('id', savedIds);
   }
   // scope=global o no logueado → query sin filtro adicional (feed global)
 
@@ -103,6 +150,15 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ posts: [], hasMore: false });
 
   const rows = data ?? [];
+
+  if (isTopSort) {
+    // Sin paginación por scroll para "Destacados" — se trae la ventana
+    // reciente completa, se ordena por likeCount y se corta a PAGE_SIZE.
+    const withCountsRows = await withCounts(supabase, rows, user?.id);
+    withCountsRows.sort((a, b) => b.likeCount - a.likeCount);
+    return NextResponse.json({ posts: withCountsRows.slice(0, PAGE_SIZE), hasMore: false });
+  }
+
   const hasMore = rows.length > PAGE_SIZE;
   const page = rows.slice(0, PAGE_SIZE);
   return NextResponse.json({ posts: await withCounts(supabase, page, user?.id), hasMore });

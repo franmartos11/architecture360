@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
-import { Rss, Repeat2, Send, Share2, X } from 'lucide-react';
+import { Rss, Repeat2, Send, Share2, Bookmark, X } from 'lucide-react';
 import ShareMenu from '@/components/ui/ShareMenu';
 import ImageUploader from '@/components/admin/ImageUploader';
 import EmptyState from '@/components/ui/EmptyState';
@@ -28,6 +28,7 @@ interface ApiPost {
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
+  savedByMe: boolean;
 }
 
 interface PostFeedProps {
@@ -38,11 +39,13 @@ interface PostFeedProps {
   currentProfileHandle: string | null;
   /** Avatar propio, para mostrarlo junto al composer — undefined si no tiene. */
   currentAvatarImage?: string | null;
-  /** 'following' = solo posts de gente seguida. Ignorado si se pasa authorHandle. */
-  scope?: 'following' | 'global';
+  /** 'following' = gente seguida. 'collaborations' = gente con la que trabajo. 'saved' = mis guardados. Ignorado si se pasa authorHandle. */
+  scope?: 'following' | 'global' | 'collaborations' | 'saved';
+  /** 'top' = ordenado por likes, sin scroll infinito. Default: más recientes primero. */
+  sort?: 'recent' | 'top';
 }
 
-export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle, currentAvatarImage, scope }: PostFeedProps) {
+export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle, currentAvatarImage, scope, sort }: PostFeedProps) {
   const [posts, setPosts] = useState<ApiPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -61,14 +64,18 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
   const buildQuery = (before?: string) => {
     const p = new URLSearchParams();
     if (authorHandle) p.set('authorHandle', authorHandle);
-    else if (scope === 'following') p.set('scope', 'following');
+    else if (scope && scope !== 'global') p.set('scope', scope);
+    if (sort === 'top') p.set('sort', 'top');
     if (before) p.set('before', before);
     return `/api/posts?${p.toString()}`;
   };
 
   // Publicás en tu propio perfil, o en el feed global — nunca "como
-  // composer" en el perfil de otra persona.
-  const canPost = authorHandle === undefined ? loggedIn && !!currentProfileHandle : authorHandle === currentProfileHandle;
+  // composer" en el perfil de otra persona, ni en la lista de guardados
+  // (es una vista de lectura, no un lugar donde postear).
+  const canPost = authorHandle === undefined
+    ? scope !== 'saved' && loggedIn && !!currentProfileHandle
+    : authorHandle === currentProfileHandle;
 
   useEffect(() => {
     startTransition(() => setLoading(true));
@@ -81,7 +88,7 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
       })
       .catch(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authorHandle, scope]);
+  }, [authorHandle, scope, sort]);
 
   const loadMore = useCallback(() => {
     const oldest = posts[posts.length - 1];
@@ -96,7 +103,7 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
       })
       .catch(() => setLoadingMore(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, loadingMore, hasMore, authorHandle, scope]);
+  }, [posts, loadingMore, hasMore, authorHandle, scope, sort]);
 
   // Infinite scroll — reemplaza el botón "Cargar más" por un sentinel
   // invisible al final de la lista que dispara la siguiente página apenas
@@ -156,6 +163,25 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
         ? { ...p, likedByMe: !nextLiked, likeCount: p.likeCount + (nextLiked ? -1 : 1) }
         : p)));
       toast('No se pudo actualizar el like.', 'error');
+    }
+  };
+
+  const handleToggleSave = async (post: ApiPost) => {
+    if (!loggedIn) {
+      toast('Iniciá sesión para guardar posts.', 'error');
+      return;
+    }
+    const nextSaved = !post.savedByMe;
+    setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, savedByMe: nextSaved } : p)));
+    const res = await fetch(`/api/posts/${post.id}/save`, { method: nextSaved ? 'POST' : 'DELETE' });
+    if (!res.ok) {
+      setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, savedByMe: !nextSaved } : p)));
+      toast('No se pudo actualizar el guardado.', 'error');
+    } else if (nextSaved) {
+      toast('Guardado.');
+    } else if (scope === 'saved') {
+      // En "Guardados" mismo, sacar el guardado tiene que sacar el post de la lista.
+      setPosts(prev => prev.filter(p => p.id !== post.id));
     }
   };
 
@@ -227,11 +253,11 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
             </button>
           </div>
         </form>
-      ) : authorHandle === undefined && !loggedIn ? (
+      ) : authorHandle === undefined && scope !== 'saved' && !loggedIn ? (
         <p className="text-center text-trevo-dark/50 font-light py-6 border border-dashed border-trevo-dark/15 rounded-xl">
           <a href="/admin/login" className="text-trevo-dark underline hover:no-underline">Iniciá sesión</a> para publicar.
         </p>
-      ) : authorHandle === undefined && loggedIn && !currentProfileHandle ? (
+      ) : authorHandle === undefined && scope !== 'saved' && loggedIn && !currentProfileHandle ? (
         <p className="text-center text-trevo-dark/50 font-light py-6 border border-dashed border-trevo-dark/15 rounded-xl">
           <a href="/admin/portfolio" className="text-trevo-dark underline hover:no-underline">Creá tu portfolio</a> para poder publicar.
         </p>
@@ -339,6 +365,13 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                     )}
                   </ShareMenu>
                 )}
+                <button
+                  onClick={() => handleToggleSave(post)}
+                  className={`text-sm flex items-center gap-1.5 transition-colors ${post.savedByMe ? 'font-medium' : 'text-trevo-dark/50 hover:text-trevo-dark'}`}
+                  style={post.savedByMe ? { color: '#4a6647' } : undefined}
+                >
+                  <Bookmark className="w-4 h-4" fill={post.savedByMe ? 'currentColor' : 'none'} /> Guardar
+                </button>
               </div>
               {expandedPostId === post.id && (
                 <div className="mt-4 pt-4 border-t border-trevo-dark/5">
@@ -358,9 +391,13 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
           icon={<Rss className="w-6 h-6" />}
           title={scope === 'following'
             ? 'Aún no hay posts de las personas que seguís.'
-            : authorHandle === undefined
-              ? 'Todavía no hay posts — ¡sé el primero en publicar!'
-              : 'Todavía no hay posts publicados acá.'}
+            : scope === 'collaborations'
+              ? 'Todavía no hay posts de gente con la que trabajás en un proyecto.'
+              : scope === 'saved'
+                ? 'No guardaste ningún post todavía.'
+                : authorHandle === undefined
+                  ? 'Todavía no hay posts — ¡sé el primero en publicar!'
+                  : 'Todavía no hay posts publicados acá.'}
           action={scope === 'following' ? <div className="lg:hidden"><PeopleSuggestions /></div> : undefined}
         />
       )}

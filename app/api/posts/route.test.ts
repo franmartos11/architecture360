@@ -36,7 +36,7 @@ describe('GET /api/posts', () => {
     const body = await res.json();
     expect(body.hasMore).toBe(false);
     expect(body.posts).toEqual([
-      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1 },
+      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1, savedByMe: false },
     ]);
   });
 
@@ -79,6 +79,7 @@ describe('GET /api/posts', () => {
         { data: [{ following_id: 'user-2' }] }, // follows
         { data: [] }, // post_likes
         { data: [] }, // post_comments
+        { data: [] }, // saved_posts
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -87,6 +88,96 @@ describe('GET /api/posts', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.posts).toHaveLength(1);
+  });
+
+  it('scope=collaborations con sesión: filtra por dueños/colaboradores de mis proyectos', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [{ id: 'project-1' }] }, // projects (owner_id = me)
+        { data: [{ project_id: 'project-2' }] }, // project_collaborators (yo como colaborador aceptado)
+        { data: [{ owner_id: 'owner-2' }] }, // projects.owner_id in (project-1, project-2)
+        { data: [{ profile_id: 'collab-1' }] }, // project_collaborators aceptados en esos proyectos
+        { data: [{ id: 'p1', shared_post_id: null }] }, // posts
+        { data: [] }, // post_likes
+        { data: [] }, // post_comments
+        { data: [] }, // saved_posts
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?scope=collaborations'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.posts).toHaveLength(1);
+  });
+
+  it('scope=collaborations sin proyectos propios ni colaboraciones: posts vacío', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [] }, // posts (query se arma antes de resolver el scope, se descarta)
+        { data: [] }, // projects
+        { data: [] }, // project_collaborators
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?scope=collaborations'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ posts: [], hasMore: false });
+  });
+
+  it('scope=saved con sesión: filtra por mis posts guardados', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [{ post_id: 'p1' }] }, // saved_posts
+        { data: [{ id: 'p1', shared_post_id: null }] }, // posts
+        { data: [] }, // post_likes
+        { data: [] }, // post_comments
+        { data: [] }, // saved_posts (withCounts)
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?scope=saved'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.posts).toHaveLength(1);
+  });
+
+  it('scope=saved sin nada guardado: posts vacío', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [] }, // posts (query se arma antes de resolver el scope, se descarta)
+        { data: [] }, // saved_posts
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?scope=saved'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ posts: [], hasMore: false });
+  });
+
+  it('sort=top: ordena por likeCount y no pagina', async () => {
+    const supabase = mockSupabase({
+      user: null,
+      results: [
+        { data: [{ id: 'p1', shared_post_id: null }, { id: 'p2', shared_post_id: null }] }, // posts
+        { data: [{ post_id: 'p2', profile_id: 'x' }, { post_id: 'p2', profile_id: 'y' }] }, // post_likes (p2 tiene más likes)
+        { data: [] }, // post_comments
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?sort=top'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.hasMore).toBe(false);
+    expect(body.posts.map((p: { id: string }) => p.id)).toEqual(['p2', 'p1']);
   });
 
   it('con repost: incluye shared_post embebido', async () => {
@@ -205,6 +296,7 @@ describe('POST /api/posts', () => {
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: 'hello' } }, // insert
         { data: [] }, // post_likes
         { data: [] }, // post_comments
+        { data: [] }, // saved_posts
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -224,6 +316,7 @@ describe('POST /api/posts', () => {
         { data: [{ id: 'mentioned-1' }] }, // profiles by handle (mentions)
         { data: [] }, // post_likes
         { data: [] }, // post_comments
+        { data: [] }, // saved_posts
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -248,6 +341,7 @@ describe('POST /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [{ id: SHARED_ID, body: 'original', image_url: null, created_at: 't', author: { handle: 'orig' } }] }, // shared posts
+        { data: [] }, // saved_posts
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);

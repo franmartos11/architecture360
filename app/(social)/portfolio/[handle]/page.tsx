@@ -6,6 +6,7 @@ import { Globe, Mail, MapPin, Share2, Building2 } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { getPortfolioByHandle } from '@/data/profile-repository';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getRequestUser } from '@/lib/supabase/auth';
 import ShareMenu from '@/components/ui/ShareMenu';
 import FollowButton from '@/components/social/FollowButton';
@@ -82,6 +83,20 @@ export default async function PortfolioPage({ params }: PageProps) {
   const user = await getRequestUser();
   const isOwnProfile = user?.id === portfolio.id;
   const isCompany = portfolio.accountType === 'company';
+
+  // "Vistas hoy" del rail del feed — best-effort, nunca debe tumbar el
+  // render del perfil si falla (mismo criterio que notify()). No cuenta
+  // que el dueño mire su propio perfil. Se espera (no fire-and-forget)
+  // porque en un entorno serverless la función puede cortarse apenas se
+  // manda la respuesta, perdiendo cualquier promesa que quedara pendiente.
+  if (!isOwnProfile) {
+    try {
+      const { error } = await createAdminClient().from('profile_views').insert({ profile_id: portfolio.id, viewer_id: user?.id ?? null });
+      if (error) console.error('[profile_views] no se pudo registrar la vista', error);
+    } catch (err) {
+      console.error('[profile_views] no se pudo registrar la vista', err);
+    }
+  }
 
   // ── Follow stats + cantidad de posts (para los pills y el contador del tab) ──
   const [{ count: followerCount }, { count: followingCount }, { count: postsCount }] = await Promise.all([

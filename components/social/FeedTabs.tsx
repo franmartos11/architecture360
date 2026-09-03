@@ -1,47 +1,69 @@
 'use client';
 
 import { useState } from 'react';
+import { ListFilter } from 'lucide-react';
 import PostFeed from '@/components/social/PostFeed';
+
+type Tab = 'following' | 'global' | 'collaborations';
+type Sort = 'recent' | 'top';
 
 interface FeedTabsProps {
   loggedIn: boolean;
   currentProfileHandle: string | null;
   currentAvatarImage?: string | null;
-  defaultTab: 'following' | 'global';
+  defaultTab: Tab;
 }
 
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'following', label: 'Siguiendo' },
+  { key: 'global', label: 'Explorar' },
+  { key: 'collaborations', label: 'Colaboraciones' },
+];
+
 export default function FeedTabs({ loggedIn, currentProfileHandle, currentAvatarImage, defaultTab }: FeedTabsProps) {
-  const [tab, setTab] = useState<'following' | 'global'>(defaultTab);
+  const [tab, setTab] = useState<Tab>(defaultTab);
+  const [sort, setSort] = useState<Sort>('recent');
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-1 bg-trevo-dark/5 p-1 rounded-xl w-fit mx-auto sm:mx-0">
+      {/* Barra calcada del mockup Feed.dc.html — valores arbitrarios en vez
+          de tokens trevo-*, a propósito: es el look específico de ese
+          diseño, scopeado a este componente. */}
+      <div
+        className="flex items-center gap-2 flex-wrap p-2 rounded-[14px] border"
+        style={{ background: 'rgba(245,244,240,0.86)', backdropFilter: 'blur(10px)', borderColor: 'rgba(28,25,23,0.06)' }}
+      >
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`h-[34px] px-4 rounded-[9px] text-[12.5px] font-medium whitespace-nowrap transition-colors ${
+              tab === t.key ? 'bg-[#1c1a17] text-white' : 'text-[rgba(28,25,23,0.55)] hover:text-[#1c1a17]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+        <div className="flex-1" />
         <button
-          onClick={() => setTab('following')}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'following' ? 'bg-white text-trevo-dark shadow-sm' : 'text-trevo-dark/50 hover:text-trevo-dark'
-          }`}
+          onClick={() => setSort(s => (s === 'recent' ? 'top' : 'recent'))}
+          className="h-8 px-3 flex items-center gap-1.5 rounded-[9px] border bg-white text-[11.5px] font-medium text-[rgba(28,25,23,0.7)] hover:text-[#1c1a17] transition-colors whitespace-nowrap"
+          style={{ borderColor: 'rgba(28,25,23,0.12)' }}
         >
-          Siguiendo
-        </button>
-        <button
-          onClick={() => setTab('global')}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-            tab === 'global' ? 'bg-white text-trevo-dark shadow-sm' : 'text-trevo-dark/50 hover:text-trevo-dark'
-          }`}
-        >
-          Explorar
+          <ListFilter className="w-3 h-3" />
+          {sort === 'recent' ? 'Recientes' : 'Destacados'}
         </button>
       </div>
 
       <div className="pt-2">
-        {/* We use key to force remount when tab changes, ensuring feed re-fetches cleanly */}
+        {/* We use key to force remount when tab/sort changes, ensuring feed re-fetches cleanly */}
         <PostFeed
-          key={tab}
+          key={`${tab}-${sort}`}
           loggedIn={loggedIn}
           currentProfileHandle={currentProfileHandle}
           currentAvatarImage={currentAvatarImage}
           scope={tab}
+          sort={sort}
         />
       </div>
     </div>

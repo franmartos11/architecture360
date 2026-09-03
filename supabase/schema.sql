@@ -1254,3 +1254,91 @@ create table if not exists api_rate_limit_hits (
 create index if not exists api_rate_limit_hits_key_idx on api_rate_limit_hits(key, created_at desc);
 
 alter table api_rate_limit_hits enable row level security;
+
+-- ─── Posts guardados ("Guardados" del feed) ──────────────────────────
+create table if not exists saved_posts (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles(id) on delete cascade,
+  post_id uuid not null references posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (profile_id, post_id)
+);
+
+create index if not exists idx_saved_posts_profile on saved_posts(profile_id, created_at desc);
+
+alter table saved_posts enable row level security;
+
+drop policy if exists "own manage saved_posts" on saved_posts;
+create policy "own manage saved_posts" on saved_posts for all to authenticated
+  using (profile_id = auth.uid())
+  with check (profile_id = auth.uid());
+
+-- ─── Vistas de perfil ("Vistas hoy" del rail izquierdo) ──────────────
+-- Solo se inserta desde el server (cliente admin, ver lib/supabase/admin.ts)
+-- al renderizar /portfolio/[handle] — nadie escribe esto desde el
+-- navegador, por eso no hay policy de insert para authenticated/anon.
+create table if not exists profile_views (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles(id) on delete cascade,
+  viewer_id uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_profile_views_profile on profile_views(profile_id, created_at);
+
+alter table profile_views enable row level security;
+
+drop policy if exists "owner read profile_views" on profile_views;
+create policy "owner read profile_views" on profile_views for select to authenticated
+  using (profile_id = auth.uid());
+
+-- ─── Eventos de la comunidad ("Próximo evento" del rail derecho) ─────
+-- Cualquier cuenta con perfil puede publicar un evento (mismo criterio de
+-- apertura que publicar un post o acreditar un colaborador) — no existe
+-- un rol de "admin de plataforma" separado del dueño de cada proyecto.
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  location text,
+  starts_at timestamptz not null,
+  created_by uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_events_starts_at on events(starts_at);
+
+alter table events enable row level security;
+
+drop policy if exists "public read events" on events;
+create policy "public read events" on events for select to anon, authenticated using (true);
+
+drop policy if exists "authenticated insert own events" on events;
+create policy "authenticated insert own events" on events for insert to authenticated
+  with check (created_by = auth.uid());
+
+drop policy if exists "creator manage own events" on events;
+create policy "creator manage own events" on events for all to authenticated
+  using (created_by = auth.uid())
+  with check (created_by = auth.uid());
+
+-- ─── Asistencia a eventos ─────────────────────────────────────────────
+create table if not exists event_rsvps (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (event_id, profile_id)
+);
+
+create index if not exists idx_event_rsvps_event on event_rsvps(event_id);
+
+alter table event_rsvps enable row level security;
+
+drop policy if exists "public read event_rsvps" on event_rsvps;
+create policy "public read event_rsvps" on event_rsvps for select to anon, authenticated using (true);
+
+drop policy if exists "own manage event_rsvps" on event_rsvps;
+create policy "own manage event_rsvps" on event_rsvps for all to authenticated
+  using (profile_id = auth.uid())
+  with check (profile_id = auth.uid());
