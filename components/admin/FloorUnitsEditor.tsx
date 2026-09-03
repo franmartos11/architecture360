@@ -197,6 +197,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const confirmDialog = useConfirm();
   const inheritedDefaultsApplied = useRef(false);
   const singleRecordAutoEdited = useRef(false);
+  // Casa: último estado guardado, para saber si hay cambios sin guardar
+  // (barra de "Guardar cambios" del sidebar). Se pisa al entrar a editar y
+  // otra vez tras guardar con éxito — nunca se lee directo, solo se
+  // compara contra el estado actual.
+  const [casaTab, setCasaTab] = useState<'datos' | 'ambientes' | 'planos' | 'galeria'>('datos');
+  const [casaSnapshot, setCasaSnapshot] = useState('{}');
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep, unitLabel, buildingLabel, unitIsLand } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
@@ -260,12 +266,14 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
   const startEdit = (u: UnitRow) => {
     setEditingId(u.id);
-    setForm({ code: u.code, ...formFieldsFromUnit(u) });
+    const nextForm = { code: u.code, ...formFieldsFromUnit(u) };
+    setForm(nextForm);
     setRooms(u.rooms ?? []);
     setLevels(u.levels ?? []);
     setEditUnitTourData(u.tour_data ?? null);
     setActivePlanta(0);
     setDuplicateExtras(null);
+    setCasaSnapshot(JSON.stringify({ form: nextForm, rooms: u.rooms ?? [], levels: u.levels ?? [] }));
   };
 
   // Sin paso de unidades propio (una casa ES la unidad): en cuanto se sabe
@@ -404,6 +412,20 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const programActive = !hasUnitStep && hasRoomProgram(allRooms);
   const derivedCounts = roomCounts(allRooms);
   const effectiveBedrooms = programActive ? derivedCounts.bedrooms : Number(form.bedrooms || 0);
+  const effectiveBathrooms = programActive ? derivedCounts.bathrooms : Number(form.bathrooms || 0);
+
+  // Contadores declarados (dormitorios/baños/livings/cocinas) vs. cuántos
+  // ambientes de ese tipo ya están detallados en el programa — para
+  // sugerirle a la casa "declaraste 3 dormitorios, detallaste 1" en vez de
+  // dejarlo para que lo note al ver la ficha pública incompleta. Vacío una
+  // vez que el programa pasa a ser la fuente de verdad (programActive).
+  const roomKindHave = (k: RoomKind) => allRooms.filter(r => r.kind === k).length;
+  const casaRoomsNeeded = programActive ? [] : ([
+    { kind: 'bedroom' as RoomKind, base: 'Dormitorio', n: Math.max(0, Number(form.bedrooms || 0) - roomKindHave('bedroom')) },
+    { kind: 'bathroom' as RoomKind, base: 'Baño', n: Math.max(0, Number(form.bathrooms || 0) - roomKindHave('bathroom')) },
+    { kind: 'kitchen' as RoomKind, base: 'Cocina', n: Math.max(0, Number(form.kitchens || 0) - roomKindHave('kitchen')) },
+    { kind: 'living' as RoomKind, base: 'Living', n: Math.max(0, Number(form.livingRooms || 0) - roomKindHave('living')) },
+  ].filter(x => x.n > 0));
 
   // Lote: no tiene tipología de vivienda — se guarda un valor fijo.
   // Departamento: la elige el usuario del dropdown. Casa: se deriva de los
@@ -414,6 +436,35 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const orientationCardinal = form.orientation !== '' && Number.isFinite(Number(form.orientation))
     ? bearingToCardinal(Number(form.orientation))
     : '';
+
+  // Editor de casa: superficie declarada vs. interna + externa — solo un
+  // aviso (nunca bloquea guardar), con un atajo para igualar el total.
+  const areaTotalNum = Number(form.totalArea || 0);
+  const areaInnerNum = Number(form.innerArea || 0);
+  const areaExternalNum = Number(form.externalArea || 0);
+  const areaSum = areaInnerNum + areaExternalNum;
+  const areaMismatch = areaTotalNum > 0 && areaSum > 0 && Math.abs(areaSum - areaTotalNum) > 0.5;
+
+  // Editor de casa: qué tan lista está la ficha para publicar — maneja el
+  // checklist del sidebar, el progreso y los badges de cada tab.
+  const casaSlotsOn = { interior: !!form.interiorImageUrl, planta3d: !!activePlan3d, plano3d: !!form.plan3dUrl, plano2d: !!form.technicalPlanUrl };
+  const casaSlotsCount = Object.values(casaSlotsOn).filter(Boolean).length;
+  const casaOk = {
+    datos: form.modelName.trim().length > 0 && areaTotalNum > 0 && effectiveBedrooms > 0 && effectiveBathrooms > 0 && form.orientation !== '',
+    ambientes: allRooms.length > 0 && casaRoomsNeeded.length === 0 && allRooms.every(r => (r.area ?? 0) > 0),
+    planos: casaSlotsOn.interior && casaSlotsOn.planta3d && casaSlotsOn.plano2d,
+    galeria: form.galleryImages.filter(Boolean).length >= 5,
+  };
+  const casaDone = Object.values(casaOk).filter(Boolean).length;
+  // Compara contra el snapshot fijado al entrar a editar / al guardar —
+  // maneja la barra de "Guardar cambios" del sidebar.
+  const casaDirty = JSON.stringify({ form, rooms, levels }) !== casaSnapshot;
+  const casaTabDefs: { key: typeof casaTab; label: string; badge: string; ok: boolean }[] = [
+    { key: 'datos', label: 'Datos', badge: casaOk.datos ? '✓' : '!', ok: casaOk.datos },
+    { key: 'ambientes', label: 'Ambientes', badge: String(allRooms.length), ok: casaOk.ambientes },
+    { key: 'planos', label: 'Planos e imágenes', badge: `${casaSlotsCount}/4`, ok: casaOk.planos },
+    { key: 'galeria', label: 'Galería', badge: String(form.galleryImages.filter(Boolean).length), ok: casaOk.galeria },
+  ];
 
   // polygon y tourNodeId de cada ambiente los edita la pantalla de "Plano y
   // delimitación" (UnitRoomsEditor), no este form. Antes de guardar se
@@ -528,6 +579,15 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     setSaving(false);
     if (res.ok) {
       toast(editingId ? 'Cambios guardados.' : `${unitLabel} creada.`);
+      if (!hasUnitStep) {
+        // Sincroniza el estado local con lo efectivamente guardado (los
+        // polígonos/tourNodeId recién fusionados del server, y `levels`
+        // normalizado a floorsCount - 1) — de paso, la barra de "cambios
+        // sin guardar" vuelve a "Todo guardado" contra este mismo snapshot.
+        setRooms(roomsToSave);
+        setLevels(levelsToSave);
+        setCasaSnapshot(JSON.stringify({ form, rooms: roomsToSave, levels: levelsToSave }));
+      }
       if (editingId) {
         // Para "casa" (!hasUnitStep) el form editado ES la única unidad —
         // vaciarlo tras guardar dejaba al usuario frente a una pantalla en
@@ -740,12 +800,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         </Card>
       )}
 
+      {hasUnitStep ? (
       <Card>
         <CardHeader>
           <h3 className="text-lg font-semibold text-gray-900">
-            {hasUnitStep
-              ? (editingId ? `Editando ${form.code}` : `${uAgree.Nuevo} ${unitLabelLower}`)
-              : (editingId ? `Datos de ${form.code || buildingLabelLower}` : `Datos de ${uAgree.esta} ${buildingLabelLower}`)}
+            {editingId ? `Editando ${form.code}` : `${uAgree.Nuevo} ${unitLabelLower}`}
           </h3>
         </CardHeader>
 
@@ -753,16 +812,16 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {showCodeField && (
               <Input
-                label={unitIsLand ? 'Código del lote' : hasUnitStep ? 'Código' : 'Nombre de la casa'}
+                label={unitIsLand ? 'Código del lote' : 'Código'}
                 id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
-                placeholder={unitIsLand ? 'Lote 12' : hasUnitStep ? 'A01-01' : buildingLabel} required
+                placeholder={unitIsLand ? 'Lote 12' : 'A01-01'} required
               />
             )}
             {/* Un lote es terreno: sin modelo ni tipología (no hay vivienda). */}
             {!unitIsLand && (
               <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
             )}
-            {hasUnitStep && !unitIsLand && (
+            {!unitIsLand && (
               <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
                 {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
@@ -786,9 +845,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             {!unitIsLand && (
               <>
                 <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
-                {hasUnitStep && (
-                  <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
-                )}
+                <Input label="Balcón (m²)" id="balconyArea" type="number" step="0.01" value={form.balconyArea} onChange={e => setForm({ ...form, balconyArea: e.target.value })} />
                 <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
               </>
             )}
@@ -796,17 +853,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Dormitorios/baños: no aplican a un lote. */}
-            {!unitIsLand && (programActive ? (
-              <>
-                <ReadOnlyField label="Dormitorios" value={`${derivedCounts.bedrooms}`} hint="de los ambientes" />
-                <ReadOnlyField label="Baños" value={`${derivedCounts.bathrooms}`} hint="de los ambientes" />
-              </>
-            ) : (
+            {!unitIsLand && (
               <>
                 <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
                 <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />
               </>
-            ))}
+            )}
             {typeConfig.showPrice && (
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
@@ -819,231 +871,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               </div>
             )}
-            {/* Casa: la orientación se carga con la brújula de abajo. Lote:
-                es terreno, no lleva orientación. */}
-            {hasUnitStep && !unitIsLand && (
+            {!unitIsLand && (
               <Input label="Orientación" id="orientation" value={form.orientation} onChange={e => setForm({ ...form, orientation: e.target.value })} placeholder="NE" />
             )}
           </div>
-
-          {!hasUnitStep && (
-            <div className="pt-1">
-              <label className="block text-sm font-medium text-brand-900 mb-2">Orientación</label>
-              <TourOrientationControl
-                hint={`Arrastrá la aguja hacia dónde mira el frente de ${uAgree.esta} ${unitLabelLower}${orientationCardinal ? ` — mira al ${orientationCardinal}` : ''}. También calibra por dónde sale y se pone el sol en el recorrido 360°.`}
-                value={orientationCardinal !== '' ? Number(form.orientation) : undefined}
-                onChange={(deg: number | undefined) => setForm({ ...form, orientation: deg == null ? '' : String(deg) })}
-              />
-            </div>
-          )}
-
-          {!hasUnitStep && (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
-                <Input label="Altura de techo (m)" id="ceilingHeight" type="number" step="0.01" value={form.ceilingHeight} onChange={e => setForm({ ...form, ceilingHeight: e.target.value })} placeholder="2.60" />
-                <Input label="Cantidad de plantas" id="floorsCount" type="number" min={1} value={form.floorsCount} onChange={e => setForm({ ...form, floorsCount: e.target.value })} />
-                {typeConfig.showPrice && (
-                  <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
-                )}
-              </div>
-
-              {/* Livings / cocinas / otros: solo mientras NO haya programa de
-                  ambientes cargado — con programa, esos conteos salen de él. */}
-              {!programActive && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Input label="Livings" id="livingRooms" type="number" min={0} value={form.livingRooms} onChange={e => setForm({ ...form, livingRooms: e.target.value })} />
-                  <Input label="Cocinas" id="kitchens" type="number" min={0} value={form.kitchens} onChange={e => setForm({ ...form, kitchens: e.target.value })} />
-                  <Input label="Otros ambientes" id="otherRoomsCount" type="number" min={0} value={form.otherRoomsCount} onChange={e => setForm({ ...form, otherRoomsCount: e.target.value })} placeholder="0" />
-                  <Input label="Detalle otros ambientes" id="otherRoomsDescription" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito" />
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Input label="Cocheras cubiertas" id="garageCovered" type="number" min={0} value={form.garageCovered} onChange={e => setForm({ ...form, garageCovered: e.target.value })} />
-                <Input label="Cocheras descubiertas" id="garageUncovered" type="number" min={0} value={form.garageUncovered} onChange={e => setForm({ ...form, garageUncovered: e.target.value })} />
-                <Select label="Estado / antigüedad" id="condition" value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value as typeof form.condition })}>
-                  <option value="">Sin especificar</option>
-                  {UNIT_CONDITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </Select>
-              </div>
-
-              {/* Comodidades — lista libre de tags (pileta, quincho, losa
-                  radiante, amoblada, apto crédito…). Se guarda en units.features. */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Comodidades</label>
-                <div className="space-y-2">
-                  {UNIT_FEATURE_GROUPS.map(group => (
-                    <div key={group.label} className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-medium text-gray-400 w-24 shrink-0">{group.label}</span>
-                      {group.options
-                        .filter(opt => opt !== 'Apto crédito' || typeConfig.showPrice)
-                        .map(opt => {
-                          const on = form.features.includes(opt);
-                          return (
-                            <button
-                              type="button"
-                              key={opt}
-                              onClick={() => setForm({
-                                ...form,
-                                features: on ? form.features.filter(f => f !== opt) : [...form.features, opt],
-                              })}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-                                on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                              }`}
-                            >
-                              {on ? '✓ ' : ''}{opt}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Programa de ambientes — cada uno con su tipo, m², foto y
-                  detalle. Se guarda en units.rooms / units.levels; el paso
-                  "Ambientes y Tour" le agrega después el polígono. */}
-              <div className="pt-4 border-t border-gray-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900">Ambientes</h4>
-                    <p className="text-xs text-gray-400">
-                      Detalle de cada ambiente de la casa (dormitorios, baños, cocina…). Opcional pero recomendado.
-                      {floorsCount > 1 && ' Cargalos por planta con las solapas de abajo.'}
-                    </p>
-                  </div>
-                  <button type="button" onClick={addRoom} className="text-sm font-medium text-brand-600 hover:text-brand-700 shrink-0">
-                    + Agregar {plantaIdx === 0 ? 'ambiente' : `a ${plantas[plantaIdx].label.toLowerCase()}`}
-                  </button>
-                </div>
-
-                {/* Solapas de planta — solo si la casa declara 2+ plantas. */}
-                {floorsCount > 1 && (
-                  <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                    {plantas.map((p, i) => {
-                      const n = p.rooms.filter(r => r.kind).length;
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setActivePlanta(i)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                          {p.label}{n > 0 && <span className="text-gray-400 ml-1">({n})</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {activeRooms.length === 0 ? (
-                  <div className="py-2 space-y-2">
-                    <p className="text-sm text-gray-400">Todavía no cargaste ambientes{floorsCount > 1 ? ` en ${plantas[plantaIdx].label.toLowerCase()}` : ''}.</p>
-                    {plantaIdx === 0 && (() => {
-                      const legacy = synthesizeRoomProgram({
-                        bedrooms: Number(form.bedrooms || 0), bathrooms: Number(form.bathrooms || 0),
-                        livingRooms: Number(form.livingRooms || 0), kitchens: Number(form.kitchens || 0),
-                        otherRoomsCount: Number(form.otherRoomsCount || 0), otherRoomsDescription: form.otherRoomsDescription,
-                      });
-                      return legacy.length > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => setRooms(legacy)}
-                          className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                        >
-                          Generar {legacy.length} ambiente{legacy.length === 1 ? '' : 's'} desde los datos actuales (podés ajustarlos después)
-                        </button>
-                      ) : null;
-                    })()}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {activeRooms.map(room => {
-                      const featureOpts = roomFeatureOptions(room.kind);
-                      return (
-                      <div key={room.id} className="rounded-xl border border-gray-200 p-3 space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          <Input
-                            label="Nombre" value={room.name}
-                            onChange={e => updateRoom(room.id, { name: e.target.value })}
-                            placeholder="Dormitorio principal"
-                          />
-                          <Select label="Tipo" value={room.kind ?? 'other'} onChange={e => updateRoom(room.id, { kind: e.target.value as RoomKind })}>
-                            {ROOM_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </Select>
-                          <Input
-                            label="m²" type="number" step="0.01" value={room.area ?? ''}
-                            onChange={e => updateRoom(room.id, { area: e.target.value === '' ? undefined : Number(e.target.value) })}
-                          />
-                        </div>
-                        {featureOpts.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {featureOpts.map(feature => {
-                              const on = room.features?.includes(feature);
-                              return (
-                                <button
-                                  type="button"
-                                  key={feature}
-                                  onClick={() => toggleRoomFeature(room.id, feature)}
-                                  className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-                                    on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                                  }`}
-                                >
-                                  {on ? '✓ ' : ''}{feature}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <ImageUploader
-                          label="Foto del ambiente"
-                          value={room.imageUrl ?? ''}
-                          onChange={url => updateRoom(room.id, { imageUrl: url || undefined })}
-                          folder="units"
-                        />
-                        <MultiImageUploader
-                          label="Más fotos de este ambiente"
-                          values={room.images ?? []}
-                          onChange={urls => updateRoom(room.id, { images: urls.length ? urls : undefined })}
-                          folder="units"
-                        />
-                        <div className="flex items-end gap-3">
-                          <div className="flex-1">
-                            <Input
-                              label="Nota" value={room.notes ?? ''}
-                              onChange={e => updateRoom(room.id, { notes: e.target.value || undefined })}
-                              placeholder="Detalle libre (ventanal al jardín, piso de madera…)"
-                            />
-                          </div>
-                          <button type="button" onClick={() => removeRoom(room.id)} className="text-sm text-red-500 hover:text-red-700 pb-2 shrink-0">
-                            Quitar
-                          </button>
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* La delimitación de cada ambiente sobre el plano 2D (y el
-                    plano en sí) se hacen en una pantalla aparte, más grande —
-                    ver /pisos/[floorId]/plano. */}
-                {buildingId && (
-                  <Link
-                    href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 hover:border-gray-300 hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-gray-900">Plano y delimitación de los ambientes</span>
-                      <span className="block text-xs text-gray-400">Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. Se abre en otra pantalla — guardá primero los cambios de acá.</span>
-                    </span>
-                    <span className="text-sm font-medium text-brand-600 shrink-0">Abrir →</span>
-                  </Link>
-                )}
-              </div>
-            </>
-          )}
 
           {/* Cuarto de servicio: no aplica a un lote. */}
           {!unitIsLand && (
@@ -1063,33 +894,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               folder="units"
             />
             {/* Planos 3D/técnicos: solo para una vivienda. Un lote no tiene. */}
-            {!unitIsLand && (!hasUnitStep ? (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Planta 3D</label>
-                {plantas.length > 1 && (
-                  <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                    {plantas.map((p, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setActivePlanta(i)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <ImageUploader value={activePlan3d} onChange={setActivePlan3d} folder="floorplans" />
-                {plantas.length > 1 && (
-                  <p className="text-xs text-gray-400">Estás editando la planta 3D de {plantas[plantaIdx].label.toLowerCase()}.</p>
-                )}
-              </div>
-            ) : (
-              <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
-            ))}
             {!unitIsLand && (
               <>
+                <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
                 <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
                 <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
               </>
@@ -1105,7 +912,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
 
           {/* Recorrido 360° del depto — inline, acá mismo. Autoguarda su
               propio campo (tour_data), independiente del "Guardar cambios". */}
-          {hasUnitStep && !unitIsLand && editingId && (
+          {!unitIsLand && editingId && (
             <div id="depto-tour-section" className="pt-4 border-t border-gray-100 space-y-2 scroll-mt-4">
               <div>
                 <h4 className="text-sm font-semibold text-gray-900">Creá tu recorrido — {form.code}</h4>
@@ -1132,18 +939,16 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <p className="text-xs text-gray-500">
             {unitIsLand
               ? `La silueta de ${uAgree.esta} ${unitLabelLower} sobre el plano de subdivisión se marca en el paso siguiente.`
-              : hasUnitStep
-              ? 'El polígono del depto en el plano y los ambientes se cargan en los pasos siguientes.'
-              : 'Los ambientes (incluida una pileta u otro espacio propio, si tiene) y el tour 360° se cargan en el paso siguiente.'}
+              : 'El polígono del depto en el plano y los ambientes se cargan en los pasos siguientes.'}
           </p>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="pt-4 border-t border-gray-100 flex items-center gap-3">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : hasUnitStep ? `+ Crear ${unitLabelLower}` : 'Guardar'}
+              {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : `+ Crear ${unitLabelLower}`}
             </Button>
-            {editingId && hasUnitStep && (
+            {editingId && (
               <Button type="button" variant="ghost" onClick={cancelEdit} className="bg-transparent hover:bg-gray-100">
                 Cancelar
               </Button>
@@ -1151,6 +956,487 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           </div>
         </form>
       </Card>
+      ) : (
+      <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-4 items-start">
+        <div className="flex-1 min-w-0 flex flex-col gap-3.5">
+          <div className="flex gap-1.5 flex-wrap">
+            {casaTabDefs.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setCasaTab(t.key)}
+                className={`h-9 pl-3.5 pr-2.5 flex items-center gap-2 rounded-lg text-sm font-medium border transition-colors ${
+                  casaTab === t.key ? 'border-gray-200 bg-white text-gray-900 shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t.label}
+                <span className={`h-[19px] min-w-[19px] px-1.5 rounded-md flex items-center justify-center text-[10px] font-semibold ${
+                  t.ok ? 'bg-brand-50 text-brand-800' : 'bg-amber-50 text-amber-700'
+                }`}>
+                  {t.badge}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {casaTab === 'datos' && (
+            <div className="flex flex-col gap-3.5">
+              <Card>
+                <div className="p-5 flex flex-col gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Identidad y superficies</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">Lo que se ve primero en la ficha.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {showCodeField && (
+                      <Input label="Nombre de la casa" id="code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder={buildingLabel} required />
+                    )}
+                    <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Estado / antigüedad</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([{ value: '', label: 'Sin especificar' }, ...UNIT_CONDITION_OPTIONS] as { value: typeof form.condition; label: string }[]).map(o => {
+                        const on = form.condition === o.value;
+                        return (
+                          <button
+                            type="button"
+                            key={o.value || 'none'}
+                            onClick={() => setForm({ ...form, condition: o.value })}
+                            className={`h-8 px-3 rounded-full text-xs font-medium border transition-colors ${
+                              on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}
+                          >
+                            {o.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <label htmlFor="totalArea" className="block text-xs font-medium text-gray-500">Área total (m²)</label>
+                        <span className="text-[10px] text-gray-400 truncate">{areaSum > 0 ? `interna + externa = ${areaSum} m²` : 'suma de interna y externa'}</span>
+                      </div>
+                      <input
+                        id="totalArea" type="number" step="0.01" value={form.totalArea}
+                        onChange={e => setForm({ ...form, totalArea: e.target.value })}
+                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${areaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
+                      />
+                    </div>
+                    <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
+                    <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
+                  </div>
+                  {areaMismatch && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
+                      <p className="flex-1 min-w-[220px] text-xs text-amber-800">
+                        Interna ({areaInnerNum}) + externa ({areaExternalNum}) dan {areaSum} m², y el total dice {areaTotalNum} m².
+                      </p>
+                      <button type="button" onClick={() => setForm({ ...form, totalArea: String(areaSum) })} className="h-7 px-3 rounded-md bg-gray-900 text-white text-xs font-medium shrink-0">
+                        Usar {areaSum} m² como total
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              <Card>
+                <div className="p-5 flex flex-col gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Composición</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">El sitio arma los filtros con estos números.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {programActive ? (
+                      <>
+                        <ReadOnlyField label="Dormitorios" value={`${derivedCounts.bedrooms}`} hint="de los ambientes" />
+                        <ReadOnlyField label="Baños" value={`${derivedCounts.bathrooms}`} hint="de los ambientes" />
+                      </>
+                    ) : (
+                      <>
+                        <CasaCounter label="Dormitorios" value={Number(form.bedrooms || 0)} onDec={() => setForm({ ...form, bedrooms: String(Math.max(0, Number(form.bedrooms || 0) - 1)) })} onInc={() => setForm({ ...form, bedrooms: String(Number(form.bedrooms || 0) + 1) })} />
+                        <CasaCounter label="Baños" value={Number(form.bathrooms || 0)} onDec={() => setForm({ ...form, bathrooms: String(Math.max(0, Number(form.bathrooms || 0) - 1)) })} onInc={() => setForm({ ...form, bathrooms: String(Number(form.bathrooms || 0) + 1) })} />
+                      </>
+                    )}
+                    <CasaCounter label="Cantidad de plantas" value={Number(form.floorsCount || 1)} onDec={() => setForm({ ...form, floorsCount: String(Math.max(1, Number(form.floorsCount || 1) - 1)) })} onInc={() => setForm({ ...form, floorsCount: String(Number(form.floorsCount || 1) + 1) })} />
+                    {!programActive && (
+                      <>
+                        <CasaCounter label="Livings" value={Number(form.livingRooms || 0)} onDec={() => setForm({ ...form, livingRooms: String(Math.max(0, Number(form.livingRooms || 0) - 1)) })} onInc={() => setForm({ ...form, livingRooms: String(Number(form.livingRooms || 0) + 1) })} />
+                        <CasaCounter label="Cocinas" value={Number(form.kitchens || 0)} onDec={() => setForm({ ...form, kitchens: String(Math.max(0, Number(form.kitchens || 0) - 1)) })} onInc={() => setForm({ ...form, kitchens: String(Number(form.kitchens || 0) + 1) })} />
+                        <CasaCounter label="Otros ambientes" value={Number(form.otherRoomsCount || 0)} onDec={() => setForm({ ...form, otherRoomsCount: String(Math.max(0, Number(form.otherRoomsCount || 0) - 1)) })} onInc={() => setForm({ ...form, otherRoomsCount: String(Number(form.otherRoomsCount || 0) + 1) })} />
+                      </>
+                    )}
+                    <CasaCounter label="Cocheras cubiertas" value={Number(form.garageCovered || 0)} onDec={() => setForm({ ...form, garageCovered: String(Math.max(0, Number(form.garageCovered || 0) - 1)) })} onInc={() => setForm({ ...form, garageCovered: String(Number(form.garageCovered || 0) + 1) })} />
+                    <CasaCounter label="Cocheras descubiertas" value={Number(form.garageUncovered || 0)} onDec={() => setForm({ ...form, garageUncovered: String(Math.max(0, Number(form.garageUncovered || 0) - 1)) })} onInc={() => setForm({ ...form, garageUncovered: String(Number(form.garageUncovered || 0) + 1) })} />
+                  </div>
+                  {!programActive && (
+                    <Input label="Detalle de otros ambientes" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito…" />
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
+                    <Input label="Altura de techo (m)" id="ceilingHeight" type="number" step="0.01" value={form.ceilingHeight} onChange={e => setForm({ ...form, ceilingHeight: e.target.value })} placeholder="2.60" />
+                    <label className="flex items-center gap-2 text-sm text-gray-700 h-10">
+                      <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                      Tiene cuarto de servicio
+                    </label>
+                  </div>
+                  {(typeConfig.showPrice || typeConfig.showStatus) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {typeConfig.showPrice && (
+                        <>
+                          <Input label="Precio" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
+                          <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </Select>
+                          <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
+                        </>
+                      )}
+                      {typeConfig.showStatus && (
+                        <Select label="Estado de venta" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
+                          <option value="available">Disponible</option>
+                          <option value="reserved">Reservado</option>
+                          <option value="sold">Vendido</option>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              <Card>
+                <div className="p-5 flex flex-col gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Orientación del frente</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">Elegí el rumbo al que mira el frente — calibra por dónde sale y se pone el sol en el recorrido 360°.</p>
+                  </div>
+                  <TourOrientationControl
+                    hint={`Arrastrá la aguja hacia dónde mira el frente de ${uAgree.esta} ${unitLabelLower}${orientationCardinal ? ` — mira al ${orientationCardinal}` : ''}.`}
+                    value={orientationCardinal !== '' ? Number(form.orientation) : undefined}
+                    onChange={(deg: number | undefined) => setForm({ ...form, orientation: deg == null ? '' : String(deg) })}
+                  />
+                </div>
+              </Card>
+
+              <Card>
+                <div className="p-5 flex flex-col gap-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-gray-900">Comodidades</h4>
+                    <span className="text-xs text-gray-400">{form.features.length} seleccionadas</span>
+                  </div>
+                  <div className="space-y-2">
+                    {UNIT_FEATURE_GROUPS.map(group => (
+                      <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-medium text-gray-400 w-24 shrink-0">{group.label}</span>
+                        {group.options
+                          .filter(opt => opt !== 'Apto crédito' || typeConfig.showPrice)
+                          .map(opt => {
+                            const on = form.features.includes(opt);
+                            return (
+                              <button
+                                type="button"
+                                key={opt}
+                                onClick={() => setForm({
+                                  ...form,
+                                  features: on ? form.features.filter(f => f !== opt) : [...form.features, opt],
+                                })}
+                                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                                  on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                                }`}
+                              >
+                                {on ? '✓ ' : ''}{opt}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {casaTab === 'ambientes' && (
+            <div className="flex flex-col gap-3.5">
+              {casaRoomsNeeded.length > 0 && (
+                <div className="rounded-xl bg-gray-900 px-4 py-3.5 flex items-center gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[220px]">
+                    <p className="text-sm font-medium text-white">
+                      Declaraste {casaRoomsNeeded.map(x => `${x.n} ${x.base.toLowerCase()}${x.n > 1 ? 's' : ''}`).join(', ')} sin detallar
+                    </p>
+                    <p className="text-xs text-white/60 mt-0.5">Los creo con nombre y tipo puestos; después solo agregás m² y fotos.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      let id = Date.now();
+                      const add: Room[] = [];
+                      casaRoomsNeeded.forEach(x => {
+                        for (let i = 0; i < x.n; i++) add.push({ id: `r-${id++}`, name: `${x.base}${x.n > 1 ? ` ${i + 1}` : ''}`, kind: x.kind });
+                      });
+                      setRooms([...rooms, ...add]);
+                    }}
+                    className="h-8 px-3.5 rounded-lg bg-white text-gray-900 text-xs font-medium shrink-0"
+                  >
+                    Crear los que faltan
+                  </button>
+                </div>
+              )}
+
+              <Card>
+                <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Ambientes</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Detalle de cada ambiente de la casa (dormitorios, baños, cocina…). Opcional pero recomendado.
+                      {floorsCount > 1 && ' Cargalos por planta con las solapas de abajo.'}
+                    </p>
+                  </div>
+                  <button type="button" onClick={addRoom} className="h-8 px-3 rounded-lg bg-gray-900 text-white text-xs font-medium shrink-0">
+                    + Agregar {plantaIdx === 0 ? 'ambiente' : `a ${plantas[plantaIdx].label.toLowerCase()}`}
+                  </button>
+                </div>
+                <div className="p-5 flex flex-col gap-3">
+                  {floorsCount > 1 && (
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                      {plantas.map((p, i) => {
+                        const n = p.rooms.filter(r => r.kind).length;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setActivePlanta(i)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                            {p.label}{n > 0 && <span className="text-gray-400 ml-1">({n})</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {activeRooms.length === 0 ? (
+                    <div className="py-2 space-y-2">
+                      <p className="text-sm text-gray-400">Todavía no cargaste ambientes{floorsCount > 1 ? ` en ${plantas[plantaIdx].label.toLowerCase()}` : ''}.</p>
+                      {plantaIdx === 0 && (() => {
+                        const legacy = synthesizeRoomProgram({
+                          bedrooms: Number(form.bedrooms || 0), bathrooms: Number(form.bathrooms || 0),
+                          livingRooms: Number(form.livingRooms || 0), kitchens: Number(form.kitchens || 0),
+                          otherRoomsCount: Number(form.otherRoomsCount || 0), otherRoomsDescription: form.otherRoomsDescription,
+                        });
+                        return legacy.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setRooms(legacy)}
+                            className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                          >
+                            Generar {legacy.length} ambiente{legacy.length === 1 ? '' : 's'} desde los datos actuales (podés ajustarlos después)
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {activeRooms.map(room => {
+                        const featureOpts = roomFeatureOptions(room.kind);
+                        return (
+                        <div key={room.id} className="rounded-xl border border-gray-200 p-3 space-y-3">
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <Input
+                              label="Nombre" value={room.name}
+                              onChange={e => updateRoom(room.id, { name: e.target.value })}
+                              placeholder="Dormitorio principal"
+                            />
+                            <Select label="Tipo" value={room.kind ?? 'other'} onChange={e => updateRoom(room.id, { kind: e.target.value as RoomKind })}>
+                              {ROOM_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </Select>
+                            <Input
+                              label="m²" type="number" step="0.01" value={room.area ?? ''}
+                              onChange={e => updateRoom(room.id, { area: e.target.value === '' ? undefined : Number(e.target.value) })}
+                            />
+                          </div>
+                          {featureOpts.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {featureOpts.map(feature => {
+                                const on = room.features?.includes(feature);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={feature}
+                                    onClick={() => toggleRoomFeature(room.id, feature)}
+                                    className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                                      on ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                                    }`}
+                                  >
+                                    {on ? '✓ ' : ''}{feature}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <ImageUploader
+                            label="Foto del ambiente"
+                            value={room.imageUrl ?? ''}
+                            onChange={url => updateRoom(room.id, { imageUrl: url || undefined })}
+                            folder="units"
+                          />
+                          <MultiImageUploader
+                            label="Más fotos de este ambiente"
+                            values={room.images ?? []}
+                            onChange={urls => updateRoom(room.id, { images: urls.length ? urls : undefined })}
+                            folder="units"
+                          />
+                          <div className="flex items-end gap-3">
+                            <div className="flex-1">
+                              <Input
+                                label="Nota" value={room.notes ?? ''}
+                                onChange={e => updateRoom(room.id, { notes: e.target.value || undefined })}
+                                placeholder="Detalle libre (ventanal al jardín, piso de madera…)"
+                              />
+                            </div>
+                            <button type="button" onClick={() => removeRoom(room.id)} className="text-sm text-red-500 hover:text-red-700 pb-2 shrink-0">
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="px-5 py-3.5 bg-gray-50/60 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-xs text-gray-500">
+                    {(() => {
+                      const roomsM2 = allRooms.reduce((s, r) => s + (r.area ?? 0), 0);
+                      return roomsM2 > 0
+                        ? `Los ambientes suman ${roomsM2} m² de los ${areaInnerNum || '—'} m² internos${areaInnerNum && roomsM2 > areaInnerNum ? ' — te pasaste.' : '.'}`
+                        : 'Todavía no cargaste m² por ambiente: el sitio los muestra sin superficie.';
+                    })()}
+                  </p>
+                  {buildingId && (
+                    <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`} className="h-8 px-3 flex items-center rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-900 shrink-0">
+                      Delimitar en el plano →
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {casaTab === 'planos' && (
+            <div className="flex flex-col gap-3.5">
+              <Card>
+                <div className="p-5 flex flex-col gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Imágenes principales</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">Cada una tiene un lugar fijo en la ficha.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ImageUploader label="Foto interior" value={form.interiorImageUrl} onChange={url => setForm({ ...form, interiorImageUrl: url })} folder="units" />
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">Planta 3D</label>
+                      {plantas.length > 1 && (
+                        <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                          {plantas.map((p, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setActivePlanta(i)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${plantaIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <ImageUploader value={activePlan3d} onChange={setActivePlan3d} folder="floorplans" />
+                      {plantas.length > 1 && (
+                        <p className="text-xs text-gray-400">Estás editando la planta 3D de {plantas[plantaIdx].label.toLowerCase()}.</p>
+                      )}
+                    </div>
+                    <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
+                    <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
+                  </div>
+                </div>
+              </Card>
+
+              {buildingId && (
+                <Link
+                  href={`/admin/edificios/${buildingId}/pisos/${floorId}/plano`}
+                  className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 hover:border-gray-300 transition-colors flex-wrap"
+                >
+                  <div className="w-11 h-11 rounded-lg bg-gray-100 shrink-0" />
+                  <span className="flex-1 min-w-[200px]">
+                    <span className="block text-sm font-semibold text-gray-900">Plano y delimitación de ambientes</span>
+                    <span className="block text-xs text-gray-400 mt-0.5">Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. Se abre en otra pantalla — guardá primero los cambios de acá.</span>
+                  </span>
+                  <span className="h-8 px-3 flex items-center rounded-lg border border-gray-200 text-xs font-medium text-gray-900 shrink-0">Abrir →</span>
+                </Link>
+              )}
+            </div>
+          )}
+
+          {casaTab === 'galeria' && (
+            <Card>
+              <div className="p-5 flex flex-col gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Galería</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {form.galleryImages.filter(Boolean).length} fotos · la primera es la portada del sitio{form.galleryImages.filter(Boolean).length < 5 ? ' · sumá al menos 5' : ''}
+                  </p>
+                </div>
+                <MultiImageUploader values={form.galleryImages} onChange={urls => setForm({ ...form, galleryImages: urls })} folder="units" />
+              </div>
+            </Card>
+          )}
+        </div>
+
+        <div className="w-full lg:w-[262px] shrink-0 lg:sticky lg:top-4 flex flex-col gap-3">
+          <Card>
+            <div className="p-4">
+              <h4 className="text-sm font-semibold text-gray-900">Para publicar la casa</h4>
+              <div className="h-1.5 rounded-full bg-gray-100 mt-2.5 overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${casaDone === 4 ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / 4) * 100}%` }} />
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">{casaDone} de 4 bloques completos</p>
+            </div>
+            {casaTabDefs.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setCasaTab(t.key)}
+                className="w-full px-4 py-2.5 flex items-center gap-2.5 border-t border-gray-100 hover:bg-gray-50/60 text-left"
+              >
+                <span className={`w-[17px] h-[17px] shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold border-[1.5px] ${
+                  t.ok ? 'bg-brand-500 border-brand-500 text-white' : 'border-amber-300 text-transparent'
+                }`}>
+                  {t.ok ? '✓' : ''}
+                </span>
+                <span className="block text-xs font-medium text-gray-900">{t.label}</span>
+              </button>
+            ))}
+          </Card>
+
+          <Card>
+            <div className="p-4 flex flex-col gap-2">
+              <button
+                type="submit"
+                disabled={saving || !casaDirty}
+                className={`h-9 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 ${
+                  casaDirty ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-default'
+                }`}
+              >
+                {saving ? 'Guardando...' : casaDirty ? 'Guardar cambios' : 'Todo guardado'}
+              </button>
+              <p className="text-xs text-gray-400">
+                {casaDirty ? 'Hay cambios sin guardar en esta pantalla.' : 'Se guarda por bloque: podés salir y seguir después.'}
+              </p>
+              {error && <p className="text-xs text-red-500">{error}</p>}
+            </div>
+          </Card>
+        </div>
+      </form>
+      )}
     </div>
   );
 }
@@ -1162,6 +1448,36 @@ function ReadOnlyField({ label, value, hint }: { label: string; value: string; h
       <div className="w-full px-4 py-2 border border-gray-100 rounded-lg bg-gray-50 text-sm text-gray-700">
         {value}
         {hint && <span className="text-gray-400"> · {hint}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Contador +/- de la tab "Datos" del editor de casa (dormitorios, baños,
+// plantas, cocheras…) — mismo dato que un <input type="number">, solo que
+// más rápido de tocar desde el celular en obra.
+function CasaCounter({ label, value, onDec, onInc, disabled }: { label: string; value: number; onDec: () => void; onInc: () => void; disabled?: boolean }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2.5 flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-gray-500">{label}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={disabled || value <= 0}
+          onClick={onDec}
+          className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 disabled:opacity-30"
+        >
+          −
+        </button>
+        <span className="flex-1 text-center font-semibold text-gray-900">{value}</span>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onInc}
+          className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:border-brand-400 disabled:opacity-30"
+        >
+          +
+        </button>
       </div>
     </div>
   );
