@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useState, useEffect, useCallback, useRef } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 
@@ -12,6 +13,9 @@ export interface ApiMessage {
   shared_post: EmbeddedPost | null;
   attachment_url: string | null;
   attachment_type: 'image' | 'audio' | 'file' | null;
+  // Ya viene en la respuesta (el select del server es '*, shared_post:...')
+  // — antes el tipo simplemente no lo declaraba. Sirve para "Enviado"/"Visto".
+  read_at: string | null;
   created_at: string;
 }
 
@@ -21,12 +25,24 @@ export interface ApiMessage {
 // push, con esto de respaldo).
 const FALLBACK_POLL_INTERVAL_MS = 25000;
 
+// Cuánto dura "escribiendo…" del otro lado sin recibir un nuevo broadcast
+// antes de apagarse solo — cubre el caso de que se vaya de la pantalla o
+// pierda conexión sin mandar el evento de "dejé de escribir".
+const TYPING_TIMEOUT_MS = 3000;
+// No se manda un broadcast por cada tecla — alcanza con avisar una vez
+// cada tanto mientras se sigue tipeando.
+const TYPING_THROTTLE_MS = 2000;
+
 export function useConversationMessages(conversationId: string) {
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
   const messagesRef = useRef<ApiMessage[]>([]);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSentRef = useRef(0);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -55,30 +71,61 @@ export function useConversationMessages(conversationId: string) {
     fetch(`/api/conversations/${conversationId}/messages`)
       .then(res => res.json())
       .then((data: { messages: ApiMessage[] }) => {
-        const existingIds = new Set(messagesRef.current.map(m => m.id));
-        const fresh = (data.messages ?? []).filter(m => !existingIds.has(m.id)).reverse();
-        if (fresh.length > 0) setMessages(prev => [...prev, ...fresh]);
+        const page = (data.messages ?? []).slice().reverse();
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          // Actualiza in-place los que ya tenía (ej. read_at cuando el otro
+          // participante lee el hilo — sin esto "Visto" quedaba pisado por
+          // el filtro de "solo agregar ids nuevos") y agrega los genuinamente
+          // nuevos al final.
+          const byId = new Map(page.map(m => [m.id, m]));
+          const merged = prev.map(m => byId.get(m.id) ?? m);
+          const fresh = page.filter(m => !existingIds.has(m.id));
+          return fresh.length > 0 ? [...merged, ...fresh] : merged;
+        });
       })
       .catch(() => {});
   }, [conversationId]);
 
   useEffect(() => {
     const supabase = createClient();
+    // { self: false } — sin esto, "escribiendo…" propio rebotaría de
+    // vuelta apenas se manda. Un broadcast (no postgres_changes): efímero,
+    // no se persiste ni queda rastro en la conversación.
     const channel = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(`messages:${conversationId}`, { config: { broadcast: { self: false } } })
       .on(
+        // INSERT (mensaje nuevo) y UPDATE (read_at cuando el otro participante
+        // lo lee — necesario para que "Visto" se actualice sin recargar).
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+        { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         () => refreshLatest()
       )
+      .on('broadcast', { event: 'typing' }, () => {
+        setOtherTyping(true);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setOtherTyping(false), TYPING_TIMEOUT_MS);
+      })
       .subscribe();
+    channelRef.current = channel;
 
     const fallback = setInterval(refreshLatest, FALLBACK_POLL_INTERVAL_MS);
     return () => {
       clearInterval(fallback);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      setOtherTyping(false);
+      channelRef.current = null;
       supabase.removeChannel(channel);
     };
   }, [conversationId, refreshLatest]);
+
+  // Throttleado — no vale la pena mandar un broadcast por cada tecla.
+  const notifyTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTypingSentRef.current < TYPING_THROTTLE_MS) return;
+    lastTypingSentRef.current = now;
+    channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: {} });
+  }, []);
 
   const loadMore = useCallback(() => {
     const oldest = messagesRef.current[0];
@@ -110,5 +157,5 @@ export function useConversationMessages(conversationId: string) {
     return res;
   }, [conversationId]);
 
-  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage };
+  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, otherTyping, notifyTyping };
 }

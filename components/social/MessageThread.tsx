@@ -15,6 +15,25 @@ import { useIsOnline } from '@/lib/presence-context';
 
 const MAX_ATTACHMENT_SIZE = 15 * 1024 * 1024;
 const MAX_REPORT_REASON_LENGTH = 500;
+const MAX_MESSAGE_LENGTH = 2000;
+const QUICK_REPLIES = ['Dale, te aviso', 'Lo miro y te comento', '¿Podemos hablar mañana?'];
+
+// "Hoy" / "Ayer" / fecha completa — mismo criterio que formatRelativeTime
+// pero para separadores de día en el hilo, no para cada mensaje.
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'Hoy';
+  if (sameDay(d, yesterday)) return 'Ayer';
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: sameYear ? undefined : 'numeric' });
+}
+function sameDay(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
 
 // Modal chiquito y autocontenido para las dos únicas acciones que
 // necesita el menú "⋯" del hilo — no vale la pena traer ConfirmProvider
@@ -141,7 +160,7 @@ interface OtherParticipant {
 }
 
 export default function MessageThread({ conversationId, other }: { conversationId: string; other: OtherParticipant | null }) {
-  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage } = useConversationMessages(conversationId);
+  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, otherTyping, notifyTyping } = useConversationMessages(conversationId);
   const [userId, setUserId] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -150,6 +169,7 @@ export default function MessageThread({ conversationId, other }: { conversationI
   const [recordSeconds, setRecordSeconds] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -160,6 +180,21 @@ export default function MessageThread({ conversationId, other }: { conversationI
   const [canMessage, setCanMessage] = useState(true);
   const [dialog, setDialog] = useState<'block' | 'report' | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  // Primer mensaje sin leer del otro participante, congelado la primera
+  // vez que hay mensajes+usuario listos — antes de que el POST a .../read
+  // (más abajo) los marque como leídos y se pierda el punto de corte para
+  // el divisor "Mensajes nuevos". Se calcula ajustando estado durante el
+  // render (patrón soportado por React para "derivar de props/estado que
+  // recién está listo"), no en un efecto — MessageThread ya se remonta con
+  // `key={conversationId}` en MessagesShell, así que no hace falta resetear
+  // esto al cambiar de hilo.
+  const [firstUnreadId, setFirstUnreadId] = useState<string | null>(null);
+  const [unreadComputed, setUnreadComputed] = useState(false);
+  if (!unreadComputed && !loading && userId) {
+    const firstUnread = messages.find(m => m.sender_id !== userId && !m.read_at);
+    setFirstUnreadId(firstUnread?.id ?? null);
+    setUnreadComputed(true);
+  }
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -336,7 +371,13 @@ export default function MessageThread({ conversationId, other }: { conversationI
           {otherOnline && <p className="text-xs text-green-600">En línea</p>}
         </div>
         {other && (
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <Link
+              href={`/portfolio/${other.handle}`}
+              className="hidden sm:block px-3 py-1.5 rounded-full border border-trevo-dark/15 text-xs font-medium text-trevo-dark hover:border-trevo-dark/30 transition-colors"
+            >
+              Ver perfil
+            </Link>
             <KebabMenu
               items={[
                 blockedByMe
@@ -360,9 +401,9 @@ export default function MessageThread({ conversationId, other }: { conversationI
         />
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {hasMore && (
-          <div className="text-center pb-1">
+          <div className="text-center pb-2">
             <button onClick={loadMore} disabled={loadingMore} className="text-xs font-medium text-trevo-dark/50 hover:text-trevo-dark transition-colors disabled:opacity-50">
               {loadingMore ? 'Cargando...' : 'Cargar mensajes anteriores'}
             </button>
@@ -373,41 +414,74 @@ export default function MessageThread({ conversationId, other }: { conversationI
             Todavía no hay mensajes — escribile algo a {other?.display_name ?? 'esta persona'}.
           </div>
         )}
-        {!loading && messages.map(m => {
+        {!loading && messages.map((m, i) => {
           const mine = m.sender_id === userId;
-          if (m.shared_post) {
-            return (
-              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-                <div className="max-w-[75%] w-full">
-                  {m.body && <p className="text-sm text-trevo-dark px-1 mb-1">{m.body}</p>}
-                  <EmbeddedPostCard post={m.shared_post} />
-                </div>
-                <p className="text-[10px] text-trevo-dark/30 mt-1 px-1">{formatRelativeTime(m.created_at)}</p>
-              </div>
-            );
-          }
-          if (m.attachment_url) {
-            return (
-              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-                <div
-                  className={`max-w-[75%] px-2 py-2 rounded-2xl text-sm space-y-1.5 ${mine ? 'bg-trevo-dark text-white rounded-br-sm' : 'bg-trevo-dark/5 text-trevo-dark rounded-bl-sm'}`}
-                >
-                  {m.body && <p className="whitespace-pre-line px-1.5 pt-1">{m.body}</p>}
-                  <MessageAttachment message={m} />
-                </div>
-                <p className="text-[10px] text-trevo-dark/30 mt-1 px-1">{formatRelativeTime(m.created_at)}</p>
-              </div>
-            );
-          }
+          const prev = messages[i - 1];
+          const showDateSeparator = !prev || !sameDay(prev.created_at, m.created_at);
+          const showNewDivider = firstUnreadId === m.id;
+          // Agrupadas: mismo remitente que el mensaje anterior, mismo día, sin
+          // el divisor "Mensajes nuevos" de por medio — se les achica el
+          // margen y el pico de la burbuja, como una tanda de mensajes.
+          const grouped = !showDateSeparator && !showNewDivider && !!prev && prev.sender_id === m.sender_id;
+          const isLastMine = mine && !messages.slice(i + 1).some(x => x.sender_id === userId);
+          const bubbleRadius = mine
+            ? `rounded-2xl ${grouped ? '' : 'rounded-br-sm'}`
+            : `rounded-2xl ${grouped ? '' : 'rounded-bl-sm'}`;
+
           return (
-            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm ${mine ? 'bg-trevo-dark text-white rounded-br-sm' : 'bg-trevo-dark/5 text-trevo-dark rounded-bl-sm'}`}>
-                <p className="whitespace-pre-line">{m.body}</p>
-                <p className={`text-[10px] mt-1 ${mine ? 'text-white/50' : 'text-trevo-dark/30'}`}>{formatRelativeTime(m.created_at)}</p>
-              </div>
+            <div key={m.id}>
+              {showDateSeparator && (
+                <div className="flex items-center gap-3 py-3" role="separator">
+                  <div className="flex-1 h-px bg-trevo-dark/8" />
+                  <span className="text-[10.5px] font-medium text-trevo-dark/40 capitalize">{dayLabel(m.created_at)}</span>
+                  <div className="flex-1 h-px bg-trevo-dark/8" />
+                </div>
+              )}
+              {showNewDivider && (
+                <div className="flex items-center gap-2.5 py-2.5" role="separator">
+                  <div className="flex-1 h-px bg-brand-400/40" />
+                  <span className="text-[10px] font-semibold text-brand-600 tracking-wide uppercase">Mensajes nuevos</span>
+                  <div className="flex-1 h-px bg-brand-400/40" />
+                </div>
+              )}
+
+              {m.shared_post ? (
+                <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${grouped ? 'mt-0.5' : 'mt-2'}`}>
+                  <div className="max-w-[75%] w-full">
+                    {m.body && <p className="text-sm text-trevo-dark px-1 mb-1">{m.body}</p>}
+                    <EmbeddedPostCard post={m.shared_post} />
+                  </div>
+                  <MessageMeta mine={mine} isLastMine={isLastMine} message={m} />
+                </div>
+              ) : m.attachment_url ? (
+                <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${grouped ? 'mt-0.5' : 'mt-2'}`}>
+                  <div className={`max-w-[75%] px-2 py-2 ${bubbleRadius} text-sm space-y-1.5 ${mine ? 'bg-trevo-dark text-white' : 'bg-trevo-dark/5 text-trevo-dark'}`}>
+                    {m.body && <p className="whitespace-pre-line px-1.5 pt-1">{m.body}</p>}
+                    <MessageAttachment message={m} />
+                  </div>
+                  <MessageMeta mine={mine} isLastMine={isLastMine} message={m} />
+                </div>
+              ) : (
+                <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${grouped ? 'mt-0.5' : 'mt-2'}`}>
+                  <div className={`max-w-[75%] px-3.5 py-2 ${bubbleRadius} text-sm ${mine ? 'bg-trevo-dark text-white' : 'bg-trevo-dark/5 text-trevo-dark'}`}>
+                    <p className="whitespace-pre-line">{m.body}</p>
+                  </div>
+                  <MessageMeta mine={mine} isLastMine={isLastMine} message={m} />
+                </div>
+              )}
             </div>
           );
         })}
+
+        {otherTyping && (
+          <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-1 px-3 py-2.5 rounded-2xl rounded-bl-sm bg-trevo-dark/5">
+              <span className="w-1.5 h-1.5 rounded-full bg-trevo-dark/40 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-trevo-dark/40 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-trevo-dark/40 animate-bounce" />
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -416,64 +490,113 @@ export default function MessageThread({ conversationId, other }: { conversationI
           Ya no podés mandar mensajes en esta conversación.
         </div>
       ) : (
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 border-t border-trevo-dark/10 shrink-0">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,application/pdf"
-          className="hidden"
-          onChange={handleFilePick}
-        />
-        {recording ? (
-          <div className="flex-1 flex items-center gap-2 px-3.5 py-2 rounded-full bg-red-50 text-red-600 text-sm">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-            Grabando... {String(Math.floor(recordSeconds / 60)).padStart(1, '0')}:{String(recordSeconds % 60).padStart(2, '0')}
-          </div>
-        ) : (
-          <>
+      <div className="border-t border-trevo-dark/10 shrink-0 px-4 py-3 flex flex-col gap-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {QUICK_REPLIES.map(q => (
             <button
+              key={q}
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              aria-label="Adjuntar foto o archivo"
-              className="p-2 rounded-full text-trevo-dark/40 hover:text-trevo-dark hover:bg-trevo-dark/5 transition-colors disabled:opacity-40 shrink-0"
+              onClick={() => { setText(q); textareaRef.current?.focus(); }}
+              className="h-7 px-3 rounded-full border border-trevo-dark/12 text-xs text-trevo-dark/65 hover:border-trevo-dark/25 hover:text-trevo-dark transition-colors"
             >
-              <Paperclip className="w-5 h-5" />
+              {q}
             </button>
-            <input
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={uploading ? 'Subiendo...' : 'Escribí un mensaje...'}
-              aria-label="Escribí un mensaje"
-              maxLength={2000}
-              disabled={uploading}
-              className="flex-1 min-w-0 px-3.5 py-2 rounded-full border border-trevo-dark/15 text-sm text-trevo-dark placeholder:text-trevo-dark/30 focus:ring-2 focus:ring-trevo-dark/20 outline-none transition-all disabled:opacity-60"
-            />
-            <EmojiPicker onSelect={e => setText(t => t + e)} />
-          </>
-        )}
-        <button
-          type="button"
-          onClick={recording ? stopRecording : startRecording}
-          disabled={uploading}
-          aria-label={recording ? 'Detener grabación' : 'Grabar nota de audio'}
-          className={`p-2 rounded-full transition-colors disabled:opacity-40 shrink-0 ${
-            recording ? 'text-white bg-red-500 hover:bg-red-600' : 'text-trevo-dark/40 hover:text-trevo-dark hover:bg-trevo-dark/5'
-          }`}
-        >
-          {recording ? <Square className="w-4 h-4" /> : <Mic className="w-5 h-5" />}
-        </button>
-        {!recording && (
+          ))}
+        </div>
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={handleFilePick}
+          />
+          {recording ? (
+            <div className="flex-1 flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-red-50 text-red-600 text-sm">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              Grabando... {String(Math.floor(recordSeconds / 60)).padStart(1, '0')}:{String(recordSeconds % 60).padStart(2, '0')}
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 flex items-end gap-1.5 border border-trevo-dark/15 rounded-2xl px-2 py-1.5 focus-within:ring-2 focus-within:ring-trevo-dark/20 transition-all">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                aria-label="Adjuntar foto o archivo"
+                className="p-1.5 rounded-full text-trevo-dark/40 hover:text-trevo-dark hover:bg-trevo-dark/5 transition-colors disabled:opacity-40 shrink-0"
+              >
+                <Paperclip className="w-4.5 h-4.5" />
+              </button>
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={e => {
+                  setText(e.target.value);
+                  notifyTyping();
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  el.style.height = `${Math.min(el.scrollHeight, 104)}px`;
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                rows={1}
+                placeholder={uploading ? 'Subiendo...' : 'Escribí un mensaje...'}
+                aria-label="Escribí un mensaje"
+                maxLength={MAX_MESSAGE_LENGTH}
+                disabled={uploading}
+                className="flex-1 min-w-0 max-h-[104px] py-1.5 bg-transparent text-sm text-trevo-dark placeholder:text-trevo-dark/30 outline-none resize-none disabled:opacity-60"
+              />
+              <EmojiPicker onSelect={e => setText(t => t + e)} />
+            </div>
+          )}
           <button
-            type="submit"
-            disabled={sending || uploading || !text.trim()}
-            className="px-4 py-2 rounded-full bg-trevo-dark text-white text-sm font-medium disabled:opacity-40 transition-opacity shrink-0"
+            type="button"
+            onClick={recording ? stopRecording : startRecording}
+            disabled={uploading}
+            aria-label={recording ? 'Detener grabación' : 'Grabar nota de audio'}
+            className={`p-2 rounded-full transition-colors disabled:opacity-40 shrink-0 ${
+              recording ? 'text-white bg-red-500 hover:bg-red-600' : 'text-trevo-dark/40 hover:text-trevo-dark hover:bg-trevo-dark/5'
+            }`}
           >
-            Enviar
+            {recording ? <Square className="w-4 h-4" /> : <Mic className="w-5 h-5" />}
           </button>
-        )}
-      </form>
+          {!recording && (
+            <button
+              type="submit"
+              disabled={sending || uploading || !text.trim()}
+              className="px-4 py-2 rounded-full bg-trevo-dark text-white text-sm font-medium disabled:opacity-40 transition-opacity shrink-0"
+            >
+              Enviar
+            </button>
+          )}
+        </form>
+        <div className="flex items-center justify-between px-1">
+          <p className="text-[10.5px] text-trevo-dark/30">Enter para enviar · Shift + Enter para saltar de línea</p>
+          {text.length > MAX_MESSAGE_LENGTH * 0.75 && (
+            <p className={`text-[10.5px] ${text.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-trevo-dark/40'}`}>
+              {text.length}/{MAX_MESSAGE_LENGTH}
+            </p>
+          )}
+        </div>
+      </div>
       )}
     </div>
+  );
+}
+
+// "12:04" a secas del otro lado; "12:04 · Enviado/Visto" bajo el ÚLTIMO
+// mensaje propio del hilo — los anteriores solo muestran la hora, igual
+// que cualquier chat real (el recibo de lectura no se repite por mensaje).
+function MessageMeta({ mine, isLastMine, message }: { mine: boolean; isLastMine: boolean; message: ApiMessage }) {
+  const time = formatRelativeTime(message.created_at);
+  const status = isLastMine ? (message.read_at ? 'Visto' : 'Enviado') : null;
+  return (
+    <p className={`text-[10px] mt-1 px-1 ${mine ? 'text-trevo-dark/35' : 'text-trevo-dark/30'}`}>
+      {time}{status ? ` · ${status}` : ''}
+    </p>
   );
 }

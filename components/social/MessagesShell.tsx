@@ -51,11 +51,13 @@ export default function MessagesShell({ activeConversationId }: { activeConversa
   return (
     <div className="max-w-5xl mx-auto sm:py-6 px-0 sm:px-4">
       <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] flex border border-trevo-dark/10 sm:rounded-2xl overflow-hidden bg-white">
-        <div className={`w-full md:w-80 md:shrink-0 md:border-r border-trevo-dark/10 overflow-y-auto ${activeConversationId ? 'hidden md:block' : 'block'}`}>
-          <div className="px-5 py-4 border-b border-trevo-dark/10">
+        <div className={`w-full md:w-[336px] md:shrink-0 md:border-r border-trevo-dark/10 flex flex-col min-h-0 ${activeConversationId ? 'hidden md:flex' : 'flex'}`}>
+          <div className="px-5 pt-4 pb-1 shrink-0">
             <h1 className="font-bold text-trevo-dark text-lg">Mensajes</h1>
           </div>
-          <ConversationList conversations={conversations} activeConversationId={activeConversationId} />
+          <div className="flex-1 min-h-0">
+            <ConversationList conversations={conversations} activeConversationId={activeConversationId} />
+          </div>
         </div>
 
         <div className={`flex-1 min-w-0 ${activeConversationId ? 'flex' : 'hidden md:flex'} flex-col`}>

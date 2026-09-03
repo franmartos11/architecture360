@@ -6,17 +6,21 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 // evento de postgres_changes que dispararía Supabase cuando llega un
 // mensaje nuevo a la conversación.
 function fakeRealtimeClient() {
-  let handler: ((payload: unknown) => void) | null = null;
+  // Guardado por tipo de evento ('postgres_changes' vs 'broadcast' de
+  // "escribiendo…") — el hook ahora se suscribe a los dos en el mismo
+  // canal, así que un solo `handler` pisaría al primero con el segundo.
+  const handlers: Record<string, (payload: unknown) => void> = {};
   const channel = {
-    on: vi.fn((_event: string, _filter: unknown, cb: (payload: unknown) => void) => {
-      handler = cb;
+    on: vi.fn((event: string, _filter: unknown, cb: (payload: unknown) => void) => {
+      handlers[event] = cb;
       return channel;
     }),
     subscribe: vi.fn(() => channel),
+    send: vi.fn(),
   };
   return {
     client: { channel: vi.fn(() => channel), removeChannel: vi.fn() },
-    emit: () => handler?.({}),
+    emit: () => handlers['postgres_changes']?.({}),
   };
 }
 
@@ -35,6 +39,7 @@ function msg(id: string, created_at: string, body = 'hola'): ApiMessage {
     shared_post: null,
     attachment_url: null,
     attachment_type: null,
+    read_at: null,
     created_at,
   };
 }
