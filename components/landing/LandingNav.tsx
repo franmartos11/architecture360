@@ -9,6 +9,7 @@ const ANCHOR_LINKS = [
   { href: '#portfolio', label: 'Portfolio' },
   { href: '#comunidad', label: 'Comunidad' },
   { href: '#como-funciona', label: 'Cómo funciona' },
+  { href: '#preguntas', label: 'Preguntas' },
 ];
 
 export default function LandingNav() {

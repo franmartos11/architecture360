@@ -1,43 +1,51 @@
-import { FolderUp, Orbit, Link2 } from 'lucide-react';
 import Reveal from '@/components/ui/Reveal';
 
 const STEPS = [
   {
-    icon: FolderUp,
-    title: 'Cargá tu proyecto',
-    copy: 'Sumá plantas, precios y fotos desde el panel de administración.',
+    n: '01',
+    title: 'Cargá el proyecto',
+    copy: 'Datos, plantas, unidades con precio y superficie, amenidades y fotos. El wizard te guía la primera vez.',
   },
   {
-    icon: Orbit,
-    title: 'Subí tus recorridos 360°',
-    copy: 'Conectá las panorámicas de cada ambiente y calibrá la orientación solar.',
+    n: '02',
+    title: 'Conectá los recorridos 360°',
+    copy: 'Subís las panorámicas de cada ambiente, las unís con hotspots y calibrás la orientación solar.',
   },
   {
-    icon: Link2,
+    n: '03',
     title: 'Compartí el link',
-    copy: 'Cada proyecto tiene su propio sitio, listo para mandar a tus clientes.',
+    copy: 'Cada proyecto tiene su propio sitio, listo para mandar a un cliente, a un concurso o a tu portfolio.',
   },
 ];
 
 export default function LandingHowItWorks() {
   return (
-    <section id="como-funciona" className="py-20 md:py-28 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <Reveal>
-          <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-white text-center">
+    <section id="como-funciona" className="py-14 md:py-16 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-[.85fr_1.15fr] gap-12">
+        <Reveal className="flex flex-col gap-3.5">
+          <span className="text-[11.5px] font-medium uppercase tracking-[0.16em] text-brand-300">Cómo funciona</span>
+          <h2 className="font-display text-3xl md:text-[40px] font-bold tracking-tight text-white leading-[1.08]">
             Así se arma tu sitio.
           </h2>
+          <p className="text-[15.5px] leading-relaxed text-white/55">
+            Tres pasos desde el panel de administración. No hay que tocar código ni contratar hosting.
+          </p>
         </Reveal>
 
-        <div className="mt-14 grid md:grid-cols-3 gap-10 md:gap-6 relative">
-          <div className="hidden md:block absolute top-6 left-[16.5%] right-[16.5%] h-px bg-white/10" />
+        <div className="flex flex-col">
           {STEPS.map((step, i) => (
-            <Reveal key={step.title} delay={i * 0.08} className="relative flex flex-col items-center text-center gap-3">
-              <div className="relative z-10 w-12 h-12 rounded-full bg-stone-950 border border-white/15 flex items-center justify-center">
-                <step.icon className="w-5 h-5 text-brand-400" strokeWidth={1.5} />
+            <Reveal
+              key={step.n}
+              delay={i * 0.06}
+              className={`grid grid-cols-[52px_1fr] gap-5 py-5.5 border-t border-white/10 ${
+                i === STEPS.length - 1 ? 'border-b' : ''
+              }`}
+            >
+              <span className="font-display text-[15px] font-bold text-brand-400">{step.n}</span>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="font-display text-xl font-bold text-white">{step.title}</h3>
+                <p className="text-[14.5px] leading-relaxed text-white/55 max-w-lg">{step.copy}</p>
               </div>
-              <h3 className="font-display text-lg font-semibold text-white">{step.title}</h3>
-              <p className="text-sm text-white/55 leading-relaxed max-w-[26ch]">{step.copy}</p>
             </Reveal>
           ))}
         </div>

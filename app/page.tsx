@@ -2,11 +2,14 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import LandingNav from '@/components/landing/LandingNav';
 import LandingHero from '@/components/landing/LandingHero';
+import LandingAudienceTabs from '@/components/landing/LandingAudienceTabs';
 import LandingCapabilities from '@/components/landing/LandingCapabilities';
-import LandingPortfolio from '@/components/landing/LandingPortfolio';
-import LandingCommunity from '@/components/landing/LandingCommunity';
-import LandingFeaturePills from '@/components/landing/LandingFeaturePills';
+import LandingProductInside from '@/components/landing/LandingProductInside';
 import LandingHowItWorks from '@/components/landing/LandingHowItWorks';
+import LandingFeaturedProjects from '@/components/landing/LandingFeaturedProjects';
+import LandingPortfolio from '@/components/landing/LandingPortfolio';
+import LandingFeaturePills from '@/components/landing/LandingFeaturePills';
+import LandingFaq from '@/components/landing/LandingFaq';
 import LandingFinalCta from '@/components/landing/LandingFinalCta';
 import LandingFooter from '@/components/landing/LandingFooter';
 
@@ -25,11 +28,14 @@ export default async function HomePage() {
     <div className="min-h-screen bg-stone-950 text-white">
       <LandingNav />
       <LandingHero />
+      <LandingAudienceTabs />
       <LandingCapabilities />
-      <LandingPortfolio />
-      <LandingCommunity />
-      <LandingFeaturePills />
+      <LandingProductInside />
       <LandingHowItWorks />
+      <LandingFeaturedProjects />
+      <LandingPortfolio />
+      <LandingFeaturePills />
+      <LandingFaq />
       <LandingFinalCta />
       <LandingFooter />
     </div>

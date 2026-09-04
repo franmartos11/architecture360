@@ -11,6 +11,12 @@ export default function LandingFooter() {
           <span className="text-sm text-white/50">© {new Date().getFullYear()} Atrium</span>
         </div>
         <div className="flex items-center gap-6">
+          <a href="#producto" className="text-sm text-white/50 hover:text-white transition-colors">
+            Producto
+          </a>
+          <a href="#preguntas" className="text-sm text-white/50 hover:text-white transition-colors">
+            Preguntas
+          </a>
           <Link href="/admin/login" className="text-sm text-white/50 hover:text-white transition-colors">
             Ingresar
           </Link>

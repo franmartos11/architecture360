@@ -1,37 +1,33 @@
-import { Layers, Users, Banknote, Palette, Sun } from 'lucide-react';
 import Reveal from '@/components/ui/Reveal';
 
-const PILLS = [
-  { icon: Layers, label: 'Multi-proyecto' },
-  { icon: Users, label: 'Colaboradores' },
-  { icon: Banknote, label: 'Monedas múltiples' },
-  { icon: Palette, label: 'Temas personalizables' },
-  { icon: Sun, label: 'Orientación solar en tours' },
+const FEATURES = [
+  { title: 'Multi-proyecto', copy: 'Una cuenta, varios proyectos, cada uno con su sitio y su equipo.' },
+  { title: 'Colaboradores', copy: 'Invitá a tu equipo con rol asignado y crédito en su perfil.' },
+  { title: 'Monedas múltiples', copy: 'Precios en la moneda que uses, con ajustes por % o monto.' },
+  { title: 'Temas personalizables', copy: 'Color y tipografía por proyecto, con vista previa antes de publicar.' },
+  { title: 'Orientación solar', copy: 'La luz de cada tour sigue la hora del día y el norte real del lote.' },
+  { title: 'Leads y embudo', copy: 'Las consultas del sitio entran ordenadas por etapa comercial.' },
 ];
 
 export default function LandingFeaturePills() {
   return (
-    <section className="py-16 md:py-20 px-4 sm:px-6 lg:px-8">
+    <section className="py-6 md:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <Reveal>
-          <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white text-center">
+        <Reveal className="flex flex-wrap items-baseline justify-between gap-4 border-b border-white/10 pb-4.5">
+          <h2 className="font-display text-xl md:text-[26px] font-bold tracking-tight text-white">
             Pensado para estudios y desarrolladoras.
           </h2>
+          <span className="text-[13.5px] text-white/40">Todo incluido en la plataforma</span>
         </Reveal>
 
-        <Reveal delay={0.05}>
-          <div className="mt-8 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-center">
-            {PILLS.map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="snap-start shrink-0 flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5"
-              >
-                <Icon className="w-4 h-4 text-brand-400" strokeWidth={1.5} />
-                <span className="text-sm text-white/75 whitespace-nowrap">{label}</span>
-              </div>
-            ))}
-          </div>
-        </Reveal>
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-px bg-white/10 border-b border-white/10">
+          {FEATURES.map((feature, i) => (
+            <Reveal key={feature.title} delay={i * 0.04} className="bg-stone-950 p-5.5 flex flex-col gap-1.5">
+              <h3 className="font-display text-base font-bold text-white">{feature.title}</h3>
+              <p className="text-[13.5px] leading-relaxed text-white/50">{feature.copy}</p>
+            </Reveal>
+          ))}
+        </div>
       </div>
     </section>
   );
