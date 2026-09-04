@@ -11,7 +11,11 @@ export default function LandingPortfolio() {
             <h2 className="font-display text-2xl md:text-[30px] leading-tight tracking-tight font-bold text-white">
               Tu perfil, como tu currículum.
             </h2>
-            <p className="text-[15px] leading-relaxed text-white/58">
+            {/* min-h reserva 3 líneas siempre — el otro texto de este mismo
+                par es más corto (2 líneas); sin esto, el bloque de texto
+                mide distinto en cada card y la imagen de abajo (flex-1)
+                arranca en una altura distinta en cada una. */}
+            <p className="text-[15px] leading-relaxed text-white/58 min-h-[73px]">
               Subí tus proyectos, sumá experiencia y formación, y compartí un solo link con todo tu trabajo. Sirve
               igual para un estudio con años de obra que para tu primer proyecto de la facultad.
             </p>
@@ -31,7 +35,7 @@ export default function LandingPortfolio() {
             <h2 className="font-display text-2xl md:text-[30px] leading-tight tracking-tight font-bold text-white">
               Compartí tu obra con otros arquitectos.
             </h2>
-            <p className="text-[15px] leading-relaxed text-white/58">
+            <p className="text-[15px] leading-relaxed text-white/58 min-h-[73px]">
               Publicá avances, seguí a otros estudios y estudiantes, y sumate a las conversaciones del gremio sin
               salir de la plataforma.
             </p>
