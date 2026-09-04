@@ -2,13 +2,13 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { Globe, Mail, MapPin, Share2, Building2 } from 'lucide-react';
+import { Globe, Mail, MapPin, Building2 } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { getPortfolioByHandle } from '@/data/profile-repository';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getRequestUser } from '@/lib/supabase/auth';
-import ShareMenu from '@/components/ui/ShareMenu';
+import ShareProfileButton from '@/components/social/ShareProfileButton';
 import FollowButton from '@/components/social/FollowButton';
 import ProfileQuickEditButton from '@/components/social/ProfileQuickEditButton';
 import MessageButton from '@/components/social/MessageButton';
@@ -243,17 +243,7 @@ export default async function PortfolioPage({ params }: PageProps) {
                   <MessageButton handle={portfolio.handle} loggedIn={!!user} />
                 </>
               )}
-              <ShareMenu url={profileUrl} text={`${portfolio.displayName} en Atrium`}>
-                {(trigger) => (
-                  <button
-                    {...trigger}
-                    aria-label="Compartir perfil"
-                    className="w-[38px] h-[38px] rounded-[10px] border border-trevo-dark/[0.16] bg-white flex items-center justify-center text-trevo-dark/60 hover:border-trevo-dark/40 hover:text-trevo-dark transition-colors"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                )}
-              </ShareMenu>
+              <ShareProfileButton url={profileUrl} text={`${portfolio.displayName} en Atrium`} />
             </div>
           </div>
         </div>
