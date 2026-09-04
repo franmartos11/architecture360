@@ -8,15 +8,20 @@ interface RevealProps {
   className?: string;
   delay?: number;
   y?: number;
+  /** Para anclas de navegación (`#seccion`) — sin esto, quien necesitaba un
+   * id terminaba envolviendo el Reveal en un <div id="..."> extra, que
+   * rompe el stretch de un grid padre (ver LandingPortfolio.tsx). */
+  id?: string;
 }
 
 // Hace aparecer su contenido con un fade+slide suave la primera vez que
 // entra en el viewport al scrollear (no se repite al salir/volver a entrar).
-export default function Reveal({ children, className, delay = 0, y = 24 }: RevealProps) {
+export default function Reveal({ children, className, delay = 0, y = 24, id }: RevealProps) {
   const reduceMotion = useReducedMotion();
 
   return (
     <motion.div
+      id={id}
       initial={reduceMotion ? false : { opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
