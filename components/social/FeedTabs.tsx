@@ -56,9 +56,13 @@ export default function FeedTabs({ loggedIn, currentProfileHandle, currentAvatar
       </div>
 
       <div className="pt-2">
-        {/* We use key to force remount when tab/sort changes, ensuring feed re-fetches cleanly */}
+        {/* Sin key acá a propósito — con key, cambiar de tab remontaba
+            PostFeed de cero: la lista actual desaparecía, se veían los
+            skeletons de carga inicial y el composer perdía cualquier
+            adjunto/texto a medio armar. PostFeed ya reacciona solo a
+            scope/sort (ver su useEffect) — dejarlo montado, así solo
+            actualiza la lista en el lugar. */}
         <PostFeed
-          key={`${tab}-${sort}`}
           loggedIn={loggedIn}
           currentProfileHandle={currentProfileHandle}
           currentAvatarImage={currentAvatarImage}

@@ -3,14 +3,17 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { extractMentionedHandles } from '@/lib/mentions';
+import { extractHashtags } from '@/lib/hashtags';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
-import { sanitizeMultiline } from '@/lib/sanitize';
+import { sanitizeMultiline, sanitizeText } from '@/lib/sanitize';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
 const RATE_LIMIT_WINDOW_MINUTES = 5;
 const RATE_LIMIT_MAX_POSTS = 5;
+const MAX_POLL_OPTIONS = 4;
+const MIN_POLL_OPTIONS = 2;
 
 // El repost embebe el post original completo (con su propio autor) — si
 // el original fue borrado, shared_post_id ya quedó en null (on delete set
@@ -24,17 +27,30 @@ const RATE_LIMIT_MAX_POSTS = 5;
 // depender de eso, se trae con una segunda query plana y se mergea acá,
 // mismo patrón que likeCount/commentCount.
 const SHARED_POST_SELECT = 'id, body, image_url, created_at, author:profiles(handle, display_name, avatar_image)';
-const AUTHOR_SELECT = '*, author:profiles(handle, display_name, avatar_image, bio)';
+// shared_project_id SÍ se puede embeber directo: a diferencia de
+// shared_post_id, es la única FK de posts hacia projects, sin ambigüedad.
+const AUTHOR_SELECT = '*, author:profiles(handle, display_name, avatar_image, bio), project:projects(id, name, slug, location, masterplan_image)';
 const SAMPLE_LIKERS_PER_POST = 3;
+// Ventana sobre la que se busca un hashtag — como no hay columna de tags
+// propia (ver /api/posts/trending-tags), se trae un lote reciente y se
+// filtra en memoria, mismo criterio que "Destacados" más abajo.
+const TAG_SEARCH_WINDOW = 300;
 
 interface SampleLiker {
   display_name: string;
   avatar_image: string | null;
 }
 
-// Suma likeCount/likedByMe/commentCount/savedByMe/sampleLikers/shared_post
-// a cada post en una sola pasada — evita que el cliente tenga que pedirlo
-// post por post.
+interface PollOptionRow {
+  id: string;
+  poll_id: string;
+  label: string;
+  position: number;
+}
+
+// Suma likeCount/likedByMe/commentCount/savedByMe/sampleLikers/shared_post/
+// poll a cada post en una sola pasada — evita que el cliente tenga que
+// pedirlo post por post.
 async function withCounts(
   supabase: Awaited<ReturnType<typeof createClient>>,
   posts: { id: string; shared_post_id: string | null }[],
@@ -42,9 +58,14 @@ async function withCounts(
 ) {
   const postIds = posts.map(p => p.id);
   const sharedPostIds = [...new Set(posts.map(p => p.shared_post_id).filter((id): id is string => !!id))];
-  if (postIds.length === 0) return posts.map(p => ({ ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0, savedByMe: false, sampleLikers: [] as SampleLiker[] }));
+  if (postIds.length === 0) {
+    return posts.map(p => ({
+      ...p, shared_post: null, likeCount: 0, likedByMe: false, commentCount: 0, savedByMe: false,
+      sampleLikers: [] as SampleLiker[], poll: null,
+    }));
+  }
 
-  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }] = await Promise.all([
+  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }, { data: pollRows }] = await Promise.all([
     // Se pide más reciente primero y con el perfil embebido: sirve tanto
     // para el conteo/likedByMe como para el facepile de "quién le dio
     // like" sin una query aparte.
@@ -59,6 +80,7 @@ async function withCounts(
     currentUserId
       ? supabase.from('saved_posts').select('post_id').eq('profile_id', currentUserId).in('post_id', postIds)
       : Promise.resolve({ data: [] }),
+    supabase.from('post_polls').select('id, post_id, question').in('post_id', postIds),
   ]);
 
   const likeCountByPost = new Map<string, number>();
@@ -86,15 +108,52 @@ async function withCounts(
   const sharedPostById = new Map((sharedPostRows as EmbeddedPost[] ?? []).map(sp => [sp.id, sp]));
   const savedByMe = new Set((savedRows as { post_id: string }[] ?? []).map(r => r.post_id));
 
-  return posts.map(p => ({
-    ...p,
-    shared_post: p.shared_post_id ? (sharedPostById.get(p.shared_post_id) ?? null) : null,
-    likeCount: likeCountByPost.get(p.id) ?? 0,
-    likedByMe: likedByMe.has(p.id),
-    commentCount: commentCountByPost.get(p.id) ?? 0,
-    savedByMe: savedByMe.has(p.id),
-    sampleLikers: sampleLikersByPost.get(p.id) ?? [],
-  }));
+  // Encuesta: post_polls -> post_poll_options -> post_poll_votes, en tres
+  // pasadas (nunca son muchas filas — como máximo MAX_POLL_OPTIONS por
+  // encuesta) y se arma el conteo en memoria, mismo patrón que arriba.
+  const polls = (pollRows ?? []) as { id: string; post_id: string; question: string }[];
+  const pollByPost = new Map(polls.map(p => [p.post_id, p]));
+  const pollIds = polls.map(p => p.id);
+  const [{ data: optionRows }, { data: voteRows }] = pollIds.length > 0
+    ? await Promise.all([
+        supabase.from('post_poll_options').select('id, poll_id, label, position').in('poll_id', pollIds).order('position', { ascending: true }),
+        supabase.from('post_poll_votes').select('poll_id, option_id, profile_id').in('poll_id', pollIds),
+      ])
+    : [{ data: [] as PollOptionRow[] }, { data: [] as { poll_id: string; option_id: string; profile_id: string }[] }];
+
+  const optionsByPoll = new Map<string, PollOptionRow[]>();
+  for (const o of (optionRows ?? []) as PollOptionRow[]) {
+    const arr = optionsByPoll.get(o.poll_id) ?? [];
+    arr.push(o);
+    optionsByPoll.set(o.poll_id, arr);
+  }
+  const voteCountByOption = new Map<string, number>();
+  const myVoteByPoll = new Map<string, string>();
+  for (const v of (voteRows ?? []) as { poll_id: string; option_id: string; profile_id: string }[]) {
+    voteCountByOption.set(v.option_id, (voteCountByOption.get(v.option_id) ?? 0) + 1);
+    if (currentUserId && v.profile_id === currentUserId) myVoteByPoll.set(v.poll_id, v.option_id);
+  }
+
+  return posts.map(p => {
+    const pollRow = pollByPost.get(p.id);
+    const options = pollRow ? (optionsByPoll.get(pollRow.id) ?? []).map(o => ({ id: o.id, label: o.label, voteCount: voteCountByOption.get(o.id) ?? 0 })) : [];
+    return {
+      ...p,
+      shared_post: p.shared_post_id ? (sharedPostById.get(p.shared_post_id) ?? null) : null,
+      likeCount: likeCountByPost.get(p.id) ?? 0,
+      likedByMe: likedByMe.has(p.id),
+      commentCount: commentCountByPost.get(p.id) ?? 0,
+      savedByMe: savedByMe.has(p.id),
+      sampleLikers: sampleLikersByPost.get(p.id) ?? [],
+      poll: pollRow ? {
+        id: pollRow.id,
+        question: pollRow.question,
+        options,
+        totalVotes: options.reduce((sum, o) => sum + o.voteCount, 0),
+        myVoteOptionId: myVoteByPoll.get(pollRow.id) ?? null,
+      } : null,
+    };
+  });
 }
 
 // Resuelve el conjunto de project ids donde el usuario es dueño o
@@ -115,15 +174,33 @@ const TOP_SORT_WINDOW = 100;
 
 // Sin authorHandle → feed global, de siguiendo, de colaboraciones o de
 // guardados (según scope). Con authorHandle → solo los posts de ese perfil.
+// Con tag → todos los posts (de cualquiera) que mencionan ese hashtag,
+// para la página de tendencia/etiqueta — combinación aparte porque no
+// comparte forma de query con el resto (no hay WHERE posible sin una
+// columna de tags propia, ver /api/posts/trending-tags).
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const authorHandle = searchParams.get('authorHandle');
   const before = searchParams.get('before');
   const scope = searchParams.get('scope'); // 'following' | 'collaborations' | 'saved' | null
   const sort = searchParams.get('sort'); // 'top' | null (default: más recientes primero)
+  const tag = searchParams.get('tag');
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (tag) {
+    const { data, error } = await supabase
+      .from('posts')
+      .select(AUTHOR_SELECT)
+      .order('created_at', { ascending: false })
+      .limit(TAG_SEARCH_WINDOW);
+    if (error) return NextResponse.json({ posts: [], hasMore: false });
+    const norm = tag.toLowerCase();
+    const matches = (data ?? []).filter((p: { body: string }) => extractHashtags(p.body).some(t => t.toLowerCase() === norm));
+    const withCountsRows = await withCounts(supabase, matches, user?.id);
+    return NextResponse.json({ posts: withCountsRows.slice(0, PAGE_SIZE), hasMore: withCountsRows.length > PAGE_SIZE });
+  }
 
   const isTopSort = sort === 'top';
   let query = supabase.from('posts').select(AUTHOR_SELECT).order('created_at', { ascending: false })
@@ -190,10 +267,18 @@ export async function GET(request: Request) {
   return NextResponse.json({ posts: await withCounts(supabase, page, user?.id), hasMore });
 }
 
+const pollSchema = z.object({
+  question: z.string().min(1).max(200),
+  options: z.array(z.string().min(1).max(80)).min(MIN_POLL_OPTIONS).max(MAX_POLL_OPTIONS),
+});
+
 const postSchema = z.object({
   body: z.string().max(MAX_BODY_LENGTH).optional(),
   sharedPostId: uuidSchema.optional(),
   imageUrl: z.url().max(1000).optional(),
+  sharedProjectId: uuidSchema.optional(),
+  sharedProjectKind: z.enum(['project', 'tour']).optional(),
+  poll: pollSchema.optional(),
 });
 
 export async function POST(request: Request) {
@@ -211,8 +296,31 @@ export async function POST(request: Request) {
   const body = parsed.data;
   const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
   const sharedPostId = body.sharedPostId ?? null;
-  // Un repost puede ir sin comentario propio — un post normal sí necesita texto.
-  if (!text && !sharedPostId) return NextResponse.json({ error: 'Falta el texto del post' }, { status: 400 });
+  // Un repost, una encuesta o un proyecto adjuntado pueden ir sin
+  // comentario propio (el adjunto ya es el contenido) — un post de solo
+  // texto, en cambio, sí lo necesita.
+  if (!text && !sharedPostId && !body.poll && !body.sharedProjectId) {
+    return NextResponse.json({ error: 'Falta el texto del post' }, { status: 400 });
+  }
+
+  // Un post admite un solo tipo de adjunto — el composer solo ofrece uno
+  // por vez, esto es el resguardo del lado del servidor.
+  const attachmentCount = [body.imageUrl, body.sharedProjectId, body.poll].filter(Boolean).length;
+  if (attachmentCount > 1) {
+    return NextResponse.json({ error: 'Un post admite un solo adjunto: imagen, proyecto o encuesta.' }, { status: 400 });
+  }
+
+  let sharedProjectKind: 'project' | 'tour' | null = null;
+  if (body.sharedProjectId) {
+    const { data: project } = await supabase.from('projects').select('id, owner_id, common_areas_tour').eq('id', body.sharedProjectId).maybeSingle();
+    if (!project || project.owner_id !== user.id) {
+      return NextResponse.json({ error: 'No podés adjuntar ese proyecto.' }, { status: 403 });
+    }
+    sharedProjectKind = body.sharedProjectKind ?? 'project';
+    if (sharedProjectKind === 'tour' && !project.common_areas_tour) {
+      return NextResponse.json({ error: 'Ese proyecto todavía no tiene un recorrido 360 cargado.' }, { status: 400 });
+    }
+  }
 
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
   const { count: recentCount } = await supabase
@@ -226,11 +334,27 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('posts')
-    .insert({ author_id: user.id, body: text, image_url: body.imageUrl || null, shared_post_id: sharedPostId })
+    .insert({
+      author_id: user.id,
+      body: text,
+      image_url: body.imageUrl || null,
+      shared_post_id: sharedPostId,
+      shared_project_id: body.sharedProjectId ?? null,
+      shared_project_kind: sharedProjectKind,
+    })
     .select(AUTHOR_SELECT)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (body.poll) {
+    const { data: poll } = await supabase.from('post_polls').insert({ post_id: data.id, question: sanitizeText(body.poll.question, 200) }).select('id').single();
+    if (poll) {
+      await supabase.from('post_poll_options').insert(
+        body.poll.options.map((label, i) => ({ poll_id: poll.id, label: sanitizeText(label, 80), position: i }))
+      );
+    }
+  }
 
   // Best-effort — mismo criterio que el resto de notify(): nunca debe
   // tumbar la respuesta si falla.

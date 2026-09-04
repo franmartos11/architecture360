@@ -1342,3 +1342,85 @@ drop policy if exists "own manage event_rsvps" on event_rsvps;
 create policy "own manage event_rsvps" on event_rsvps for all to authenticated
   using (profile_id = auth.uid())
   with check (profile_id = auth.uid());
+
+-- ─── Adjuntar un proyecto propio a un post ────────────────────────────
+-- "project" = ficha de proyecto genérica; "tour" = mismo proyecto pero
+-- resaltando su recorrido 360 (común_areas_tour ya vive en projects, no
+-- se duplica acá). on delete set null: si se borra el proyecto, el post
+-- queda como texto suelto en vez de desaparecer.
+alter table posts add column if not exists shared_project_id uuid;
+alter table posts drop constraint if exists posts_shared_project_id_fkey;
+alter table posts add constraint posts_shared_project_id_fkey foreign key (shared_project_id) references projects(id) on delete set null;
+
+alter table posts add column if not exists shared_project_kind text;
+alter table posts drop constraint if exists posts_shared_project_kind_check;
+alter table posts add constraint posts_shared_project_kind_check check (shared_project_kind is null or shared_project_kind in ('project', 'tour'));
+
+-- ─── Encuestas de posts ────────────────────────────────────────────────
+-- Una encuesta por post, sin edición posterior — se define al publicar
+-- (ver composer del feed) y las opciones quedan fijas.
+create table if not exists post_polls (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null unique references posts(id) on delete cascade,
+  question text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table post_polls enable row level security;
+
+drop policy if exists "public read post_polls" on post_polls;
+create policy "public read post_polls" on post_polls for select to anon, authenticated using (true);
+
+drop policy if exists "post author write post_polls" on post_polls;
+create policy "post author write post_polls" on post_polls for all to authenticated
+  using (exists (select 1 from posts where posts.id = post_polls.post_id and posts.author_id = auth.uid()))
+  with check (exists (select 1 from posts where posts.id = post_polls.post_id and posts.author_id = auth.uid()));
+
+create table if not exists post_poll_options (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid not null references post_polls(id) on delete cascade,
+  label text not null,
+  position int not null default 0
+);
+
+alter table post_poll_options enable row level security;
+
+drop policy if exists "public read post_poll_options" on post_poll_options;
+create policy "public read post_poll_options" on post_poll_options for select to anon, authenticated using (true);
+
+drop policy if exists "post author write post_poll_options" on post_poll_options;
+create policy "post author write post_poll_options" on post_poll_options for all to authenticated
+  using (exists (
+    select 1 from post_polls join posts on posts.id = post_polls.post_id
+    where post_polls.id = post_poll_options.poll_id and posts.author_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from post_polls join posts on posts.id = post_polls.post_id
+    where post_polls.id = post_poll_options.poll_id and posts.author_id = auth.uid()
+  ));
+
+create index if not exists idx_post_poll_options_poll on post_poll_options(poll_id, position);
+
+-- Un voto por persona por encuesta — volver a votar cambia el voto (se
+-- borra el anterior y se inserta el nuevo, ver /api/posts/[id]/vote) en
+-- vez de acumular varios.
+create table if not exists post_poll_votes (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid not null references post_polls(id) on delete cascade,
+  option_id uuid not null references post_poll_options(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (poll_id, profile_id)
+);
+
+alter table post_poll_votes enable row level security;
+
+drop policy if exists "public read post_poll_votes" on post_poll_votes;
+create policy "public read post_poll_votes" on post_poll_votes for select to anon, authenticated using (true);
+
+drop policy if exists "own manage post_poll_votes" on post_poll_votes;
+create policy "own manage post_poll_votes" on post_poll_votes for all to authenticated
+  using (profile_id = auth.uid())
+  with check (profile_id = auth.uid());
+
+create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);

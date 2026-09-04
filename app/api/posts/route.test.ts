@@ -27,6 +27,7 @@ describe('GET /api/posts', () => {
         { data: [{ id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi' }] }, // posts
         { data: [{ post_id: 'p1', profile_id: 'user-x' }] }, // post_likes
         { data: [{ post_id: 'p1' }] }, // post_comments
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -36,7 +37,7 @@ describe('GET /api/posts', () => {
     const body = await res.json();
     expect(body.hasMore).toBe(false);
     expect(body.posts).toEqual([
-      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1, savedByMe: false, sampleLikers: [] },
+      { id: 'p1', shared_post_id: null, author_id: 'a1', body: 'hi', shared_post: null, likeCount: 1, likedByMe: false, commentCount: 1, savedByMe: false, sampleLikers: [], poll: null },
     ]);
   });
 
@@ -60,6 +61,7 @@ describe('GET /api/posts', () => {
         { data: { id: 'profile-1' } }, // profiles by handle
         { data: [] }, // post_likes
         { data: [] }, // post_comments
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -80,6 +82,7 @@ describe('GET /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [] }, // saved_posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -102,6 +105,7 @@ describe('GET /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [] }, // saved_posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -137,6 +141,7 @@ describe('GET /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [] }, // saved_posts (withCounts)
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -169,6 +174,7 @@ describe('GET /api/posts', () => {
         { data: [{ id: 'p1', shared_post_id: null }, { id: 'p2', shared_post_id: null }] }, // posts
         { data: [{ post_id: 'p2', profile_id: 'x' }, { post_id: 'p2', profile_id: 'y' }] }, // post_likes (p2 tiene más likes)
         { data: [] }, // post_comments
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -188,6 +194,7 @@ describe('GET /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [{ id: 'p0', body: 'original', image_url: null, created_at: 't', author: { handle: 'orig' } }] }, // shared posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -204,6 +211,7 @@ describe('GET /api/posts', () => {
         { data: [{ id: 'p1', shared_post_id: null }] }, // posts
         { data: [{ post_id: 'p1', profile_id: 'liker-1', profile: { display_name: 'Ana', avatar_image: null } }] }, // post_likes
         { data: [] }, // post_comments
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -226,7 +234,7 @@ describe('GET /api/posts', () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({ id: `p${i}`, shared_post_id: null }));
     const supabase = mockSupabase({
       user: null,
-      results: [{ data: rows }, { data: [] }, { data: [] }],
+      results: [{ data: rows }, { data: [] }, { data: [] }, { data: [] }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -234,6 +242,36 @@ describe('GET /api/posts', () => {
     const body = await res.json();
     expect(body.hasMore).toBe(true);
     expect(body.posts).toHaveLength(20);
+  });
+
+  it('tag: filtra en memoria por hashtag, sin importar mayúsculas', async () => {
+    const supabase = mockSupabase({
+      user: null,
+      results: [
+        { data: [
+          { id: 'p1', shared_post_id: null, body: 'Cerramos con #BIM hoy' },
+          { id: 'p2', shared_post_id: null, body: 'Sin hashtags acá' },
+          { id: 'p3', shared_post_id: null, body: 'Otro post con #bim en minúsculas' },
+        ] }, // posts (ventana de tag)
+        { data: [] }, // post_likes
+        { data: [] }, // post_comments
+        { data: [] }, // post_polls
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?tag=BIM'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.posts.map((p: { id: string }) => p.id)).toEqual(['p1', 'p3']);
+  });
+
+  it('tag: error de la base: posts vacío', async () => {
+    const supabase = mockSupabase({ user: null, results: [{ data: null, error: { message: 'boom' } }] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET(get('http://localhost/api/posts?tag=BIM'));
+    expect(await res.json()).toEqual({ posts: [], hasMore: false });
   });
 });
 
@@ -313,6 +351,7 @@ describe('POST /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [] }, // saved_posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -333,6 +372,7 @@ describe('POST /api/posts', () => {
         { data: [] }, // post_likes
         { data: [] }, // post_comments
         { data: [] }, // saved_posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -358,6 +398,7 @@ describe('POST /api/posts', () => {
         { data: [] }, // post_comments
         { data: [{ id: SHARED_ID, body: 'original', image_url: null, created_at: 't', author: { handle: 'orig' } }] }, // shared posts
         { data: [] }, // saved_posts
+        { data: [] }, // post_polls
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -366,5 +407,92 @@ describe('POST /api/posts', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.shared_post).toEqual({ id: SHARED_ID, body: 'original', image_url: null, created_at: 't', author: { handle: 'orig' } });
+  });
+
+  it('más de un adjunto (imagen + proyecto): 400', async () => {
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ data: { id: 'user-1' } }] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ body: 'hola', imageUrl: 'https://x.com/a.png', sharedProjectId: SHARED_ID }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/un solo adjunto/);
+  });
+
+  it('adjuntar un proyecto ajeno: 403', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'user-1' } }, // profile check
+        { data: { id: SHARED_ID, owner_id: 'otro-user', common_areas_tour: null } }, // project lookup
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ body: 'hola', sharedProjectId: SHARED_ID }));
+    expect(res.status).toBe(403);
+  });
+
+  it('adjuntar "Recorrido 360" de un proyecto sin tour cargado: 400', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'user-1' } }, // profile check
+        { data: { id: SHARED_ID, owner_id: 'user-1', common_areas_tour: null } }, // project lookup
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ body: 'hola', sharedProjectId: SHARED_ID, sharedProjectKind: 'tour' }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/recorrido 360/);
+  });
+
+  it('adjuntar un proyecto propio: crea el post con shared_project_id', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'user-1' } }, // profile check
+        { data: { id: SHARED_ID, owner_id: 'user-1', common_areas_tour: null } }, // project lookup
+        { count: 0 }, // rate-limit count
+        { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: 'Miren este proyecto' } }, // insert
+        { data: [] }, // post_likes
+        { data: [] }, // post_comments
+        { data: [] }, // saved_posts
+        { data: [] }, // post_polls
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ body: 'Miren este proyecto', sharedProjectId: SHARED_ID }));
+    expect(res.status).toBe(201);
+  });
+
+  it('con encuesta: crea el post y sus opciones', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'user-1' } }, // profile check
+        { count: 0 }, // rate-limit count
+        { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: '¿Revit o Archicad?' } }, // insert
+        { data: { id: 'poll-1' } }, // post_polls insert
+        { error: null }, // post_poll_options insert
+        { data: [] }, // post_likes
+        { data: [] }, // post_comments
+        { data: [] }, // saved_posts
+        { data: [] }, // post_polls (withCounts)
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ body: '¿Revit o Archicad?', poll: { question: '¿Revit o Archicad?', options: ['Revit', 'Archicad'] } }));
+    expect(res.status).toBe(201);
+  });
+
+  it('encuesta con una sola opción: 400', async () => {
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ data: { id: 'user-1' } }] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(req({ poll: { question: '¿Sí o no?', options: ['Sí'] } }));
+    expect(res.status).toBe(400);
   });
 });
