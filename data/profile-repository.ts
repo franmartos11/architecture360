@@ -31,7 +31,7 @@ export interface Portfolio extends Profile {
 
 interface CollaborationJoinRow {
   contribution: string;
-  project: Pick<ProjectRow, 'slug' | 'name' | 'description' | 'masterplan_image' | 'project_type' | 'academic_year'> | null;
+  project: Pick<ProjectRow, 'id' | 'slug' | 'name' | 'description' | 'masterplan_image' | 'project_type' | 'academic_year'> | null;
 }
 
 interface TeamJoinRow {
@@ -54,15 +54,16 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
 
   const { data: projectRows } = await supabase
     .from('projects')
-    .select('slug, name, description, masterplan_image, project_type, academic_year, created_at')
+    .select('id, slug, name, description, masterplan_image, project_type, academic_year, created_at')
     .eq('owner_id', row.id)
     .eq('show_in_portfolio', true)
     .eq('published', true)
     .order('created_at', { ascending: false });
 
   const projects: PortfolioProjectSummary[] = ((projectRows ?? []) as Pick<ProjectRow,
-    'slug' | 'name' | 'description' | 'masterplan_image' | 'project_type' | 'academic_year'
+    'id' | 'slug' | 'name' | 'description' | 'masterplan_image' | 'project_type' | 'academic_year'
   >[]).map(p => ({
+    id: p.id,
     slug: p.slug,
     name: p.name,
     description: p.description ?? '',
@@ -76,13 +77,14 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
   // la base, pero se repite acá para no depender solo de RLS.
   const { data: collaborationRows } = await supabase
     .from('project_collaborators')
-    .select('contribution, project:projects(slug, name, description, masterplan_image, project_type, academic_year)')
+    .select('contribution, project:projects(id, slug, name, description, masterplan_image, project_type, academic_year)')
     .eq('profile_id', row.id)
     .eq('status', 'accepted');
 
   const collaborations: PortfolioCollaboration[] = ((collaborationRows ?? []) as unknown as CollaborationJoinRow[])
     .filter(c => c.project)
     .map(c => ({
+      id: c.project!.id,
       slug: c.project!.slug,
       name: c.project!.name,
       description: c.project!.description ?? '',
@@ -126,6 +128,9 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
     handle: row.handle,
     displayName: row.display_name,
     accountType: row.account_type,
+    headline: row.headline ?? null,
+    license: row.license ?? null,
+    availability: row.availability,
     bio: row.bio ?? null,
     avatarImage: row.avatar_image ?? null,
     bannerImage: row.banner_image ?? null,
@@ -135,10 +140,17 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
     linkedinUrl: row.linkedin_url ?? undefined,
     instagramUrl: row.instagram_url ?? undefined,
     websiteUrl: row.website_url ?? undefined,
+    specialties: row.specialties?.length ? row.specialties : undefined,
+    languages: row.languages?.length ? row.languages : undefined,
     skills: row.skills?.length ? row.skills : undefined,
     experiences: row.experiences?.length ? row.experiences : undefined,
     education: row.education?.length ? row.education : undefined,
     certifications: row.certifications?.length ? row.certifications : undefined,
+    awards: row.awards?.length ? row.awards : undefined,
+    isPublic: row.is_public,
+    showContact: row.show_contact,
+    isIndexed: row.is_indexed,
+    featuredProjectId: row.featured_project_id,
     projects,
     collaborations,
     team,
@@ -149,6 +161,9 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
 // allá de un link directo. Se cuenta solo lo que cada uno publicó en su
 // portfolio (show_in_portfolio=true), no colaboraciones ajenas — es la
 // señal de "cuánto trabajo propio tiene mostrado", no de actividad total.
+// Filtra is_public=true (ver "Visibilidad" en el editor de perfil) — un
+// perfil privado no aparece acá ni, por lo tanto, en sitemap.ts (que
+// reusa esta misma función y además filtra isIndexed).
 export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]> => {
   if (!SUPABASE_CONFIGURED) return [];
 
@@ -156,9 +171,10 @@ export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]>
 
   const { data: profileRows } = await supabase
     .from('profiles')
-    .select('id, handle, display_name, account_type, avatar_image, bio, location')
+    .select('id, handle, display_name, account_type, avatar_image, bio, location, is_indexed')
+    .eq('is_public', true)
     .order('display_name');
-  const profiles = (profileRows ?? []) as Pick<ProfileRow, 'id' | 'handle' | 'display_name' | 'account_type' | 'avatar_image' | 'bio' | 'location'>[];
+  const profiles = (profileRows ?? []) as Pick<ProfileRow, 'id' | 'handle' | 'display_name' | 'account_type' | 'avatar_image' | 'bio' | 'location' | 'is_indexed'>[];
   if (profiles.length === 0) return [];
 
   const { data: projectRows } = await supabase
@@ -182,6 +198,7 @@ export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]>
     bio: p.bio ?? undefined,
     location: p.location ?? undefined,
     projectCount: countByOwner.get(p.id) ?? 0,
+    isIndexed: p.is_indexed,
   }));
 });
 

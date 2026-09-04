@@ -114,6 +114,60 @@ alter table profiles add column if not exists certifications jsonb not null defa
 -- alcanza (ej. ["Revit", "AutoCAD", "SketchUp", "Lumion"]).
 alter table profiles add column if not exists skills text[] not null default '{}';
 
+-- ─── Editor de perfil: título, matrícula, disponibilidad, premios ────
+alter table profiles add column if not exists headline text;
+alter table profiles add column if not exists license text;
+
+alter table profiles add column if not exists availability text not null default 'open';
+alter table profiles drop constraint if exists profiles_availability_check;
+alter table profiles add constraint profiles_availability_check check (availability in ('open', 'hiring', 'busy'));
+
+alter table profiles add column if not exists specialties text[] not null default '{}';
+alter table profiles add column if not exists languages text[] not null default '{}';
+
+-- Premios y publicaciones — mismo criterio que certifications: jsonb suelto
+-- en vez de tabla propia, la estructura de cada ítem puede cambiar sin
+-- requerir una migración.
+alter table profiles add column if not exists awards jsonb not null default '[]';
+
+-- ─── Aptitudes con nivel (1-3) ────────────────────────────────────────
+-- skills pasa de text[] a jsonb (array de {label, level}) para poder
+-- guardar un nivel por aptitud. Con datos ya cargados no se puede castear
+-- text[] -> jsonb directo, así que se arma a mano en una columna nueva y
+-- se reemplaza. El guard evita repetir la conversión — este archivo entero
+-- se re-corre completo cada vez que se actualiza el esquema.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'profiles' and column_name = 'skills' and data_type = 'ARRAY'
+  ) then
+    alter table profiles add column skills_jsonb jsonb not null default '[]';
+    update profiles set skills_jsonb = (
+      select coalesce(jsonb_agg(jsonb_build_object('label', s, 'level', 2)), '[]'::jsonb)
+      from unnest(skills) as s
+    );
+    alter table profiles drop column skills;
+    alter table profiles rename column skills_jsonb to skills;
+  end if;
+end $$;
+
+-- ─── Visibilidad del perfil ───────────────────────────────────────────
+-- Todo arranca visible/indexable — el default anterior (sin estas
+-- columnas) era "todo público", esto solo lo vuelve explícito y opcional.
+alter table profiles add column if not exists is_public boolean not null default true;
+alter table profiles add column if not exists show_contact boolean not null default true;
+alter table profiles add column if not exists is_indexed boolean not null default true;
+
+-- ─── Proyecto destacado del portfolio ─────────────────────────────────
+-- Antes "destacado" era un heurístico del front (el primero de la lista
+-- cuando había 3+ proyectos, ver ProfileTabs.tsx) — esto lo vuelve una
+-- elección real de la cuenta. on delete set null: si se borra el proyecto
+-- destacado, el portfolio vuelve al heurístico en vez de romperse.
+alter table profiles add column if not exists featured_project_id uuid;
+alter table profiles drop constraint if exists profiles_featured_project_id_fkey;
+alter table profiles add constraint profiles_featured_project_id_fkey foreign key (featured_project_id) references projects(id) on delete set null;
+
 -- ─── Posts (feed) ──────────────────────────────────────────────────────
 -- A diferencia de project_comments (cualquier cuenta logueada, tenga
 -- perfil o no), publicar requiere tener perfil — no tiene sentido

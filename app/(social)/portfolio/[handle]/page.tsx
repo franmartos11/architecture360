@@ -14,6 +14,7 @@ import ProfileQuickEditButton from '@/components/social/ProfileQuickEditButton';
 import MessageButton from '@/components/social/MessageButton';
 import ProfileCompleteness from '@/components/social/ProfileCompleteness';
 import ProfileTabs from '@/components/social/ProfileTabs';
+import { getAvailabilityInfo } from '@/lib/profile-availability';
 
 function waLink(w: string) { return `https://wa.me/${w.replace(/[^0-9]/g, '')}`; }
 
@@ -71,6 +72,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description,
     openGraph: { title, description, images: ogImage ? [ogImage] : undefined },
     twitter: { card: 'summary_large_image', title, description, images: ogImage ? [ogImage] : undefined },
+    // "Aparecer en buscadores" del editor de perfil — default true, así que
+    // esto solo se activa cuando alguien lo apagó explícitamente.
+    ...(portfolio.isIndexed === false ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -83,6 +87,11 @@ export default async function PortfolioPage({ params }: PageProps) {
   const user = await getRequestUser();
   const isOwnProfile = user?.id === portfolio.id;
   const isCompany = portfolio.accountType === 'company';
+  // "Portfolio público" del editor de perfil — el dueño siempre puede ver
+  // el suyo (para poder previsualizarlo/reactivarlo), cualquier otra
+  // persona lo ve como si no existiera.
+  if (portfolio.isPublic === false && !isOwnProfile) notFound();
+  const availabilityInfo = getAvailabilityInfo(portfolio.availability);
 
   // "Vistas hoy" del rail del feed — best-effort, nunca debe tumbar el
   // render del perfil si falla (mismo criterio que notify()). No cuenta
@@ -126,10 +135,13 @@ export default async function PortfolioPage({ params }: PageProps) {
   const experiences = portfolio.experiences ?? [];
   const education = portfolio.education ?? [];
   const certifications = portfolio.certifications ?? [];
+  const awards = portfolio.awards ?? [];
   const skills = portfolio.skills ?? [];
+  const specialties = portfolio.specialties ?? [];
+  const languages = portfolio.languages ?? [];
   // Trayectoria solo tiene sentido para cuentas de persona — una empresa no
-  // carga experiencia/educación/certificados propios (ver Profile en types/index.ts).
-  const hasTrayectoria = !isCompany && (experiences.length > 0 || education.length > 0 || certifications.length > 0);
+  // carga experiencia/educación/certificados/premios propios (ver Profile en types/index.ts).
+  const hasTrayectoria = !isCompany && (experiences.length > 0 || education.length > 0 || certifications.length > 0 || awards.length > 0);
   // "Estudio" en la meta del header: no hay un campo propio de "dónde
   // trabaja hoy" en el perfil — se usa el trabajo más reciente cargado en
   // Experiencia (se asume orden más-reciente-primero, igual que se lista
@@ -202,10 +214,19 @@ export default async function PortfolioPage({ params }: PageProps) {
                     ESTUDIO DE ARQUITECTURA
                   </span>
                 )}
+                {availabilityInfo && portfolio.availability !== 'busy' && (
+                  <span className="h-[21px] px-2.5 rounded-md bg-white border border-trevo-dark/[0.09] text-[10.5px] font-medium text-trevo-dark/65 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: availabilityInfo.color }} />
+                    {availabilityInfo.label}
+                  </span>
+                )}
               </div>
               <h1 className="text-2xl sm:text-[32px] font-semibold text-trevo-dark leading-tight tracking-tight mt-1">
                 {portfolio.displayName}
               </h1>
+              {portfolio.headline && (
+                <p className="text-[13.5px] text-trevo-dark/55 font-light mt-0.5">{portfolio.headline}</p>
+              )}
             </div>
 
             {/* Botones de acción — Editar perfil (dueño) / Seguir + Mensaje (visitante) + compartir */}
@@ -255,6 +276,12 @@ export default async function PortfolioPage({ params }: PageProps) {
                   </span>
                 </>
               )}
+              {portfolio.license && (
+                <>
+                  <span className="w-px h-3.5 bg-trevo-dark/15" />
+                  <span>Mat. {portfolio.license}</span>
+                </>
+              )}
               <span className="w-px h-3.5 bg-trevo-dark/15" />
               <span>En Atrium desde {memberSinceYear}</span>
             </div>
@@ -278,8 +305,9 @@ export default async function PortfolioPage({ params }: PageProps) {
               ))}
             </div>
 
-            {/* Chips de redes/contacto */}
-            {(portfolio.whatsapp || portfolio.contactEmail || portfolio.linkedinUrl || portfolio.instagramUrl || portfolio.websiteUrl) && (
+            {/* Chips de redes/contacto — apagable entero desde "Mostrar datos
+                de contacto" del editor, sin importar qué campos tenga cargados. */}
+            {portfolio.showContact !== false && (portfolio.whatsapp || portfolio.contactEmail || portfolio.linkedinUrl || portfolio.instagramUrl || portfolio.websiteUrl) && (
               <div className="flex items-center gap-2 flex-wrap">
                 {portfolio.whatsapp && <SocialChip href={waLink(portfolio.whatsapp)} icon={<WhatsappMark />} label="WhatsApp" />}
                 {!portfolio.whatsapp && portfolio.contactEmail && (
@@ -293,17 +321,48 @@ export default async function PortfolioPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* Aptitudes */}
+            {/* Aptitudes — con nivel (1-3 puntos), más fuertes primero */}
             {skills.length > 0 && (
               <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] p-4">
                 <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">APTITUDES</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {skills.map(s => (
-                    <span key={s} className="h-7 px-2.5 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center">
-                      {s}
+                  {skills.slice().sort((a, b) => b.level - a.level).map(s => (
+                    <span key={s.label} className="h-7 pl-2.5 pr-2 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center gap-1.5">
+                      {s.label}
+                      <span className="flex gap-[3px]">
+                        {[1, 2, 3].map(n => (
+                          <span key={n} className="w-[5px] h-[5px] rounded-full" style={{ background: n <= s.level ? '#5c7a58' : 'rgba(28,25,23,.16)' }} />
+                        ))}
+                      </span>
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Especialidades / Idiomas */}
+            {(specialties.length > 0 || languages.length > 0) && (
+              <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] p-4 flex flex-col gap-3">
+                {specialties.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">ESPECIALIDADES</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {specialties.map(sp => (
+                        <span key={sp} className="h-7 px-2.5 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center">{sp}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {languages.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">IDIOMAS</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {languages.map(lg => (
+                        <span key={lg} className="h-7 px-2.5 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center">{lg}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -358,6 +417,8 @@ export default async function PortfolioPage({ params }: PageProps) {
             experiences={experiences}
             education={education}
             certifications={certifications}
+            awards={awards}
+            featuredProjectId={portfolio.featuredProjectId}
             postsCount={postsCount ?? 0}
             loggedIn={!!user}
             currentProfileHandle={isOwnProfile ? portfolio.handle : null}

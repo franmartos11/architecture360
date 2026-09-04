@@ -132,4 +132,70 @@ describe('PATCH /api/admin/profile', () => {
     const res = await PATCH(jsonRequest('http://localhost/api/admin/profile', { bio: 'x' }));
     expect(res.status).toBe(500);
   });
+
+  it('featuredProjectId ajeno: 403, no llega a guardar', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { handle: 'ana-perez' } },
+        { data: null }, // .from('projects')...maybeSingle() -> no es dueña
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/profile', { bio: 'x', featuredProjectId: '11111111-1111-4111-8111-111111111111' }));
+    expect(res.status).toBe(403);
+    expect(supabase.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('featuredProjectId propio: lo guarda', async () => {
+    const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { handle: 'ana-perez' } },
+        { data: { id: PROJECT_ID } }, // es dueña
+        { data: { id: 'user-1', handle: 'ana-perez', featured_project_id: PROJECT_ID }, error: null },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/profile', { bio: 'x', featuredProjectId: PROJECT_ID }));
+    expect(res.status).toBe(200);
+  });
+
+  it('nuevos campos del editor (headline, disponibilidad, especialidades, aptitudes con nivel, premios, visibilidad): no rompen la validación ni el guardado', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { handle: 'ana-perez' } },
+        { data: { id: 'user-1', handle: 'ana-perez' }, error: null },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/profile', {
+      bio: 'x',
+      headline: 'Arquitecto · Vivienda',
+      license: 'CAC 12.345',
+      availability: 'hiring',
+      specialties: ['Vivienda unifamiliar'],
+      languages: ['Español', 'Inglés'],
+      skills: [{ label: 'Revit', level: 3 }],
+      awards: [{ name: 'Mención', year: '2026' }],
+      isPublic: false,
+      showContact: false,
+      isIndexed: false,
+    }));
+    expect(res.status).toBe(200);
+  });
+
+  it('availability inválida: 400', async () => {
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/profile', { availability: 'de-vacaciones' }));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
 });

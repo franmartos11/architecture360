@@ -9,7 +9,7 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { PROJECT_STRUCTURES } from '@/lib/project-types';
 import { getProjectHref } from '@/lib/project-url';
 import PostFeed from '@/components/social/PostFeed';
-import type { ProjectType, PortfolioProjectSummary, ProfileExperience, ProfileEducation, ProfileCertification } from '@/types';
+import type { ProjectType, PortfolioProjectSummary, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward } from '@/types';
 import type { PortfolioCollaboration } from '@/data/profile-repository';
 
 type TabKey = 'proyectos' | 'publicaciones' | 'trayectoria';
@@ -23,6 +23,9 @@ interface ProfileTabsProps {
   experiences: ProfileExperience[];
   education: ProfileEducation[];
   certifications: ProfileCertification[];
+  awards: ProfileAward[];
+  /** Proyecto propio elegido en el editor de perfil — tiene prioridad sobre el heurístico de abajo. */
+  featuredProjectId?: string | null;
   postsCount: number;
   loggedIn: boolean;
   currentProfileHandle: string | null;
@@ -165,9 +168,34 @@ function CertificatesCard({ items }: { items: ProfileCertification[] }) {
   );
 }
 
+function AwardsCard({ items }: { items: ProfileAward[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="bg-white rounded-2xl border border-trevo-dark/[0.09] p-5 flex flex-col gap-3">
+      <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40">PREMIOS Y PUBLICACIONES</p>
+      {items.map((award, i) => (
+        <a
+          key={i}
+          href={award.url || undefined}
+          target={award.url ? '_blank' : undefined}
+          rel="noopener noreferrer"
+          className={`flex items-center gap-3 p-2.5 rounded-[11px] border border-trevo-dark/[0.09] transition-colors ${award.url ? 'hover:border-trevo-dark/30 cursor-pointer' : 'cursor-default'}`}
+        >
+          <div className="w-9 h-9 rounded-lg shrink-0 bg-trevo-dark/5 flex items-center justify-center text-trevo-dark/45">★</div>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-trevo-dark text-[13px] leading-snug truncate">{award.name}</p>
+            <p className="text-trevo-dark/48 text-[11.5px] font-light">{[award.issuer, award.year].filter(Boolean).join(' · ')}</p>
+          </div>
+          {award.url && <ExternalLink className="w-3.5 h-3.5 text-trevo-dark/35 shrink-0" />}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function ProfileTabs({
   handle, isOwner, projects, collaborations, hasTrayectoria,
-  experiences, education, certifications, postsCount,
+  experiences, education, certifications, awards, featuredProjectId, postsCount,
   loggedIn, currentProfileHandle, currentAvatarImage,
 }: ProfileTabsProps) {
   // El tab activo vive en la URL (?tab=...) en vez de en un useState local —
@@ -194,8 +222,11 @@ export default function ProfileTabs({
   }, [projects]);
 
   const filteredProjects = filter === 'Todos' ? projects : projects.filter(p => p.projectType === filter);
-  const featuredProject = filteredProjects.length >= 3 ? filteredProjects[0] : null;
-  const restProjects = featuredProject ? filteredProjects.slice(1) : filteredProjects;
+  // El proyecto elegido a mano en el editor de perfil gana; sin uno elegido,
+  // se cae al heurístico de antes (el primero, solo si hay 3+).
+  const explicitFeatured = featuredProjectId ? filteredProjects.find(p => p.id === featuredProjectId) : undefined;
+  const featuredProject = explicitFeatured ?? (filteredProjects.length >= 3 ? filteredProjects[0] : null);
+  const restProjects = featuredProject ? filteredProjects.filter(p => p.slug !== featuredProject.slug) : filteredProjects;
   const sideProjects = restProjects.slice(0, 2);
   const gridProjects = featuredProject ? restProjects.slice(2) : restProjects;
 
@@ -348,6 +379,7 @@ export default function ProfileTabs({
             <div className="flex flex-col gap-4">
               <EducationCard items={education} />
               <CertificatesCard items={certifications} />
+              <AwardsCard items={awards} />
             </div>
           </div>
         )}

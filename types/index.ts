@@ -345,6 +345,21 @@ export interface ProfileCertification {
   imageUrl?: string;
 }
 
+export interface ProfileAward {
+  name: string;
+  issuer?: string;
+  year?: string;
+  url?: string;
+}
+
+/** Aptitud con nivel 1 (básico) a 3 (avanzado) — ver migración de `skills` en schema.sql. */
+export interface ProfileSkill {
+  label: string;
+  level: 1 | 2 | 3;
+}
+
+export type ProfileAvailability = 'open' | 'hiring' | 'busy';
+
 // ─── Perfil público (portfolio con varios proyectos agrupados) ───────
 // Opt-in — no toda cuenta tiene uno. Se crea recién cuando el usuario
 // define su handle en /admin/portfolio.
@@ -353,6 +368,11 @@ export interface Profile {
   handle: string;
   displayName: string;
   accountType: 'person' | 'company';
+  /** Titular profesional — se lee debajo del nombre en el feed y las búsquedas. */
+  headline?: string | null;
+  /** Matrícula profesional (ej. "CAC 12.345"). */
+  license?: string | null;
+  availability?: ProfileAvailability;
   bio: string | null;
   avatarImage: string | null;
   bannerImage: string | null;
@@ -362,14 +382,27 @@ export interface Profile {
   linkedinUrl?: string;
   instagramUrl?: string;
   websiteUrl?: string;
-  /** Aptitudes / habilidades — badges en el perfil público */
-  skills?: string[];
+  /** Especialidades de la práctica (Vivienda unifamiliar, Comercial, etc.) */
+  specialties?: string[];
+  languages?: string[];
+  /** Aptitudes / habilidades, cada una con su nivel — badges en el perfil público */
+  skills?: ProfileSkill[];
   /** Solo para account_type='person' */
   experiences?: ProfileExperience[];
   /** Solo para account_type='person' */
   education?: ProfileEducation[];
   /** Solo para account_type='person' */
   certifications?: ProfileCertification[];
+  /** Solo para account_type='person' */
+  awards?: ProfileAward[];
+  /** Portfolio visible para cualquiera con el link. Default true. */
+  isPublic?: boolean;
+  /** Mostrar los chips de contacto (WhatsApp/email/redes) en el perfil público. Default true. */
+  showContact?: boolean;
+  /** Permitir que buscadores indexen el perfil. Default true. */
+  isIndexed?: boolean;
+  /** Proyecto propio elegido como destacado del portfolio — reemplaza el heurístico anterior. */
+  featuredProjectId?: string | null;
 }
 
 // Fila liviana para /directorio — no la ficha completa de Profile,
@@ -383,12 +416,15 @@ export interface DirectoryProfile {
   bio?: string;
   location?: string;
   projectCount: number;
+  /** Para que sitemap.ts pueda excluir perfiles con "Aparecer en buscadores" apagado. */
+  isIndexed?: boolean;
 }
 
 // Proyecto tal como aparece listado dentro de un portfolio — un
 // subconjunto liviano de Project, no la ficha completa (no hace falta
 // nada de edificios/unidades/tours para una tarjeta en una grilla).
 export interface PortfolioProjectSummary {
+  id: string;
   slug: string;
   name: string;
   description: string;

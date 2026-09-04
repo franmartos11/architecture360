@@ -1,457 +1,170 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { X, Plus, Pencil, Trash2 } from 'lucide-react';
-import { m as motion, AnimatePresence } from 'framer-motion';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Camera } from 'lucide-react';
 import ImageUploader from '@/components/admin/ImageUploader';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import { getProjectTypeConfig } from '@/lib/project-types';
-import Image from 'next/image';
-import type { ProfileExperience, ProfileEducation, ProfileCertification } from '@/types';
+import { PROFILE_AVAILABILITY } from '@/lib/profile-availability';
+import { SPECIALTIES_CATALOG, LANGUAGES_CATALOG } from '@/lib/skills-catalog';
+import { labelStyle, inputStyle } from '@/components/admin/portfolio-editor/styles';
+import ListSection, { type ListFieldConfig } from '@/components/admin/portfolio-editor/ListSection';
+import SkillsSection from '@/components/admin/portfolio-editor/SkillsSection';
+import StrengthCard, { type StrengthCheck } from '@/components/admin/portfolio-editor/StrengthCard';
+import PreviewCard from '@/components/admin/portfolio-editor/PreviewCard';
+import VisibilityCard from '@/components/admin/portfolio-editor/VisibilityCard';
+import type { ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability } from '@/types';
 
-// ─── Catálogo de aptitudes ────────────────────────────────────────────
-const SKILLS_CATALOG: Record<string, string[]> = {
-  'Software BIM / CAD': ['AutoCAD', 'Revit', 'ArchiCAD', 'BricsCAD', 'Civil 3D', 'Vectorworks'],
-  '3D y Visualización': ['SketchUp', 'Rhino', '3ds Max', 'Blender', 'Lumion', 'V-Ray', 'Enscape', 'Twinmotion', 'Corona Renderer'],
-  'Diseño y Edición': ['Photoshop', 'Illustrator', 'InDesign', 'Premiere', 'After Effects', 'Figma', 'Canva'],
-  'Gestión': ['MS Project', 'Trello', 'Notion', 'Excel / Planillas'],
-  'Habilidades de obra': ['Dirección de Obra', 'Presupuestos', 'Cómputos Métricos', 'Relevamiento', 'Certificaciones de Obra'],
-  'Diseño': ['Diseño Arquitectónico', 'Diseño Urbano', 'Paisajismo', 'Diseño Interior', 'Diseño Sustentable', 'Diseño Paramétrico'],
-  'Otros': ['Fotografía', 'Maquetería', 'BIM Management', 'Licitaciones', 'Normativa Urbana', 'Gestión de Proyectos'],
-};
+const ANCHORS = [
+  { label: 'Aptitudes', href: '#aptitudes' },
+  { label: 'Experiencia', href: '#exp' },
+  { label: 'Educación', href: '#edu' },
+  { label: 'Certificados', href: '#cert' },
+  { label: 'Premios', href: '#award' },
+  { label: 'Proyectos', href: '#proyectos' },
+];
+
+const AUTOSAVE_DELAY_MS = 800;
 
 interface ProjectRow {
   id: string; slug: string; name: string;
   masterplan_image: string | null; project_type: string;
   sale_mode: string; show_in_portfolio: boolean;
 }
-interface ProfileRow {
-  handle: string; display_name: string; account_type: 'person' | 'company';
-  bio: string | null; avatar_image: string | null; banner_image: string | null; location: string | null;
-  contact_email: string | null; whatsapp: string | null;
-  linkedin_url: string | null; instagram_url: string | null; website_url: string | null;
-  skills: string[] | null; experiences: ProfileExperience[] | null;
-  education: ProfileEducation[] | null; certifications: ProfileCertification[] | null;
-}
 interface CollaborationRow {
   id: string; contribution: string; status: 'pending' | 'accepted' | 'declined';
   project: { slug: string; name: string; masterplan_image: string | null } | null;
 }
 
-// ─── Modal base ────────────────────────────────────────────────────────
-function ProfileModal({ isOpen, onClose, title, onSave, saving, children }: {
-  isOpen: boolean; onClose: () => void; title: string;
-  onSave: () => void; saving: boolean; children: React.ReactNode;
-}) {
-  useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        >
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-            onClick={onClose}
-          />
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-              <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {/* Scrollable body */}
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-              {children}
-            </div>
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 shrink-0">
-              <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
-              <Button onClick={onSave} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
-              </Button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+interface FormState {
+  displayName: string;
+  accountType: 'person' | 'company';
+  headline: string;
+  license: string;
+  availability: ProfileAvailability;
+  location: string;
+  bio: string;
+  avatarImage: string;
+  bannerImage: string;
+  contactEmail: string;
+  whatsapp: string;
+  linkedinUrl: string;
+  instagramUrl: string;
+  websiteUrl: string;
+  specialties: string[];
+  languages: string[];
+  skills: ProfileSkill[];
+  experiences: ProfileExperience[];
+  education: ProfileEducation[];
+  certifications: ProfileCertification[];
+  awards: ProfileAward[];
+  isPublic: boolean;
+  showContact: boolean;
+  isIndexed: boolean;
+  featuredProjectId: string | null;
 }
 
-// ─── Modal: Perfil básico ──────────────────────────────────────────────
-function BasicInfoModal({ isOpen, onClose, form, setForm, onSave, saving, hasProfile }: {
-  isOpen: boolean; onClose: () => void; saving: boolean; hasProfile: boolean;
-  form: { displayName: string; accountType: 'person' | 'company'; bio: string; avatarImage: string; bannerImage: string; location: string };
-  setForm: (f: typeof form) => void; onSave: () => void;
-}) {
-  const isCompany = form.accountType === 'company';
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose} title="Editar perfil" onSave={onSave} saving={saving}>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de perfil</label>
-        <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
-          {(['person', 'company'] as const).map(type => (
-            <button key={type} type="button" onClick={() => setForm({ ...form, accountType: type })}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${form.accountType === type ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {type === 'person' ? 'Persona' : 'Estudio / Empresa'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <Input label={isCompany ? 'Nombre del estudio' : 'Nombre'} value={form.displayName}
-        onChange={e => setForm({ ...form, displayName: e.target.value })} required />
-      {!hasProfile && (
-        <p className="text-xs text-gray-400">El link de tu portfolio se genera solo a partir del nombre.</p>
-      )}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
-        <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={3}
-          placeholder="Contá algo sobre vos..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all text-sm" />
-      </div>
-      <Input label="Ubicación" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Buenos Aires, Argentina" />
-      <div className="grid grid-cols-2 gap-4">
-        <ImageUploader label={isCompany ? 'Logo' : 'Foto de perfil'}
-          value={form.avatarImage} onChange={url => setForm({ ...form, avatarImage: url })} folder="profiles" />
-        <ImageUploader label="Imagen de portada (banner)"
-          value={form.bannerImage} onChange={url => setForm({ ...form, bannerImage: url })} folder="profiles" />
-      </div>
-    </ProfileModal>
-  );
+const EMPTY_FORM: FormState = {
+  displayName: '', accountType: 'person', headline: '', license: '', availability: 'open',
+  location: '', bio: '', avatarImage: '', bannerImage: '',
+  contactEmail: '', whatsapp: '', linkedinUrl: '', instagramUrl: '', websiteUrl: '',
+  specialties: [], languages: [], skills: [], experiences: [], education: [], certifications: [], awards: [],
+  isPublic: true, showContact: true, isIndexed: true, featuredProjectId: null,
+};
+
+const EXP_FIELDS: ListFieldConfig[] = [
+  { key: 'role', label: 'ROL / CARGO', placeholder: 'Arquitecto de proyecto' },
+  { key: 'company', label: 'ESTUDIO / EMPRESA', placeholder: 'Estudio Martos' },
+  { key: 'startYear', label: 'DESDE', placeholder: '2021' },
+  { key: 'endYear', label: 'HASTA', placeholder: 'Presente' },
+  { key: 'description', label: 'QUÉ HICISTE (OPCIONAL)', placeholder: 'Documentación ejecutiva y dirección de obra de 6 proyectos.', full: true },
+];
+const EDU_FIELDS: ListFieldConfig[] = [
+  { key: 'institution', label: 'INSTITUCIÓN', placeholder: 'FAPyD — UNR', full: true },
+  { key: 'career', label: 'CARRERA / TÍTULO', placeholder: 'Arquitectura' },
+  { key: 'startYear', label: 'DESDE', placeholder: '2014' },
+  { key: 'endYear', label: 'HASTA', placeholder: '2020' },
+];
+const CERT_FIELDS: ListFieldConfig[] = [
+  { key: 'name', label: 'CERTIFICADO', placeholder: 'BIM Management con Revit', full: true },
+  { key: 'issuer', label: 'ENTIDAD', placeholder: 'Autodesk' },
+  { key: 'year', label: 'AÑO', placeholder: '2025' },
+  { key: 'url', label: 'CREDENCIAL (OPCIONAL)', placeholder: 'https://credencial.com/…', full: true },
+];
+const AWARD_FIELDS: ListFieldConfig[] = [
+  { key: 'name', label: 'PREMIO O PUBLICACIÓN', placeholder: 'Mención — Concurso Vivienda Colectiva', full: true },
+  { key: 'issuer', label: 'OTORGA / MEDIO', placeholder: 'Colegio de Arquitectos' },
+  { key: 'year', label: 'AÑO', placeholder: '2026' },
+  { key: 'url', label: 'ENLACE (OPCIONAL)', placeholder: 'https://…', full: true },
+];
+
+function suggestBio(form: FormState): string {
+  const parts: string[] = [];
+  parts.push(form.headline ? `${form.headline}.` : (form.accountType === 'company' ? 'Estudio de arquitectura.' : 'Arquitecto.'));
+  if (form.location) parts.push(`Con base en ${form.location}.`);
+  if (form.specialties.length > 0) parts.push(`Especializado en ${form.specialties.slice(0, 3).join(', ').toLowerCase()}.`);
+  if (form.availability === 'open') parts.push('Abierto a colaborar con otros estudios en concursos y obra nueva.');
+  else if (form.availability === 'hiring') parts.push('Actualmente sumando gente al equipo.');
+  return parts.join(' ');
 }
 
-// ─── Modal: Contacto ───────────────────────────────────────────────────
-function ContactModal({ isOpen, onClose, form, setForm, onSave, saving }: {
-  isOpen: boolean; onClose: () => void; saving: boolean;
-  form: { contactEmail: string; whatsapp: string; linkedinUrl: string; instagramUrl: string; websiteUrl: string };
-  setForm: (f: typeof form) => void; onSave: () => void;
-}) {
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose} title="Editar contacto" onSave={onSave} saving={saving}>
-      <Input label="Email de contacto" type="email" value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} placeholder="juana@ejemplo.com" />
-      <Input label="WhatsApp" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="+54 9 11 1234-5678" />
-      <Input label="LinkedIn" value={form.linkedinUrl} onChange={e => setForm({ ...form, linkedinUrl: e.target.value })} placeholder="https://linkedin.com/in/..." />
-      <Input label="Instagram" value={form.instagramUrl} onChange={e => setForm({ ...form, instagramUrl: e.target.value })} placeholder="https://instagram.com/..." />
-      <Input label="Sitio web / Behance / Portfolio" value={form.websiteUrl} onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://..." />
-    </ProfileModal>
-  );
+function chipClass(active: boolean) {
+  return `h-[26px] px-[11px] rounded-lg text-[11.5px] font-medium cursor-pointer transition-colors border ${
+    active ? 'bg-[rgba(92,122,88,0.14)] text-[#3f5a3c] border-[rgba(92,122,88,0.3)]' : 'bg-[#f5f4f0] text-[rgba(28,25,23,0.6)] border-transparent hover:border-[rgba(92,122,88,0.3)]'
+  }`;
 }
 
-// ─── Modal: Aptitudes ──────────────────────────────────────────────────
-function SkillsModal({ isOpen, onClose, selected, onSave, saving, onChange }: {
-  isOpen: boolean; onClose: () => void; saving: boolean;
-  selected: string[]; onChange: (s: string[]) => void; onSave: () => void;
-}) {
-  const [openCat, setOpenCat] = useState<string | null>(Object.keys(SKILLS_CATALOG)[0]);
-  const toggle = (skill: string) =>
-    onChange(selected.includes(skill) ? selected.filter(s => s !== skill) : [...selected, skill]);
-
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose} title="Aptitudes" onSave={onSave} saving={saving}>
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-3 bg-brand-50 rounded-xl border border-brand-100">
-          {selected.map(s => (
-            <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-600 text-white text-xs font-medium">
-              {s}<button type="button" onClick={() => toggle(s)} className="opacity-70 hover:opacity-100">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      {selected.length === 0 && <p className="text-sm text-gray-400 italic">Seleccioná aptitudes del catálogo.</p>}
-      <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-        {Object.entries(SKILLS_CATALOG).map(([cat, skills]) => (
-          <div key={cat}>
-            <button type="button" onClick={() => setOpenCat(openCat === cat ? null : cat)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-              <span>{cat}</span>
-              <span className="text-gray-400 text-xs">
-                {skills.filter(s => selected.includes(s)).length > 0 && `${skills.filter(s => selected.includes(s)).length} sel. `}
-                {openCat === cat ? '▲' : '▼'}
-              </span>
-            </button>
-            {openCat === cat && (
-              <div className="px-4 pb-4 flex flex-wrap gap-2">
-                {skills.map(skill => {
-                  const sel = selected.includes(skill);
-                  return (
-                    <button key={skill} type="button" onClick={() => toggle(skill)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${sel ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}>
-                      {sel ? '✓ ' : ''}{skill}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-gray-400 text-right">{selected.length} seleccionadas</p>
-    </ProfileModal>
-  );
-}
-
-// ─── Modal: Experiencia (agregar / editar) ────────────────────────────
-const EMPTY_EXP: ProfileExperience = { company: '', role: '', startYear: '', endYear: '', description: '' };
-function ExperienceModal({ isOpen, onClose, item, onSave, saving }: {
-  isOpen: boolean; onClose: () => void; saving: boolean;
-  item: ProfileExperience | null; onSave: (v: ProfileExperience) => void;
-}) {
-  const [form, setForm] = useState<ProfileExperience>(item ?? EMPTY_EXP);
-  const [prevItem, setPrevItem] = useState(item);
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (item !== prevItem || isOpen !== prevIsOpen) {
-    setPrevItem(item);
-    setPrevIsOpen(isOpen);
-    setForm(item ?? EMPTY_EXP);
-  }
-
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose}
-      title={item ? 'Editar experiencia' : 'Agregar experiencia'}
-      onSave={() => onSave(form)} saving={saving}>
-      <p className="text-xs text-gray-400">* Indica campo obligatorio</p>
-      <Input label="Empresa / Estudio *" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Estudio Arq. Pérez" />
-      <Input label="Rol / Cargo *" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} placeholder="Arquitecto Junior" />
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Año de inicio *</label>
-          <select value={form.startYear} onChange={e => setForm({ ...form, startYear: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
-            <option value="">Año</option>
-            {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Año de fin</label>
-          <select value={form.endYear ?? ''} onChange={e => setForm({ ...form, endYear: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
-            <option value="">Presente</option>
-            {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripción (opcional)</label>
-        <textarea value={form.description ?? ''} onChange={e => setForm({ ...form, description: e.target.value })}
-          rows={3} placeholder="Describí brevemente tus tareas o logros..."
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-all text-sm resize-none" />
-      </div>
-    </ProfileModal>
-  );
-}
-
-// ─── Modal: Educación ─────────────────────────────────────────────────
-const EMPTY_EDU: ProfileEducation = { institution: '', career: '', startYear: '', endYear: '' };
-function EducationModal({ isOpen, onClose, item, onSave, saving }: {
-  isOpen: boolean; onClose: () => void; saving: boolean;
-  item: ProfileEducation | null; onSave: (v: ProfileEducation) => void;
-}) {
-  const [form, setForm] = useState<ProfileEducation>(item ?? EMPTY_EDU);
-  const [prevItem, setPrevItem] = useState(item);
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (item !== prevItem || isOpen !== prevIsOpen) {
-    setPrevItem(item);
-    setPrevIsOpen(isOpen);
-    setForm(item ?? EMPTY_EDU);
-  }
-
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose}
-      title={item ? 'Editar educación' : 'Añadir educación'}
-      onSave={() => onSave(form)} saving={saving}>
-      <p className="text-xs text-gray-400">* Indica campo obligatorio</p>
-      <Input label="Institución educativa *" value={form.institution}
-        onChange={e => setForm({ ...form, institution: e.target.value })} placeholder="P. ej. Universidad de Buenos Aires" />
-      <Input label="Carrera / Título" value={form.career}
-        onChange={e => setForm({ ...form, career: e.target.value })} placeholder="Arquitectura" />
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Año de inicio</label>
-          <select value={form.startYear} onChange={e => setForm({ ...form, startYear: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
-            <option value="">Año</option>
-            {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Año de fin</label>
-          <select value={form.endYear ?? ''} onChange={e => setForm({ ...form, endYear: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
-            <option value="">En curso</option>
-            {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </ProfileModal>
-  );
-}
-
-// ─── Modal: Certificado ───────────────────────────────────────────────
-const EMPTY_CERT: ProfileCertification = { name: '', issuer: '', year: '', url: '', imageUrl: '' };
-function CertificationModal({ isOpen, onClose, item, onSave, saving }: {
-  isOpen: boolean; onClose: () => void; saving: boolean;
-  item: ProfileCertification | null; onSave: (v: ProfileCertification) => void;
-}) {
-  const [form, setForm] = useState<ProfileCertification>(item ?? EMPTY_CERT);
-  const [prevItem, setPrevItem] = useState(item);
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (item !== prevItem || isOpen !== prevIsOpen) {
-    setPrevItem(item);
-    setPrevIsOpen(isOpen);
-    setForm(item ?? EMPTY_CERT);
-  }
-
-  return (
-    <ProfileModal isOpen={isOpen} onClose={onClose}
-      title={item ? 'Editar certificado' : 'Agregar certificado'}
-      onSave={() => onSave(form)} saving={saving}>
-      <p className="text-xs text-gray-400">* Indica campo obligatorio</p>
-      <Input label="Nombre del certificado *" value={form.name}
-        onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Curso de BIM con Revit" />
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="Entidad emisora *" value={form.issuer}
-          onChange={e => setForm({ ...form, issuer: e.target.value })} placeholder="Autodesk" />
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Año *</label>
-          <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm">
-            <option value="">Año</option>
-            {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i).map(y => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <Input label="URL del certificado (opcional)" value={form.url ?? ''}
-        onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://credencial.com/..." />
-      <ImageUploader label="Imagen del certificado (opcional)"
-        value={form.imageUrl ?? ''} onChange={url => setForm({ ...form, imageUrl: url })} folder="profiles" />
-    </ProfileModal>
-  );
-}
-
-// ─── Componente de sección con botones +/✏️ ───────────────────────────
-function SectionCard({ title, onAdd, children }: {
-  title: string; onAdd: () => void; children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <button onClick={onAdd}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" aria-label={`Agregar ${title}`}>
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="divide-y divide-gray-50">{children}</div>
-    </div>
-  );
-}
-
-// ─── Fila de ítem (experiencia / educación / certificado) ──────────────
-function ItemRow({ children, onEdit, onDelete }: {
-  children: React.ReactNode; onEdit: () => void; onDelete: () => void;
-}) {
-  return (
-    <div className="flex items-start gap-4 px-6 py-5 group">
-      <div className="flex-1 min-w-0">{children}</div>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={onEdit}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" aria-label="Editar">
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={onDelete}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" aria-label="Eliminar">
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Ícono de inicial ─────────────────────────────────────────────────
-function InitialIcon({ text, className = '' }: { text: string; className?: string }) {
-  return (
-    <div className={`w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 font-semibold text-gray-500 text-base ${className}`}>
-      {text.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
-// ─── Página principal ─────────────────────────────────────────────────
 export default function AdminPortfolioPage() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [hasProfile, setHasProfile] = useState(false);
   const [handle, setHandle] = useState('');
-
-  // Datos del perfil
-  const [basicForm, setBasicForm] = useState({ displayName: '', accountType: 'person' as 'person' | 'company', bio: '', avatarImage: '', bannerImage: '', location: '' });
-  const [contactForm, setContactForm] = useState({ contactEmail: '', whatsapp: '', linkedinUrl: '', instagramUrl: '', websiteUrl: '' });
-  const [skills, setSkills] = useState<string[]>([]);
-  const [experiences, setExperiences] = useState<ProfileExperience[]>([]);
-  const [education, setEducation] = useState<ProfileEducation[]>([]);
-  const [certifications, setCertifications] = useState<ProfileCertification[]>([]);
+  const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [collaborations, setCollaborations] = useState<CollaborationRow[]>([]);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [bannerEditorOpen, setBannerEditorOpen] = useState(false);
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
 
-  // Control de modales
-  const [modal, setModal] = useState<
-    | { type: 'basic' } | { type: 'contact' } | { type: 'skills' }
-    | { type: 'exp'; item: ProfileExperience | null; idx: number | null }
-    | { type: 'edu'; item: ProfileEducation | null; idx: number | null }
-    | { type: 'cert'; item: ProfileCertification | null; idx: number | null }
-    | null
-  >(null);
-
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toast = useToast();
 
-  const load = useCallback(() => {
+  useEffect(() => {
     Promise.all([
       fetch('/api/admin/profile').then(r => r.json()),
       fetch('/api/admin/projects').then(r => r.json()),
       fetch('/api/collaborators/mine').then(r => r.json()),
     ]).then(([profileData, projectsData, colsData]) => {
-      const p: ProfileRow | null = profileData.profile;
+      const p = profileData.profile;
       if (p) {
-        setHasProfile(true);
         setHandle(p.handle);
-        setBasicForm({ displayName: p.display_name ?? '', accountType: p.account_type === 'company' ? 'company' : 'person', bio: p.bio ?? '', avatarImage: p.avatar_image ?? '', bannerImage: p.banner_image ?? '', location: p.location ?? '' });
-        setContactForm({ contactEmail: p.contact_email ?? '', whatsapp: p.whatsapp ?? '', linkedinUrl: p.linkedin_url ?? '', instagramUrl: p.instagram_url ?? '', websiteUrl: p.website_url ?? '' });
-        setSkills(p.skills ?? []);
-        setExperiences(p.experiences ?? []);
-        setEducation(p.education ?? []);
-        setCertifications(p.certifications ?? []);
+        setForm({
+          displayName: p.display_name ?? '',
+          accountType: p.account_type === 'company' ? 'company' : 'person',
+          headline: p.headline ?? '',
+          license: p.license ?? '',
+          availability: p.availability ?? 'open',
+          location: p.location ?? '',
+          bio: p.bio ?? '',
+          avatarImage: p.avatar_image ?? '',
+          bannerImage: p.banner_image ?? '',
+          contactEmail: p.contact_email ?? '',
+          whatsapp: p.whatsapp ?? '',
+          linkedinUrl: p.linkedin_url ?? '',
+          instagramUrl: p.instagram_url ?? '',
+          websiteUrl: p.website_url ?? '',
+          specialties: p.specialties ?? [],
+          languages: p.languages ?? [],
+          skills: p.skills ?? [],
+          experiences: p.experiences ?? [],
+          education: p.education ?? [],
+          certifications: p.certifications ?? [],
+          awards: p.awards ?? [],
+          isPublic: p.is_public ?? true,
+          showContact: p.show_contact ?? true,
+          isIndexed: p.is_indexed ?? true,
+          featuredProjectId: p.featured_project_id ?? null,
+        });
       }
       setProjects(projectsData.projects ?? []);
       setCollaborations(colsData.collaborations ?? []);
@@ -459,38 +172,48 @@ export default function AdminPortfolioPage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Autosave debounced, disparado a mano desde `set()`/los onChange de
+  // abajo — nunca desde un useEffect que mire `form`: ese approach también
+  // dispara apenas termina de cargar (form pasa de EMPTY_FORM a los datos
+  // reales), autoguardando de entrada sin que la persona haya tocado nada.
+  // El PATCH es upsert de fila completa (ver /api/admin/profile), así que
+  // siempre manda el form entero, no un diff.
+  const scheduleSave = useCallback((next: FormState) => {
+    setSaveState('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      const res = await fetch('/api/admin/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.profile?.handle) setHandle(data.profile.handle);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast(d.error ?? 'No se pudo guardar.', 'error');
+      }
+      setSaveState('saved');
+    }, AUTOSAVE_DELAY_MS);
+  }, [toast]);
 
-  // Guardado genérico: llama al API con el estado actual fusionado
-  const saveProfile = useCallback(async (patch: Partial<{
-    displayName: string; accountType: 'person' | 'company';
-    bio: string; avatarImage: string; bannerImage: string; location: string;
-    contactEmail: string; whatsapp: string; linkedinUrl: string; instagramUrl: string; websiteUrl: string;
-    skills: string[]; experiences: ProfileExperience[]; education: ProfileEducation[]; certifications: ProfileCertification[];
-  }>) => {
-    setSaving(true);
-    const body = {
-      displayName: basicForm.displayName,
-      accountType: basicForm.accountType, bio: basicForm.bio,
-      avatarImage: basicForm.avatarImage, bannerImage: basicForm.bannerImage, location: basicForm.location,
-      ...contactForm, skills, experiences, education, certifications,
-      ...patch,
-    };
-    const res = await fetch('/api/admin/profile', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  const set = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm(f => {
+      const next = { ...f, [key]: value };
+      scheduleSave(next);
+      return next;
     });
-    setSaving(false);
-    if (res.ok) {
-      // El handle se auto-genera server-side la primera vez que se crea el
-      // perfil (ver /api/admin/profile) — lo tomamos de la respuesta en vez
-      // de mandarlo nosotros.
-      const data = await res.json().catch(() => null);
-      if (data?.profile?.handle) setHandle(data.profile.handle);
-      setHasProfile(true); setModal(null); toast('Guardado.');
-    } else {
-      const d = await res.json().catch(() => ({})); toast(d.error ?? 'Error al guardar.', 'error');
+  }, [scheduleSave]);
+
+  const copyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/portfolio/${handle}`);
+      toast('Enlace de tu portfolio copiado.');
+    } catch {
+      toast('No se pudo copiar el enlace.', 'error');
     }
-  }, [basicForm, contactForm, skills, experiences, education, certifications, toast]);
+  };
 
   const respondToCollaboration = async (id: string, status: 'accepted' | 'declined') => {
     setRespondingId(id);
@@ -503,305 +226,346 @@ export default function AdminPortfolioPage() {
   const toggleInPortfolio = async (project: ProjectRow) => {
     const next = !project.show_in_portfolio;
     setProjects(prev => prev.map(p => p.id === project.id ? { ...p, show_in_portfolio: next } : p));
+    if (!next && form.featuredProjectId === project.id) set('featuredProjectId', null);
     const res = await fetch(`/api/admin/project?projectId=${project.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ showInPortfolio: next }) });
     if (!res.ok) { setProjects(prev => prev.map(p => p.id === project.id ? { ...p, show_in_portfolio: !next } : p)); toast('No se pudo actualizar.', 'error'); }
   };
 
   if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
 
-  const isCompany = basicForm.accountType === 'company';
+  const isCompany = form.accountType === 'company';
+  const bioLen = form.bio.length;
+  const visibleProjectsCount = projects.filter(p => p.show_in_portfolio).length;
+
+  const checks: StrengthCheck[] = [
+    { label: 'Titular profesional', ok: !!form.headline.trim(), weight: 12, href: '#titular' },
+    { label: 'Presentación de 2 líneas', ok: bioLen >= 60, weight: 16, href: '#presentacion' },
+    { label: 'Al menos 5 aptitudes', ok: form.skills.length >= 5, weight: 14, href: '#aptitudes' },
+    ...(isCompany ? [] : [
+      { label: 'Una experiencia cargada', ok: form.experiences.length > 0, weight: 18, href: '#exp' },
+      { label: 'Formación académica', ok: form.education.length > 0, weight: 12, href: '#edu' },
+      { label: 'Un certificado', ok: form.certifications.length > 0, weight: 10, href: '#cert' },
+      { label: 'Premios o publicaciones', ok: form.awards.length > 0, weight: 8, href: '#award' },
+    ]),
+    { label: 'Proyectos visibles', ok: visibleProjectsCount > 0, weight: 10, href: '#proyectos' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sub-header — contextual a esta pantalla, la identidad de cuenta ya la
-          pone AppShell arriba. */}
-      <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 bg-white sticky top-14 z-10">
-        <h1 className="font-semibold text-gray-900 text-sm">Editar mi portfolio</h1>
-        <div className="flex items-center gap-3">
-          {hasProfile && (
-            <a href={`/portfolio/${handle}`} target="_blank" rel="noopener noreferrer"
-              className="text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors">
-              Ver portfolio ↗
-            </a>
-          )}
-          <Link href="/admin/proyectos" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">← Mis proyectos</Link>
-        </div>
-      </header>
+    <div style={{ fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif" }}>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-      <div className="max-w-2xl mx-auto px-4 py-10 space-y-5">
-
-        {/* ── Perfil básico ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          {/* Banner / cover */}
-          <div className="h-32 bg-gradient-to-r from-gray-100 to-gray-200 relative">
-            {basicForm.bannerImage && (
-              <Image src={basicForm.bannerImage} alt="Banner" fill className="object-cover" />
-            )}
-            <button onClick={() => setModal({ type: 'basic' })}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-white transition-all shadow-sm" aria-label="Editar perfil">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {/* Avatar + info */}
-          <div className="px-6 pb-6">
-            <div className={`relative -mt-10 mb-4 ${isCompany ? 'rounded-xl' : 'rounded-full'} w-20 h-20 overflow-hidden border-4 border-white bg-gray-100 flex items-center justify-center shadow-sm`}>
-              {basicForm.avatarImage ? (
-                <Image src={basicForm.avatarImage} alt={basicForm.displayName} width={80} height={80} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-2xl font-semibold text-gray-400">{basicForm.displayName.charAt(0).toUpperCase() || '?'}</span>
-              )}
-            </div>
-            {!hasProfile ? (
-              <div className="text-center py-4">
-                <p className="text-gray-500 mb-3">Todavía no creaste tu perfil público.</p>
-                <Button onClick={() => setModal({ type: 'basic' })}>Crear mi portfolio</Button>
-              </div>
-            ) : (
-              <>
-                {isCompany && <span className="text-[11px] font-medium tracking-wide uppercase text-gray-400 border border-gray-200 rounded-full px-2.5 py-0.5">Estudio</span>}
-                <h1 className="text-xl font-bold text-gray-900 mt-1">{basicForm.displayName}</h1>
-                {basicForm.bio && <p className="text-sm text-gray-500 mt-1 leading-relaxed">{basicForm.bio}</p>}
-                {basicForm.location && <p className="text-xs text-gray-400 mt-1">📍 {basicForm.location}</p>}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {contactForm.linkedinUrl && <a href={contactForm.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">LinkedIn</a>}
-                  {contactForm.instagramUrl && <a href={contactForm.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Instagram</a>}
-                  {contactForm.websiteUrl && <a href={contactForm.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline">Sitio web</a>}
-                  {contactForm.contactEmail && <a href={`mailto:${contactForm.contactEmail}`} className="text-xs text-brand-600 hover:underline">{contactForm.contactEmail}</a>}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" onClick={() => setModal({ type: 'basic' })}>Editar perfil</Button>
-                  <Button size="sm" variant="secondary" onClick={() => setModal({ type: 'contact' })}>Editar contacto</Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── Aptitudes ── */}
-        {hasProfile && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-5">
-              <h3 className="text-lg font-semibold text-gray-900">Aptitudes</h3>
-              <button onClick={() => setModal({ type: 'skills' })}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" aria-label="Editar aptitudes">
-                <Pencil className="w-4 h-4" />
+      <div className="sticky top-14 z-30 bg-[rgba(245,244,240,0.92)] backdrop-blur-md border-b border-[rgba(28,25,23,0.08)]">
+        <div className="max-w-[1260px] mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+          <div className="shrink-0">
+            <p className="font-semibold text-[15px] text-[#1c1a17]">Editar mi portfolio</p>
+            <div className="flex items-center gap-2 mt-[3px]">
+              <button
+                type="button"
+                onClick={copyUrl}
+                className="h-[22px] px-2 rounded-md bg-[rgba(28,25,23,0.06)] hover:bg-[rgba(28,25,23,0.1)] text-[11px] text-[rgba(28,25,23,0.55)] hover:text-[#1c1a17] transition-colors whitespace-nowrap"
+              >
+                atrium.com/{handle || '…'}
               </button>
+              <span className="text-[11px]" style={{ color: saveState === 'saving' ? '#4a6647' : 'rgba(28,25,23,0.4)' }}>
+                {saveState === 'saving' ? 'Guardando…' : 'Todos los cambios guardados'}
+              </span>
             </div>
-            {skills.length > 0 ? (
-              <div className="px-6 pb-5 flex flex-wrap gap-2">
-                {skills.map(s => (
-                  <span key={s} className="px-3 py-1.5 rounded-full text-sm bg-gray-100 text-gray-700 border border-gray-200">{s}</span>
-                ))}
-              </div>
-            ) : (
-              <p className="px-6 pb-5 text-sm text-gray-400">Agregá tus habilidades y herramientas.</p>
-            )}
           </div>
-        )}
-
-        {/* ── Experiencia ── */}
-        {hasProfile && !isCompany && (
-          <SectionCard title="Experiencia" onAdd={() => setModal({ type: 'exp', item: null, idx: null })}>
-            {experiences.length === 0 && (
-              <p className="px-6 py-5 text-sm text-gray-400">Agregá tu experiencia laboral o profesional.</p>
-            )}
-            {experiences.map((exp, i) => (
-              <ItemRow key={i}
-                onEdit={() => setModal({ type: 'exp', item: exp, idx: i })}
-                onDelete={() => { const next = experiences.filter((_, j) => j !== i); setExperiences(next); saveProfile({ experiences: next }); }}>
-                <div className="flex items-start gap-3">
-                  <InitialIcon text={exp.company} />
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{exp.role}</p>
-                    <p className="text-sm text-gray-500">{exp.company}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {exp.startYear} – {exp.endYear || 'Presente'}
-                    </p>
-                    {exp.description && <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">{exp.description}</p>}
-                  </div>
-                </div>
-              </ItemRow>
+          <div className="flex-1" />
+          <nav className="flex items-center gap-1.5 flex-wrap">
+            {ANCHORS.filter(a => !isCompany || (a.label !== 'Experiencia' && a.label !== 'Educación' && a.label !== 'Certificados' && a.label !== 'Premios')).map(a => (
+              <a key={a.href} href={a.href} className="h-7 px-2.5 rounded-lg bg-[rgba(28,25,23,0.05)] hover:bg-[rgba(92,122,88,0.14)] text-[11.5px] font-medium text-[rgba(28,25,23,0.6)] hover:text-[#4a6647] transition-colors whitespace-nowrap">
+                {a.label}
+              </a>
             ))}
-          </SectionCard>
-        )}
+          </nav>
+          {handle && (
+            <>
+              <div className="w-px h-[26px] bg-[rgba(28,25,23,0.1)]" />
+              <a href={`/portfolio/${handle}`} target="_blank" rel="noopener noreferrer" className="h-8 px-3.5 rounded-[9px] border border-[rgba(28,25,23,0.14)] bg-white text-[12px] font-medium text-[#1c1a17] hover:bg-[#f5f4f0] transition-colors whitespace-nowrap">
+                Ver portfolio ↗
+              </a>
+            </>
+          )}
+        </div>
+      </div>
 
-        {/* ── Educación ── */}
-        {hasProfile && !isCompany && (
-          <SectionCard title="Educación" onAdd={() => setModal({ type: 'edu', item: null, idx: null })}>
-            {education.length === 0 && (
-              <p className="px-6 py-5 text-sm text-gray-400">Agregá tu formación académica.</p>
-            )}
-            {education.map((edu, i) => (
-              <ItemRow key={i}
-                onEdit={() => setModal({ type: 'edu', item: edu, idx: i })}
-                onDelete={() => { const next = education.filter((_, j) => j !== i); setEducation(next); saveProfile({ education: next }); }}>
-                <div className="flex items-start gap-3">
-                  <InitialIcon text={edu.institution} />
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{edu.institution}</p>
-                    {edu.career && <p className="text-sm text-gray-500">{edu.career}</p>}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {edu.startYear}{edu.startYear ? ' – ' : ''}{edu.endYear || (edu.startYear ? 'En curso' : '')}
-                    </p>
-                  </div>
-                </div>
-              </ItemRow>
-            ))}
-          </SectionCard>
-        )}
+      <div className="max-w-[1260px] mx-auto px-6 py-[22px] pb-[90px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-[22px] items-start">
+        <div className="flex flex-col gap-4 min-w-0">
 
-        {/* ── Certificados ── */}
-        {hasProfile && !isCompany && (
-          <SectionCard title="Certificados" onAdd={() => setModal({ type: 'cert', item: null, idx: null })}>
-            {certifications.length === 0 && (
-              <p className="px-6 py-5 text-sm text-gray-400">Agregá certificados o cursos que hayas completado.</p>
-            )}
-            {certifications.map((cert, i) => (
-              <ItemRow key={i}
-                onEdit={() => setModal({ type: 'cert', item: cert, idx: i })}
-                onDelete={() => { const next = certifications.filter((_, j) => j !== i); setCertifications(next); saveProfile({ certifications: next }); }}>
-                <div className="flex items-start gap-3">
-                  {cert.imageUrl ? (
-                    <div className="w-11 h-11 rounded-lg overflow-hidden border border-gray-200 shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={cert.imageUrl} alt={cert.name} className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <InitialIcon text={cert.issuer || cert.name} />
-                  )}
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{cert.name}</p>
-                    <p className="text-sm text-gray-500">{cert.issuer}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{cert.year}</p>
-                    {cert.url && <a href={cert.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline mt-0.5 inline-block">Ver credencial ↗</a>}
-                  </div>
-                </div>
-              </ItemRow>
-            ))}
-          </SectionCard>
-        )}
-
-        {/* ── Colaboraciones pendientes ── */}
-        {collaborations.some(c => c.status === 'pending') && (
-          <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-amber-100">
-              <h3 className="text-lg font-semibold text-gray-900">Proyectos donde te acreditaron</h3>
-              <p className="text-sm text-gray-500 mt-0.5">Confirmá para que aparezca en tu portfolio.</p>
+          {/* ── Perfil básico ── */}
+          <div className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden">
+            <div className="h-32 relative" style={{ background: form.bannerImage ? undefined : 'repeating-linear-gradient(115deg,#2b2925 0 18px,#232120 18px 36px)' }}>
+              {form.bannerImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.bannerImage} alt="" className="w-full h-full object-cover" />
+              )}
+              <div className="absolute top-3 right-3">
+                <button
+                  type="button"
+                  onClick={() => setBannerEditorOpen(v => !v)}
+                  className="h-[30px] px-3 rounded-lg bg-white/90 hover:bg-white flex items-center gap-1.5 text-[11.5px] font-medium text-[#1c1a17] transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" /> Cambiar portada
+                </button>
+              </div>
+              <div
+                onClick={() => setAvatarEditorOpen(v => !v)}
+                className="absolute left-[22px] -bottom-[34px] w-[92px] h-[92px] rounded-full border-4 border-white flex items-center justify-center font-semibold text-[32px] text-white/90 cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                style={{ background: 'linear-gradient(135deg,#9aa896,#5c7a58)' }}
+              >
+                {form.avatarImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.avatarImage} alt="" className="w-full h-full object-cover" />
+                ) : (form.displayName || '?').charAt(0).toUpperCase()}
+              </div>
             </div>
-            <div className="divide-y divide-gray-50">
+
+            {(bannerEditorOpen || avatarEditorOpen) && (
+              <div className="px-[22px] pt-4 grid grid-cols-2 gap-4 bg-[#faf9f6] border-b border-[rgba(28,25,23,0.06)] pb-4">
+                {bannerEditorOpen && <ImageUploader label="Imagen de portada" value={form.bannerImage} onChange={v => set('bannerImage', v)} folder="profiles" />}
+                {avatarEditorOpen && <ImageUploader label={isCompany ? 'Logo' : 'Foto de perfil'} value={form.avatarImage} onChange={v => set('avatarImage', v)} folder="profiles" />}
+              </div>
+            )}
+
+            <div className="px-[22px] pt-[46px] pb-5">
+              <div className="flex items-start gap-4 flex-wrap">
+                <div id="titular" className="flex-1 min-w-[280px] flex flex-col gap-[11px] scroll-mt-[130px]">
+                  <div>
+                    <div className={labelStyle}>NOMBRE</div>
+                    <input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="Tu nombre o el del estudio" className={inputStyle} />
+                  </div>
+                  <div>
+                    <div className={labelStyle}>TITULAR PROFESIONAL</div>
+                    <input value={form.headline} onChange={e => set('headline', e.target.value.slice(0, 90))} maxLength={90} placeholder="Arquitecto · Vivienda y refuncionalización" className={inputStyle} />
+                    <p className="font-light text-[10.5px] text-[rgba(28,25,23,0.4)] mt-1">Es lo primero que se lee debajo de tu nombre en el feed y en las búsquedas. {form.headline.length}/90</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <div className={labelStyle}>UBICACIÓN</div>
+                      <input value={form.location} onChange={e => set('location', e.target.value)} placeholder="Córdoba, Argentina" className={inputStyle} />
+                    </div>
+                    <div>
+                      <div className={labelStyle}>MATRÍCULA</div>
+                      <input value={form.license} onChange={e => set('license', e.target.value)} placeholder="CAC 12.345" className={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-[230px] flex flex-col gap-3">
+                  <div>
+                    <div className={labelStyle}>TIPO DE PERFIL</div>
+                    <div className="flex p-[3px] rounded-[9px] bg-[#f5f4f0] border border-[rgba(28,25,23,0.08)]">
+                      {(['person', 'company'] as const).map(t => (
+                        <button
+                          key={t} type="button" onClick={() => set('accountType', t)}
+                          className="flex-1 h-[30px] flex items-center justify-center rounded-[7px] text-[11.5px] font-medium transition-colors"
+                          style={form.accountType === t ? { background: '#fff', color: '#1c1a17', boxShadow: '0 1px 3px rgba(28,26,23,0.1)' } : { color: 'rgba(28,25,23,0.5)' }}
+                        >
+                          {t === 'person' ? 'Persona' : 'Estudio'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={labelStyle}>DISPONIBILIDAD</div>
+                    <div className="flex flex-col gap-[5px]">
+                      {PROFILE_AVAILABILITY.map(a => (
+                        <button
+                          key={a.key} type="button" onClick={() => set('availability', a.key)}
+                          className="h-[30px] px-2.5 flex items-center gap-2 rounded-lg text-[11.5px] font-medium transition-colors border"
+                          style={form.availability === a.key
+                            ? { background: 'rgba(92,122,88,0.12)', color: '#3f5a3c', borderColor: 'rgba(92,122,88,0.3)' }
+                            : { background: '#faf9f6', color: 'rgba(28,25,23,0.58)', borderColor: 'rgba(28,25,23,0.08)' }}
+                        >
+                          <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: a.color }} />
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="presentacion" className="mt-4 pt-4 border-t border-[rgba(28,25,23,0.07)] scroll-mt-[130px]">
+                <div className={labelStyle}>PRESENTACIÓN</div>
+                <textarea
+                  value={form.bio}
+                  onChange={e => set('bio', e.target.value.slice(0, 320))}
+                  maxLength={320}
+                  rows={3}
+                  placeholder="Contá en dos líneas qué hacés, con quién trabajás y qué proyectos te interesan."
+                  className="w-full rounded-[11px] border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] px-[13px] py-[11px] text-[13px] leading-[1.6] text-[#1c1a17] outline-none resize-y transition-colors focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]"
+                />
+                <div className="flex items-center gap-2.5 mt-1.5">
+                  <button type="button" onClick={() => set('bio', suggestBio(form))} className="h-7 px-[11px] rounded-lg text-[11px] font-medium transition-colors" style={{ background: 'rgba(92,122,88,0.12)', color: '#4a6647' }}>
+                    Sugerir con mis datos
+                  </button>
+                  <div className="flex-1" />
+                  <span className="text-[10.5px]" style={{ color: bioLen >= 60 ? 'rgba(28,25,23,0.4)' : '#b0503a' }}>{bioLen}/320</span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-[rgba(28,25,23,0.07)] grid grid-cols-2 gap-4">
+                <div>
+                  <div className={labelStyle}>ESPECIALIDADES</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {SPECIALTIES_CATALOG.map(sp => (
+                      <button key={sp} type="button" onClick={() => set('specialties', form.specialties.includes(sp) ? form.specialties.filter(x => x !== sp) : [...form.specialties, sp])} className={chipClass(form.specialties.includes(sp))}>
+                        {sp}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className={labelStyle}>IDIOMAS</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {LANGUAGES_CATALOG.map(lg => (
+                      <button key={lg} type="button" onClick={() => set('languages', form.languages.includes(lg) ? form.languages.filter(x => x !== lg) : [...form.languages, lg])} className={chipClass(form.languages.includes(lg))}>
+                        {lg}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`${labelStyle} mt-3.5`}>CONTACTO</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input value={form.contactEmail} onChange={e => set('contactEmail', e.target.value)} placeholder="Email" className="h-8 px-2.5 rounded-lg border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] text-[11.5px] text-[#1c1a17] outline-none focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]" />
+                    <input value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="WhatsApp" className="h-8 px-2.5 rounded-lg border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] text-[11.5px] text-[#1c1a17] outline-none focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]" />
+                    <input value={form.linkedinUrl} onChange={e => set('linkedinUrl', e.target.value)} placeholder="LinkedIn" className="h-8 px-2.5 rounded-lg border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] text-[11.5px] text-[#1c1a17] outline-none focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]" />
+                    <input value={form.instagramUrl} onChange={e => set('instagramUrl', e.target.value)} placeholder="Instagram" className="h-8 px-2.5 rounded-lg border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] text-[11.5px] text-[#1c1a17] outline-none focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]" />
+                    <input value={form.websiteUrl} onChange={e => set('websiteUrl', e.target.value)} placeholder="Sitio web" className="h-8 px-2.5 rounded-lg border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] text-[11.5px] text-[#1c1a17] outline-none focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)] col-span-2" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <SkillsSection skills={form.skills} onChange={s => set('skills', s)} />
+
+          {!isCompany && (
+            <>
+              <ListSection<ProfileExperience>
+                id="exp" title="Experiencia" description="Dónde trabajaste y qué hiciste ahí." addLabel="Agregar experiencia"
+                emptyText="Sumá al menos un estudio u obra: es el dato que más miran quienes buscan colaboradores."
+                items={form.experiences} fields={EXP_FIELDS} emptyItem={{ company: '', role: '', startYear: '', endYear: '', description: '' }}
+                onChange={v => set('experiences', v)}
+                renderItem={it => ({ title: it.role, subtitle: it.company, meta: `${it.startYear || ''} – ${it.endYear || 'Presente'}`, note: it.description })}
+              />
+              <ListSection<ProfileEducation>
+                id="edu" title="Educación" description="Formación de grado, posgrado y cursos largos." addLabel="Agregar formación"
+                emptyText="Agregá tu formación académica — universidad, posgrado o especialización."
+                items={form.education} fields={EDU_FIELDS} emptyItem={{ institution: '', career: '', startYear: '', endYear: '' }}
+                onChange={v => set('education', v)}
+                renderItem={it => ({ title: it.institution, subtitle: it.career, meta: it.startYear ? `${it.startYear} – ${it.endYear || 'En curso'}` : '' })}
+              />
+              <ListSection<ProfileCertification>
+                id="cert" title="Certificados" description="Cursos y credenciales verificables." addLabel="Agregar certificado"
+                emptyText="Agregá certificados o cursos que hayas completado."
+                items={form.certifications} fields={CERT_FIELDS} emptyItem={{ name: '', issuer: '', year: '', url: '' }}
+                onChange={v => set('certifications', v)}
+                renderItem={it => ({ title: it.name, subtitle: it.issuer, meta: it.year })}
+              />
+              <ListSection<ProfileAward>
+                id="award" title="Premios y publicaciones" description="Concursos, menciones y obra publicada." addLabel="Agregar reconocimiento" isNew
+                emptyText="Concursos, menciones y obra publicada en medios — hoy no hay dónde cargarlos."
+                items={form.awards} fields={AWARD_FIELDS} emptyItem={{ name: '', issuer: '', year: '', url: '' }}
+                onChange={v => set('awards', v)}
+                renderItem={it => ({ title: it.name, subtitle: it.issuer, meta: it.year })}
+              />
+            </>
+          )}
+
+          {collaborations.some(c => c.status === 'pending') && (
+            <div className="rounded-2xl bg-white border border-[rgba(201,138,94,0.35)] overflow-hidden">
+              <div className="px-5 py-[17px] border-b border-[rgba(201,138,94,0.2)]">
+                <p className="font-semibold text-[14.5px] text-[#1c1a17]">Proyectos donde te acreditaron</p>
+                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-0.5">Confirmá para que aparezca en tu portfolio.</p>
+              </div>
               {collaborations.map(c => (
-                <div key={c.id} className="flex items-center gap-4 px-6 py-4">
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                <div key={c.id} className="flex items-center gap-3.5 px-5 py-3.5 border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
+                  <div className="w-10 h-10 rounded-lg bg-[#f5f4f0] overflow-hidden shrink-0 flex items-center justify-center">
                     {c.project?.masterplan_image
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={c.project.masterplan_image} alt="" className="w-full h-full object-cover" />
                       : <span className="text-lg">🏗️</span>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 truncate text-sm">{c.project?.name ?? '(proyecto borrado)'}</p>
-                    {c.contribution && <p className="text-xs text-gray-400 truncate">{c.contribution}</p>}
+                    <p className="font-medium text-[13px] text-[#1c1a17] truncate">{c.project?.name ?? '(proyecto borrado)'}</p>
+                    {c.contribution && <p className="text-[11px] text-[rgba(28,25,23,0.4)] truncate">{c.contribution}</p>}
                   </div>
-                  {c.status === 'pending' ? (
+                  {c.status === 'pending' && (
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => respondToCollaboration(c.id, 'declined')} disabled={respondingId === c.id}
-                        className="text-sm text-gray-500 hover:text-gray-700 transition-colors px-2">Rechazar</button>
-                      <button onClick={() => respondToCollaboration(c.id, 'accepted')} disabled={respondingId === c.id}
-                        className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors">Aceptar</button>
+                      <button onClick={() => respondToCollaboration(c.id, 'declined')} disabled={respondingId === c.id} className="text-[12.5px] text-[rgba(28,25,23,0.5)] hover:text-[#1c1a17] transition-colors px-2">Rechazar</button>
+                      <button onClick={() => respondToCollaboration(c.id, 'accepted')} disabled={respondingId === c.id} className="h-8 px-3 rounded-lg bg-[#1c1a17] text-white text-[12px] font-medium hover:bg-[#2f3d2c] transition-colors">Aceptar</button>
                     </div>
-                  ) : (
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.status === 'accepted' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {c.status === 'accepted' ? 'Aceptado' : 'Rechazado'}
-                    </span>
                   )}
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Proyectos a mostrar ── */}
-        {hasProfile && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900">Proyectos en mi portfolio</h3>
-              <p className="text-sm text-gray-500 mt-0.5">Marcá los que querés mostrar agrupados.</p>
+          <div id="proyectos" className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden scroll-mt-[130px]">
+            <div className="px-5 py-[17px] border-b border-[rgba(28,25,23,0.06)] flex items-center gap-3">
+              <div>
+                <p className="font-semibold text-[14.5px] text-[#1c1a17]">Proyectos en mi portfolio</p>
+                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-0.5">Elegí cuáles se muestran y cuál abre tu portfolio como destacado.</p>
+              </div>
+              <div className="flex-1" />
+              <span className="text-[11.5px] text-[rgba(28,25,23,0.45)] whitespace-nowrap">{visibleProjectsCount} de {projects.length} visibles</span>
             </div>
-            <div className="divide-y divide-gray-50">
-              {projects.map(p => (
-                <label key={p.id} className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
-                  <input type="checkbox" checked={p.show_in_portfolio} onChange={() => toggleInPortfolio(p)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 shrink-0" />
-                  <div className="w-11 h-11 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                    {p.masterplan_image
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={p.masterplan_image} alt="" className="w-full h-full object-cover" />
-                      : <span className="text-lg">🏗️</span>}
+            {projects.map(p => {
+              const featured = form.featuredProjectId === p.id;
+              return (
+                <div key={p.id} className="px-5 py-[13px] flex items-center gap-[13px] border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
+                  <button
+                    type="button" onClick={() => toggleInPortfolio(p)} aria-pressed={p.show_in_portfolio}
+                    className="w-[38px] h-[22px] rounded-xl shrink-0 flex p-0.5 transition-colors"
+                    style={{ background: p.show_in_portfolio ? '#5c7a58' : 'rgba(28,25,23,0.16)', justifyContent: p.show_in_portfolio ? 'flex-end' : 'flex-start' }}
+                  >
+                    <span className="w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(28,26,23,0.25)]" />
+                  </button>
+                  <div className="w-11 h-11 rounded-lg bg-[repeating-linear-gradient(115deg,#e6e3dc_0_10px,#dedbd3_10px_20px)] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-[13px] text-[#1c1a17]">{p.name}</p>
+                    <p className="text-[11.5px] text-[rgba(28,25,23,0.45)] mt-px">{getProjectTypeConfig(p.project_type, p.sale_mode).label}</p>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 truncate text-sm">{p.name}</p>
-                    <p className="text-xs text-gray-400">{getProjectTypeConfig(p.project_type, p.sale_mode).label}</p>
-                  </div>
-                </label>
-              ))}
-              {projects.length === 0 && <p className="px-6 py-5 text-sm text-gray-400 text-center">Todavía no tenés proyectos creados.</p>}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => { if (!p.show_in_portfolio) { toast('Primero hacelo visible.', 'error'); return; } set('featuredProjectId', featured ? null : p.id); }}
+                    className="h-7 px-[11px] rounded-lg text-[11px] font-medium transition-colors shrink-0"
+                    style={featured ? { background: 'rgba(201,138,94,0.16)', color: '#96603a' } : { background: '#f5f4f0', color: 'rgba(28,25,23,0.5)' }}
+                  >
+                    {featured ? '★ Destacado' : '☆ Destacar'}
+                  </button>
+                </div>
+              );
+            })}
+            {projects.length === 0 && <p className="px-5 py-6 text-[12.5px] text-[rgba(28,25,23,0.45)] text-center">Todavía no tenés proyectos creados.</p>}
           </div>
-        )}
+        </div>
+
+        <div className="flex flex-col gap-3.5 sticky top-[132px]">
+          <StrengthCard checks={checks} />
+          <PreviewCard
+            avatarImage={form.avatarImage}
+            name={form.displayName}
+            headline={form.headline}
+            location={form.location}
+            availability={form.availability}
+            bio={form.bio}
+            skills={form.skills}
+            stats={[
+              { value: String(visibleProjectsCount), label: 'Proyectos' },
+              { value: String(form.experiences.length), label: 'Experiencias' },
+            ]}
+          />
+          <VisibilityCard
+            isPublic={form.isPublic} showContact={form.showContact} isIndexed={form.isIndexed}
+            onChange={patch => setForm(f => { const next = { ...f, ...patch }; scheduleSave(next); return next; })}
+          />
+        </div>
       </div>
-
-      {/* ═══ Modales ═══ */}
-      <BasicInfoModal
-        isOpen={modal?.type === 'basic'} onClose={() => setModal(null)}
-        form={basicForm} setForm={setBasicForm} saving={saving}
-        hasProfile={hasProfile}
-        onSave={() => saveProfile({ ...basicForm })}
-      />
-      <ContactModal
-        isOpen={modal?.type === 'contact'} onClose={() => setModal(null)}
-        form={contactForm} setForm={setContactForm} saving={saving}
-        onSave={() => saveProfile({ ...contactForm })}
-      />
-      <SkillsModal
-        isOpen={modal?.type === 'skills'} onClose={() => setModal(null)}
-        selected={skills} onChange={setSkills} saving={saving}
-        onSave={() => saveProfile({ skills })}
-      />
-      <ExperienceModal
-        isOpen={modal?.type === 'exp'} onClose={() => setModal(null)}
-        item={modal?.type === 'exp' ? modal.item : null} saving={saving}
-        onSave={v => {
-          if (modal?.type !== 'exp') return;
-          const next = modal.idx !== null
-            ? experiences.map((e, i) => i === modal.idx ? v : e)
-            : [...experiences, v];
-          setExperiences(next);
-          saveProfile({ experiences: next });
-        }}
-      />
-      <EducationModal
-        isOpen={modal?.type === 'edu'} onClose={() => setModal(null)}
-        item={modal?.type === 'edu' ? modal.item : null} saving={saving}
-        onSave={v => {
-          if (modal?.type !== 'edu') return;
-          const next = modal.idx !== null
-            ? education.map((e, i) => i === modal.idx ? v : e)
-            : [...education, v];
-          setEducation(next);
-          saveProfile({ education: next });
-        }}
-      />
-      <CertificationModal
-        isOpen={modal?.type === 'cert'} onClose={() => setModal(null)}
-        item={modal?.type === 'cert' ? modal.item : null} saving={saving}
-        onSave={v => {
-          if (modal?.type !== 'cert') return;
-          const next = modal.idx !== null
-            ? certifications.map((c, i) => i === modal.idx ? v : c)
-            : [...certifications, v];
-          setCertifications(next);
-          saveProfile({ certifications: next });
-        }}
-      />
     </div>
   );
 }
