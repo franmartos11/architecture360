@@ -35,9 +35,9 @@ export default function MessageButton({ handle, loggedIn }: { handle: string; lo
     <button
       onClick={handleClick}
       disabled={loading}
-      className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-stone-200 text-xs font-medium text-stone-600 hover:border-stone-300 hover:text-stone-900 transition-colors disabled:opacity-50"
+      className="flex items-center gap-[8px] h-[38px] px-[15px] rounded-[10px] bg-white border border-trevo-dark/[0.16] text-[13px] font-medium text-trevo-dark hover:border-trevo-dark/40 transition-colors disabled:opacity-50"
     >
-      <MessageCircle className="w-3.5 h-3.5" />
+      <MessageCircle className="w-[14px] h-[14px]" />
       Mensaje
     </button>
   );

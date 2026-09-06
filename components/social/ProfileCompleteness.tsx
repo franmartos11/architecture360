@@ -28,10 +28,10 @@ export default function ProfileCompleteness({ hasAvatar, hasBio, hasLocation, ha
   const dashOffset = circumference * (1 - percent / 100);
 
   return (
-    <div className="bg-white rounded-xl border border-trevo-dark/10 p-5">
-      <div className="flex items-center gap-4">
-        <div className="relative w-16 h-16 shrink-0">
-          <svg viewBox="0 0 60 60" className="w-16 h-16 -rotate-90">
+    <div className="bg-white rounded-[13px] border border-trevo-dark/10 py-[16px] px-[17px]">
+      <div className="flex items-center gap-[13px]">
+        <div className="relative w-[50px] h-[50px] shrink-0">
+          <svg viewBox="0 0 60 60" className="w-[50px] h-[50px] -rotate-90">
             <circle cx="30" cy="30" r={r} fill="none" stroke="#e7e5e1" strokeWidth="5" />
             <circle
               cx="30" cy="30" r={r} fill="none"
@@ -41,26 +41,26 @@ export default function ProfileCompleteness({ hasAvatar, hasBio, hasLocation, ha
               className="transition-all duration-500"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-trevo-dark">
+          <span className="absolute inset-0 flex items-center justify-center text-[11.5px] font-semibold text-trevo-dark">
             {percent}%
           </span>
         </div>
         <div>
-          <p className="text-sm font-semibold text-trevo-dark">Completá tu perfil</p>
-          <p className="text-xs text-trevo-dark/50 font-light mt-0.5">Un perfil completo consigue más seguidores y colaboraciones.</p>
+          <p className="text-[13px] font-semibold text-trevo-dark">Completá tu perfil</p>
+          <p className="text-[11.5px] leading-[1.5] text-trevo-dark/50 font-light mt-0.5">Un perfil completo consigue más seguidores y colaboraciones.</p>
         </div>
       </div>
-      <ul className="mt-4 space-y-2">
+      <ul className="mt-[12px] space-y-[7px]">
         {items.map(item => (
-          <li key={item.label} className="flex items-center justify-between gap-2 text-sm">
+          <li key={item.label} className="flex items-center justify-between gap-[10px] text-sm">
             <span className="flex items-center gap-2 min-w-0">
               <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${item.done ? 'bg-[#5c7a58] text-white' : 'border border-trevo-dark/20'}`}>
                 {item.done && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
               </span>
-              <span className={item.done ? 'text-trevo-dark/40 line-through truncate' : 'text-trevo-dark/70 truncate'}>{item.label}</span>
+              <span className={`text-[12.5px] ${item.done ? 'text-trevo-dark/40 line-through truncate' : 'text-trevo-dark/70 truncate'}`}>{item.label}</span>
             </span>
             {!item.done && item.href && (
-              <Link href={item.href} className="shrink-0 text-xs font-medium text-[#4a6647] hover:underline">
+              <Link href={item.href} className="shrink-0 text-[11.5px] font-medium text-[#4a6647] hover:underline">
                 {item.cta} →
               </Link>
             )}

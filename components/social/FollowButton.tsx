@@ -53,7 +53,7 @@ export default function FollowButton({ handle, initialFollowing, initialCount, l
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         disabled={loading}
-        className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-all disabled:opacity-60 ${
+        className={`flex items-center gap-1.5 h-[38px] px-[18px] rounded-[10px] text-sm font-medium border transition-all disabled:opacity-60 ${
           hovered
             ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
             : 'bg-trevo-dark/[0.04] text-trevo-dark border-trevo-dark/15 hover:border-trevo-dark/30'
@@ -70,7 +70,7 @@ export default function FollowButton({ handle, initialFollowing, initialCount, l
     <button
       onClick={toggle}
       disabled={loading}
-      className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-[#4a6647] text-white hover:bg-[#3d5439] border border-[#4a6647] transition-all disabled:opacity-60"
+      className="flex items-center gap-1.5 h-[38px] px-[18px] rounded-[10px] text-sm font-medium bg-[#5c7a58] text-white hover:bg-[#4a6647] border border-[#5c7a58] transition-all disabled:opacity-60"
       aria-label="Seguir"
     >
       <UserPlus className="w-4 h-4" />

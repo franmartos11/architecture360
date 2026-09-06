@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil, X } from 'lucide-react';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { Portfolio } from '@/data/profile-repository';
@@ -85,22 +86,25 @@ export default function ProfileQuickEditButton({ portfolio, variant = 'default' 
       {variant === 'cover' ? (
         <button
           onClick={() => setOpen(true)}
-          className="h-8 px-3.5 rounded-lg bg-white/90 hover:bg-white flex items-center gap-1.5 text-[11.5px] font-medium text-trevo-dark transition-colors"
+          className="h-8 px-[13px] rounded-lg bg-white/90 hover:bg-white flex items-center gap-[7px] text-[11.5px] font-medium text-trevo-dark transition-colors"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 16l4-1 9-9-3-3-9 9z" /><path d="M14 3l3 3" /></svg>
           Cambiar portada
         </button>
       ) : (
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-2 h-[38px] px-4 rounded-[10px] bg-trevo-dark text-white text-sm font-medium hover:bg-trevo-dark/85 transition-colors shrink-0"
+        // Antes abría un modal de edición rápida acá mismo — ahora manda
+        // directo al editor completo (/admin/portfolio), que es donde
+        // realmente vive toda la edición del perfil.
+        <Link
+          href="/admin/portfolio"
+          className="flex items-center gap-2 h-[38px] px-4 rounded-[10px] bg-trevo-dark text-white text-[13px] font-medium hover:bg-trevo-dark/85 transition-colors shrink-0"
         >
-          <Pencil className="w-3.5 h-3.5" />
+          <Pencil className="w-[14px] h-[14px]" />
           Editar perfil
-        </button>
+        </Link>
       )}
 
-      {open && (
+      {variant === 'cover' && open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4" onClick={() => !saving && setOpen(false)}>
           <div
             className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto"

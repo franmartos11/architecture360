@@ -21,14 +21,14 @@ function waLink(w: string) { return `https://wa.me/${w.replace(/[^0-9]/g, '')}`;
 // ─── Íconos de redes ──────────────────────────────────────────────────
 function LinkedinMark() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-[14px] h-[14px]">
       <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.38-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45Z" />
     </svg>
   );
 }
 function InstagramMark() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[14px] h-[14px]">
       <rect x="3" y="3" width="18" height="18" rx="5" />
       <circle cx="12" cy="12" r="4" />
       <circle cx="17.2" cy="6.8" r="0.5" fill="currentColor" stroke="none" />
@@ -37,7 +37,7 @@ function InstagramMark() {
 }
 function WhatsappMark() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-[14px] h-[14px]">
       <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.65-2.05-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.6-.91-2.2-.24-.57-.49-.5-.67-.5-.17-.01-.37-.01-.57-.01-.2 0-.52.07-.79.37-.27.3-1.04 1.01-1.04 2.47s1.06 2.87 1.21 3.07c.15.2 2.08 3.17 5.04 4.45.7.3 1.25.48 1.68.62.7.22 1.34.19 1.84.11.56-.08 1.76-.72 2-1.42.25-.7.25-1.29.17-1.42-.07-.12-.27-.2-.57-.35Z" />
       <path d="M12.02 2C6.5 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.07L2 22l5.08-1.33A9.95 9.95 0 0 0 12.02 22C17.5 22 22 17.52 22 12S17.5 2 12.02 2Zm0 18.2c-1.65 0-3.19-.46-4.5-1.26l-.32-.19-3.02.79.8-2.94-.21-.3A8.17 8.17 0 0 1 3.8 12c0-4.53 3.7-8.2 8.22-8.2 4.53 0 8.2 3.67 8.2 8.2s-3.67 8.2-8.2 8.2Z" />
     </svg>
@@ -49,7 +49,7 @@ function SocialChip({ href, icon, label }: { href: string; icon: React.ReactNode
   return (
     <a
       href={href} target="_blank" rel="noopener noreferrer"
-      className="h-8 px-3 rounded-lg border border-trevo-dark/[0.11] bg-white/60 flex items-center gap-1.5 text-[11.5px] text-trevo-dark/65 hover:bg-white hover:border-trevo-dark/30 hover:text-trevo-dark transition-colors"
+      className="h-8 px-3 rounded-lg border border-trevo-dark/[0.11] bg-white/60 flex items-center gap-[7px] text-[11.5px] text-trevo-dark/65 hover:bg-white hover:border-trevo-dark/30 hover:text-trevo-dark transition-colors"
     >
       {icon}{label}
     </a>
@@ -164,7 +164,7 @@ export default async function PortfolioPage({ params }: PageProps) {
           PORTADA — patrón diagonal si no hay banner real, o la
           imagen real del perfil si el dueño cargó una.
       ══════════════════════════════════════════════════════ */}
-      <div className="relative h-52 sm:h-64 md:h-72 overflow-hidden bg-[#26241f]">
+      <div className="relative h-[208px] sm:h-[256px] md:h-[280px] overflow-hidden bg-[#26241f]">
         {portfolio.bannerImage ? (
           <Image src={portfolio.bannerImage} alt="Portada" fill priority className="object-cover" />
         ) : (
@@ -172,7 +172,7 @@ export default async function PortfolioPage({ params }: PageProps) {
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-[#1c1a17]/55" />
         {isOwnProfile && (
-          <div className="absolute top-4 right-4 sm:right-6">
+          <div className="absolute top-[16px] right-[22px]">
             <ProfileQuickEditButton portfolio={portfolio} variant="cover" />
           </div>
         )}
@@ -181,36 +181,36 @@ export default async function PortfolioPage({ params }: PageProps) {
       {/* ══════════════════════════════════════════════════════
           BLOQUE DE PERFIL — avatar solapado, identidad, stats, aptitudes
       ══════════════════════════════════════════════════════ */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-end gap-5 -mt-12 sm:-mt-14 flex-wrap">
+      <div className="max-w-[1080px] mx-auto px-[16px] sm:px-[24px]">
+        <div className="flex items-end gap-[22px] -mt-[48px] sm:-mt-[58px] flex-wrap">
           {/* Avatar / logo — solapa la portada */}
-          <div className={`relative w-28 h-28 sm:w-32 sm:h-32 border-[5px] border-[#f5f4f0] bg-gradient-to-br from-[#9aa896] to-[#5c7a58] shrink-0 overflow-hidden ${isCompany ? 'rounded-2xl' : 'rounded-full'}`}>
+          <div className={`relative w-[112px] h-[112px] sm:w-[132px] sm:h-[132px] border-[5px] border-[#f5f4f0] bg-gradient-to-br from-[#9aa896] to-[#5c7a58] shrink-0 overflow-hidden ${isCompany ? 'rounded-[16px]' : 'rounded-full'}`}>
             {portfolio.avatarImage ? (
-              <Image src={portfolio.avatarImage} alt={portfolio.displayName} fill sizes="128px" className="object-cover" />
+              <Image src={portfolio.avatarImage} alt={portfolio.displayName} fill sizes="132px" className="object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/85 text-4xl font-semibold">
+              <div className="w-full h-full flex items-center justify-center text-white/85 text-[40px] font-semibold">
                 {portfolio.displayName.charAt(0).toUpperCase()}
               </div>
             )}
           </div>
 
-          <div className="flex-1 min-w-[280px] pb-2 flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-[280px] pb-2 flex items-end justify-between gap-[18px] flex-wrap">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-[9px] flex-wrap">
                 <span className="text-xs font-semibold text-trevo-dark/45">@{portfolio.handle}</span>
                 {isCompany && (
-                  <span className="h-[21px] px-2.5 rounded-md bg-[#5c7a58]/10 text-[10.5px] font-medium tracking-wide text-[#4a6647] flex items-center gap-1">
+                  <span className="h-[21px] px-[10px] rounded-[6px] bg-[#5c7a58]/10 text-[10.5px] font-medium tracking-wide text-[#4a6647] flex items-center gap-[4px]">
                     ESTUDIO DE ARQUITECTURA
                   </span>
                 )}
                 {availabilityInfo && portfolio.availability !== 'busy' && (
-                  <span className="h-[21px] px-2.5 rounded-md bg-white border border-trevo-dark/[0.09] text-[10.5px] font-medium text-trevo-dark/65 flex items-center gap-1.5">
+                  <span className="h-[21px] px-[10px] rounded-[6px] bg-white border border-trevo-dark/[0.09] text-[10.5px] font-medium text-trevo-dark/65 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: availabilityInfo.color }} />
                     {availabilityInfo.label}
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl sm:text-[32px] font-semibold text-trevo-dark leading-tight tracking-tight mt-1">
+              <h1 className="text-2xl sm:text-[32px] font-semibold text-trevo-dark leading-[1.15] tracking-[-0.01em] mt-[5px]">
                 {portfolio.displayName}
               </h1>
               {portfolio.headline && (
@@ -238,45 +238,45 @@ export default async function PortfolioPage({ params }: PageProps) {
         </div>
 
         {/* Grid: columna principal (meta + bio + stats + sociales + aptitudes) / columna lateral (completar perfil) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-6 lg:gap-9 mt-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-[24px] lg:gap-[34px] mt-[22px] items-start">
 
           <div className="min-w-0 flex flex-col gap-3.5">
-            <div className="flex items-center gap-3.5 flex-wrap text-[13px] text-trevo-dark/60">
+            <div className="flex items-center gap-[14px] flex-wrap text-[13px] text-trevo-dark/60">
               {portfolio.location && (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 shrink-0" />{portfolio.location}
+                <span className="flex items-center gap-[6px]">
+                  <MapPin className="w-[14px] h-[14px] shrink-0" />{portfolio.location}
                 </span>
               )}
               {currentStudio && (
                 <>
-                  <span className="w-px h-3.5 bg-trevo-dark/15" />
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 shrink-0" />{currentStudio}
+                  <span className="w-px h-[13px] bg-trevo-dark/15" />
+                  <span className="flex items-center gap-[6px]">
+                    <Building2 className="w-[14px] h-[14px] shrink-0" />{currentStudio}
                   </span>
                 </>
               )}
               {portfolio.license && (
                 <>
-                  <span className="w-px h-3.5 bg-trevo-dark/15" />
+                  <span className="w-px h-[13px] bg-trevo-dark/15" />
                   <span>Mat. {portfolio.license}</span>
                 </>
               )}
-              <span className="w-px h-3.5 bg-trevo-dark/15" />
+              <span className="w-px h-[13px] bg-trevo-dark/15" />
               <span>En Atrium desde {memberSinceYear}</span>
             </div>
 
             {portfolio.bio && (
-              <p className="font-light text-[14.5px] leading-relaxed text-trevo-dark/70 max-w-[56ch]">{portfolio.bio}</p>
+              <p className="font-light text-[14.5px] leading-[1.7] text-trevo-dark/70 max-w-[56ch]">{portfolio.bio}</p>
             )}
 
             {/* Pills de stats — clickeables */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-[9px] flex-wrap">
               {stats.map(s => (
                 <Link
                   key={s.label}
                   href={s.href}
                   scroll={false}
-                  className="h-[34px] px-3.5 rounded-[9px] bg-white border border-trevo-dark/[0.09] hover:border-trevo-dark/30 transition-colors flex items-baseline gap-1.5"
+                  className="h-[34px] px-[13px] rounded-[9px] bg-white border border-trevo-dark/[0.09] hover:border-trevo-dark/30 transition-colors flex items-baseline gap-1.5"
                 >
                   <span className="font-semibold text-[14px] text-trevo-dark">{s.value}</span>
                   <span className="text-xs text-trevo-dark/50">{s.label}</span>
@@ -287,26 +287,26 @@ export default async function PortfolioPage({ params }: PageProps) {
             {/* Chips de redes/contacto — apagable entero desde "Mostrar datos
                 de contacto" del editor, sin importar qué campos tenga cargados. */}
             {portfolio.showContact !== false && (portfolio.whatsapp || portfolio.contactEmail || portfolio.linkedinUrl || portfolio.instagramUrl || portfolio.websiteUrl) && (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap mt-[2px]">
                 {portfolio.whatsapp && <SocialChip href={waLink(portfolio.whatsapp)} icon={<WhatsappMark />} label="WhatsApp" />}
                 {!portfolio.whatsapp && portfolio.contactEmail && (
-                  <a href={`mailto:${portfolio.contactEmail}`} className="h-8 px-3 rounded-lg border border-trevo-dark/[0.11] bg-white/60 flex items-center gap-1.5 text-[11.5px] text-trevo-dark/65 hover:bg-white hover:border-trevo-dark/30 hover:text-trevo-dark transition-colors">
-                    <Mail className="w-3.5 h-3.5" />Email
+                  <a href={`mailto:${portfolio.contactEmail}`} className="h-8 px-3 rounded-lg border border-trevo-dark/[0.11] bg-white/60 flex items-center gap-[7px] text-[11.5px] text-trevo-dark/65 hover:bg-white hover:border-trevo-dark/30 hover:text-trevo-dark transition-colors">
+                    <Mail className="w-[14px] h-[14px]" />Email
                   </a>
                 )}
                 {portfolio.linkedinUrl && <SocialChip href={portfolio.linkedinUrl} icon={<LinkedinMark />} label="LinkedIn" />}
                 {portfolio.instagramUrl && <SocialChip href={portfolio.instagramUrl} icon={<InstagramMark />} label="Instagram" />}
-                {portfolio.websiteUrl && <SocialChip href={portfolio.websiteUrl} icon={<Globe className="w-3.5 h-3.5" />} label="Sitio web" />}
+                {portfolio.websiteUrl && <SocialChip href={portfolio.websiteUrl} icon={<Globe className="w-[14px] h-[14px]" />} label="Sitio web" />}
               </div>
             )}
 
             {/* Aptitudes — con nivel (1-3 puntos), más fuertes primero */}
             {skills.length > 0 && (
-              <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] p-4">
-                <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">APTITUDES</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] py-[16px] px-[17px]">
+                <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-[11px]">APTITUDES</p>
+                <div className="flex flex-wrap gap-[7px]">
                   {skills.slice().sort((a, b) => b.level - a.level).map(s => (
-                    <span key={s.label} className="h-7 pl-2.5 pr-2 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center gap-1.5">
+                    <span key={s.label} className="h-[28px] pl-[10px] pr-[8px] rounded-[7px] bg-trevo-dark/5 text-[12px] text-trevo-dark/70 flex items-center gap-[6px]">
                       {s.label}
                       <span className="flex gap-[3px]">
                         {[1, 2, 3].map(n => (
@@ -321,23 +321,23 @@ export default async function PortfolioPage({ params }: PageProps) {
 
             {/* Especialidades / Idiomas */}
             {(specialties.length > 0 || languages.length > 0) && (
-              <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] p-4 flex flex-col gap-3">
+              <div className="bg-white border border-trevo-dark/[0.09] rounded-[13px] py-[16px] px-[17px] flex flex-col gap-[12px]">
                 {specialties.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">ESPECIALIDADES</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-[11px]">ESPECIALIDADES</p>
+                    <div className="flex flex-wrap gap-[7px]">
                       {specialties.map(sp => (
-                        <span key={sp} className="h-7 px-2.5 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center">{sp}</span>
+                        <span key={sp} className="h-[28px] px-[10px] rounded-[7px] bg-trevo-dark/5 text-[12px] text-trevo-dark/70 flex items-center">{sp}</span>
                       ))}
                     </div>
                   </div>
                 )}
                 {languages.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-2.5">IDIOMAS</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p className="text-[10px] font-medium tracking-[0.13em] text-trevo-dark/40 mb-[11px]">IDIOMAS</p>
+                    <div className="flex flex-wrap gap-[7px]">
                       {languages.map(lg => (
-                        <span key={lg} className="h-7 px-2.5 rounded-[7px] bg-trevo-dark/5 text-xs text-trevo-dark/70 flex items-center">{lg}</span>
+                        <span key={lg} className="h-[28px] px-[10px] rounded-[7px] bg-trevo-dark/5 text-[12px] text-trevo-dark/70 flex items-center">{lg}</span>
                       ))}
                     </div>
                   </div>
@@ -385,7 +385,7 @@ export default async function PortfolioPage({ params }: PageProps) {
       {/* ══════════════════════════════════════════════════════
           TABS — Proyectos / Publicaciones / Trayectoria
       ══════════════════════════════════════════════════════ */}
-      <div className="mt-6">
+      <div className="mt-[26px]">
         <Suspense>
           <ProfileTabs
             handle={portfolio.handle}
