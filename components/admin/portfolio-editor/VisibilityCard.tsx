@@ -17,7 +17,7 @@ function Switch({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       onClick={onClick}
       aria-label={label}
       aria-pressed={on}
-      className="w-[38px] h-[22px] rounded-xl shrink-0 flex p-0.5 transition-colors"
+      className="w-[38px] h-[22px] rounded-[12px] shrink-0 flex p-[2px] transition-colors"
       style={{ background: on ? '#5c7a58' : 'rgba(28,25,23,0.16)', justifyContent: on ? 'flex-end' : 'flex-start' }}
     >
       <span className="w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(28,26,23,0.25)]" />
@@ -61,11 +61,11 @@ export default function VisibilityCard({ isPublic, showContact, isIndexed, onCha
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] p-4">
+    <div className="rounded-[16px] bg-white border border-[rgba(28,25,23,0.08)] p-[16px]">
       <p className="font-semibold text-[12.5px] text-[#1c1a17]">Visibilidad</p>
       <div className="flex flex-col gap-[11px] mt-[11px]">
         {items.map(item => (
-          <div key={item.key} className="flex items-start gap-2.5">
+          <div key={item.key} className="flex items-start gap-[10px]">
             <Switch on={item.on} onClick={() => onChange({ [item.key]: !item.on })} label={item.label} />
             <div className="min-w-0">
               <p className="font-medium text-[11.5px] text-[#1c1a17]">{item.label}</p>
@@ -74,8 +74,8 @@ export default function VisibilityCard({ isPublic, showContact, isIndexed, onCha
           </div>
         ))}
       </div>
-      <div className="mt-3.5 pt-3 border-t border-[rgba(28,25,23,0.07)] flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-[#f5f4f0] flex items-center justify-center text-[10px] font-medium text-[rgba(28,25,23,0.5)] shrink-0">PDF</div>
+      <div className="mt-[14px] pt-[12px] border-t border-[rgba(28,25,23,0.07)] flex items-center gap-[9px]">
+        <div className="w-[32px] h-[32px] rounded-[8px] bg-[#f5f4f0] flex items-center justify-center text-[10px] font-medium text-[rgba(28,25,23,0.5)] shrink-0">PDF</div>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-[11.5px] text-[#1c1a17]">Descargar mi CV</p>
           <p className="font-light text-[10.5px] text-[rgba(28,25,23,0.45)]">Con experiencia, obra y certificados</p>
@@ -84,7 +84,7 @@ export default function VisibilityCard({ isPublic, showContact, isIndexed, onCha
           type="button"
           onClick={downloadCv}
           disabled={downloading}
-          className="h-7 px-[11px] rounded-lg border border-[rgba(28,25,23,0.14)] text-[11px] font-medium text-[#1c1a17] hover:bg-[#f5f4f0] transition-colors disabled:opacity-50 shrink-0"
+          className="h-[28px] px-[11px] rounded-[8px] flex items-center border border-[rgba(28,25,23,0.14)] text-[11px] font-medium text-[#1c1a17] hover:bg-[#f5f4f0] transition-colors disabled:opacity-50 shrink-0"
         >
           {downloading ? 'Generando…' : 'Generar'}
         </button>

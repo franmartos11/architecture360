@@ -11,7 +11,7 @@ interface SkillsSectionProps {
 }
 
 function chipClass(active: boolean) {
-  return `h-[26px] px-[11px] rounded-lg text-[11.5px] font-medium cursor-pointer transition-colors border ${
+  return `h-[26px] px-[11px] rounded-[8px] flex items-center text-[11.5px] font-medium cursor-pointer transition-colors border ${
     active
       ? 'bg-[rgba(92,122,88,0.14)] text-[#3f5a3c] border-[rgba(92,122,88,0.3)]'
       : 'bg-[#f5f4f0] text-[rgba(28,25,23,0.6)] border-transparent hover:border-[rgba(92,122,88,0.3)]'
@@ -37,30 +37,30 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
   };
 
   return (
-    <div id="aptitudes" className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] p-5 scroll-mt-[130px]">
-      <div className="flex items-center gap-2.5">
+    <div id="aptitudes" className="rounded-[16px] bg-white border border-[rgba(28,25,23,0.08)] pt-[18px] px-[20px] pb-[20px] scroll-mt-[139px]">
+      <div className="flex items-center gap-[10px]">
         <span className="font-semibold text-[14.5px] text-[#1c1a17]">Aptitudes</span>
-        <span className="h-5 px-2 rounded-md bg-[#f5f4f0] text-[10.5px] font-medium text-[rgba(28,25,23,0.55)] flex items-center">
+        <span className="h-[20px] px-[8px] rounded-[6px] bg-[#f5f4f0] text-[10.5px] font-medium text-[rgba(28,25,23,0.55)] flex items-center">
           {skills.length} de 12 recomendadas
         </span>
         <div className="flex-1" />
         <button
           type="button"
           onClick={() => setShowLevels(v => !v)}
-          className="h-7 px-[11px] rounded-lg text-[11px] font-medium transition-colors"
+          className="h-[28px] px-[11px] rounded-[8px] flex items-center text-[11px] font-medium transition-colors"
           style={showLevels ? { background: 'rgba(92,122,88,0.12)', color: '#4a6647' } : { background: '#f5f4f0', color: 'rgba(28,25,23,0.55)' }}
         >
           {showLevels ? 'Ocultar niveles' : 'Mostrar niveles'}
         </button>
       </div>
-      <p className="font-light text-[11.5px] leading-[1.5] text-[rgba(28,25,23,0.48)] mt-1">
+      <p className="font-light text-[11.5px] leading-[1.5] text-[rgba(28,25,23,0.48)] mt-[4px]">
         Ordenadas por nivel: lo que ponés primero es lo que se ve en tu tarjeta del feed.
       </p>
 
       {skills.length > 0 ? (
         <div className="flex gap-[7px] flex-wrap mt-[13px]">
           {skills.map(sk => (
-            <div key={sk.label} className="h-[30px] pl-[11px] pr-1 flex items-center gap-2 rounded-lg bg-[rgba(92,122,88,0.1)] border border-[rgba(92,122,88,0.24)]">
+            <div key={sk.label} className="h-[30px] pl-[11px] pr-[4px] flex items-center gap-[8px] rounded-[8px] bg-[rgba(92,122,88,0.1)] border border-[rgba(92,122,88,0.24)]">
               <span className="font-medium text-[11.5px] text-[#3f5a3c]">{sk.label}</span>
               {showLevels && (
                 <div className="flex gap-[3px]">
@@ -80,7 +80,7 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
                 type="button"
                 onClick={() => toggle(sk.label)}
                 aria-label={`Quitar ${sk.label}`}
-                className="w-5 h-5 flex items-center justify-center rounded-md text-[rgba(28,25,23,0.35)] hover:bg-[rgba(28,25,23,0.08)] hover:text-[#1c1a17] transition-colors"
+                className="w-[20px] h-[20px] flex items-center justify-center rounded-[6px] text-[rgba(28,25,23,0.35)] hover:bg-[rgba(28,25,23,0.08)] hover:text-[#1c1a17] transition-colors"
               >
                 <X className="w-2.5 h-2.5" />
               </button>
@@ -88,12 +88,12 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
           ))}
         </div>
       ) : (
-        <div className="mt-[13px] p-3.5 rounded-[11px] border border-dashed border-[rgba(28,25,23,0.16)] bg-[#faf9f6] font-light text-xs text-[rgba(28,25,23,0.5)]">
+        <div className="mt-[13px] p-[14px] rounded-[11px] border border-dashed border-[rgba(28,25,23,0.16)] bg-[#faf9f6] font-light text-[12px] text-[rgba(28,25,23,0.5)]">
           Elegí del catálogo de abajo — los estudios filtran por aptitud cuando buscan colaboradores.
         </div>
       )}
 
-      <div className="mt-3.5 rounded-xl border border-[rgba(28,25,23,0.09)] overflow-hidden">
+      <div className="mt-[14px] rounded-[12px] border border-[rgba(28,25,23,0.09)] overflow-hidden">
         {Object.entries(SKILLS_CATALOG).map(([cat, catSkills]) => {
           const open = openCat === cat;
           const selCount = catSkills.filter(s => labels.includes(s)).length;
@@ -102,17 +102,17 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
               <button
                 type="button"
                 onClick={() => setOpenCat(open ? null : cat)}
-                className="w-full h-[42px] px-3.5 flex items-center gap-2.5 hover:bg-[#faf9f6] transition-colors"
+                className="w-full h-[42px] px-[14px] flex items-center gap-[10px] hover:bg-[#faf9f6] transition-colors"
                 style={{ background: open ? '#faf9f6' : '#fff' }}
               >
                 <span className="flex-1 text-left font-medium text-[12.5px] text-[#1c1a17]">{cat}</span>
                 {selCount > 0 && (
-                  <span className="h-[19px] px-[7px] rounded-md bg-[rgba(92,122,88,0.14)] text-[10px] font-semibold text-[#4a6647] flex items-center">{selCount}</span>
+                  <span className="h-[19px] px-[7px] rounded-[6px] bg-[rgba(92,122,88,0.14)] text-[10px] font-semibold text-[#4a6647] flex items-center">{selCount}</span>
                 )}
                 <span className="text-[11px] text-[rgba(28,25,23,0.4)]">{open ? '▲' : '▼'}</span>
               </button>
               {open && (
-                <div className="px-3.5 pb-[13px] flex gap-1.5 flex-wrap">
+                <div className="px-[14px] pb-[13px] flex gap-[6px] flex-wrap">
                   {catSkills.map(s => (
                     <button key={s} type="button" onClick={() => toggle(s)} className={chipClass(labels.includes(s))}>
                       {labels.includes(s) ? `✓ ${s}` : s}

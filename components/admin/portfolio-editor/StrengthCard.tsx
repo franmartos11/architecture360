@@ -21,27 +21,27 @@ export default function StrengthCard({ checks }: { checks: StrengthCheck[] }) {
     : 'Aparecés en las búsquedas de estudios y en las sugerencias del feed.';
 
   return (
-    <div className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] p-[17px]">
-      <div className="flex items-center gap-3.5">
+    <div className="rounded-[16px] bg-white border border-[rgba(28,25,23,0.08)] p-[17px]">
+      <div className="flex items-center gap-[14px]">
         <div
           className="w-[66px] h-[66px] rounded-full shrink-0 flex items-center justify-center"
           style={{ background: `conic-gradient(#5c7a58 ${pct}%, rgba(28,25,23,0.09) ${pct}%)` }}
         >
-          <div className="w-[52px] h-[52px] rounded-full bg-white flex items-center justify-center font-semibold text-sm text-[#1c1a17]">
+          <div className="w-[52px] h-[52px] rounded-full bg-white flex items-center justify-center font-semibold text-[14px] text-[#1c1a17]">
             {pct}%
           </div>
         </div>
         <div className="min-w-0">
           <p className="font-semibold text-[13.5px] text-[#1c1a17]">Perfil {strengthLabel}</p>
-          <p className="font-light text-[11px] leading-[1.45] text-[rgba(28,25,23,0.5)] mt-0.5">{strengthHint}</p>
+          <p className="font-light text-[11px] leading-[1.45] text-[rgba(28,25,23,0.5)] mt-[2px]">{strengthHint}</p>
         </div>
       </div>
-      <div className="flex flex-col gap-0.5 mt-[13px]">
+      <div className="flex flex-col gap-[2px] mt-[13px]">
         {checks.map(c => (
           <Link
             key={c.label}
             href={c.href}
-            className="flex items-center gap-2.5 py-[7px] px-2 -mx-2 rounded-[9px] hover:bg-[#faf9f6] transition-colors"
+            className="flex items-center gap-[9px] py-[7px] px-[8px] -mx-[8px] rounded-[9px] hover:bg-[#faf9f6] transition-colors"
           >
             <span
               className="w-[17px] h-[17px] rounded-full shrink-0 flex items-center justify-center text-[9.5px]"

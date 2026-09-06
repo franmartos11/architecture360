@@ -110,7 +110,7 @@ function suggestBio(form: FormState): string {
 }
 
 function chipClass(active: boolean) {
-  return `h-[26px] px-[11px] rounded-lg text-[11.5px] font-medium cursor-pointer transition-colors border ${
+  return `h-[26px] px-[11px] rounded-[8px] flex items-center text-[11.5px] font-medium cursor-pointer transition-colors border ${
     active ? 'bg-[rgba(92,122,88,0.14)] text-[#3f5a3c] border-[rgba(92,122,88,0.3)]' : 'bg-[#f5f4f0] text-[rgba(28,25,23,0.6)] border-transparent hover:border-[rgba(92,122,88,0.3)]'
   }`;
 }
@@ -257,14 +257,14 @@ export default function AdminPortfolioPage() {
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
       <div className="sticky top-14 z-30 bg-[rgba(245,244,240,0.92)] backdrop-blur-md border-b border-[rgba(28,25,23,0.08)]">
-        <div className="max-w-[1260px] mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+        <div className="max-w-[1260px] mx-auto px-[24px] py-[12px] flex items-center gap-[16px] flex-wrap">
           <div className="shrink-0">
             <p className="font-semibold text-[15px] text-[#1c1a17]">Editar mi portfolio</p>
-            <div className="flex items-center gap-2 mt-[3px]">
+            <div className="flex items-center gap-[8px] mt-[3px]">
               <button
                 type="button"
                 onClick={copyUrl}
-                className="h-[22px] px-2 rounded-md bg-[rgba(28,25,23,0.06)] hover:bg-[rgba(28,25,23,0.1)] text-[11px] text-[rgba(28,25,23,0.55)] hover:text-[#1c1a17] transition-colors whitespace-nowrap"
+                className="h-[22px] px-[8px] rounded-[6px] bg-[rgba(28,25,23,0.06)] hover:bg-[rgba(28,25,23,0.1)] text-[11px] text-[rgba(28,25,23,0.55)] hover:text-[#1c1a17] transition-colors whitespace-nowrap"
               >
                 atrium.com/{handle || '…'}
               </button>
@@ -274,9 +274,9 @@ export default function AdminPortfolioPage() {
             </div>
           </div>
           <div className="flex-1" />
-          <nav className="flex items-center gap-1.5 flex-wrap">
+          <nav className="flex items-center gap-[16px] flex-wrap">
             {ANCHORS.filter(a => !isCompany || (a.label !== 'Experiencia' && a.label !== 'Educación' && a.label !== 'Certificados' && a.label !== 'Premios')).map(a => (
-              <a key={a.href} href={a.href} className="h-7 px-2.5 rounded-lg bg-[rgba(28,25,23,0.05)] hover:bg-[rgba(92,122,88,0.14)] text-[11.5px] font-medium text-[rgba(28,25,23,0.6)] hover:text-[#4a6647] transition-colors whitespace-nowrap">
+              <a key={a.href} href={a.href} className="h-[28px] px-[11px] rounded-[8px] bg-[rgba(28,25,23,0.05)] hover:bg-[rgba(92,122,88,0.14)] text-[11.5px] font-medium text-[rgba(28,25,23,0.6)] hover:text-[#4a6647] transition-colors whitespace-nowrap flex items-center">
                 {a.label}
               </a>
             ))}
@@ -284,7 +284,7 @@ export default function AdminPortfolioPage() {
           {handle && (
             <>
               <div className="w-px h-[26px] bg-[rgba(28,25,23,0.1)]" />
-              <a href={`/portfolio/${handle}`} target="_blank" rel="noopener noreferrer" className="h-8 px-3.5 rounded-[9px] border border-[rgba(28,25,23,0.14)] bg-white text-[12px] font-medium text-[#1c1a17] hover:bg-[#f5f4f0] transition-colors whitespace-nowrap">
+              <a href={`/portfolio/${handle}`} target="_blank" rel="noopener noreferrer" className="h-[32px] px-[13px] rounded-[9px] border border-[rgba(28,25,23,0.14)] bg-white text-[12px] font-medium text-[#1c1a17] hover:bg-[#f5f4f0] transition-colors whitespace-nowrap flex items-center">
                 Ver portfolio ↗
               </a>
             </>
@@ -292,21 +292,21 @@ export default function AdminPortfolioPage() {
         </div>
       </div>
 
-      <div className="max-w-[1260px] mx-auto px-6 py-[22px] pb-[90px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-[22px] items-start">
-        <div className="flex flex-col gap-4 min-w-0">
+      <div className="max-w-[1260px] mx-auto px-[24px] py-[22px] pb-[90px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-[22px] items-start">
+        <div className="flex flex-col gap-[16px] min-w-0">
 
           {/* ── Perfil básico ── */}
-          <div className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden">
-            <div className="h-32 relative" style={{ background: form.bannerImage ? undefined : 'repeating-linear-gradient(115deg,#2b2925 0 18px,#232120 18px 36px)' }}>
+          <div className="rounded-[16px] bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden">
+            <div className="h-[128px] relative" style={{ background: form.bannerImage ? undefined : 'repeating-linear-gradient(115deg,#2b2925 0 18px,#232120 18px 36px)' }}>
               {form.bannerImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={form.bannerImage} alt="" className="w-full h-full object-cover" />
               )}
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-[12px] right-[12px]">
                 <button
                   type="button"
                   onClick={() => setBannerEditorOpen(v => !v)}
-                  className="h-[30px] px-3 rounded-lg bg-white/90 hover:bg-white flex items-center gap-1.5 text-[11.5px] font-medium text-[#1c1a17] transition-colors"
+                  className="h-[30px] px-[12px] rounded-[8px] bg-[rgba(255,255,255,0.92)] hover:bg-white flex items-center gap-[7px] text-[11.5px] font-medium text-[#1c1a17] transition-colors"
                 >
                   <Camera className="w-3.5 h-3.5" /> Cambiar portada
                 </button>
@@ -330,9 +330,9 @@ export default function AdminPortfolioPage() {
               </div>
             )}
 
-            <div className="px-[22px] pt-[46px] pb-5">
-              <div className="flex items-start gap-4 flex-wrap">
-                <div id="titular" className="flex-1 min-w-[280px] flex flex-col gap-[11px] scroll-mt-[130px]">
+            <div className="px-[22px] pt-[46px] pb-[20px]">
+              <div className="flex items-start gap-[16px] flex-wrap">
+                <div id="titular" className="flex-1 min-w-[280px] flex flex-col gap-[11px] scroll-mt-[139px]">
                   <div>
                     <div className={labelStyle}>NOMBRE</div>
                     <input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="Tu nombre o el del estudio" className={inputStyle} />
@@ -340,9 +340,9 @@ export default function AdminPortfolioPage() {
                   <div>
                     <div className={labelStyle}>TITULAR PROFESIONAL</div>
                     <input value={form.headline} onChange={e => set('headline', e.target.value.slice(0, 90))} maxLength={90} placeholder="Arquitecto · Vivienda y refuncionalización" className={inputStyle} />
-                    <p className="font-light text-[10.5px] text-[rgba(28,25,23,0.4)] mt-1">Es lo primero que se lee debajo de tu nombre en el feed y en las búsquedas. {form.headline.length}/90</p>
+                    <p className="font-light text-[10.5px] text-[rgba(28,25,23,0.4)] mt-[4px]">Es lo primero que se lee debajo de tu nombre en el feed y en las búsquedas. {form.headline.length}/90</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-2 gap-[10px]">
                     <div>
                       <div className={labelStyle}>UBICACIÓN</div>
                       <input value={form.location} onChange={e => set('location', e.target.value)} placeholder="Córdoba, Argentina" className={inputStyle} />
@@ -354,7 +354,7 @@ export default function AdminPortfolioPage() {
                   </div>
                 </div>
 
-                <div className="w-[230px] flex flex-col gap-3">
+                <div className="w-[230px] flex flex-col gap-[12px]">
                   <div>
                     <div className={labelStyle}>TIPO DE PERFIL</div>
                     <div className="flex p-[3px] rounded-[9px] bg-[#f5f4f0] border border-[rgba(28,25,23,0.08)]">
@@ -375,7 +375,7 @@ export default function AdminPortfolioPage() {
                       {PROFILE_AVAILABILITY.map(a => (
                         <button
                           key={a.key} type="button" onClick={() => set('availability', a.key)}
-                          className="h-[30px] px-2.5 flex items-center gap-2 rounded-lg text-[11.5px] font-medium transition-colors border"
+                          className="h-[30px] px-[10px] flex items-center gap-[8px] rounded-[8px] text-[11.5px] font-medium transition-colors border"
                           style={form.availability === a.key
                             ? { background: 'rgba(92,122,88,0.12)', color: '#3f5a3c', borderColor: 'rgba(92,122,88,0.3)' }
                             : { background: '#faf9f6', color: 'rgba(28,25,23,0.58)', borderColor: 'rgba(28,25,23,0.08)' }}
@@ -389,7 +389,7 @@ export default function AdminPortfolioPage() {
                 </div>
               </div>
 
-              <div id="presentacion" className="mt-4 pt-4 border-t border-[rgba(28,25,23,0.07)] scroll-mt-[130px]">
+              <div id="presentacion" className="mt-[16px] pt-[16px] border-t border-[rgba(28,25,23,0.07)] scroll-mt-[139px]">
                 <div className={labelStyle}>PRESENTACIÓN</div>
                 <textarea
                   value={form.bio}
@@ -399,8 +399,8 @@ export default function AdminPortfolioPage() {
                   placeholder="Contá en dos líneas qué hacés, con quién trabajás y qué proyectos te interesan."
                   className="w-full rounded-[11px] border border-[rgba(28,25,23,0.13)] bg-[#faf9f6] px-[13px] py-[11px] text-[13px] leading-[1.6] text-[#1c1a17] outline-none resize-y transition-colors focus:border-[rgba(92,122,88,0.55)] focus:bg-white placeholder:text-[rgba(28,25,23,0.34)]"
                 />
-                <div className="flex items-center gap-2.5 mt-1.5">
-                  <button type="button" onClick={() => set('bio', suggestBio(form))} className="h-7 px-[11px] rounded-lg text-[11px] font-medium transition-colors" style={{ background: 'rgba(92,122,88,0.12)', color: '#4a6647' }}>
+                <div className="flex items-center gap-[10px] mt-[6px]">
+                  <button type="button" onClick={() => set('bio', suggestBio(form))} className="h-[28px] px-[11px] rounded-[8px] flex items-center text-[11px] font-medium transition-colors" style={{ background: 'rgba(92,122,88,0.12)', color: '#4a6647' }}>
                     Sugerir con mis datos
                   </button>
                   <div className="flex-1" />
@@ -408,10 +408,10 @@ export default function AdminPortfolioPage() {
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-[rgba(28,25,23,0.07)] grid grid-cols-2 gap-4">
+              <div className="mt-[16px] pt-[16px] border-t border-[rgba(28,25,23,0.07)] grid grid-cols-2 gap-[16px]">
                 <div>
                   <div className={labelStyle}>ESPECIALIDADES</div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-[6px] flex-wrap">
                     {SPECIALTIES_CATALOG.map(sp => (
                       <button key={sp} type="button" onClick={() => set('specialties', form.specialties.includes(sp) ? form.specialties.filter(x => x !== sp) : [...form.specialties, sp])} className={chipClass(form.specialties.includes(sp))}>
                         {sp}
@@ -421,7 +421,7 @@ export default function AdminPortfolioPage() {
                 </div>
                 <div>
                   <div className={labelStyle}>IDIOMAS</div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-[6px] flex-wrap">
                     {LANGUAGES_CATALOG.map(lg => (
                       <button key={lg} type="button" onClick={() => set('languages', form.languages.includes(lg) ? form.languages.filter(x => x !== lg) : [...form.languages, lg])} className={chipClass(form.languages.includes(lg))}>
                         {lg}
@@ -477,14 +477,14 @@ export default function AdminPortfolioPage() {
           )}
 
           {collaborations.some(c => c.status === 'pending') && (
-            <div className="rounded-2xl bg-white border border-[rgba(201,138,94,0.35)] overflow-hidden">
-              <div className="px-5 py-[17px] border-b border-[rgba(201,138,94,0.2)]">
+            <div className="rounded-[16px] bg-white border border-[rgba(201,138,94,0.35)] overflow-hidden">
+              <div className="px-[20px] py-[17px] border-b border-[rgba(201,138,94,0.2)]">
                 <p className="font-semibold text-[14.5px] text-[#1c1a17]">Proyectos donde te acreditaron</p>
-                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-0.5">Confirmá para que aparezca en tu portfolio.</p>
+                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-[2px]">Confirmá para que aparezca en tu portfolio.</p>
               </div>
               {collaborations.map(c => (
-                <div key={c.id} className="flex items-center gap-3.5 px-5 py-3.5 border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
-                  <div className="w-10 h-10 rounded-lg bg-[#f5f4f0] overflow-hidden shrink-0 flex items-center justify-center">
+                <div key={c.id} className="flex items-center gap-[13px] px-[20px] py-[13px] border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
+                  <div className="w-10 h-10 rounded-[9px] bg-[#f5f4f0] overflow-hidden shrink-0 flex items-center justify-center">
                     {c.project?.masterplan_image
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={c.project.masterplan_image} alt="" className="w-full h-full object-cover" />
@@ -495,9 +495,9 @@ export default function AdminPortfolioPage() {
                     {c.contribution && <p className="text-[11px] text-[rgba(28,25,23,0.4)] truncate">{c.contribution}</p>}
                   </div>
                   {c.status === 'pending' && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => respondToCollaboration(c.id, 'declined')} disabled={respondingId === c.id} className="text-[12.5px] text-[rgba(28,25,23,0.5)] hover:text-[#1c1a17] transition-colors px-2">Rechazar</button>
-                      <button onClick={() => respondToCollaboration(c.id, 'accepted')} disabled={respondingId === c.id} className="h-8 px-3 rounded-lg bg-[#1c1a17] text-white text-[12px] font-medium hover:bg-[#2f3d2c] transition-colors">Aceptar</button>
+                    <div className="flex items-center gap-[8px] shrink-0">
+                      <button onClick={() => respondToCollaboration(c.id, 'declined')} disabled={respondingId === c.id} className="text-[12.5px] text-[rgba(28,25,23,0.5)] hover:text-[#1c1a17] transition-colors px-[8px]">Rechazar</button>
+                      <button onClick={() => respondToCollaboration(c.id, 'accepted')} disabled={respondingId === c.id} className="h-[32px] px-[12px] rounded-[8px] flex items-center bg-[#1c1a17] text-white text-[12px] font-medium hover:bg-[#2f3d2c] transition-colors">Aceptar</button>
                     </div>
                   )}
                 </div>
@@ -505,11 +505,11 @@ export default function AdminPortfolioPage() {
             </div>
           )}
 
-          <div id="proyectos" className="rounded-2xl bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden scroll-mt-[130px]">
-            <div className="px-5 py-[17px] border-b border-[rgba(28,25,23,0.06)] flex items-center gap-3">
+          <div id="proyectos" className="rounded-[16px] bg-white border border-[rgba(28,25,23,0.08)] overflow-hidden scroll-mt-[139px]">
+            <div className="px-[20px] py-[17px] border-b border-[rgba(28,25,23,0.06)] flex items-center gap-[12px]">
               <div>
                 <p className="font-semibold text-[14.5px] text-[#1c1a17]">Proyectos en mi portfolio</p>
-                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-0.5">Elegí cuáles se muestran y cuál abre tu portfolio como destacado.</p>
+                <p className="font-light text-[11.5px] text-[rgba(28,25,23,0.48)] mt-[2px]">Elegí cuáles se muestran y cuál abre tu portfolio como destacado.</p>
               </div>
               <div className="flex-1" />
               <span className="text-[11.5px] text-[rgba(28,25,23,0.45)] whitespace-nowrap">{visibleProjectsCount} de {projects.length} visibles</span>
@@ -517,15 +517,15 @@ export default function AdminPortfolioPage() {
             {projects.map(p => {
               const featured = form.featuredProjectId === p.id;
               return (
-                <div key={p.id} className="px-5 py-[13px] flex items-center gap-[13px] border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
+                <div key={p.id} className="px-[20px] py-[13px] flex items-center gap-[13px] border-b border-[rgba(28,25,23,0.05)] last:border-b-0">
                   <button
                     type="button" onClick={() => toggleInPortfolio(p)} aria-pressed={p.show_in_portfolio}
-                    className="w-[38px] h-[22px] rounded-xl shrink-0 flex p-0.5 transition-colors"
+                    className="w-[38px] h-[22px] rounded-[12px] shrink-0 flex p-[2px] transition-colors"
                     style={{ background: p.show_in_portfolio ? '#5c7a58' : 'rgba(28,25,23,0.16)', justifyContent: p.show_in_portfolio ? 'flex-end' : 'flex-start' }}
                   >
                     <span className="w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(28,26,23,0.25)]" />
                   </button>
-                  <div className="w-11 h-11 rounded-lg bg-[repeating-linear-gradient(115deg,#e6e3dc_0_10px,#dedbd3_10px_20px)] shrink-0" />
+                  <div className="w-[44px] h-[44px] rounded-lg bg-[repeating-linear-gradient(115deg,#e6e3dc_0_10px,#dedbd3_10px_20px)] shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-[13px] text-[#1c1a17]">{p.name}</p>
                     <p className="text-[11.5px] text-[rgba(28,25,23,0.45)] mt-px">{getProjectTypeConfig(p.project_type, p.sale_mode).label}</p>
@@ -533,7 +533,7 @@ export default function AdminPortfolioPage() {
                   <button
                     type="button"
                     onClick={() => { if (!p.show_in_portfolio) { toast('Primero hacelo visible.', 'error'); return; } set('featuredProjectId', featured ? null : p.id); }}
-                    className="h-7 px-[11px] rounded-lg text-[11px] font-medium transition-colors shrink-0"
+                    className="h-[28px] px-[11px] rounded-[8px] flex items-center text-[11px] font-medium transition-colors shrink-0"
                     style={featured ? { background: 'rgba(201,138,94,0.16)', color: '#96603a' } : { background: '#f5f4f0', color: 'rgba(28,25,23,0.5)' }}
                   >
                     {featured ? '★ Destacado' : '☆ Destacar'}
@@ -545,7 +545,7 @@ export default function AdminPortfolioPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3.5 sticky top-[132px]">
+        <div className="flex flex-col gap-[14px] sticky top-[139px]">
           <StrengthCard checks={checks} />
           <PreviewCard
             avatarImage={form.avatarImage}
