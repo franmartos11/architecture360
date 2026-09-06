@@ -55,7 +55,7 @@ export default function FeedLeftRail({
           )}
         </div>
         <div className="px-4 pb-4 -mt-[30px]">
-          <Link href={`/portfolio/${handle}`} className="group inline-flex">
+          <Link href={`/portfolio/${handle}`} className="relative z-10 group inline-flex">
             <div
               className="w-14 h-14 rounded-full border-[3px] border-white flex items-center justify-center text-white/90 font-semibold text-xl"
               style={{ background: 'linear-gradient(135deg,#9aa896,#5c7a58)' }}

@@ -49,6 +49,45 @@ export default function FloorPlanViewer({
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
+  // Tamaño real (en px) al que dibujamos el plano — se calcula a mano en
+  // vez de dejar que el ancho llene el contenedor y la altura "siga"
+  // (w-full h-auto): un plano cuadrado/vertical en una pantalla ancha
+  // terminaba más alto que el área visible y se recortaba, dando la
+  // sensación de "zoom" al entrar. Acá medimos el área disponible real
+  // (planAreaRef) y la relación de aspecto real de la imagen (medida al
+  // cargarla, no asumida) y elegimos el mayor rectángulo que entre
+  // completo en ambos ejes — así el plano siempre se ve entero, y como el
+  // contenedor termina con la MISMA forma que la imagen (sin franjas
+  // vacías), los overlays en % (zonas de hover, pines) quedan alineados.
+  const planAreaRef = useRef<HTMLDivElement>(null);
+  const planImageRef = useRef<string | undefined>(undefined);
+  const [planRatio, setPlanRatio] = useState<number | null>(null);
+  const [planFitSize, setPlanFitSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = planAreaRef.current;
+    if (!el || planRatio == null) return;
+    const compute = () => {
+      const cs = getComputedStyle(el);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const availW = Math.min(el.clientWidth - padX, 1400);
+      const availH = el.clientHeight - padY;
+      if (availW <= 0 || availH <= 0) return;
+      let w = availW;
+      let h = w / planRatio;
+      if (h > availH) {
+        h = availH;
+        w = h * planRatio;
+      }
+      setPlanFitSize({ w, h });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [planRatio]);
+
   const [mobilePreviewUnit, setMobilePreviewUnit] = useState<Unit | null>(null);
   const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -69,6 +108,17 @@ export default function FloorPlanViewer({
   };
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
+
+  // Se remide en cada cambio de piso — cada planta puede tener un plano
+  // con proporciones distintas. Ajuste de estado durante el render (no en
+  // un efecto) siguiendo el patrón recomendado para "resetear estado
+  // cuando cambia una prop" — ver react-hooks/set-state-in-effect.
+  if (planImageRef.current !== floor?.planImage) {
+    planImageRef.current = floor?.planImage;
+    if (planRatio !== null) setPlanRatio(null);
+    if (planFitSize !== null) setPlanFitSize(null);
+  }
+
   const unitsOnFloor = useMemo(
     () => getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor),
     [allUnits, building.id, activeFloor]
@@ -472,9 +522,17 @@ export default function FloorPlanViewer({
         )}
 
         {/* Floor plan image + unit dots */}
-        <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
+        <div ref={planAreaRef} className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
           {floor && floor.planImage ? (
             <TransformWrapper
+              // `centerOnInit` solo mide y centra una vez, al montar — si
+              // el plano llega recién después (planFitSize se resuelve
+              // async, al cargar la imagen), esa medición inicial queda
+              // vieja y el plano termina centrado mal. La key fuerza un
+              // remount (y por lo tanto un centerOnInit fresco) recién
+              // cuando planFitSize ya está listo, así centra sobre el
+              // tamaño final, no sobre el de respaldo previo a la carga.
+              key={`${floor.planImage}-${planFitSize ? 'fit' : 'pending'}`}
               initialScale={1}
               minScale={0.5}
               maxScale={4}
@@ -483,16 +541,24 @@ export default function FloorPlanViewer({
               doubleClick={{ disabled: false, step: 0.5 }}
               pinch={{ step: 5 }}
             >
-              <TransformComponent wrapperClass="!w-full !h-full !flex items-center justify-center" contentClass="relative !w-full max-w-[1400px]">
+              <TransformComponent
+                wrapperClass="!w-full !h-full !flex items-center justify-center"
+                contentClass="relative"
+                contentStyle={planFitSize ? { width: planFitSize.w, height: planFitSize.h } : { width: '100%', maxWidth: 1400 }}
+              >
                 <Image
                   src={floor.planImage}
                   alt={floor.label}
-                  width={1600}
-                  height={1600}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 1400px"
                   priority
                   unoptimized={floor.planImage.endsWith('.svg')}
-                  className="w-full h-auto object-contain select-none pointer-events-none"
+                  className="object-contain select-none pointer-events-none"
                   draggable={false}
+                  onLoad={e => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth && img.naturalHeight) setPlanRatio(img.naturalWidth / img.naturalHeight);
+                  }}
                 />
 
                 {/* Deptos: al pasar el mouse se marca la sección en gris */}
