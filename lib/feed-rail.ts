@@ -7,6 +7,7 @@ export interface FeedRailData {
   profileHandle: string | null;
   displayName: string | null;
   avatarImage: string | null;
+  bannerImage: string | null;
   followerCount: number;
   hasFollowing: boolean;
   projectsCount: number;
@@ -27,14 +28,14 @@ export async function getFeedRailData(): Promise<FeedRailData> {
 
   if (!user) {
     return {
-      loggedIn: false, userId: null, profileHandle: null, displayName: null, avatarImage: null,
+      loggedIn: false, userId: null, profileHandle: null, displayName: null, avatarImage: null, bannerImage: null,
       followerCount: 0, hasFollowing: false, projectsCount: 0, collaborationsCount: 0,
       viewsToday: 0, draftProject: null,
     };
   }
 
   const [{ data: profile }, { count: followingCount }] = await Promise.all([
-    supabase.from('profiles').select('handle, display_name, avatar_image').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('handle, display_name, avatar_image, banner_image').eq('id', user.id).maybeSingle(),
     supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id),
   ]);
   const profileHandle = profile?.handle ?? null;
@@ -64,6 +65,7 @@ export async function getFeedRailData(): Promise<FeedRailData> {
     profileHandle,
     displayName: profile?.display_name ?? null,
     avatarImage: profile?.avatar_image ?? null,
+    bannerImage: profile?.banner_image ?? null,
     followerCount: followers ?? 0,
     hasFollowing: (followingCount ?? 0) > 0,
     projectsCount: projects ?? 0,

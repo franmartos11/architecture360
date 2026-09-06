@@ -35,6 +35,7 @@ export default async function GuardadosPage() {
               handle={rail.profileHandle}
               displayName={rail.displayName ?? rail.profileHandle}
               avatarImage={rail.avatarImage}
+              bannerImage={rail.bannerImage}
               followerCount={rail.followerCount}
               projectsCount={rail.projectsCount}
               collaborationsCount={rail.collaborationsCount}

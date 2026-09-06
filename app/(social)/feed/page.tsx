@@ -35,6 +35,7 @@ export default async function FeedPage() {
                 handle={rail.profileHandle}
                 displayName={rail.displayName}
                 avatarImage={rail.avatarImage}
+                bannerImage={rail.bannerImage}
                 followerCount={rail.followerCount}
                 projectsCount={rail.projectsCount}
                 collaborationsCount={rail.collaborationsCount}

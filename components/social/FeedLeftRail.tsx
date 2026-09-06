@@ -9,6 +9,7 @@ interface FeedLeftRailProps {
   handle: string;
   displayName: string;
   avatarImage: string | null;
+  bannerImage: string | null;
   followerCount: number;
   projectsCount: number;
   collaborationsCount: number;
@@ -29,7 +30,7 @@ const TEXT_MUTED_62 = 'text-[rgba(28,25,23,0.62)]';
 // estilo general de la app, y así queda scopeado a este componente sin
 // tocar nada compartido.
 export default function FeedLeftRail({
-  handle, displayName, avatarImage, followerCount, projectsCount, collaborationsCount, viewsToday, draftProject,
+  handle, displayName, avatarImage, bannerImage, followerCount, projectsCount, collaborationsCount, viewsToday, draftProject,
 }: FeedLeftRailProps) {
   const navItems = [
     { label: 'Inicio', icon: Home, href: '/feed' },
@@ -47,7 +48,12 @@ export default function FeedLeftRail({
   return (
     <div className="flex flex-col gap-3.5 sticky top-20">
       <div className={`rounded-2xl bg-white ${BORDER} border overflow-hidden`}>
-        <div className="h-16" style={{ background: 'repeating-linear-gradient(115deg,#2b2925 0 16px,#232120 16px 32px)' }} />
+        <div className="h-16 relative overflow-hidden" style={{ background: 'repeating-linear-gradient(115deg,#2b2925 0 16px,#232120 16px 32px)' }}>
+          {bannerImage && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          )}
+        </div>
         <div className="px-4 pb-4 -mt-[30px]">
           <Link href={`/portfolio/${handle}`} className="group inline-flex">
             <div
