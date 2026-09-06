@@ -20,11 +20,13 @@ import type { Portfolio } from '@/data/profile-repository';
 // campos que edita este modal.
 interface ProfileQuickEditButtonProps {
   portfolio: Portfolio;
-  /** Trigger visual alternativo (ej. "Cambiar portada" sobre el banner) — mismo modal, mismo estado, solo cambia el botón que lo abre. Default: el botón "Editar perfil". */
-  trigger?: (props: { onClick: () => void }) => React.ReactNode;
+  /** 'cover' = el botón chico "Cambiar portada" superpuesto al banner — mismo modal, mismo estado, solo cambia qué botón lo abre. Default: el botón "Editar perfil".
+   * Antes esto era un `trigger` render-prop (una función) — pasar una función desde el Server Component de la página rompe la serialización RSC
+   * ("Functions cannot be passed directly to Client Components"), así que ahora es un dato plano y el botón se arma acá adentro. */
+  variant?: 'default' | 'cover';
 }
 
-export default function ProfileQuickEditButton({ portfolio, trigger }: ProfileQuickEditButtonProps) {
+export default function ProfileQuickEditButton({ portfolio, variant = 'default' }: ProfileQuickEditButtonProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -80,7 +82,15 @@ export default function ProfileQuickEditButton({ portfolio, trigger }: ProfileQu
 
   return (
     <>
-      {trigger ? trigger({ onClick: () => setOpen(true) }) : (
+      {variant === 'cover' ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="h-8 px-3.5 rounded-lg bg-white/90 hover:bg-white flex items-center gap-1.5 text-[11.5px] font-medium text-trevo-dark transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 16l4-1 9-9-3-3-9 9z" /><path d="M14 3l3 3" /></svg>
+          Cambiar portada
+        </button>
+      ) : (
         <button
           onClick={() => setOpen(true)}
           className="flex items-center gap-2 h-[38px] px-4 rounded-[10px] bg-trevo-dark text-white text-sm font-medium hover:bg-trevo-dark/85 transition-colors shrink-0"

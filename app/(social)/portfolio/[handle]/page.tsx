@@ -173,18 +173,7 @@ export default async function PortfolioPage({ params }: PageProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-[#1c1a17]/55" />
         {isOwnProfile && (
           <div className="absolute top-4 right-4 sm:right-6">
-            <ProfileQuickEditButton
-              portfolio={portfolio}
-              trigger={({ onClick }) => (
-                <button
-                  onClick={onClick}
-                  className="h-8 px-3.5 rounded-lg bg-white/90 hover:bg-white flex items-center gap-1.5 text-[11.5px] font-medium text-trevo-dark transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 16l4-1 9-9-3-3-9 9z" /><path d="M14 3l3 3" /></svg>
-                  Cambiar portada
-                </button>
-              )}
-            />
+            <ProfileQuickEditButton portfolio={portfolio} variant="cover" />
           </div>
         )}
       </div>
