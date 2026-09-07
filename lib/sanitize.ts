@@ -78,6 +78,21 @@ export function sanitizeOptionalText(input: unknown, maxLength?: number): string
   return text || null;
 }
 
+/**
+ * Lista libre de specs clave/valor (ej. SUPERFICIE → "240 m²") cargada a
+ * mano en un editor admin — sanitiza cada texto, descarta filas incompletas
+ * y acota la cantidad para que un array mal formado (o gigante) no llegue
+ * tal cual a la base.
+ */
+export function sanitizeSpecs(input: unknown, maxItems = 12): { key: string; value: string }[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((s): s is { key?: unknown; value?: unknown } => !!s && typeof s === 'object')
+    .map(s => ({ key: sanitizeText(s.key, 40), value: sanitizeText(s.value, 80) }))
+    .filter(s => s.key && s.value)
+    .slice(0, maxItems);
+}
+
 const HTML_ESCAPES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',

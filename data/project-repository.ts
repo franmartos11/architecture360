@@ -120,6 +120,8 @@ function mapProject(
       name: a.name,
       description: a.description ?? undefined,
       images: a.images ?? [],
+      category: a.category ?? undefined,
+      specs: a.specs ?? [],
       buildingId: a.building_id ? buildingSlugById.get(a.building_id) : undefined,
       tourNodeId: a.tour_node_id ?? undefined,
       tour3dUrl: a.tour_3d_url ?? undefined,

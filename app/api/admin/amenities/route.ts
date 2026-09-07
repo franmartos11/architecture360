@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
-import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+import { sanitizeText, sanitizeMultiline, sanitizeSpecs } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -29,6 +29,8 @@ export async function POST(request: Request) {
       name: sanitizeText(body.name, 150),
       description: sanitizeMultiline(body.description, 2000) || null,
       images: body.images ?? [],
+      category: sanitizeText(body.category, 40) || null,
+      specs: sanitizeSpecs(body.specs),
       tour_node_id: body.tourNodeId ?? null,
       tour_3d_url: body.tour3dUrl ?? null,
       sort_order: body.sortOrder ?? 0,

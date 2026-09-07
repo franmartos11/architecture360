@@ -8,14 +8,16 @@ import { Card } from '@/components/ui/Card';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { AMENITY_CATEGORY_SUGGESTIONS } from '@/lib/amenities';
 import type { TourData } from '@/types';
 import type { BuildingRow as DbBuildingRow, AmenityRow as DbAmenityRow } from '@/types/database';
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'amenities_tour'>;
 type AmenityRow = Pick<DbAmenityRow,
-  | 'id' | 'building_id' | 'name' | 'description' | 'images'
+  | 'id' | 'building_id' | 'name' | 'description' | 'images' | 'category' | 'specs'
   | 'tour_node_id' | 'tour_3d_url' | 'sort_order' | 'visible'
 >;
+type Spec = { key: string; value: string };
 
 // 'all' = todas, 'complex' = solo las de todo el complejo (building_id nulo),
 // o el id de una torre puntual — mismo criterio que ya usa el filtro de
@@ -23,7 +25,10 @@ type AmenityRow = Pick<DbAmenityRow,
 type Filter = 'all' | 'complex' | string;
 type View = 'list' | 'grid';
 
-const EMPTY_FORM = { buildingId: '', name: '', description: '', images: [] as string[], tourNodeId: '', tour3dUrl: '', visible: true };
+const EMPTY_FORM = {
+  buildingId: '', name: '', description: '', images: [] as string[], category: '', specs: [] as Spec[],
+  tourNodeId: '', tour3dUrl: '', visible: true,
+};
 const DESC_MAX = 2000; // mismo límite que sanitizeMultiline() aplica server-side
 
 // Cuerpo de la pantalla de Amenidades, sin el header — lo usan tanto
@@ -88,6 +93,8 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       name: a.name,
       description: a.description ?? '',
       images: a.images ?? [],
+      category: a.category ?? '',
+      specs: a.specs ?? [],
       tourNodeId: a.tour_node_id ?? '',
       tour3dUrl: a.tour_3d_url ?? '',
       visible: a.visible,
@@ -112,6 +119,8 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       name: form.name.trim(),
       description: form.description.trim() || null,
       images: form.images.filter(Boolean),
+      category: form.category.trim() || null,
+      specs: form.specs.filter(s => s.key.trim() && s.value.trim()),
       tourNodeId: form.tourNodeId || null,
       tour3dUrl: form.tour3dUrl.trim() || null,
       visible: form.visible,
@@ -159,7 +168,8 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         buildingId: a.building_id, name: `${a.name} (copia)`, description: a.description,
-        images: a.images, tourNodeId: a.tour_node_id, tour3dUrl: a.tour_3d_url, visible: a.visible,
+        images: a.images, category: a.category, specs: a.specs,
+        tourNodeId: a.tour_node_id, tour3dUrl: a.tour_3d_url, visible: a.visible,
         sortOrder: amenities.length,
       }),
     });
@@ -171,7 +181,8 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       setEditingId(created.id);
       setForm({
         buildingId: created.building_id ?? '', name: created.name, description: created.description ?? '',
-        images: created.images ?? [], tourNodeId: created.tour_node_id ?? '', tour3dUrl: created.tour_3d_url ?? '',
+        images: created.images ?? [], category: created.category ?? '', specs: created.specs ?? [],
+        tourNodeId: created.tour_node_id ?? '', tour3dUrl: created.tour_3d_url ?? '',
         visible: created.visible,
       });
       onSaved?.();
@@ -343,6 +354,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Pill tone={photoCount ? 'default' : 'warn'}>{photoCount ? `${photoCount} foto${photoCount === 1 ? '' : 's'}` : 'sin fotos'}</Pill>
+                          {a.category && <Pill>{a.category}</Pill>}
                           {node && <Pill tone="accent">360° · {node.name}</Pill>}
                           {a.tour_3d_url && <Pill>3D</Pill>}
                           {!a.visible && <Pill tone="warn">oculta</Pill>}
@@ -393,6 +405,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
                       <p className="text-sm font-semibold text-gray-900 truncate">{a.name || 'Amenidad sin nombre'}</p>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Pill>{building ? building.name : 'Todo el complejo'}</Pill>
+                        {a.category && <Pill>{a.category}</Pill>}
                         {!a.visible && <Pill tone="warn">oculta</Pill>}
                       </div>
                     </div>
@@ -458,6 +471,62 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
                   </div>
                   <MultiImageUploader values={form.images} onChange={images => setForm({ ...form, images })} folder="amenities" />
                   {form.images.length > 0 && <p className="text-[10.5px] text-gray-400">la primera es la portada</p>}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11.5px] font-medium text-gray-900">
+                    Categoría <span className="font-normal text-gray-400">— opcional</span>
+                  </label>
+                  <input
+                    value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                    placeholder="Aire libre, Bienestar, Social…" list="amenity-category-suggestions"
+                    className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <datalist id="amenity-category-suggestions">
+                    {AMENITY_CATEGORY_SUGGESTIONS.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-[11.5px] font-medium text-gray-900">
+                      Datos <span className="font-normal text-gray-400">— opcional</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, specs: [...form.specs, { key: '', value: '' }] })}
+                      className="text-[11px] font-medium text-brand-700 hover:text-brand-900"
+                    >
+                      + Agregar dato
+                    </button>
+                  </div>
+                  {form.specs.length === 0 ? (
+                    <p className="text-[10.5px] text-gray-400">Ej. SUPERFICIE → &quot;240 m²&quot;, HORARIO → &quot;7 a 22 h&quot;.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {form.specs.map((s, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <input
+                            value={s.key}
+                            onChange={e => setForm({ ...form, specs: form.specs.map((x, xi) => xi === i ? { ...x, key: e.target.value } : x) })}
+                            placeholder="SUPERFICIE" maxLength={40}
+                            className="h-8 w-[38%] px-2 rounded-lg border border-gray-300 text-[11px] uppercase outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                          <input
+                            value={s.value}
+                            onChange={e => setForm({ ...form, specs: form.specs.map((x, xi) => xi === i ? { ...x, value: e.target.value } : x) })}
+                            placeholder="240 m²" maxLength={80}
+                            className="h-8 flex-1 min-w-0 px-2 rounded-lg border border-gray-300 text-[11px] outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                          <button
+                            type="button" onClick={() => setForm({ ...form, specs: form.specs.filter((_, xi) => xi !== i) })}
+                            aria-label="Quitar dato"
+                            className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-red-600 transition-colors"
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-px bg-gray-100" />

@@ -602,6 +602,17 @@ alter table amenities add column if not exists tour_3d_url text;
 -- Idem para "visible" — antes la única señal de oculta era implícita
 -- (sin fotos no se mostraba en la landing).
 alter table amenities add column if not exists visible boolean not null default true;
+-- Categoría libre (ej. "Aire libre", "Bienestar", "Social") para agrupar y
+-- filtrar amenities en la página pública — ver lib/amenities.ts para las
+-- sugeridas. Sin catálogo fijo en la base: cada proyecto puede necesitar
+-- categorías distintas, y no vale la pena migrar un check constraint cada
+-- vez que se suma una.
+alter table amenities add column if not exists category text;
+-- Specs libres clave/valor (ej. SUPERFICIE → "240 m²", HORARIO → "7 a 22 h").
+-- Cada amenity tiene datos distintos (una pileta tiene temporada, un
+-- gimnasio tiene equipamiento) — por eso es una lista libre y no columnas
+-- fijas por atributo.
+alter table amenities add column if not exists specs jsonb not null default '[]';
 
 -- ─── Puntos de interés (colegios, salud, comercios, etc.) ────────────
 -- Georreferencian el entorno del proyecto para la sección de Ubicación.

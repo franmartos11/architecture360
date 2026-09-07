@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
+import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -24,5 +25,6 @@ export default async function AmenitiesPage({ params, searchParams }: PageProps)
   const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
-  return <AmenitiesView project={project} initialBuildingFilter={edificio} />;
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  return <AmenitiesView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;
 }

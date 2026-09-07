@@ -215,6 +215,10 @@ export interface Amenity {
   description?: string;
   /** Galería de renders — la primera es la foto de la fila en la landing */
   images: string[];
+  /** Categoría libre para agrupar/filtrar (ej. "Aire libre", "Bienestar") — ver lib/amenities.ts. */
+  category?: string;
+  /** Datos libres clave/valor (ej. SUPERFICIE → "240 m²") — cada amenity muestra los que cargó el admin. */
+  specs?: { key: string; value: string }[];
   /** undefined = amenity de todo el complejo; con valor, exclusiva de esa torre (Building.id) */
   buildingId?: string;
   /**

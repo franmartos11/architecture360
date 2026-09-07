@@ -175,6 +175,8 @@ export interface AmenityRow {
   name: string;
   description: string | null;
   images: string[];
+  category: string | null;
+  specs: { key: string; value: string }[];
   tour_node_id: string | null;
   tour_3d_url: string | null;
   sort_order: number;
