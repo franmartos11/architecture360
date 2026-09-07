@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import LocationView from '@/components/location/LocationView';
+import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -22,5 +23,6 @@ export default async function UbicacionPage({ params }: PageProps) {
   const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
-  return <LocationView project={project} />;
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  return <LocationView project={project} typeConfig={typeConfig} />;
 }
