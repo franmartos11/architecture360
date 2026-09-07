@@ -149,7 +149,7 @@ export default function LeadCaptureModal({
                   <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">
-                        Consultar sobre esta unidad
+                        {unit ? `Consultar sobre ${uAgree.esta} ${unitLabelLower}` : 'Consultar sobre el proyecto'}
                       </h3>
                       {unit && (
                         <p className="text-sm text-gray-500 mt-1">

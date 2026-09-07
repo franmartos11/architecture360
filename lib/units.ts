@@ -79,6 +79,17 @@ export function unitTypeLabel(type: string): string {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+// Pluralización simple en español: "Unidad"→"Unidades", "Lote"→"Lotes",
+// "Casa"→"Casas", "Espacio"→"Espacios", "Dúplex"→"Dúplex" (invariante) —
+// un "+s" liso rompe cualquier palabra que termine en consonante (daba
+// "UNIDADS"). Usada para pluralizar unitLabel/buildingLabel donde haga falta.
+export function pluralize(word: string): string {
+  const last = word.slice(-1).toLowerCase();
+  if ('aeiouáéíóú'.includes(last)) return `${word}s`;
+  if (last === 's' || last === 'x') return word;
+  return `${word}es`;
+}
+
 // ─── Programa de ambientes de una casa ─────────────────────────────
 
 export const ROOM_KIND_LABEL: Record<RoomKind, string> = {
