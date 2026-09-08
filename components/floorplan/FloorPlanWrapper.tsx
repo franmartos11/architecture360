@@ -15,6 +15,7 @@ export default function FloorPlanWrapper({
   pointsOfInterest,
   initialFloor,
   typeConfig,
+  buildings,
 }: {
   building: Building;
   units: Unit[];
@@ -24,6 +25,7 @@ export default function FloorPlanWrapper({
   pointsOfInterest?: PointOfInterest[];
   initialFloor?: number;
   typeConfig: ProjectTypeConfig;
+  buildings?: { id: string; name: string }[];
 }) {
   return (
     <FloorPlanViewer
@@ -35,6 +37,7 @@ export default function FloorPlanWrapper({
       pointsOfInterest={pointsOfInterest}
       initialFloor={initialFloor}
       typeConfig={typeConfig}
+      buildings={buildings}
     />
   );
 }

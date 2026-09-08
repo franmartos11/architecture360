@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, startTransition } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -10,6 +10,7 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel, pluralize } from '@/lib/units';
 import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
+import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
@@ -89,25 +90,7 @@ function UnitsListViewInner({ project, initialBuildingFilter, typeConfig }: Unit
   }, [contactModal]);
 
   // ── Favoritos (solo en este navegador, por proyecto) ──────────────
-  const favsKey = `atrium:favorites:${project.slug}`;
-  const [favorites, setFavorites] = useState<string[]>([]);
-  useEffect(() => {
-    startTransition(() => {
-      try {
-        const raw = window.localStorage.getItem(favsKey);
-        if (raw) setFavorites(JSON.parse(raw));
-      } catch {
-        // localStorage no disponible (privado/bloqueado) — se sigue sin favoritos.
-      }
-    });
-  }, [favsKey]);
-  const toggleFavorite = useCallback((unitId: string) => {
-    setFavorites(prev => {
-      const next = prev.includes(unitId) ? prev.filter(id => id !== unitId) : [...prev, unitId];
-      try { window.localStorage.setItem(favsKey, JSON.stringify(next)); } catch { /* ídem */ }
-      return next;
-    });
-  }, [favsKey]);
+  const { favorites, toggleFavorite } = useUnitFavorites(project.slug);
 
   const toggleCompare = useCallback((unitId: string) => {
     setCmp(prev => {

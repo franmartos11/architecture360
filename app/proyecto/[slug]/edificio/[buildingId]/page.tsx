@@ -71,6 +71,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
       pointsOfInterest={project.pointsOfInterest}
       initialFloor={initialFloor}
       typeConfig={typeConfig}
+      buildings={project.buildings.map(b => ({ id: b.id, name: b.name }))}
     />
   );
 }
