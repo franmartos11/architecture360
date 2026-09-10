@@ -14,7 +14,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, unitId } = await params;
-  const unit = await getUnitById(slug, unitId);
+  const unit = await getUnitById(slug, decodeURIComponent(unitId));
   if (!unit) return { title: 'Unidad no encontrada' };
 
   const title = `Unidad ${unit.name} | Interior`;
@@ -35,7 +35,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
 
   const project = await getPublicProjectBySlug(slug);
   const building = project?.buildings.find(b => b.id === buildingId);
-  const unit = await getUnitById(slug, unitId);
+  const unit = await getUnitById(slug, decodeURIComponent(unitId));
 
   if (!project || !building || !unit) notFound();
 
