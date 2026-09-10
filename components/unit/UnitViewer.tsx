@@ -148,10 +148,17 @@ export default function UnitViewer({
   // cuando está cargado, reemplaza a la lista plana "N Dormitorios / N
   // Baños". Agrupado por planta (planta baja + niveles extra).
   const showRoomProgram = hasRoomProgram(allProgramRooms(unit.rooms, unit.levels));
+  // Ambientes delimitados con polígono pero sin "Tipo" asignado (los que
+  // vienen del delimitador viejo — ver lib/units.ts) igual se listan acá:
+  // sin esto, un ambiente dibujado y nombrado en el plano pero nunca
+  // tipificado en el admin desaparecía de la sidebar sin dejar rastro,
+  // aunque siga siendo clickeable en el plano.
+  const isRoomDrawn = (r: Room) => !!r.polygon && r.polygon.length >= 3;
   const roomFloors = [
-    { label: 'Planta baja', rooms: (unit.rooms ?? []).filter(r => r.kind) },
-    ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(r => r.kind) })),
+    { label: 'Planta baja', rooms: (unit.rooms ?? []).filter(r => r.kind || isRoomDrawn(r)) },
+    ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(r => r.kind || isRoomDrawn(r)) })),
   ].filter(g => g.rooms.length > 0);
+  const showRoomList = showRoomProgram || roomFloors.length > 0;
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Programa de ambientes de la sidebar — fila expandible + lightbox de fotos.
@@ -444,7 +451,7 @@ export default function UnitViewer({
 
           {/* Programa de ambientes — fila expandible: se despliega la foto
               grande, características y (si hay) accesos a 360° y al plano. */}
-          {showRoomProgram && (
+          {showRoomList && (
             <>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-6 mb-3">Ambientes</h4>
               <div className="space-y-4">
@@ -456,7 +463,7 @@ export default function UnitViewer({
                     <ul className="space-y-2">
                       {group.rooms.map(room => {
                         const isOpen = expandedRoomId === room.id;
-                        const roomName = room.name || ROOM_KIND_LABEL[room.kind!];
+                        const roomName = room.name || ROOM_KIND_LABEL[room.kind ?? 'other'];
                         const canTour = !!room.tourNodeId && tabHasContent.tour360;
                         const canPlan = !!room.polygon && room.polygon.length >= 3 && tabHasContent.plano;
                         const hasDetail = !!room.imageUrl || !!room.features?.length || !!room.notes || canTour || canPlan;
@@ -477,7 +484,7 @@ export default function UnitViewer({
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                                   <span className="font-medium text-gray-900">{roomName}</span>
-                                  <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind!]}</span>
+                                  {room.kind && <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind]}</span>}
                                   {!!room.area && <span className="text-gray-500">· {room.area} m²</span>}
                                 </div>
                                 {!isOpen && (room.features?.length || room.notes) && (
