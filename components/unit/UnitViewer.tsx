@@ -468,7 +468,7 @@ export default function UnitViewer({
                         const canPlan = !!room.polygon && room.polygon.length >= 3 && tabHasContent.plano;
                         const hasDetail = !!room.imageUrl || !!room.features?.length || !!room.notes || canTour || canPlan;
                         return (
-                          <li key={room.id} id={`room-row-${room.id}`} className={`rounded-xl border transition-colors ${isOpen ? 'border-gray-200 bg-gray-50/60' : 'border-gray-100'}`}>
+                          <li key={room.id} id={`room-row-${room.id}`} className={`rounded-xl border transition-colors ${isOpen ? 'border-gray-200 bg-gray-50/60' : 'border-gray-100 hover:border-gray-200'}`}>
                             <button
                               type="button"
                               onClick={() => hasDetail && setExpandedRoomId(isOpen ? null : room.id)}
@@ -476,16 +476,18 @@ export default function UnitViewer({
                               disabled={!hasDetail}
                               className="w-full flex items-center gap-3 p-2.5 text-left disabled:cursor-default"
                             >
-                              {room.imageUrl && (
-                                <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                              <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-brand-50 flex items-center justify-center">
+                                {room.imageUrl ? (
                                   <Image src={room.imageUrl} alt={roomName} fill sizes="56px" placeholder="blur" blurDataURL={shimmerDataUrl(56, 56)} className="object-cover" />
-                                </div>
-                              )}
+                                ) : (
+                                  <PhotoPlaceholderIcon className="w-6 h-6 text-brand-300" />
+                                )}
+                              </div>
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                                  <span className="font-medium text-gray-900">{roomName}</span>
-                                  {room.kind && <span className="text-gray-400">· {ROOM_KIND_LABEL[room.kind]}</span>}
-                                  {!!room.area && <span className="text-gray-500">· {room.area} m²</span>}
+                                <div className="flex flex-wrap items-baseline gap-x-2">
+                                  <span className="text-[13.5px] font-semibold text-gray-900">{roomName}</span>
+                                  {room.kind && <span className="text-xs text-gray-400">{ROOM_KIND_LABEL[room.kind]}</span>}
+                                  {!!room.area && <span className="text-xs text-gray-400">{room.area} m²</span>}
                                 </div>
                                 {!isOpen && (room.features?.length || room.notes) && (
                                   <p className="text-xs text-gray-400 mt-0.5 truncate">
@@ -510,8 +512,8 @@ export default function UnitViewer({
                                   transition={{ duration: 0.2 }}
                                   className="overflow-hidden"
                                 >
-                                  <div className="px-2.5 pb-3 space-y-2.5">
-                                    {room.imageUrl && (
+                                  <div className="px-2.5 pb-3 space-y-3">
+                                    {room.imageUrl ? (
                                       <button
                                         type="button"
                                         onClick={() => openRoomPhoto(room)}
@@ -524,6 +526,11 @@ export default function UnitViewer({
                                           </span>
                                         )}
                                       </button>
+                                    ) : (
+                                      <div className="w-full aspect-[4/3] rounded-lg bg-gradient-to-br from-brand-50 to-gray-50 flex flex-col items-center justify-center gap-1.5">
+                                        <PhotoPlaceholderIcon className="w-8 h-8 text-brand-200" />
+                                        <span className="text-[11px] text-gray-400">Todavía sin fotos</span>
+                                      </div>
                                     )}
                                     {!!room.features?.length && (
                                       <div className="flex flex-wrap gap-1.5">
@@ -534,14 +541,16 @@ export default function UnitViewer({
                                     )}
                                     {!!room.notes && <p className="text-xs text-gray-500 whitespace-pre-line">{room.notes}</p>}
                                     {(canTour || canPlan) && (
-                                      <div className="flex flex-wrap gap-2 pt-0.5">
+                                      <div className="flex gap-2 pt-0.5">
                                         {canTour && (
-                                          <button type="button" onClick={() => handleSelectRoom(room)} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5">
+                                          <button type="button" onClick={() => handleSelectRoom(room)} className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors">
+                                            <EyeIcon className="w-4 h-4" />
                                             Ver en 360°
                                           </button>
                                         )}
                                         {canPlan && (
-                                          <button type="button" onClick={() => showRoomOnPlan(room)} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 rounded-lg px-2.5 py-1.5">
+                                          <button type="button" onClick={() => showRoomOnPlan(room)} className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors">
+                                            <MapPinIcon className="w-4 h-4" />
                                             Ver en el plano
                                           </button>
                                         )}
@@ -1061,6 +1070,27 @@ export default function UnitViewer({
       </nav>
 
     </div>
+  );
+}
+
+// Reemplaza la foto de un ambiente cuando todavía no tiene ninguna cargada
+// — antes esa fila del programa de ambientes directamente no mostraba
+// nada ahí, lo que la dejaba viendose vacía/rota.
+function PhotoPlaceholderIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 20.25H6a2.25 2.25 0 0 1-2.25-2.25V6A2.25 2.25 0 0 1 6 3.75h12A2.25 2.25 0 0 1 20.25 6v12A2.25 2.25 0 0 1 18 20.25Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 8.25h.008v.008H15V8.25Z" />
+    </svg>
+  );
+}
+
+function MapPinIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+    </svg>
   );
 }
 
