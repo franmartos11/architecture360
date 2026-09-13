@@ -6,6 +6,8 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
+import { HeadCheck } from '@/components/ui/HeadCheck';
+import { FilterStat } from '@/components/ui/FilterStat';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -344,10 +346,10 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
         )}
 
         <div className="shrink-0 flex gap-2.5 flex-wrap">
-          <StatCard value={counts.all} label={`${unitLabelLower}s cargados`} active={filter === 'all'} onClick={() => setFilter('all')} />
-          {showStatus && <StatCard value={counts.available} label="disponibles" color="#3f5a3c" active={filter === 'available'} onClick={() => setFilter('available')} />}
-          <StatCard value={counts.noPhoto} label="sin foto" color={counts.noPhoto ? '#8a6118' : undefined} active={filter === 'noPhoto'} onClick={() => setFilter('noPhoto')} />
-          <StatCard value={counts.noPlano} label="sin marcar en el plano" color={counts.noPlano ? '#8a6118' : undefined} active={filter === 'noPlano'} onClick={() => setFilter('noPlano')} />
+          <FilterStat value={counts.all} label={`${unitLabelLower}s cargados`} active={filter === 'all'} onClick={() => setFilter('all')} />
+          {showStatus && <FilterStat value={counts.available} label="disponibles" color="#3f5a3c" active={filter === 'available'} onClick={() => setFilter('available')} />}
+          <FilterStat value={counts.noPhoto} label="sin foto" color={counts.noPhoto ? '#8a6118' : undefined} active={filter === 'noPhoto'} onClick={() => setFilter('noPhoto')} />
+          <FilterStat value={counts.noPlano} label="sin marcar en el plano" color={counts.noPlano ? '#8a6118' : undefined} active={filter === 'noPlano'} onClick={() => setFilter('noPlano')} />
         </div>
 
         <div className="shrink-0 flex items-center gap-2">
@@ -560,30 +562,5 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
         )}
       </div>
     </div>
-  );
-}
-
-function StatCard({ value, label, color, active, onClick }: { value: number; label: string; color?: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button" onClick={onClick}
-      className={`flex-1 min-w-[110px] text-left bg-white rounded-xl px-3.5 py-3 border transition-colors ${active ? 'border-brand-500 shadow-[0_0_0_2px_rgba(92,122,88,.12)]' : 'border-gray-200 hover:border-gray-300'}`}
-    >
-      <p className="text-[19px] font-semibold leading-none" style={{ color: color ?? '#101828' }}>{value}</p>
-      <p className="text-[10.5px] text-gray-500 mt-1 leading-tight">{label}</p>
-    </button>
-  );
-}
-
-function HeadCheck({ checked, onChange, stop }: { checked: boolean; onChange: () => void; stop?: boolean }) {
-  return (
-    <span
-      className="w-8 shrink-0 flex items-center justify-center cursor-pointer"
-      onClick={e => { if (stop) e.stopPropagation(); onChange(); }}
-    >
-      <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold text-white ${checked ? 'bg-brand-600 border border-brand-600' : 'bg-white border border-gray-300'}`}>
-        {checked ? '✓' : ''}
-      </span>
-    </span>
   );
 }
