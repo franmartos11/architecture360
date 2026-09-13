@@ -20,6 +20,7 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { Accordion, AccordionItem } from '@/components/ui/Accordion';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { parseCsv, downloadCsv } from '@/lib/csv';
@@ -201,7 +202,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   // (barra de "Guardar cambios" del sidebar). Se pisa al entrar a editar y
   // otra vez tras guardar con éxito — nunca se lee directo, solo se
   // compara contra el estado actual.
-  const [casaTab, setCasaTab] = useState<'datos' | 'ambientes' | 'planos' | 'galeria'>('datos');
+  const [casaTab, setCasaTab] = useState<'datos' | 'superficies' | 'comercial' | 'comodidades' | 'ambientes' | 'planos' | 'galeria'>('datos');
   const [casaSnapshot, setCasaSnapshot] = useState('{}');
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep, unitLabel, buildingLabel, unitIsLand } = typeConfig;
@@ -450,7 +451,10 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const casaSlotsOn = { interior: !!form.interiorImageUrl, planta3d: !!activePlan3d, plano3d: !!form.plan3dUrl, plano2d: !!form.technicalPlanUrl };
   const casaSlotsCount = Object.values(casaSlotsOn).filter(Boolean).length;
   const casaOk = {
-    datos: form.modelName.trim().length > 0 && areaTotalNum > 0 && effectiveBedrooms > 0 && effectiveBathrooms > 0 && form.orientation !== '',
+    datos: form.modelName.trim().length > 0 && effectiveBedrooms > 0 && effectiveBathrooms > 0,
+    superficies: areaTotalNum > 0,
+    comercial: !typeConfig.showPrice || form.price !== '',
+    comodidades: form.orientation !== '',
     ambientes: allRooms.length > 0 && casaRoomsNeeded.length === 0 && allRooms.every(r => (r.area ?? 0) > 0),
     planos: casaSlotsOn.interior && casaSlotsOn.planta3d && casaSlotsOn.plano2d,
     galeria: form.galleryImages.filter(Boolean).length >= 5,
@@ -459,8 +463,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   // Compara contra el snapshot fijado al entrar a editar / al guardar —
   // maneja la barra de "Guardar cambios" del sidebar.
   const casaDirty = JSON.stringify({ form, rooms, levels }) !== casaSnapshot;
-  const casaTabDefs: { key: typeof casaTab; label: string; badge: string; ok: boolean }[] = [
-    { key: 'datos', label: 'Datos', badge: casaOk.datos ? '✓' : '!', ok: casaOk.datos },
+  const casaSectionDefs: { key: typeof casaTab; label: string; badge?: string; ok: boolean }[] = [
+    { key: 'datos', label: 'Datos', ok: casaOk.datos },
+    { key: 'superficies', label: 'Superficies', ok: casaOk.superficies },
+    { key: 'comercial', label: 'Comercial', ok: casaOk.comercial },
+    { key: 'comodidades', label: 'Comodidades', ok: casaOk.comodidades },
     { key: 'ambientes', label: 'Ambientes', badge: String(allRooms.length), ok: casaOk.ambientes },
     { key: 'planos', label: 'Planos e imágenes', badge: `${casaSlotsCount}/4`, ok: casaOk.planos },
     { key: 'galeria', label: 'Galería', badge: String(form.galleryImages.filter(Boolean).length), ok: casaOk.galeria },
@@ -959,32 +966,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
       ) : (
       <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-4 items-start">
         <div className="flex-1 min-w-0 flex flex-col gap-3.5">
-          <div className="flex gap-1.5 flex-wrap">
-            {casaTabDefs.map(t => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setCasaTab(t.key)}
-                className={`h-9 pl-3.5 pr-2.5 flex items-center gap-2 rounded-lg text-sm font-medium border transition-colors ${
-                  casaTab === t.key ? 'border-gray-200 bg-white text-gray-900 shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {t.label}
-                <span className={`h-[19px] min-w-[19px] px-1.5 rounded-md flex items-center justify-center text-[10px] font-semibold ${
-                  t.ok ? 'bg-brand-50 text-brand-800' : 'bg-amber-50 text-amber-700'
-                }`}>
-                  {t.badge}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {casaTab === 'datos' && (
-            <div className="flex flex-col gap-3.5">
+          <Accordion value={casaTab} onChange={v => setCasaTab(v as typeof casaTab)}>
+            <AccordionItem value="datos" label="Datos" status={casaOk.datos ? 'complete' : 'partial'}>
               <Card>
                 <div className="p-5 flex flex-col gap-4">
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-900">Identidad y superficies</h4>
+                    <h4 className="text-sm font-semibold text-gray-900">Identidad</h4>
                     <p className="text-xs text-gray-400 mt-0.5">Lo que se ve primero en la ficha.</p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1013,31 +1000,6 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       })}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <label htmlFor="totalArea" className="block text-xs font-medium text-gray-500">Área total (m²)</label>
-                        <span className="text-[10px] text-gray-400 truncate">{areaSum > 0 ? `interna + externa = ${areaSum} m²` : 'suma de interna y externa'}</span>
-                      </div>
-                      <input
-                        id="totalArea" type="number" step="0.01" value={form.totalArea}
-                        onChange={e => setForm({ ...form, totalArea: e.target.value })}
-                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${areaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
-                      />
-                    </div>
-                    <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
-                    <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
-                  </div>
-                  {areaMismatch && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
-                      <p className="flex-1 min-w-[220px] text-xs text-amber-800">
-                        Interna ({areaInnerNum}) + externa ({areaExternalNum}) dan {areaSum} m², y el total dice {areaTotalNum} m².
-                      </p>
-                      <button type="button" onClick={() => setForm({ ...form, totalArea: String(areaSum) })} className="h-7 px-3 rounded-md bg-gray-900 text-white text-xs font-medium shrink-0">
-                        Usar {areaSum} m² como total
-                      </button>
-                    </div>
-                  )}
                 </div>
               </Card>
 
@@ -1073,37 +1035,76 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   {!programActive && (
                     <Input label="Detalle de otros ambientes" value={form.otherRoomsDescription} onChange={e => setForm({ ...form, otherRoomsDescription: e.target.value })} placeholder="Lavadero, depósito…" />
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                    <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
-                    <Input label="Altura de techo (m)" id="ceilingHeight" type="number" step="0.01" value={form.ceilingHeight} onChange={e => setForm({ ...form, ceilingHeight: e.target.value })} placeholder="2.60" />
-                    <label className="flex items-center gap-2 text-sm text-gray-700 h-10">
-                      <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-                      Tiene cuarto de servicio
-                    </label>
-                  </div>
-                  {(typeConfig.showPrice || typeConfig.showStatus) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      {typeConfig.showPrice && (
-                        <>
-                          <Input label="Precio" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
-                          <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
-                            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </Select>
-                          <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
-                        </>
-                      )}
-                      {typeConfig.showStatus && (
-                        <Select label="Estado de venta" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
-                          <option value="available">Disponible</option>
-                          <option value="reserved">Reservado</option>
-                          <option value="sold">Vendido</option>
-                        </Select>
-                      )}
-                    </div>
-                  )}
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={form.hasServiceRoom} onChange={e => setForm({ ...form, hasServiceRoom: e.target.checked })} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                    Tiene cuarto de servicio
+                  </label>
                 </div>
               </Card>
+            </AccordionItem>
 
+            <AccordionItem value="superficies" label="Superficies" status={casaOk.superficies ? 'complete' : 'empty'}>
+              <Card>
+                <div className="p-5 flex flex-col gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <label htmlFor="totalArea" className="block text-xs font-medium text-gray-500">Área total (m²)</label>
+                        <span className="text-[10px] text-gray-400 truncate">{areaSum > 0 ? `interna + externa = ${areaSum} m²` : 'suma de interna y externa'}</span>
+                      </div>
+                      <input
+                        id="totalArea" type="number" step="0.01" value={form.totalArea}
+                        onChange={e => setForm({ ...form, totalArea: e.target.value })}
+                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${areaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
+                      />
+                    </div>
+                    <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
+                    <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
+                  </div>
+                  {areaMismatch && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
+                      <p className="flex-1 min-w-[220px] text-xs text-amber-800">
+                        Interna ({areaInnerNum}) + externa ({areaExternalNum}) dan {areaSum} m², y el total dice {areaTotalNum} m².
+                      </p>
+                      <button type="button" onClick={() => setForm({ ...form, totalArea: String(areaSum) })} className="h-7 px-3 rounded-md bg-gray-900 text-white text-xs font-medium shrink-0">
+                        Usar {areaSum} m² como total
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input label="Superficie de terreno (m²)" id="lotSize" type="number" step="0.01" value={form.lotSize} onChange={e => setForm({ ...form, lotSize: e.target.value })} />
+                    <Input label="Altura de techo (m)" id="ceilingHeight" type="number" step="0.01" value={form.ceilingHeight} onChange={e => setForm({ ...form, ceilingHeight: e.target.value })} placeholder="2.60" />
+                  </div>
+                </div>
+              </Card>
+            </AccordionItem>
+
+            <AccordionItem value="comercial" label="Comercial" status={casaOk.comercial ? 'complete' : 'empty'}>
+              {(typeConfig.showPrice || typeConfig.showStatus) && (
+                <Card>
+                  <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {typeConfig.showPrice && (
+                      <>
+                        <Input label="Precio" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
+                        <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                          {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </Select>
+                        <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
+                      </>
+                    )}
+                    {typeConfig.showStatus && (
+                      <Select label="Estado de venta" id="status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as UnitStatus })}>
+                        <option value="available">Disponible</option>
+                        <option value="reserved">Reservado</option>
+                        <option value="sold">Vendido</option>
+                      </Select>
+                    )}
+                  </div>
+                </Card>
+              )}
+            </AccordionItem>
+
+            <AccordionItem value="comodidades" label="Comodidades" status={casaOk.comodidades ? 'complete' : 'empty'}>
               <Card>
                 <div className="p-5 flex flex-col gap-3">
                   <div>
@@ -1153,11 +1154,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   </div>
                 </div>
               </Card>
-            </div>
-          )}
+            </AccordionItem>
 
-          {casaTab === 'ambientes' && (
-            <div className="flex flex-col gap-3.5">
+            <AccordionItem value="ambientes" label="Ambientes" badge={String(allRooms.length)} status={casaOk.ambientes ? 'complete' : 'partial'}>
               {casaRoomsNeeded.length > 0 && (
                 <div className="rounded-xl bg-gray-900 px-4 py-3.5 flex items-center gap-4 flex-wrap">
                   <div className="flex-1 min-w-[220px]">
@@ -1320,11 +1319,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   )}
                 </div>
               </Card>
-            </div>
-          )}
+            </AccordionItem>
 
-          {casaTab === 'planos' && (
-            <div className="flex flex-col gap-3.5">
+            <AccordionItem value="planos" label="Planos e imágenes" badge={`${casaSlotsCount}/4`} status={casaOk.planos ? 'complete' : 'partial'}>
               <Card>
                 <div className="p-5 flex flex-col gap-4">
                   <div>
@@ -1373,22 +1370,22 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   <span className="h-8 px-3 flex items-center rounded-lg border border-gray-200 text-xs font-medium text-gray-900 shrink-0">Abrir →</span>
                 </Link>
               )}
-            </div>
-          )}
+            </AccordionItem>
 
-          {casaTab === 'galeria' && (
-            <Card>
-              <div className="p-5 flex flex-col gap-4">
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900">Galería</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {form.galleryImages.filter(Boolean).length} fotos · la primera es la portada del sitio{form.galleryImages.filter(Boolean).length < 5 ? ' · sumá al menos 5' : ''}
-                  </p>
+            <AccordionItem value="galeria" label="Galería" badge={String(form.galleryImages.filter(Boolean).length)} status={casaOk.galeria ? 'complete' : 'empty'}>
+              <Card>
+                <div className="p-5 flex flex-col gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Galería</h4>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {form.galleryImages.filter(Boolean).length} fotos · la primera es la portada del sitio{form.galleryImages.filter(Boolean).length < 5 ? ' · sumá al menos 5' : ''}
+                    </p>
+                  </div>
+                  <MultiImageUploader values={form.galleryImages} onChange={urls => setForm({ ...form, galleryImages: urls })} folder="units" />
                 </div>
-                <MultiImageUploader values={form.galleryImages} onChange={urls => setForm({ ...form, galleryImages: urls })} folder="units" />
-              </div>
-            </Card>
-          )}
+              </Card>
+            </AccordionItem>
+          </Accordion>
         </div>
 
         <div className="w-full lg:w-[262px] shrink-0 lg:sticky lg:top-4 flex flex-col gap-3">
@@ -1396,11 +1393,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             <div className="p-4">
               <h4 className="text-sm font-semibold text-gray-900">Para publicar la casa</h4>
               <div className="h-1.5 rounded-full bg-gray-100 mt-2.5 overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${casaDone === 4 ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / 4) * 100}%` }} />
+                <div className={`h-full rounded-full transition-all ${casaDone === 7 ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / 7) * 100}%` }} />
               </div>
-              <p className="text-xs text-gray-400 mt-1.5">{casaDone} de 4 bloques completos</p>
+              <p className="text-xs text-gray-400 mt-1.5">{casaDone} de 7 bloques completos</p>
             </div>
-            {casaTabDefs.map(t => (
+            {casaSectionDefs.map(t => (
               <button
                 key={t.key}
                 type="button"
