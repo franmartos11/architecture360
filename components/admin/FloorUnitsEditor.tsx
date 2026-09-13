@@ -459,19 +459,22 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     planos: casaSlotsOn.interior && casaSlotsOn.planta3d && casaSlotsOn.plano2d,
     galeria: form.galleryImages.filter(Boolean).length >= 5,
   };
-  const casaDone = Object.values(casaOk).filter(Boolean).length;
   // Compara contra el snapshot fijado al entrar a editar / al guardar —
   // maneja la barra de "Guardar cambios" del sidebar.
   const casaDirty = JSON.stringify({ form, rooms, levels }) !== casaSnapshot;
   const casaSectionDefs: { key: typeof casaTab; label: string; badge?: string; ok: boolean }[] = [
     { key: 'datos', label: 'Datos', ok: casaOk.datos },
     { key: 'superficies', label: 'Superficies', ok: casaOk.superficies },
-    { key: 'comercial', label: 'Comercial', ok: casaOk.comercial },
+    ...(typeConfig.showPrice || typeConfig.showStatus ? [{ key: 'comercial' as const, label: 'Comercial', ok: casaOk.comercial }] : []),
     { key: 'comodidades', label: 'Comodidades', ok: casaOk.comodidades },
     { key: 'ambientes', label: 'Ambientes', badge: String(allRooms.length), ok: casaOk.ambientes },
     { key: 'planos', label: 'Planos e imágenes', badge: `${casaSlotsCount}/4`, ok: casaOk.planos },
     { key: 'galeria', label: 'Galería', badge: String(form.galleryImages.filter(Boolean).length), ok: casaOk.galeria },
   ];
+  // Cuenta solo sobre las secciones efectivamente renderizadas (casaSectionDefs
+  // ya excluye "Comercial" en modo showcase) para que el progreso nunca cuente
+  // una sección fantasma que no se ve en pantalla.
+  const casaDone = casaSectionDefs.filter(s => s.ok).length;
 
   // polygon y tourNodeId de cada ambiente los edita la pantalla de "Plano y
   // delimitación" (UnitRoomsEditor), no este form. Antes de guardar se
@@ -968,7 +971,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         <div className="flex-1 min-w-0 flex flex-col gap-3.5">
           <Accordion value={casaTab} onChange={v => setCasaTab(v as typeof casaTab)}>
             <AccordionItem value="datos" label="Datos" status={casaOk.datos ? 'complete' : 'partial'}>
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Identidad</h4>
@@ -1003,7 +1006,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               </Card>
 
-              <Card>
+              <div className="border-t border-gray-100" />
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Composición</h4>
@@ -1044,7 +1048,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             </AccordionItem>
 
             <AccordionItem value="superficies" label="Superficies" status={casaOk.superficies ? 'complete' : 'empty'}>
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -1079,9 +1083,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               </Card>
             </AccordionItem>
 
-            <AccordionItem value="comercial" label="Comercial" status={casaOk.comercial ? 'complete' : 'empty'}>
-              {(typeConfig.showPrice || typeConfig.showStatus) && (
-                <Card>
+            {(typeConfig.showPrice || typeConfig.showStatus) && (
+              <AccordionItem value="comercial" label="Comercial" status={casaOk.comercial ? 'complete' : 'empty'}>
+                <Card className="border-0 shadow-none rounded-none">
                   <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {typeConfig.showPrice && (
                       <>
@@ -1101,11 +1105,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                     )}
                   </div>
                 </Card>
-              )}
-            </AccordionItem>
+              </AccordionItem>
+            )}
 
             <AccordionItem value="comodidades" label="Comodidades" status={casaOk.comodidades ? 'complete' : 'empty'}>
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-3">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Orientación del frente</h4>
@@ -1119,7 +1123,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               </Card>
 
-              <Card>
+              <div className="border-t border-gray-100" />
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-3">
                   <div className="flex items-baseline justify-between gap-3">
                     <h4 className="text-sm font-semibold text-gray-900">Comodidades</h4>
@@ -1182,7 +1187,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
               )}
 
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Ambientes</h4>
@@ -1322,7 +1327,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             </AccordionItem>
 
             <AccordionItem value="planos" label="Planos e imágenes" badge={`${casaSlotsCount}/4`} status={casaOk.planos ? 'complete' : 'partial'}>
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Imágenes principales</h4>
@@ -1373,7 +1378,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             </AccordionItem>
 
             <AccordionItem value="galeria" label="Galería" badge={String(form.galleryImages.filter(Boolean).length)} status={casaOk.galeria ? 'complete' : 'empty'}>
-              <Card>
+              <Card className="border-0 shadow-none rounded-none">
                 <div className="p-5 flex flex-col gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-gray-900">Galería</h4>
@@ -1393,9 +1398,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             <div className="p-4">
               <h4 className="text-sm font-semibold text-gray-900">Para publicar la casa</h4>
               <div className="h-1.5 rounded-full bg-gray-100 mt-2.5 overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${casaDone === 7 ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / 7) * 100}%` }} />
+                <div className={`h-full rounded-full transition-all ${casaDone === casaSectionDefs.length ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / casaSectionDefs.length) * 100}%` }} />
               </div>
-              <p className="text-xs text-gray-400 mt-1.5">{casaDone} de 7 bloques completos</p>
+              <p className="text-xs text-gray-400 mt-1.5">{casaDone} de {casaSectionDefs.length} bloques completos</p>
             </div>
             {casaSectionDefs.map(t => (
               <button

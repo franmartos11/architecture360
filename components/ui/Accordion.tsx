@@ -50,6 +50,7 @@ export function AccordionItem({
       <button
         type="button"
         onClick={() => ctx.onChange(value)}
+        aria-expanded={open}
         className="w-full h-12 px-4 flex items-center gap-3 text-left hover:bg-gray-50/60 transition-colors"
       >
         {status && <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />}
