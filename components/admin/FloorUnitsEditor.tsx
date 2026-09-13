@@ -742,7 +742,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                     <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
                       {buildingId && !unitIsLand && (
                         <>
-                          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
+                          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/ambientes`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ambientes</Link>
                           <button
                             type="button"
                             onClick={() => {

@@ -31,7 +31,7 @@ type EditableLevel = { key: 'base' | string; label: string; planImage: string; p
 
 // Delimitador de ambientes (dormitorio, cocina, baño, etc.) dentro de una
 // unidad — se usa tanto en su propia pantalla standalone
-// (unidades/[unitId]/page.tsx) como embebido como pestaña dentro de
+// (unidades/[unitId]/ambientes/page.tsx) como embebido como pestaña dentro de
 // "Delimitar deptos en el plano", para tener todo el flujo de delimitación
 // (piso → depto → ambientes) en un mismo lugar.
 //
