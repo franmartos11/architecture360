@@ -54,6 +54,18 @@ describe('floorStatus / floorStatusLabel — piso de unidades', () => {
     expect(floorStatus(input)).toBe('partial');
     expect(floorStatusLabel(input)).toBe('falta el plano · 3 sin foto');
   });
+
+  it('con unidades y sólo precios faltantes → partial, "N sin precio"', () => {
+    const input = make({ totalUnits: 12, hasPlan: true, missingPhoto: 0, missingPrice: 2 });
+    expect(floorStatus(input)).toBe('partial');
+    expect(floorStatusLabel(input)).toBe('2 sin precio');
+  });
+
+  it('sin plano, con fotos y precios faltantes → los tres fragmentos unidos', () => {
+    const input = make({ totalUnits: 12, hasPlan: false, missingPhoto: 3, missingPrice: 2 });
+    expect(floorStatus(input)).toBe('partial');
+    expect(floorStatusLabel(input)).toBe('falta el plano · 3 sin foto · 2 sin precio');
+  });
 });
 
 describe('floorStatus / floorStatusLabel — piso que no es de unidades', () => {

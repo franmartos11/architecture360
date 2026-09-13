@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, startTransition } from 'react';
+import { useState, useEffect, useRef, use, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -9,7 +9,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import FloorsEditor from '@/components/admin/FloorsEditor';
+import FloorsEditor, { type FloorUnitSummary } from '@/components/admin/FloorsEditor';
 import { Accordion, AccordionItem } from '@/components/ui/Accordion';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -18,11 +18,6 @@ import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/typ
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
 type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
-interface FloorUnitSummary {
-  floor_id: string;
-  interior_image_url: string | null;
-  price: number | null;
-}
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -44,27 +39,32 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [buildingTab, setBuildingTab] = useState(building?.cover_image ? '' : 'datos');
+  const [buildingTab, setBuildingTab] = useState('datos');
+  const initialLoadDone = useRef(false);
   const toast = useToast();
 
-  const load = () => {
-    startTransition(() => {
-      setLoading(true);
-      setLoadError(false);
-    });
+  const load = (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) {
+      startTransition(() => {
+        setLoading(true);
+        setLoadError(false);
+      });
+    }
     fetch(`/api/admin/buildings/${id}`)
       .then(res => res.json())
       .then(data => {
         setBuilding(data.building);
-        setBuildingTab(prev => (prev === 'datos' && data.building?.cover_image ? '' : prev));
+        if (!initialLoadDone.current) {
+          initialLoadDone.current = true;
+          setBuildingTab(prev => (prev === 'datos' && data.building?.cover_image ? '' : prev));
+        }
         setFloors(data.floors ?? []);
         setUnitSummaries(data.units ?? []);
-        setLoading(false);
+        if (!opts.silent) setLoading(false);
       })
       .catch((err) => {
         console.error(err);
-        setLoadError(true);
-        setLoading(false);
+        if (!opts.silent) { setLoadError(true); setLoading(false); }
       });
   };
 
@@ -252,7 +252,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             floors={floors}
             unitSummaries={unitSummaries}
             showPrice={typeConfig.showPrice}
-            onChanged={load}
+            onChanged={() => load({ silent: true })}
           />
         </>
       ) : !hasUnitStep ? (

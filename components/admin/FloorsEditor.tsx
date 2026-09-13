@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { HeadCheck } from '@/components/ui/HeadCheck';
 import { FilterStat } from '@/components/ui/FilterStat';
@@ -15,7 +15,7 @@ import { floorStatus, floorStatusLabel } from '@/lib/floor-status';
 import type { FloorRow, FloorKind } from '@/types/database';
 
 type Floor = Pick<FloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
-interface FloorUnitSummary {
+export interface FloorUnitSummary {
   floor_id: string;
   interior_image_url: string | null;
   price: number | null;
@@ -44,6 +44,7 @@ export default function FloorsEditor({
   const [duplicateTarget, setDuplicateTarget] = useState<Floor | null>(null);
   const [applyTemplateTarget, setApplyTemplateTarget] = useState<Floor | null>(null);
   const [newFloor, setNewFloor] = useState({ number: '', label: '', floorKind: 'units' as FloorKind });
+  const router = useRouter();
   const toast = useToast();
   const confirmDialog = useConfirm();
 
@@ -101,12 +102,20 @@ export default function FloorsEditor({
     }
   };
 
+  const noPlanCount = floors.filter(f => !f.plan_image).length;
+  const noUnitsCount = floors.filter(f => f.floor_kind === 'units' && completeness(f.id).total === 0).length;
+  const visible = floors.slice().sort((a, b) => a.number - b.number).filter(f => {
+    if (filter === 'noPlan') return !f.plan_image;
+    if (filter === 'noUnits') return f.floor_kind === 'units' && completeness(f.id).total === 0;
+    return true;
+  });
+
   const toggleSel = (floorId: string) => setSel(prev => {
     const next = new Set(prev);
     if (next.has(floorId)) next.delete(floorId); else next.add(floorId);
     return next;
   });
-  const visibleFloorIds = floors.map(f => f.id);
+  const visibleFloorIds = visible.map(f => f.id);
   const allSelected = sel.size > 0 && visibleFloorIds.every(id => sel.has(id));
   const toggleSelAll = () => setSel(allSelected ? new Set() : new Set(visibleFloorIds));
 
@@ -155,14 +164,6 @@ export default function FloorsEditor({
     onChanged();
   };
 
-  const noPlanCount = floors.filter(f => !f.plan_image).length;
-  const noUnitsCount = floors.filter(f => f.floor_kind === 'units' && completeness(f.id).total === 0).length;
-  const visible = floors.slice().sort((a, b) => a.number - b.number).filter(f => {
-    if (filter === 'noPlan') return !f.plan_image;
-    if (filter === 'noUnits') return f.floor_kind === 'units' && completeness(f.id).total === 0;
-    return true;
-  });
-
   return (
     <div className="space-y-4">
       <div className="flex gap-2.5 flex-wrap">
@@ -203,27 +204,26 @@ export default function FloorsEditor({
             const editingDescription = editingCell?.id === f.id && editingCell.field === 'description';
 
             return (
-              <Link
+              <div
                 key={f.id}
-                href={`/admin/edificios/${buildingId}/pisos/${f.id}`}
-                className="flex items-center px-3.5 py-2 border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                onClick={() => router.push(`/admin/edificios/${buildingId}/pisos/${f.id}`)}
+                className="flex items-center px-3.5 py-2 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 <HeadCheck checked={sel.has(f.id)} onChange={() => toggleSel(f.id)} stop />
                 <span className="w-5 shrink-0 flex items-center justify-center">
                   <span className={`w-2 h-2 rounded-full ${statusDot}`} />
                 </span>
                 <span className="w-10 shrink-0 text-xs text-gray-600">{f.number}</span>
-                <span className="w-44 shrink-0 pr-2" onClick={e => e.preventDefault()}>
+                <span className="w-44 shrink-0 pr-2" onClick={e => e.stopPropagation()}>
                   {editingLabel ? (
                     <input
                       autoFocus defaultValue={f.label}
-                      onClick={e => e.stopPropagation()}
                       onBlur={e => { if (e.target.value !== f.label) handleUpdateFloor(f.id, { label: e.target.value }); setEditingCell(null); }}
                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                       className="h-7 w-full px-1.5 border border-brand-500 rounded text-xs outline-none"
                     />
                   ) : (
-                    <span onClick={e => { e.stopPropagation(); setEditingCell({ id: f.id, field: 'label' }); }} className="inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs text-gray-900 w-full truncate">
+                    <span onClick={() => setEditingCell({ id: f.id, field: 'label' })} className="inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs text-gray-900 w-full truncate">
                       {f.label}
                     </span>
                   )}
@@ -232,13 +232,12 @@ export default function FloorsEditor({
                       <input
                         autoFocus defaultValue={f.floor_kind_description ?? ''}
                         placeholder="Ej: Pileta y solárium"
-                        onClick={e => e.stopPropagation()}
                         onBlur={e => { if (e.target.value !== (f.floor_kind_description ?? '')) handleUpdateFloor(f.id, { floor_kind_description: e.target.value }); setEditingCell(null); }}
                         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                         className="mt-1 h-6 w-full px-1.5 border border-brand-500 rounded text-[11px] outline-none"
                       />
                     ) : (
-                      <span onClick={e => { e.stopPropagation(); setEditingCell({ id: f.id, field: 'description' }); }} className="mt-0.5 block text-[11px] text-gray-400 hover:text-gray-600 truncate">
+                      <span onClick={() => setEditingCell({ id: f.id, field: 'description' })} className="mt-0.5 block text-[11px] text-gray-400 hover:text-gray-600 truncate">
                         {f.floor_kind_description || 'Agregar descripción…'}
                       </span>
                     )
@@ -256,7 +255,7 @@ export default function FloorsEditor({
                     ))}
                   </select>
                 </span>
-                <span className="w-14 shrink-0" onClick={e => { e.preventDefault(); e.stopPropagation(); setPlanTarget(f); }}>
+                <span className="w-14 shrink-0" onClick={e => { e.stopPropagation(); setPlanTarget(f); }}>
                   {f.plan_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={f.plan_image} alt="" className="w-14 h-10 object-cover rounded-lg border border-gray-200 cursor-pointer" />
@@ -269,20 +268,26 @@ export default function FloorsEditor({
                   <span className={status === 'complete' ? 'text-green-600' : status === 'partial' ? 'text-amber-600' : 'text-gray-400'}>{label}</span>
                 </span>
                 <span className="shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                  <button type="button" title="Duplicar" onClick={e => { e.preventDefault(); setDuplicateTarget(f); }} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">⧉</button>
+                  <button type="button" title="Duplicar" onClick={() => setDuplicateTarget(f)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">⧉</button>
                   {isUnitsFloor && c.total === 0 && floors.length > 1 && (
-                    <button type="button" title="Aplicar plantilla" onClick={e => { e.preventDefault(); setApplyTemplateTarget(f); }} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">▦</button>
+                    <button type="button" title="Aplicar plantilla" onClick={() => setApplyTemplateTarget(f)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">▦</button>
                   )}
-                  <button type="button" title="Borrar" onClick={e => { e.preventDefault(); handleDeleteFloor(f.id); }} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">×</button>
+                  <button type="button" title="Borrar" onClick={() => handleDeleteFloor(f.id)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">×</button>
                 </span>
-              </Link>
+              </div>
             );
           })}
           {visible.length === 0 && (
-            <div className="py-11 flex flex-col items-center gap-1.5 text-center px-6">
-              <p className="text-sm font-medium text-gray-900">Ningún piso coincide con este filtro</p>
-              <button type="button" onClick={() => setFilter('all')} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver todos los pisos</button>
-            </div>
+            floors.length === 0 ? (
+              <div className="py-11 flex flex-col items-center gap-1.5 text-center px-6">
+                <p className="text-sm font-medium text-gray-900">Todavía no hay pisos cargados.</p>
+              </div>
+            ) : (
+              <div className="py-11 flex flex-col items-center gap-1.5 text-center px-6">
+                <p className="text-sm font-medium text-gray-900">Ningún piso coincide con este filtro</p>
+                <button type="button" onClick={() => setFilter('all')} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver todos los pisos</button>
+              </div>
+            )
           )}
         </div>
 
