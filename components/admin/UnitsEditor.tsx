@@ -301,9 +301,9 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
   if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${unitLabelLower}s.`} onRetry={load} />;
 
   return (
-    <div className="flex flex-col gap-4 h-[calc(100vh-4rem)]">
+    <div className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
       {/* ── Lista ─────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 w-full flex flex-col gap-4 h-full overflow-hidden">
+      <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <Link href={`/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName}</Link>

@@ -56,16 +56,17 @@ export default function UnitShellLayout({
   const [copyOpen, setCopyOpen] = useState(false);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [formVersion, setFormVersion] = useState(0);
 
   const load = useCallback(() => {
     startTransition(() => { setLoading(true); setLoadError(false); });
     Promise.all([
       fetch(`/api/admin/units/${unitId}`).then(res => { if (!res.ok) throw new Error('unit'); return res.json(); }),
-      fetch(`/api/admin/units?floorId=${floorId}`).then(res => res.json()),
+      fetch(`/api/admin/units?floorId=${floorId}`).then(res => (res.ok ? res.json() : [])),
     ])
       .then(([unitData, floorUnits]: [DbUnitRow, SiblingUnit[]]) => {
         setUnit(unitData);
-        setSiblings(floorUnits);
+        setSiblings(Array.isArray(floorUnits) ? floorUnits : []);
         setLoading(false);
       })
       .catch(err => { console.error(err); setLoadError(true); setLoading(false); });
@@ -74,14 +75,18 @@ export default function UnitShellLayout({
   useEffect(load, [load]);
 
   // Unidades de CUALQUIER otro piso/edificio del proyecto — para "copiar
-  // de otro" (no aplica a lotes, cada uno es su propio terreno).
+  // de otro" (no aplica a lotes, cada uno es su propio terreno). Se pide
+  // una sola vez por tipo de unidad, no en cada navegación entre unidades
+  // (ver el filtro por unitId al construir las opciones más abajo).
   useEffect(() => {
     if (unitIsLand) return;
     fetch('/api/admin/units')
       .then(res => res.json())
-      .then((data: OtherUnitRow[]) => setOtherUnits(Array.isArray(data) ? data.filter(u => u.id !== unitId) : []))
+      .then((data: OtherUnitRow[]) => setOtherUnits(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [unitIsLand, unitId]);
+  }, [unitIsLand]);
+
+  const copyOptions = useMemo(() => otherUnits.filter(u => u.id !== unitId), [otherUnits, unitId]);
 
   const patch = useCallback(async (updates: Partial<UnitFormValues>) => {
     setUnit(prev => (prev ? { ...prev, ...toDbShape(updates) } : prev));
@@ -125,21 +130,35 @@ export default function UnitShellLayout({
   const handleCopyFromUnit = async () => {
     if (!copySourceId) return;
     setCopying(true);
-    const source: DbUnitRow = await fetch(`/api/admin/units/${copySourceId}`).then(res => res.json());
+    const res = await fetch(`/api/admin/units/${copySourceId}`);
+    if (!res.ok) {
+      setCopying(false);
+      toast(`No se pudo cargar el ${unitLabelLower} de referencia.`, 'error');
+      return;
+    }
+    const source: DbUnitRow = await res.json();
     setCopying(false);
-    await patch({
+    const ok = await patch({
       modelName: source.model_name, type: source.type, totalArea: source.total_area, innerArea: source.inner_area,
       balconyArea: source.balcony_area, externalArea: source.external_area, bedrooms: source.bedrooms, bathrooms: source.bathrooms,
       hasServiceRoom: source.has_service_room, price: source.price, currency: source.currency, status: source.status,
       orientation: source.orientation, floorPlan3dUrl: source.floor_plan_3d_url, plan3dUrl: source.plan_3d_url, technicalPlanUrl: source.technical_plan_url,
     });
+    if (ok) setFormVersion(v => v + 1);
     setCopySourceId('');
     setCopyOpen(false);
   };
 
   if (loading) return <LoadingSpinner text={`Cargando ${unitLabelLower}...`} tone="light" />;
   if (loadError || !unit) {
-    return <ErrorState message={`No se pudo cargar ${uAgree.el} ${unitLabelLower}.`} onRetry={load} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">
+          ← Volver a {unitLabelLower}s
+        </Link>
+        <ErrorState message={`No se pudo cargar ${uAgree.el} ${unitLabelLower}.`} onRetry={load} />
+      </div>
+    );
   }
 
   const values = toFormValues(unit);
@@ -162,7 +181,7 @@ export default function UnitShellLayout({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <p className="text-xs text-gray-400 shrink-0">{saving ? 'Guardando...' : savedLabel}</p>
-            {!unitIsLand && otherUnits.length > 0 && (
+            {!unitIsLand && copyOptions.length > 0 && (
               <button
                 type="button" onClick={() => setCopyOpen(o => !o)}
                 className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${copyOpen ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
@@ -196,7 +215,7 @@ export default function UnitShellLayout({
                 className="flex-1 h-8 px-2 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-brand-500"
               >
                 <option value="">{`Elegir ${unitLabelLower} de referencia...`}</option>
-                {otherUnits.map(u => (
+                {copyOptions.map(u => (
                   <option key={u.id} value={u.id}>
                     {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
                   </option>
@@ -233,7 +252,7 @@ export default function UnitShellLayout({
           </Card>
 
           <div className="flex-1 min-w-0 flex flex-col gap-4">
-            <Card className="p-5">{children}</Card>
+            <Card key={`${unitId}-${formVersion}`} className="p-5">{children}</Card>
 
             <div className={`flex flex-col gap-2 p-3.5 rounded-xl border ${delimited ? 'bg-brand-50 border-brand-100' : 'bg-amber-50 border-amber-200'}`}>
               <div className="flex items-center gap-2">
