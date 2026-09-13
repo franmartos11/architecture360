@@ -310,6 +310,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
             <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{unitLabel}s de {buildingName}</h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <p className="text-xs text-gray-400">{saving ? 'Guardando...' : savedLabel}</p>
             <button
               type="button"
               onClick={() => setCsvOpen(o => !o)}
