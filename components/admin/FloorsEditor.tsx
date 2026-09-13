@@ -110,6 +110,38 @@ export default function FloorsEditor({
   const allSelected = sel.size > 0 && visibleFloorIds.every(id => sel.has(id));
   const toggleSelAll = () => setSel(allSelected ? new Set() : new Set(visibleFloorIds));
 
+  const bulkApplyFirstFloorPlan = async () => {
+    const firstFloor = floors.slice().sort((a, b) => a.number - b.number)[0];
+    if (!firstFloor?.plan_image) return;
+    setBulkBusy(true);
+    await Promise.all(Array.from(sel).map(floorId =>
+      fetch(`/api/admin/floors/${floorId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planImage: firstFloor.plan_image }),
+      })
+    ));
+    setBulkBusy(false);
+    setSel(new Set());
+    onChanged();
+  };
+
+  const bulkCycleType = async () => {
+    const kinds = FLOOR_KIND_OPTIONS.map(o => o.value);
+    setBulkBusy(true);
+    await Promise.all(Array.from(sel).map(floorId => {
+      const f = floors.find(x => x.id === floorId);
+      if (!f) return Promise.resolve();
+      const nextKind = kinds[(kinds.indexOf(f.floor_kind) + 1) % kinds.length];
+      return fetch(`/api/admin/floors/${floorId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ floorKind: nextKind }),
+      });
+    }));
+    setBulkBusy(false);
+    setSel(new Set());
+    onChanged();
+  };
+
   const bulkDeleteFloors = async () => {
     const ok = await confirmDialog({
       message: `¿Borrar ${sel.size} piso${sel.size === 1 ? '' : 's'} y todas sus unidades? No se puede deshacer.`,
@@ -143,6 +175,8 @@ export default function FloorsEditor({
         {sel.size > 0 && (
           <div className="mx-4 mt-4 bg-gray-900 rounded-xl px-4 py-2.5 flex items-center gap-2 flex-wrap">
             <p className="flex-1 min-w-[140px] text-sm font-medium text-white">{sel.size} piso{sel.size === 1 ? '' : 's'} seleccionado{sel.size === 1 ? '' : 's'}</p>
+            <button type="button" onClick={bulkApplyFirstFloorPlan} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Usar el plano del piso 1</button>
+            <button type="button" onClick={bulkCycleType} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Cambiar tipo</button>
             <button type="button" onClick={bulkDeleteFloors} disabled={bulkBusy} className="h-8 px-2.5 border border-red-400/50 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-50">Borrar</button>
             <button type="button" onClick={() => setSel(new Set())} aria-label="Deseleccionar todo" className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white">×</button>
           </div>
