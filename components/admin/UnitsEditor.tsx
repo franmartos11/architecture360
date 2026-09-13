@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, startTransition } from 'react';
-import dynamic from 'next/dynamic';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import ImageUploader from '@/components/admin/ImageUploader';
-import MultiImageUploader from '@/components/admin/MultiImageUploader';
+import TourSummaryCard from '@/components/admin/TourSummaryCard';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -17,12 +16,6 @@ import { parseCsv, downloadCsv } from '@/lib/csv';
 import { UNIT_STATUSES } from '@/lib/validate';
 import type { UnitStatus, UnitType } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
-
-// Recorrido 360° del depto — pesado (VirtualTour, panoramas). Solo se
-// carga cuando hay una unidad de vivienda seleccionada.
-const TourEditor = dynamic(() => import('@/components/admin/TourEditor'), {
-  loading: () => <div className="h-40 rounded-xl bg-gray-100 animate-pulse" />,
-});
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'total_area' | 'status' | 'price' | 'currency'
@@ -624,42 +617,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
 
           {cur ? (
             <div className="flex-1 xl:min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[11.5px] font-medium text-gray-900">Foto principal</p>
-                <ImageUploader value={cur.interior_image_url ?? ''} onChange={url => patch(cur.id, { interiorImageUrl: url || null })} folder="units" />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[11.5px] font-medium text-gray-900">Más fotos</p>
-                <MultiImageUploader values={cur.gallery_images ?? []} onChange={urls => patch(cur.id, { galleryImages: urls })} folder="units" />
-              </div>
-
-              {!unitIsLand && otherUnits.length > 0 && (
-                <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-gray-200 bg-gray-50">
-                  <p className="text-[11px] text-gray-600 leading-relaxed">¿Este {unitLabelLower} ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.</p>
-                  <div className="flex gap-1.5">
-                    <select
-                      value={copySourceId}
-                      onChange={e => setCopySourceId(e.target.value)}
-                      className="flex-1 h-8 px-2 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-brand-500"
-                    >
-                      <option value="">{`Elegir ${unitLabelLower} de referencia...`}</option>
-                      {otherUnits.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button" onClick={handleCopyFromUnit} disabled={!copySourceId || copying}
-                      className="h-8 px-3 rounded-lg text-xs font-medium bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors whitespace-nowrap"
-                    >
-                      {copying ? 'Copiando...' : 'Copiar datos'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="flex gap-2.5">
                 <div className="flex-1 flex flex-col gap-1.5">
                   <label className="text-[11.5px] font-medium text-gray-900">Código</label>
@@ -798,6 +755,37 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                 </div>
               )}
 
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[11.5px] font-medium text-gray-900">Foto principal</p>
+                <ImageUploader value={cur.interior_image_url ?? ''} onChange={url => patch(cur.id, { interiorImageUrl: url || null })} folder="units" />
+              </div>
+
+              {!unitIsLand && otherUnits.length > 0 && (
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-gray-200 bg-gray-50">
+                  <p className="text-[11px] text-gray-600 leading-relaxed">¿Este {unitLabelLower} ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.</p>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={copySourceId}
+                      onChange={e => setCopySourceId(e.target.value)}
+                      className="flex-1 h-8 px-2 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">{`Elegir ${unitLabelLower} de referencia...`}</option>
+                      {otherUnits.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button" onClick={handleCopyFromUnit} disabled={!copySourceId || copying}
+                      className="h-8 px-3 rounded-lg text-xs font-medium bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors whitespace-nowrap"
+                    >
+                      {copying ? 'Copiando...' : 'Copiar datos'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!unitIsLand && (
                 <>
                   <div className="flex flex-col gap-1.5">
@@ -812,12 +800,20 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                     <p className="text-[11.5px] font-medium text-gray-900">Plano técnico</p>
                     <ImageUploader value={cur.technical_plan_url ?? ''} onChange={url => patch(cur.id, { technicalPlanUrl: url || null })} folder="floorplans" />
                   </div>
+                  <Link
+                    href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${cur.id}/fotos`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-[11.5px] font-medium text-gray-900">
+                      Galería de imágenes {(cur.gallery_images ?? []).length > 0 ? `(${(cur.gallery_images ?? []).length})` : ''}
+                    </span>
+                    <span className="text-[11px] font-medium text-brand-600 shrink-0">Abrir →</span>
+                  </Link>
                   <div className="flex flex-col gap-1.5 pt-1">
                     <p className="text-[11.5px] font-medium text-gray-900">Recorrido 360°</p>
-                    <TourEditor
-                      key={cur.id}
-                      initialTourData={cur.tour_data}
-                      onPersist={next => patch(cur.id, { tourData: next })}
+                    <TourSummaryCard
+                      tourData={cur.tour_data}
+                      href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${cur.id}/tour`}
                     />
                   </div>
                   <Link
