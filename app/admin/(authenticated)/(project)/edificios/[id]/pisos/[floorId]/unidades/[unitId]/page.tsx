@@ -1,16 +1,18 @@
 'use client';
 
-import { use } from 'react';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
+import { useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function AdminUnitRoomsPage({ params }: { params: Promise<{ id: string; floorId: string; unitId: string }> }) {
+// El índice de la unidad ya no muestra nada propio — antes de este shell
+// era la pantalla de Ambientes (ver ambientes/page.tsx, donde se mudó).
+// Cualquier link viejo a esta ruta cae acá y sigue a /datos.
+export default function AdminUnitIndexPage({ params }: { params: Promise<{ id: string; floorId: string; unitId: string }> }) {
   const { id: buildingId, floorId, unitId } = use(params);
+  const router = useRouter();
 
-  return (
-    <div className="space-y-6">
-      <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Volver a unidades</Link>
-      <UnitRoomsEditor buildingId={buildingId} floorId={floorId} unitId={unitId} />
-    </div>
-  );
+  useEffect(() => {
+    router.replace(`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}/datos`);
+  }, [router, buildingId, floorId, unitId]);
+
+  return null;
 }
