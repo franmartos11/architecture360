@@ -1,17 +1,16 @@
 'use client';
 
 import { useState, useEffect, useMemo, startTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
-import ImageUploader from '@/components/admin/ImageUploader';
-import TourSummaryCard from '@/components/admin/TourSummaryCard';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { getStatusLabel, formatPrice } from '@/lib/units';
+import { getStatusLabel } from '@/lib/units';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { UNIT_STATUSES } from '@/lib/validate';
 import type { UnitStatus, UnitType } from '@/types';
@@ -24,11 +23,6 @@ type UnitRow = Pick<DbUnitRow,
   | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'orientation'
   | 'floor_plan_3d_url' | 'plan_3d_url' | 'technical_plan_url' | 'tour_data'
 >;
-
-type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
-  building_name: string | null;
-  floor_number: number | null;
-};
 
 type Filter = 'all' | 'available' | 'noPhoto' | 'noPlano';
 type View = 'table' | 'grid';
@@ -66,6 +60,7 @@ const DWELLING_CSV_TEMPLATE_ROW = [
 // es un registro único, sin lista que mostrar. El polígono propio de la
 // unidad se sigue delimitando aparte, en /plano — eso no cambia acá.
 export default function UnitsEditor({ buildingId, floorId, buildingName }: { buildingId: string; floorId: string; buildingName: string }) {
+  const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel, showStatus, showPrice, unitIsLand } = typeConfig;
   const unitLabelLower = unitLabel.toLowerCase();
@@ -84,11 +79,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
   const [editingCell, setEditingCell] = useState<{ id: string; field: 'code' | 'm2' } | null>(null);
   const [newCode, setNewCode] = useState('');
   const [newM2, setNewM2] = useState('');
-  const [sel, setSel] = useState<string | null>(null);
   const [savedLabel, setSavedLabel] = useState('Todo guardado');
-  const [allProjectUnits, setAllProjectUnits] = useState<OtherUnitRow[]>([]);
-  const [copySourceId, setCopySourceId] = useState('');
-  const [copying, setCopying] = useState(false);
   const toast = useToast();
   const confirmDialog = useConfirm();
 
@@ -101,29 +92,12 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
       .then(res => { if (!res.ok) throw new Error('request failed'); return res.json(); })
       .then((data: UnitRow[]) => {
         setUnits(data);
-        setSel(prev => prev && data.some(u => u.id === prev) ? prev : (data[0]?.id ?? null));
         setLoading(false);
       })
       .catch(err => { console.error(err); setLoadError(true); setLoading(false); });
   };
 
   useEffect(load, [floorId]);
-
-  // Unidades de CUALQUIER otro piso/edificio del proyecto — para poder
-  // traer el mismo modelo a este piso sin retipear los campos, cuando el
-  // depto ya existe en otra torre o en un piso con layout distinto. No
-  // aplica a lotes (cada uno es su propio terreno, nada que "copiar").
-  useEffect(() => {
-    if (unitIsLand) return;
-    fetch('/api/admin/units')
-      .then(res => res.json())
-      .then((data: OtherUnitRow[]) => setAllProjectUnits(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, [unitIsLand]);
-  const otherUnits = useMemo(
-    () => allProjectUnits.filter(u => !units.some(un => un.id === u.id)),
-    [allProjectUnits, units],
-  );
 
   const patch = async (id: string, updates: Record<string, unknown>) => {
     setUnits(prev => prev.map(u => (u.id === id ? { ...u, ...dbShape(updates) } : u)));
@@ -167,7 +141,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     if (res.ok) {
       const created = await res.json();
       setUnits(prev => [...prev, created]);
-      setSel(created.id);
       setNewCode(''); setNewM2('');
       setSavedLabel(`${unitLabel} creado`);
     } else {
@@ -202,20 +175,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     setSelectedIds(new Set());
   };
 
-  const handleCopyFromUnit = async () => {
-    if (!copySourceId || !sel) return;
-    setCopying(true);
-    const u = await fetch(`/api/admin/units/${copySourceId}`).then(res => res.json());
-    setCopying(false);
-    await patch(sel, {
-      modelName: u.model_name, type: u.type, totalArea: u.total_area, innerArea: u.inner_area,
-      balconyArea: u.balcony_area, externalArea: u.external_area, bedrooms: u.bedrooms, bathrooms: u.bathrooms,
-      hasServiceRoom: u.has_service_room, price: u.price, currency: u.currency, status: u.status,
-      orientation: u.orientation, floorPlan3dUrl: u.floor_plan_3d_url, plan3dUrl: u.plan_3d_url, technicalPlanUrl: u.technical_plan_url,
-    });
-    setCopySourceId('');
-  };
-
   const removeUnits = async (ids: string[]) => {
     const ok = await confirmDialog({
       message: ids.length === 1 ? `¿Borrar este ${unitLabelLower}? No se puede deshacer.` : `¿Borrar ${ids.length} ${unitLabelLower}s? No se puede deshacer.`,
@@ -226,7 +185,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     const removedIds = ids.filter((_, i) => results[i]);
     setUnits(prev => prev.filter(u => !removedIds.includes(u.id)));
     setSelectedIds(new Set());
-    setSel(prev => (prev && removedIds.includes(prev) ? null : prev));
     const failed = ids.length - removedIds.length;
     setSavedLabel(`${removedIds.length} ${unitLabelLower}${removedIds.length === 1 ? '' : 's'} borrad${removedIds.length === 1 ? 'o' : 'os'}`);
     if (failed > 0) toast(`${failed} no se pudo${failed === 1 ? '' : 'ieron'} borrar.`, 'error');
@@ -337,17 +295,15 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     return next;
   });
 
-  const cur = units.find(u => u.id === sel) ?? null;
-  const curIdx = cur ? units.indexOf(cur) : -1;
   const planoHref = `/admin/edificios/${buildingId}/pisos/${floorId}/plano`;
 
   if (loading) return <LoadingSpinner text={`Cargando ${unitLabelLower}s...`} tone="light" />;
   if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${unitLabelLower}s.`} onRetry={load} />;
 
   return (
-    <div className="flex flex-col xl:flex-row gap-6 xl:items-stretch xl:h-[calc(100vh-4rem)]">
+    <div className="flex flex-col gap-4 h-[calc(100vh-4rem)]">
       {/* ── Lista ─────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
+      <div className="flex-1 min-w-0 w-full flex flex-col gap-4 h-full overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <Link href={`/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName}</Link>
@@ -440,15 +396,14 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {visible.map(u => {
-                const isSel = sel === u.id;
                 const delimited = !!u.polygon && u.polygon.length > 0;
                 const photoCount = (u.interior_image_url ? 1 : 0) + (u.gallery_images ?? []).length;
                 const editing = editingCell?.id === u.id ? editingCell.field : null;
                 return (
                   <div
                     key={u.id}
-                    onClick={() => setSel(u.id)}
-                    className={`flex items-center px-3.5 py-2 border-b border-gray-50 cursor-pointer transition-colors ${isSel ? 'bg-brand-50' : 'hover:bg-gray-50'}`}
+                    onClick={() => router.push(`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/datos`)}
+                    className="flex items-center px-3.5 py-2 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
                     <HeadCheck checked={selectedIds.has(u.id)} onChange={() => toggleSelected(u.id)} stop />
                     <span className="w-24 shrink-0">
@@ -461,7 +416,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                           className="h-7 w-20 px-1.5 border border-brand-500 rounded text-xs font-semibold outline-none"
                         />
                       ) : (
-                        <span onClick={e => { e.stopPropagation(); setEditingCell({ id: u.id, field: 'code' }); setSel(u.id); }} className="inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs font-semibold text-gray-900">
+                        <span onClick={e => { e.stopPropagation(); setEditingCell({ id: u.id, field: 'code' }); }} className="inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs font-semibold text-gray-900">
                           {u.code}
                         </span>
                       )}
@@ -481,7 +436,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                           className="h-7 w-20 px-1.5 border border-brand-500 rounded text-xs outline-none"
                         />
                       ) : (
-                        <span onClick={e => { e.stopPropagation(); setEditingCell({ id: u.id, field: 'm2' }); setSel(u.id); }} className={`inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs ${u.total_area ? 'text-gray-700' : 'text-gray-350'}`}>
+                        <span onClick={e => { e.stopPropagation(); setEditingCell({ id: u.id, field: 'm2' }); }} className={`inline-flex h-7 items-center px-1.5 rounded hover:bg-gray-100 text-xs ${u.total_area ? 'text-gray-700' : 'text-gray-350'}`}>
                           {u.total_area ? `${u.total_area} m²` : '—'}
                         </span>
                       )}
@@ -520,7 +475,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                     <span className="shrink-0 flex items-center gap-1">
                       {!unitIsLand && (
                         <Link
-                          href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}`}
+                          href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/ambientes`}
                           onClick={e => e.stopPropagation()}
                           title="Ambientes"
                           className="h-7 px-2 flex items-center rounded-md text-[11px] font-medium text-brand-600 hover:bg-brand-50 transition-colors"
@@ -570,11 +525,11 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
               {visible.map(u => {
-                const isSel = sel === u.id;
                 return (
                   <button
-                    key={u.id} type="button" onClick={() => setSel(u.id)}
-                    className={`text-left rounded-xl overflow-hidden bg-white transition-colors ${isSel ? 'border-2 border-brand-500 shadow-[0_0_0_3px_rgba(92,122,88,.12)]' : 'border border-gray-200 hover:border-gray-300'}`}
+                    key={u.id} type="button"
+                    onClick={() => router.push(`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${u.id}/datos`)}
+                    className="text-left rounded-xl overflow-hidden bg-white border border-gray-200 hover:border-gray-300 transition-colors"
                   >
                     <div className={`relative h-28 ${u.interior_image_url ? 'bg-gray-100' : 'bg-gray-50'}`}>
                       {u.interior_image_url ? (
@@ -602,275 +557,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
             </div>
           </div>
         )}
-      </div>
-
-      {/* ── Panel de edición ──────────────────────────────────── */}
-      <div className="w-full xl:w-[400px] shrink-0 xl:h-full">
-        <Card className="flex flex-col xl:h-full">
-          <div className="shrink-0 px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-base font-semibold text-gray-900">{cur ? `${unitLabel} ${cur.code}` : `Ningún ${unitLabelLower} seleccionado`}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{cur ? `${curIdx + 1} de ${units.length} · ${getStatusLabel(cur.status).toLowerCase()}` : `Elegí un ${unitLabelLower} de la lista`}</p>
-            </div>
-            <p className="text-xs text-gray-400 shrink-0">{saving ? 'Guardando...' : savedLabel}</p>
-          </div>
-
-          {cur ? (
-            <div className="flex-1 xl:min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
-              <div className="flex gap-2.5">
-                <div className="flex-1 flex flex-col gap-1.5">
-                  <label className="text-[11.5px] font-medium text-gray-900">Código</label>
-                  <input
-                    defaultValue={cur.code} key={`code-${cur.id}`}
-                    onBlur={e => { if (e.target.value !== cur.code) patch(cur.id, { code: e.target.value }); }}
-                    className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div className="flex-1 flex flex-col gap-1.5">
-                  <label className="text-[11.5px] font-medium text-gray-900">Superficie (m²)</label>
-                  <input
-                    type="number" defaultValue={cur.total_area ?? ''} key={`m2-${cur.id}`}
-                    onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== cur.total_area) patch(cur.id, { totalArea: v }); }}
-                    className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              {!unitIsLand && (
-                <>
-                  <div className="flex gap-2.5">
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Modelo</label>
-                      <input
-                        defaultValue={cur.model_name ?? ''} key={`model-${cur.id}`}
-                        onBlur={e => { const v = e.target.value.trim() || null; if (v !== cur.model_name) patch(cur.id, { modelName: v }); }}
-                        placeholder="SUITE GARDEN"
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Tipología</label>
-                      <select
-                        value={cur.type ?? UNIT_TYPES[0]}
-                        onChange={e => patch(cur.id, { type: e.target.value })}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      >
-                        {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2.5 items-end">
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Dormitorios</label>
-                      <input
-                        type="number" defaultValue={cur.bedrooms ?? ''} key={`bed-${cur.id}`}
-                        onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== cur.bedrooms) patch(cur.id, { bedrooms: v }); }}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Baños</label>
-                      <input
-                        type="number" defaultValue={cur.bathrooms ?? ''} key={`bath-${cur.id}`}
-                        onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== cur.bathrooms) patch(cur.id, { bathrooms: v }); }}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <label className="flex items-center gap-1.5 h-9 pb-1.5 text-[11px] text-gray-700 whitespace-nowrap shrink-0">
-                      <input
-                        type="checkbox" checked={!!cur.has_service_room}
-                        onChange={e => patch(cur.id, { hasServiceRoom: e.target.checked })}
-                        className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                      />
-                      Serv.
-                    </label>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11.5px] font-medium text-gray-900">Orientación</label>
-                    <input
-                      defaultValue={cur.orientation ?? ''} key={`orient-${cur.id}`}
-                      onBlur={e => { const v = e.target.value.trim() || null; if (v !== cur.orientation) patch(cur.id, { orientation: v }); }}
-                      placeholder="NE"
-                      className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-
-                  <div className="flex gap-2.5">
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Interior (m²)</label>
-                      <input
-                        type="number" defaultValue={cur.inner_area ?? ''} key={`inner-${cur.id}`}
-                        onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== cur.inner_area) patch(cur.id, { innerArea: v }); }}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Balcón (m²)</label>
-                      <input
-                        type="number" defaultValue={cur.balcony_area ?? 0} key={`balcony-${cur.id}`}
-                        onBlur={e => { const v = e.target.value === '' ? 0 : Number(e.target.value); if (v !== cur.balcony_area) patch(cur.id, { balconyArea: v }); }}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col gap-1.5">
-                      <label className="text-[11.5px] font-medium text-gray-900">Exterior (m²)</label>
-                      <input
-                        type="number" defaultValue={cur.external_area ?? 0} key={`external-${cur.id}`}
-                        onBlur={e => { const v = e.target.value === '' ? 0 : Number(e.target.value); if (v !== cur.external_area) patch(cur.id, { externalArea: v }); }}
-                        className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {showPrice && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11.5px] font-medium text-gray-900">Precio</label>
-                  <input
-                    type="number" defaultValue={cur.price ?? ''} key={`price-${cur.id}`}
-                    onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== cur.price) patch(cur.id, { price: v }); }}
-                    placeholder={`Sin precio — se muestra "${'Consultar'}"`}
-                    className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  {cur.price != null && <p className="text-[10.5px] text-gray-400">{formatPrice(cur.price, cur.currency)}</p>}
-                </div>
-              )}
-
-              {showStatus && (
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-[11.5px] font-medium text-gray-900">Estado</p>
-                  <div className="flex gap-1.5">
-                    {UNIT_STATUSES.map(s => (
-                      <button
-                        key={s} type="button" onClick={() => patch(cur.id, { status: s })}
-                        className={`flex-1 h-9 rounded-lg text-[11px] font-medium border transition-colors ${cur.status === s ? STATUS_PILL_BG[s] : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
-                      >
-                        {getStatusLabel(s)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[11.5px] font-medium text-gray-900">Foto principal</p>
-                <ImageUploader value={cur.interior_image_url ?? ''} onChange={url => patch(cur.id, { interiorImageUrl: url || null })} folder="units" />
-              </div>
-
-              {!unitIsLand && otherUnits.length > 0 && (
-                <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-gray-200 bg-gray-50">
-                  <p className="text-[11px] text-gray-600 leading-relaxed">¿Este {unitLabelLower} ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.</p>
-                  <div className="flex gap-1.5">
-                    <select
-                      value={copySourceId}
-                      onChange={e => setCopySourceId(e.target.value)}
-                      className="flex-1 h-8 px-2 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-brand-500"
-                    >
-                      <option value="">{`Elegir ${unitLabelLower} de referencia...`}</option>
-                      {otherUnits.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.code}{u.building_name ? ` · ${u.building_name}` : ''}{u.floor_number != null ? ` · Piso ${u.floor_number}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button" onClick={handleCopyFromUnit} disabled={!copySourceId || copying}
-                      className="h-8 px-3 rounded-lg text-xs font-medium bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors whitespace-nowrap"
-                    >
-                      {copying ? 'Copiando...' : 'Copiar datos'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!unitIsLand && (
-                <>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[11.5px] font-medium text-gray-900">Plano 3D (planta)</p>
-                    <ImageUploader value={cur.floor_plan_3d_url ?? ''} onChange={url => patch(cur.id, { floorPlan3dUrl: url || null })} folder="floorplans" />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[11.5px] font-medium text-gray-900">Render 3D</p>
-                    <ImageUploader value={cur.plan_3d_url ?? ''} onChange={url => patch(cur.id, { plan3dUrl: url || null })} folder="floorplans" />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[11.5px] font-medium text-gray-900">Plano técnico</p>
-                    <ImageUploader value={cur.technical_plan_url ?? ''} onChange={url => patch(cur.id, { technicalPlanUrl: url || null })} folder="floorplans" />
-                  </div>
-                  <Link
-                    href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${cur.id}/fotos`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 hover:border-gray-300 hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-[11.5px] font-medium text-gray-900">
-                      Galería de imágenes {(cur.gallery_images ?? []).length > 0 ? `(${(cur.gallery_images ?? []).length})` : ''}
-                    </span>
-                    <span className="text-[11px] font-medium text-brand-600 shrink-0">Abrir →</span>
-                  </Link>
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <p className="text-[11.5px] font-medium text-gray-900">Recorrido 360°</p>
-                    <TourSummaryCard
-                      tourData={cur.tour_data}
-                      href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${cur.id}/tour`}
-                    />
-                  </div>
-                  <Link
-                    href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${cur.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 hover:border-gray-300 hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-[11.5px] font-medium text-gray-900">Ambientes del {unitLabelLower}</span>
-                    <span className="text-[11px] font-medium text-brand-600 shrink-0">Abrir →</span>
-                  </Link>
-                </>
-              )}
-
-              <div className={`flex flex-col gap-2 p-3.5 rounded-xl border ${cur.polygon && cur.polygon.length > 0 ? 'bg-brand-50 border-brand-100' : 'bg-amber-50 border-amber-200'}`}>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${cur.polygon && cur.polygon.length > 0 ? 'bg-brand-500' : 'bg-amber-400'}`} />
-                  <p className="text-[11.5px] font-medium text-gray-900">{cur.polygon && cur.polygon.length > 0 ? 'Delimitado en el plano' : 'Falta marcarlo en el plano'}</p>
-                </div>
-                <p className="text-[11px] leading-relaxed text-gray-600">
-                  {cur.polygon && cur.polygon.length > 0
-                    ? `La silueta ya está dibujada, así que el ${unitLabelLower} es clickeable desde el masterplan.`
-                    : `Sin silueta el ${unitLabelLower} aparece en la lista del sitio, pero no se puede tocar desde el masterplan.`}
-                </p>
-                <Link href={planoHref} className="self-start h-8 px-3 flex items-center bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors">
-                  {cur.polygon && cur.polygon.length > 0 ? 'Ver la silueta en el plano →' : 'Marcarlo en el plano →'}
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center px-5 py-10 text-center text-sm text-gray-400">
-              No hay {unitLabelLower}s todavía — agregá uno desde la lista.
-            </div>
-          )}
-
-          <div className="shrink-0 px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
-            <button
-              type="button" onClick={() => cur && removeUnits([cur.id])} disabled={!cur}
-              className="h-9 px-3 border border-red-200 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-30 transition-colors"
-            >
-              Borrar {unitLabelLower}
-            </button>
-            <div className="flex gap-1.5">
-              <button
-                type="button" onClick={() => curIdx > 0 && setSel(units[curIdx - 1].id)} disabled={curIdx <= 0}
-                aria-label={`${unitLabel} anterior`}
-                className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg text-gray-700 hover:border-gray-300 disabled:opacity-30 transition-colors"
-              >
-                ←
-              </button>
-              <button
-                type="button" onClick={() => curIdx > -1 && curIdx < units.length - 1 && setSel(units[curIdx + 1].id)} disabled={curIdx === -1 || curIdx >= units.length - 1}
-                className="h-9 px-3.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 disabled:opacity-30 transition-colors"
-              >
-                Siguiente {unitLabelLower} →
-              </button>
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   );
