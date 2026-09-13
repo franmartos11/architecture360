@@ -4,18 +4,16 @@ import { useState, useEffect, use, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
-import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
-import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
+import FloorsEditor from '@/components/admin/FloorsEditor';
+import { Accordion, AccordionItem } from '@/components/ui/Accordion';
 import { useToast } from '@/components/ui/ToastProvider';
-import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
-import { FLOOR_KIND_OPTIONS } from '@/lib/floorKinds';
 import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/types/database';
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
@@ -46,11 +44,8 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [sel, setSel] = useState<Set<string>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [newFloor, setNewFloor] = useState({ number: '', label: '', planImage: '', floorKind: 'units' as DbFloorRow['floor_kind'], floorKindDescription: '' });
+  const [buildingTab, setBuildingTab] = useState(building?.cover_image ? '' : 'datos');
   const toast = useToast();
-  const confirmDialog = useConfirm();
 
   const load = () => {
     startTransition(() => {
@@ -61,6 +56,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       .then(res => res.json())
       .then(data => {
         setBuilding(data.building);
+        setBuildingTab(prev => (prev === 'datos' && data.building?.cover_image ? '' : prev));
         setFloors(data.floors ?? []);
         setUnitSummaries(data.units ?? []);
         setLoading(false);
@@ -101,30 +97,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
-  const handleAddFloor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newFloor.number === '' || !newFloor.label) return;
-    const res = await fetch('/api/admin/floors', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        buildingId: id,
-        number: Number(newFloor.number),
-        label: newFloor.label,
-        planImage: newFloor.planImage || null,
-        floorKind: newFloor.floorKind,
-        floorKindDescription: newFloor.floorKindDescription || null,
-      }),
-    });
-    if (res.ok) {
-      setNewFloor({ number: '', label: '', planImage: '', floorKind: 'units', floorKindDescription: '' });
-      load();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      toast(data.error ?? 'Error al crear el piso.', 'error');
-    }
-  };
-
   const handleUpdateFloor = async (floorId: string, updates: Partial<FloorRow>) => {
     const res = await fetch(`/api/admin/floors/${floorId}`, {
       method: 'PATCH',
@@ -142,16 +114,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       toast('Error al actualizar el piso.', 'error');
     }
   };
-
-  const handleDeleteFloor = async (floorId: string) => {
-    const ok = await confirmDialog({ message: '¿Borrar este piso y todas sus unidades?', confirmLabel: 'Borrar piso', danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/admin/floors/${floorId}`, { method: 'DELETE' });
-    if (res.ok) load();
-  };
-
-  const [duplicateTarget, setDuplicateTarget] = useState<FloorRow | null>(null);
-  const [applyTemplateTarget, setApplyTemplateTarget] = useState<FloorRow | null>(null);
 
   // Stats agregados y el "gap" entre lo declarado y lo cargado — se derivan
   // acá mismo de floors/unitSummaries, sin pedir nada nuevo al server.
@@ -173,60 +135,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       });
     }
     setGenerating(false);
-    load();
-  };
-
-  const toggleSel = (floorId: string) => setSel(prev => {
-    const next = new Set(prev);
-    if (next.has(floorId)) next.delete(floorId); else next.add(floorId);
-    return next;
-  });
-  const visibleFloorIds = floors.map(f => f.id);
-  const allSelected = sel.size > 0 && visibleFloorIds.every(id => sel.has(id));
-  const toggleSelAll = () => setSel(allSelected ? new Set() : new Set(visibleFloorIds));
-
-  const bulkApplyFirstFloorPlan = async () => {
-    const firstFloor = floors.slice().sort((a, b) => a.number - b.number)[0];
-    if (!firstFloor?.plan_image) return;
-    setBulkBusy(true);
-    await Promise.all(Array.from(sel).map(floorId =>
-      fetch(`/api/admin/floors/${floorId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planImage: firstFloor.plan_image }),
-      })
-    ));
-    setBulkBusy(false);
-    setSel(new Set());
-    load();
-  };
-
-  const bulkCycleType = async () => {
-    const kinds = FLOOR_KIND_OPTIONS.map(o => o.value);
-    setBulkBusy(true);
-    await Promise.all(Array.from(sel).map(floorId => {
-      const f = floors.find(x => x.id === floorId);
-      if (!f) return Promise.resolve();
-      const nextKind = kinds[(kinds.indexOf(f.floor_kind) + 1) % kinds.length];
-      return fetch(`/api/admin/floors/${floorId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ floorKind: nextKind }),
-      });
-    }));
-    setBulkBusy(false);
-    setSel(new Set());
-    load();
-  };
-
-  const bulkDeleteFloors = async () => {
-    const ok = await confirmDialog({
-      message: `¿Borrar ${sel.size} piso${sel.size === 1 ? '' : 's'} y todas sus unidades? No se puede deshacer.`,
-      confirmLabel: 'Borrar', danger: true,
-    });
-    if (!ok) return;
-    setBulkBusy(true);
-    await Promise.all(Array.from(sel).map(floorId => fetch(`/api/admin/floors/${floorId}`, { method: 'DELETE' })));
-    setBulkBusy(false);
-    setSel(new Set());
     load();
   };
 
@@ -256,46 +164,49 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold text-gray-900">Datos {hasFloorStep ? 'del edificio' : `${agree.del} ${buildingLabelLower}`}</h3>
-        </CardHeader>
-        <form onSubmit={handleSaveBuilding} className="p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 w-full">
-              <Input
-                label="Nombre"
-                value={building.name}
-                onChange={e => setBuilding({ ...building, name: e.target.value })}
-              />
-            </div>
-            {hasFloorStep && (
-              <div className="w-full sm:w-40">
+      <Accordion value={buildingTab} onChange={setBuildingTab} collapsible>
+        <AccordionItem
+          value="datos"
+          label={`Datos ${hasFloorStep ? 'del edificio' : `${agree.del} ${buildingLabelLower}`}`}
+          status={building.cover_image ? 'complete' : 'partial'}
+        >
+          <form onSubmit={handleSaveBuilding} className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 w-full">
                 <Input
-                  label="Pisos declarados"
-                  type="number" min={1}
-                  value={building.total_floors}
-                  onChange={e => setBuilding({ ...building, total_floors: Number(e.target.value) })}
+                  label="Nombre"
+                  value={building.name}
+                  onChange={e => setBuilding({ ...building, name: e.target.value })}
                 />
               </div>
+              {hasFloorStep && (
+                <div className="w-full sm:w-40">
+                  <Input
+                    label="Pisos declarados"
+                    type="number" min={1}
+                    value={building.total_floors}
+                    onChange={e => setBuilding({ ...building, total_floors: Number(e.target.value) })}
+                  />
+                </div>
+              )}
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+                {saving ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+            <ImageUploader
+              label={hasFloorStep ? 'Foto del edificio' : `Foto ${agree.del} ${buildingLabelLower}`}
+              value={building.cover_image ?? ''}
+              onChange={url => setBuilding({ ...building, cover_image: url })}
+              folder="buildings"
+            />
+            {hasFloorStep && (
+              <p className="text-xs text-gray-500">
+                &quot;Pisos declarados&quot; es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en &quot;Guardar&quot;.
+              </p>
             )}
-            <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-              {saving ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </div>
-          <ImageUploader
-            label={hasFloorStep ? 'Foto del edificio' : `Foto ${agree.del} ${buildingLabelLower}`}
-            value={building.cover_image ?? ''}
-            onChange={url => setBuilding({ ...building, cover_image: url })}
-            folder="buildings"
-          />
-        </form>
-        {hasFloorStep && (
-          <p className="px-6 pb-4 text-xs text-gray-500">
-            &quot;Pisos declarados&quot; es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en &quot;Guardar&quot;.
-          </p>
-        )}
-      </Card>
+          </form>
+        </AccordionItem>
+      </Accordion>
 
       {hasFloorStep ? (
         <>
@@ -323,8 +234,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          <Card>
-          <CardHeader>
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Pisos</h3>
               <p className="text-sm text-gray-500">Cada piso necesita su plano para que el sitio pueda mostrar los deptos.</p>
@@ -335,168 +245,15 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             >
               🪄 Usar el asistente →
             </Link>
-          </CardHeader>
-
-          {sel.size > 0 && (
-            <div className="mx-6 mt-4 bg-gray-900 rounded-xl px-4 py-2.5 flex items-center gap-2 flex-wrap">
-              <p className="flex-1 min-w-[140px] text-sm font-medium text-white">{sel.size} piso{sel.size === 1 ? '' : 's'} seleccionado{sel.size === 1 ? '' : 's'}</p>
-              <button type="button" onClick={bulkApplyFirstFloorPlan} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Usar el plano del piso 1</button>
-              <button type="button" onClick={bulkCycleType} disabled={bulkBusy} className="h-8 px-2.5 border border-white/25 rounded-lg text-xs font-medium text-white/90 hover:bg-white/10 transition-colors disabled:opacity-50">Cambiar tipo</button>
-              <button type="button" onClick={bulkDeleteFloors} disabled={bulkBusy} className="h-8 px-2.5 border border-red-400/50 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-50">Borrar</button>
-              <button type="button" onClick={() => setSel(new Set())} aria-label="Deseleccionar todo" className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white">×</button>
-            </div>
-          )}
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-3 w-10">
-                    <input type="checkbox" checked={allSelected} onChange={toggleSelAll} aria-label="Seleccionar todos los pisos" className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-                  </th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900 w-24">Número</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Etiqueta</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Tipo</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Plano (URL)</th>
-                  <th className="px-6 py-3 text-sm font-semibold text-gray-900">Completitud</th>
-                  <th className="px-6 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {floors.sort((a, b) => a.number - b.number).map(f => {
-                  const c = completeness(f.id);
-                  const isUnitsFloor = f.floor_kind === 'units';
-                  return (
-                  <tr key={f.id} className={sel.has(f.id) ? 'bg-brand-50/50' : ''}>
-                    <td className="px-6 py-3">
-                      <input type="checkbox" checked={sel.has(f.id)} onChange={() => toggleSel(f.id)} aria-label={`Seleccionar piso ${f.number}`} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-                    </td>
-                    <td className="px-6 py-3 text-sm text-gray-600">{f.number}</td>
-                    <td className="px-6 py-3">
-                      <input
-                        defaultValue={f.label}
-                        onBlur={e => e.target.value !== f.label && handleUpdateFloor(f.id, { label: e.target.value })}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                      />
-                    </td>
-                    <td className="px-6 py-3 min-w-[180px]">
-                      <select
-                        value={f.floor_kind}
-                        onChange={e => handleUpdateFloor(f.id, { floor_kind: e.target.value as FloorRow['floor_kind'] })}
-                        aria-label="Tipo de piso"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
-                      >
-                        {FLOOR_KIND_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.icon} {o.label}</option>
-                        ))}
-                      </select>
-                      {!isUnitsFloor && (
-                        <input
-                          defaultValue={f.floor_kind_description ?? ''}
-                          placeholder="Ej: Pileta y solárium"
-                          onBlur={e => e.target.value !== (f.floor_kind_description ?? '') && handleUpdateFloor(f.id, { floor_kind_description: e.target.value })}
-                          className="mt-1.5 w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-brand-500 outline-none"
-                        />
-                      )}
-                    </td>
-                    <td className="px-6 py-3 min-w-[280px]">
-                      <ImageUploader
-                        value={f.plan_image ?? ''}
-                        onChange={url => handleUpdateFloor(f.id, { plan_image: url })}
-                        folder="floorplans"
-                      />
-                    </td>
-                    <td className="px-6 py-3 text-sm">
-                      {isUnitsFloor ? (
-                        c.total === 0 ? (
-                          !f.plan_image ? (
-                            <span className="text-amber-600">Sin unidades ni plano</span>
-                          ) : (
-                            <span className="text-gray-400">Sin unidades</span>
-                          )
-                        ) : (
-                          <div className="space-y-0.5">
-                            <span className="text-gray-600">{c.total} unidad{c.total === 1 ? '' : 'es'}</span>
-                            {c.missingPhoto > 0 && <span className="block text-amber-600">{c.missingPhoto} sin foto</span>}
-                            {c.missingPrice > 0 && <span className="block text-amber-600">{c.missingPrice} sin precio</span>}
-                            {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="block text-green-600">Completo</span>}
-                          </div>
-                        )
-                      ) : !f.plan_image ? (
-                        <span className="text-amber-600">Falta el plano</span>
-                      ) : (
-                        <span className="text-green-600">Completo</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-3 text-right space-x-3 whitespace-nowrap">
-                      <Link href={`/admin/edificios/${id}/pisos/${f.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                        Unidades →
-                      </Link>
-                      <button onClick={() => setDuplicateTarget(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
-                      {isUnitsFloor && c.total === 0 && floors.length > 1 && (
-                        <button onClick={() => setApplyTemplateTarget(f)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Aplicar plantilla</button>
-                      )}
-                      <button onClick={() => handleDeleteFloor(f.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
-                    </td>
-                  </tr>
-                  );
-                })}
-                {floors.length === 0 && (
-                  <tr><td colSpan={7} className="px-6 py-10 text-center text-gray-400">Todavía no hay pisos cargados.</td></tr>
-                )}
-              </tbody>
-            </table>
           </div>
 
-          <form onSubmit={handleAddFloor} className="p-6 bg-gray-50/50 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="w-full sm:w-24 shrink-0">
-                <Input
-                  type="number" placeholder="N°"
-                  value={newFloor.number}
-                  onChange={e => setNewFloor({ ...newFloor, number: e.target.value })}
-                  aria-label="Número de piso"
-                />
-              </div>
-              <div className="flex-1">
-                <Input
-                  placeholder="Etiqueta (ej: Planta 1)"
-                  value={newFloor.label}
-                  onChange={e => setNewFloor({ ...newFloor, label: e.target.value })}
-                  aria-label="Etiqueta del piso"
-                />
-              </div>
-              <div className="w-full sm:w-44 shrink-0">
-                <select
-                  value={newFloor.floorKind}
-                  onChange={e => setNewFloor({ ...newFloor, floorKind: e.target.value as typeof newFloor.floorKind })}
-                  aria-label="Tipo de piso"
-                  className="w-full h-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
-                >
-                  {FLOOR_KIND_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.icon} {o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <Button type="submit" className="w-full sm:w-auto">
-                + Agregar piso
-              </Button>
-            </div>
-            {newFloor.floorKind !== 'units' && (
-              <Input
-                placeholder="Qué hay en este piso (ej: Pileta y solárium)"
-                value={newFloor.floorKindDescription}
-                onChange={e => setNewFloor({ ...newFloor, floorKindDescription: e.target.value })}
-                aria-label="Descripción del tipo de piso"
-              />
-            )}
-            <ImageUploader
-              value={newFloor.planImage}
-              onChange={url => setNewFloor({ ...newFloor, planImage: url })}
-              folder="floorplans"
-            />
-          </form>
-          </Card>
+          <FloorsEditor
+            buildingId={id}
+            floors={floors}
+            unitSummaries={unitSummaries}
+            showPrice={typeConfig.showPrice}
+            onChanged={load}
+          />
         </>
       ) : !hasUnitStep ? (
         // Cada building tiene un único piso interno invisible, y ese piso
@@ -582,23 +339,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
         </Card>
-      )}
-
-      {duplicateTarget && (
-        <DuplicateFloorModal
-          floor={duplicateTarget}
-          onClose={() => setDuplicateTarget(null)}
-          onDone={() => { setDuplicateTarget(null); load(); }}
-        />
-      )}
-
-      {applyTemplateTarget && (
-        <ApplyTemplateModal
-          buildingId={id}
-          targetFloor={applyTemplateTarget}
-          onClose={() => setApplyTemplateTarget(null)}
-          onDone={() => { setApplyTemplateTarget(null); load(); }}
-        />
       )}
     </div>
   );
