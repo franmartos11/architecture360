@@ -13,18 +13,20 @@ const STATUS_DOT: Record<AccordionStatus, string> = {
 interface AccordionContextValue {
   value: string;
   onChange: (value: string) => void;
+  collapsible: boolean;
 }
 
 const AccordionContext = createContext<AccordionContextValue | null>(null);
 
 // Acordeón simple, una sola sección abierta a la vez — controlado por
 // `value`/`onChange` (el mismo patrón que un tab-switcher, solo cambia la
-// presentación visual). No hay versión "varias abiertas a la vez": para
-// formularios tan densos como el de FloorUnitsEditor, abrir todo a la vez
-// vuelve la página excesivamente larga.
-export function Accordion({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: ReactNode }) {
+// presentación visual). Por default no colapsa al reclickear su propia
+// cabecera (igual que un tab-switcher); pasar `collapsible` para permitir
+// cerrar la sección abierta reclickeándola, útil cuando el contenedor no
+// necesita tener siempre algo abierto (ej. una tarjeta de datos plegable).
+export function Accordion({ value, onChange, collapsible = false, children }: { value: string; onChange: (value: string) => void; collapsible?: boolean; children: ReactNode }) {
   return (
-    <AccordionContext.Provider value={{ value, onChange }}>
+    <AccordionContext.Provider value={{ value, onChange, collapsible }}>
       <div className="flex flex-col gap-3">{children}</div>
     </AccordionContext.Provider>
   );
@@ -49,7 +51,7 @@ export function AccordionItem({
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
       <button
         type="button"
-        onClick={() => ctx.onChange(value)}
+        onClick={() => ctx.onChange(open && ctx.collapsible ? '' : value)}
         aria-expanded={open}
         className="w-full h-12 px-4 flex items-center gap-3 text-left hover:bg-gray-50/60 transition-colors"
       >
