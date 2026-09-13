@@ -229,18 +229,107 @@ Extraer `lib/unit-fields.ts`, los componentes de grupo y el registro;
 construir el layout y las sub-rutas; mover Ambientes a `/ambientes` y
 actualizar los tres links; sacar el panel de 400px.
 
-**Fase 2 — `FloorUnitsEditor` sobre los mismos grupos**
-Mapear los campos extra de casa (cochera, condición, características,
-expensas, plantas) a los grupos, agregando los que falten al registro;
-reemplazar los bloques inline por el acordeón.
+**Fase 2 — acordeón propio para `FloorUnitsEditor`** (ver sección
+dedicada más abajo — el plan original de "mapear los campos de casa a
+los mismos grupos compartidos" se revisó después de investigar el
+archivo real, por el motivo explicado ahí).
 
 ## Riesgos
 
-- **La fase 2 es más grande de lo que parece**: casa tiene ~15 campos que
-  no existen en depto. Si al mapearlos aparecen grupos nuevos que no
-  encajan, se replantea la fase 2 por separado sin bloquear la 1.
 - **Regresión en el wizard**: es el flujo de alta inicial del proyecto.
-  La fase 2 no se toca hasta que la 1 esté validada en navegador.
+  La fase 2 no se toca hasta que la 1 esté validada en navegador. (Cumplido:
+  Fase 1 mergeada a `main`, 794/794 tests, build limpio, antes de iniciar
+  la Fase 2.)
 - **Pérdida del panel lateral**: si en uso real la navegación ← → no
   compensa para carga masiva, la vuelta atrás es agregar a la tabla las
   columnas editables que falten, no resucitar el panel.
+
+## Fase 2 — acordeón propio para `FloorUnitsEditor`
+
+### Por qué no reusa los componentes de grupo de la Fase 1
+
+La investigación previa a esta fase (leer `FloorUnitsEditor.tsx` completo,
+1484 líneas) encontró dos incompatibilidades de fondo con forzar el mismo
+`UnitFormValues`/`*Group.tsx` de la Fase 1:
+
+1. **Modelo de persistencia distinto.** Los grupos de la Fase 1 asumen
+   autoguardado optimista por campo (`onChange` → PATCH inmediato).
+   `FloorUnitsEditor` no autoguarda nada: hay un solo `<form>` que envuelve
+   todas las secciones y un único botón "Guardar cambios" que persiste
+   `form` + `rooms` + `levels` juntos (`handleSubmit`), incluyendo el paso
+   de `mergeDelimitation` que reconcilia los ambientes con el polígono/tour
+   que ya escribió `UnitRoomsEditor` en `/plano` — cambiar esto a
+   autoguardado por campo arriesga romper esa reconciliación.
+2. **~13 campos que depto no tiene** (cochera cubierta/descubierta,
+   condición, características, livings/cocinas/otros ambientes, expensas,
+   altura de techo, superficie de terreno, cantidad de plantas) más
+   `rooms`/`levels` como arrays completos con su propio editor de lista
+   plana (nombre/tipo/m²/fotos por ambiente) — sin relación con la ruta
+   `/ambientes` de depto, que sigue siendo `UnitRoomsEditor` con polígono
+   y tour.
+
+Forzar esto en `UnitFormValues`/los 5 `*Group.tsx` compartidos le mete a
+un shell de depto ya en producción una tercera rama de casos (lote / depto
+/ casa) para campos que depto nunca usa. Se descartó (opción A) a favor de
+reorganizar los bloques que ya existen en un acordeón propio de casa
+(opción B), sin tocar `lib/unit-fields.ts` ni `components/admin/unit-groups/*`.
+
+### Las 7 secciones del acordeón
+
+Mismo criterio de agrupación que depto, contenido propio de casa. Todas
+aplican siempre (no hay lote dentro de `FloorUnitsEditor` — lote pasa por
+`UnitsEditor`/Fase 1):
+
+1. **Datos** — nombre, modelo, condición/antigüedad, composición
+   (dormitorios/baños/plantas/livings/cocinas/otros ambientes — contadores
+   read-only cuando `programActive`).
+2. **Superficies** — áreas total/interna/externa, superficie de terreno,
+   altura de techo.
+3. **Comercial** — precio, moneda, expensas, estado de venta.
+4. **Comodidades** — orientación del frente (`TourOrientationControl`) +
+   pills de características (`UNIT_FEATURE_GROUPS`). Ocupa el lugar
+   conceptual de "Recorrido 360°" de depto — en casa el 360° vive en el
+   paso aparte del wizard (`UnitRoomsEditor`), no acá.
+5. **Ambientes** — el editor de lista plana existente (nombre/tipo/m²/
+   fotos por ambiente), con el link "Delimitar en el plano →" intacto.
+6. **Planos e imágenes** — foto interior + planos 3D por planta + planos
+   técnicos.
+7. **Galería** — `MultiImageUploader`, sin cambios.
+
+### Comportamiento del acordeón
+
+Una sola sección abierta a la vez (igual que el tab-switcher actual,
+`casaTabDefs`) — decisión explícita para minimizar riesgo de layout: abrir
+varias a la vez con formularios de esta densidad puede volver la página
+excesivamente larga, y el comportamiento actual (una pestaña visible)
+ya es el que los usuarios conocen. Solo cambia la presentación visual
+(acordeón en vez de tabs), no la lógica de qué está abierto.
+
+Cada ítem del acordeón lleva el mismo lenguaje visual de punto de estado
+(●/◐/○) que el menú lateral de la Fase 1, pero como un registro propio
+(no `UNIT_GROUP_NAV` — acá no son rutas, son secciones de un acordeón
+dentro de un único formulario).
+
+### Alcance de la extracción
+
+Dado el acoplamiento real de `FloorUnitsEditor` (estado compartido entre
+`form`, `rooms`, `levels`, `activePlanta`, `programActive`,
+`derivedCounts` — ver investigación), la extracción se limita a:
+
+- Un componente `Accordion`/`AccordionItem` de UI (nuevo, en
+  `components/ui/`), con soporte para punto de estado y una sola sección
+  abierta a la vez.
+- Regrupar el contenido que HOY vive en la pestaña "Datos" (4 cards:
+  Identidad y superficies, Composición, Orientación del frente,
+  Comodidades) en las secciones 1-4 de arriba — es un cambio de
+  organización visual, no de lógica: los inputs, handlers y el estado
+  siguen siendo los mismos, solo cambian de contenedor.
+- Las pestañas "Ambientes", "Planos e imágenes" y "Galería" pasan a ser
+  secciones 5-7 del acordeón tal cual están hoy (sin split adicional).
+
+No se extraen los bloques a archivos nuevos separados por sección — dado
+el acoplamiento de estado documentado, mover JSX de lugar dentro del mismo
+archivo es de mucho menor riesgo que separar en 7 componentes con props
+propias. Si en la implementación se ve una extracción segura y de bajo
+riesgo para alguna sección puntual, se hace; si no, se prioriza no romper
+nada sobre la pureza de la separación de archivos.
