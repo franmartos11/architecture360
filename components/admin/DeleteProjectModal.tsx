@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 
@@ -26,18 +26,39 @@ export default function DeleteProjectModal({
 }) {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [deleteBim, setDeleteBim] = useState(false);
+  const [bimCount, setBimCount] = useState<{ projectId: string; own: number; other: number } | null>(null);
   const toast = useToast();
 
+  // Los conteos se piden acá y no en las dos pantallas que abren el modal:
+  // ambas son Client Components que ya traen sus datos por fetch, así que
+  // cargarlo en cada una sería el mismo request duplicado. El resultado
+  // se guarda junto con el id de proyecto al que corresponde (en vez de
+  // resetear el estado a mano al cerrar/cambiar de proyecto) para no
+  // llamar a setState sincrónicamente en el cuerpo del efecto.
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    fetch(`/api/admin/projects/${project.id}/bim-count`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (!cancelled && data) setBimCount({ projectId: project.id, ...data }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [project]);
+
   if (!project) return null;
+
+  const counts = bimCount?.projectId === project.id ? bimCount : null;
 
   const handleConfirm = async () => {
     if (confirmText !== project.name) return;
     setDeleting(true);
-    const res = await fetch(`/api/admin/projects/${project.id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/admin/projects/${project.id}?deleteBim=${deleteBim}`, { method: 'DELETE' });
     setDeleting(false);
     if (res.ok) {
       toast('Proyecto eliminado.');
       setConfirmText('');
+      setDeleteBim(false);
       onDeleted();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -48,6 +69,7 @@ export default function DeleteProjectModal({
   const handleClose = () => {
     if (deleting) return;
     setConfirmText('');
+    setDeleteBim(false);
     onClose();
   };
 
@@ -63,6 +85,37 @@ export default function DeleteProjectModal({
         <p className="text-sm text-gray-600">
           Se eliminará todo lo cargado en este proyecto — edificios, unidades, fotos, planos, tours, leads. Esta acción no se puede deshacer.
         </p>
+        {counts && counts.own > 0 && (
+          <div className="mt-4 rounded-xl border border-gray-200 p-3.5">
+            <p className="text-sm font-medium text-gray-900 mb-2">
+              Este proyecto tiene {counts.own}{' '}
+              {counts.own === 1 ? 'modelo BIM asociado' : 'modelos BIM asociados'}.
+            </p>
+            <label className="flex items-start gap-2.5 text-sm text-gray-700 mb-1.5">
+              <input
+                type="radio" name="bim-action" checked={!deleteBim}
+                onChange={() => setDeleteBim(false)} disabled={deleting}
+                className="mt-0.5"
+              />
+              <span>Conservarlos en mi portfolio <span className="text-gray-400">(recomendado)</span></span>
+            </label>
+            <label className="flex items-start gap-2.5 text-sm text-gray-700">
+              <input
+                type="radio" name="bim-action" checked={deleteBim}
+                onChange={() => setDeleteBim(true)} disabled={deleting}
+                className="mt-0.5"
+              />
+              <span>Eliminarlos también</span>
+            </label>
+            {counts.other > 0 && (
+              <p className="text-xs text-gray-500 mt-2.5">
+                {counts.other === 1
+                  ? '1 modelo de otro colaborador se desvinculará, no se elimina.'
+                  : `${counts.other} modelos de otros colaboradores se desvincularán, no se eliminan.`}
+              </p>
+            )}
+          </div>
+        )}
         <label className="block text-xs font-medium text-gray-500 mt-4 mb-1.5">
           Para confirmar, escribí el nombre exacto del proyecto:
         </label>
