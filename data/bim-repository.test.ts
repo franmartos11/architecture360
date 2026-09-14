@@ -5,6 +5,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
 import { createClient } from '@/lib/supabase/server';
 import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
+import type { BimModel } from '@/types';
 import type { BimModelRow } from '@/types/database';
 
 // Set env vars before dynamically importing the module under test
@@ -12,15 +13,15 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 
 // Dynamic import to ensure SUPABASE_CONFIGURED is evaluated with env vars set
-let mapBimModelRow: any;
-let getBimModelsByAuthor: any;
-let getBimModelById: any;
+let mapBimModelRow: (row: BimModelRow) => BimModel;
+let getBimModelsByAuthor: (authorId: string) => Promise<BimModel[]>;
+let getBimModelById: (id: string) => Promise<BimModel | undefined>;
 
 beforeAll(async () => {
-  const module = await import('./bim-repository');
-  mapBimModelRow = module.mapBimModelRow;
-  getBimModelsByAuthor = module.getBimModelsByAuthor;
-  getBimModelById = module.getBimModelById;
+  const bimRepository = await import('./bim-repository');
+  mapBimModelRow = bimRepository.mapBimModelRow;
+  getBimModelsByAuthor = bimRepository.getBimModelsByAuthor;
+  getBimModelById = bimRepository.getBimModelById;
 });
 
 const row: BimModelRow = {
