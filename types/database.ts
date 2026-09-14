@@ -4,7 +4,7 @@
 // propia copia a mano de estas mismas interfaces — un rename de columna
 // obligaba a cazar N archivos. Las páginas que solo necesitan un
 // subconjunto de columnas usan `Pick<...>` sobre estos tipos completos.
-import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig } from './index';
+import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig, BimModelStatus, BimSourceFormat, BimModelStats } from './index';
 
 export interface ProjectRow {
   id: string;
@@ -218,4 +218,24 @@ export interface SavedThemeRow {
   name: string;
   config: ThemeConfig;
   created_at: string;
+}
+
+export interface BimModelRow {
+  id: string;
+  author_id: string;
+  project_id: string | null;
+  title: string;
+  description: string | null;
+  source_format: BimSourceFormat | null;
+  source_url: string | null;
+  geometry_url: string | null;
+  properties_url: string | null;
+  gallery_images: string[];
+  cover_image: string | null;
+  stats: BimModelStats | null;
+  status: BimModelStatus;
+  error_message: string | null;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
 }

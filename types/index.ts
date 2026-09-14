@@ -502,3 +502,40 @@ export interface Lead {
   status: string;
   created_at: string;
 }
+
+// ─── Modelos BIM ────────────────────────────────────────────────────
+export type BimModelStatus = 'processing' | 'ready' | 'failed';
+export type BimSourceFormat = 'ifc' | 'glb';
+
+/** Resumen del modelo convertido — lo llena la Fase 2 (ingesta). */
+export interface BimModelStats {
+  elements: number;
+  storeys: number;
+  triangles: number;
+  bytes: number;
+}
+
+export interface BimModel {
+  id: string;
+  authorId: string;
+  /** Proyecto al que el autor lo asoció — null si es una pieza suelta del portfolio. */
+  projectId: string | null;
+  title: string;
+  description: string;
+  sourceFormat: BimSourceFormat | null;
+  /** IFC/GLB original, para descarga o reproceso. Null en piezas solo-imágenes. */
+  sourceUrl: string | null;
+  /** Lo único que baja el visitante. Null hasta que se sube un modelo (Fase 2). */
+  geometryUrl: string | null;
+  /** Árbol de elementos + propiedades — solo cuando el origen fue IFC. */
+  propertiesUrl: string | null;
+  galleryImages: string[];
+  coverImage: string | null;
+  stats: BimModelStats | null;
+  status: BimModelStatus;
+  /** Solo se muestra al autor, nunca en la vista pública. */
+  errorMessage: string | null;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

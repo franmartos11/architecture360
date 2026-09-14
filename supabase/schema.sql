@@ -1489,3 +1489,60 @@ create policy "own manage post_poll_votes" on post_poll_votes for all to authent
   with check (profile_id = auth.uid());
 
 create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
+
+-- ─── Modelos BIM (piezas de portfolio) ──────────────────────────────
+-- Pertenecen al AUTOR, no al proyecto: un arquitecto muestra su modelo
+-- en su perfil aunque no esté cargado como proyecto en la plataforma, y
+-- si lo asocia a uno, aparece además en la landing de ese proyecto.
+-- project_id es on delete set null a propósito — borrar el proyecto no
+-- debe llevarse una pieza del portfolio (ver DeleteProjectModal, que
+-- pregunta explícitamente qué hacer).
+--
+-- Los archivos van al bucket 'bim-models', NO a 'project-media': ese lo
+-- barre entero deleteProjectStorageFiles() al borrar un proyecto.
+-- Crear el bucket a mano en Supabase: público en lectura.
+--
+-- geometry_url / properties_url / source_* / stats quedan nulos hasta la
+-- Fase 2 (ingesta del modelo): una pieza puede publicarse solo con
+-- imágenes.
+create table if not exists bim_models (
+  id             uuid primary key default gen_random_uuid(),
+  author_id      uuid not null references profiles(id) on delete cascade,
+  project_id     uuid references projects(id) on delete set null,
+  title          text not null,
+  description    text,
+  source_format  text check (source_format is null or source_format in ('ifc','glb')),
+  source_url     text,
+  geometry_url   text,
+  properties_url text,
+  gallery_images text[] not null default '{}',
+  cover_image    text,
+  stats          jsonb,
+  status         text not null default 'processing'
+                 check (status in ('processing','ready','failed')),
+  error_message  text,
+  is_public      boolean not null default true,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists idx_bim_models_author on bim_models(author_id, created_at desc);
+create index if not exists idx_bim_models_project on bim_models(project_id);
+
+alter table bim_models enable row level security;
+
+-- El visitante anónimo solo ve piezas publicadas y públicas.
+drop policy if exists "public read bim_models" on bim_models;
+create policy "public read bim_models" on bim_models for select to anon, authenticated
+  using (is_public and status = 'ready');
+
+-- El autor ve y escribe TODAS las suyas, incluidas las que están en
+-- processing/failed o marcadas como privadas.
+drop policy if exists "author read own bim_models" on bim_models;
+create policy "author read own bim_models" on bim_models for select to authenticated
+  using (author_id = auth.uid());
+
+drop policy if exists "author write bim_models" on bim_models;
+create policy "author write bim_models" on bim_models for all to authenticated
+  using (author_id = auth.uid())
+  with check (author_id = auth.uid());
