@@ -5,7 +5,9 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { usePathname } from 'next/navigation';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 
-export default function Navbar({ showCalculator, hasTour, singleUnit, unitsLabel: unitsLabelProp }: {
+export default function Navbar({ projectName, showCalculator, hasTour, singleUnit, unitsLabel: unitsLabelProp }: {
+  /** Nombre del proyecto — este sitio es white-label, el nav lleva la marca del proyecto, no la de la plataforma. */
+  projectName: string;
   showCalculator: boolean;
   hasTour: boolean;
   /** Tipo "casa": una sola unidad — el link va directo a ella y se llama como la casa. */
@@ -37,11 +39,8 @@ export default function Navbar({ showCalculator, hasTour, singleUnit, unitsLabel
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href={projectHref} className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-lg bg-[var(--theme-accent)] flex items-center justify-center text-[var(--theme-text-on-dark)] font-bold text-sm transition-transform group-hover:scale-110">
-              360
-            </div>
-            <span className="font-[family-name:var(--theme-font-heading)] text-lg font-semibold tracking-tight text-[var(--theme-text-on-dark)]/90">
-              InteractiveRE
+            <span className="font-[family-name:var(--theme-font-heading)] text-lg font-semibold tracking-tight text-[var(--theme-text-on-dark)]/90 truncate max-w-[40vw] md:max-w-[280px]">
+              {projectName}
             </span>
           </Link>
 
