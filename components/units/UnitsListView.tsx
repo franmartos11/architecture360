@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -12,11 +12,12 @@ import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { filtersFromQuery, filtersToQuery, type UnitFilters } from '@/lib/unit-filters-url';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {
   project: Project;
-  initialBuildingFilter?: string;
+  initialQuery?: string;
   typeConfig: ProjectTypeConfig;
 }
 
@@ -47,15 +48,15 @@ function unitTags(u: Unit): string[] {
   return tags.slice(0, 2);
 }
 
-export default function UnitsListView({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
+export default function UnitsListView({ project, initialQuery, typeConfig }: UnitsListViewProps) {
   return (
     <ProjectTypeProvider projectType={project.projectType} saleMode={project.saleMode}>
-      <UnitsListViewInner project={project} initialBuildingFilter={initialBuildingFilter} typeConfig={typeConfig} />
+      <UnitsListViewInner project={project} initialQuery={initialQuery} typeConfig={typeConfig} />
     </ProjectTypeProvider>
   );
 }
 
-function UnitsListViewInner({ project, initialBuildingFilter, typeConfig }: UnitsListViewProps) {
+function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListViewProps) {
   const basePath = useProjectBasePath();
   const { hasFloorStep, buildingLabel, unitLabel, unitIsLand, showPrice, showStatus } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
@@ -65,23 +66,55 @@ function UnitsListViewInner({ project, initialBuildingFilter, typeConfig }: Unit
   const unitLabelPluralLower = unitLabelPlural.toLowerCase();
   const hasMultipleBuildings = project.buildings.length > 1;
 
-  const [buildingFilter, setBuildingFilter] = useState<string>(
-    initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
-      ? initialBuildingFilter
-      : 'all'
-  );
-  const [typeFilter, setTypeFilter] = useState<UnitType | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all');
-  const [selectedFeats, setSelectedFeats] = useState<FeatKey[]>([]);
-  const [maxPrice, setMaxPrice] = useState(0);
-  const [minArea, setMinArea] = useState(0);
-  const [onlyFavs, setOnlyFavs] = useState(false);
+  const initialFilters = useMemo(() => {
+    const parsed = filtersFromQuery(new URLSearchParams(initialQuery ?? ''));
+    // Un id de edificio que no existe en este proyecto (link viejo, proyecto
+    // editado) se descarta en vez de dejar la lista vacía sin explicación.
+    return project.buildings.some(b => b.id === parsed.edificio)
+      ? parsed
+      : { ...parsed, edificio: 'all' };
+  }, [initialQuery, project.buildings]);
+
+  const [buildingFilter, setBuildingFilter] = useState<string>(initialFilters.edificio);
+  const [typeFilter, setTypeFilter] = useState<UnitType | 'all'>(initialFilters.tipo as UnitType | 'all');
+  const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>(initialFilters.estado as UnitStatus | 'all');
+  const [selectedFeats, setSelectedFeats] = useState<FeatKey[]>(initialFilters.feats as FeatKey[]);
+  const [maxPrice, setMaxPrice] = useState(initialFilters.precioMax);
+  const [minArea, setMinArea] = useState(initialFilters.m2Min);
+  const [onlyFavs, setOnlyFavs] = useState(initialFilters.favs);
   const [advOpen, setAdvOpen] = useState(false);
-  const [orden, setOrden] = useState<Orden>('piso');
+  const [orden, setOrden] = useState<Orden>(initialFilters.orden as Orden);
   const [vista, setVista] = useState<Vista>('grid');
   const [cmp, setCmp] = useState<string[]>([]);
   const [cmpOpen, setCmpOpen] = useState(false);
   const [leadMessage, setLeadMessage] = useState<string | undefined>(undefined);
+
+  // El estado de filtros se refleja en la URL con history.replaceState y NO
+  // con el router de Next: replaceState no dispara navegación ni re-render
+  // del Server Component, que es justo lo que queremos — la lista ya tiene
+  // todos los datos en memoria y volver a pedirlos al servidor en cada tecla
+  // del slider de precio sería absurdo. Tampoco ensucia el historial, así que
+  // el botón "atrás" sigue saliendo de la lista en vez de deshacer filtros
+  // uno por uno.
+  const currentFilters: UnitFilters = useMemo(() => ({
+    edificio: buildingFilter,
+    tipo: typeFilter,
+    estado: statusFilter,
+    precioMax: maxPrice,
+    m2Min: minArea,
+    favs: onlyFavs,
+    feats: selectedFeats,
+    orden,
+  }), [buildingFilter, typeFilter, statusFilter, maxPrice, minArea, onlyFavs, selectedFeats, orden]);
+
+  const filtersQuery = filtersToQuery(currentFilters);
+
+  useEffect(() => {
+    const url = filtersQuery
+      ? `${window.location.pathname}?${filtersQuery}`
+      : window.location.pathname;
+    window.history.replaceState(null, '', url);
+  }, [filtersQuery]);
 
   const contactModal = useContactModal();
   const openLead = useCallback((message?: string) => {

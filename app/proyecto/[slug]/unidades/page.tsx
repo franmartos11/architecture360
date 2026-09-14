@@ -6,7 +6,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ edificio?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -23,10 +23,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function UnidadesPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const { edificio } = await searchParams;
+  const sp = await searchParams;
   const project = await getPublicProjectBySlug(slug);
   if (!project) notFound();
 
+  // Los filtros llegan por query string para que un listado filtrado sea una
+  // dirección a la que se puede volver desde la ficha de una unidad (y que se
+  // puede compartir). La vista los sincroniza de vuelta a la URL — ver
+  // UnitsListView.
+  const initialQuery = new URLSearchParams(
+    Object.entries(sp).flatMap(([k, v]) =>
+      typeof v === 'string' ? [[k, v] as [string, string]] : [],
+    ),
+  ).toString();
+
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
-  return <UnitsListView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;
+  return <UnitsListView project={project} initialQuery={initialQuery} typeConfig={typeConfig} />;
 }
