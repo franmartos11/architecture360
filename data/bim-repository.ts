@@ -1,0 +1,84 @@
+import { cache } from 'react';
+import { createClient } from '@/lib/supabase/server';
+import type { BimModel } from '@/types';
+import type { BimModelRow } from '@/types/database';
+
+const SUPABASE_CONFIGURED =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Los nulos de texto se normalizan a '' porque los inputs del admin son
+// controlados y React se queja si el value pasa de undefined a string.
+// Los nulos de las columnas de archivo se CONSERVAN: canPublishBimModel
+// necesita distinguir "todavía no hay modelo" de "hay un modelo".
+export function mapBimModelRow(row: BimModelRow): BimModel {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    projectId: row.project_id,
+    title: row.title,
+    description: row.description ?? '',
+    sourceFormat: row.source_format,
+    sourceUrl: row.source_url,
+    geometryUrl: row.geometry_url,
+    propertiesUrl: row.properties_url,
+    galleryImages: row.gallery_images ?? [],
+    coverImage: row.cover_image,
+    stats: row.stats,
+    status: row.status,
+    errorMessage: row.error_message,
+    isPublic: row.is_public,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Todas las piezas del autor — incluidas privadas, en processing y
+// fallidas. La política RLS "author read own bim_models" es la que
+// permite ver esas; con el cliente anónimo este query devuelve vacío.
+export const getBimModelsByAuthor = cache(async (authorId: string): Promise<BimModel[]> => {
+  if (!SUPABASE_CONFIGURED) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('bim_models')
+    .select('*')
+    .eq('author_id', authorId)
+    .order('created_at', { ascending: false });
+  return ((data ?? []) as BimModelRow[]).map(mapBimModelRow);
+});
+
+// Para el portfolio público: el filtro va explícito además de RLS, para
+// que el dueño mirando su propio perfil vea lo mismo que ve un visitante.
+export const getPublicBimModelsByAuthor = cache(async (authorId: string): Promise<BimModel[]> => {
+  if (!SUPABASE_CONFIGURED) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('bim_models')
+    .select('*')
+    .eq('author_id', authorId)
+    .eq('is_public', true)
+    .eq('status', 'ready')
+    .order('created_at', { ascending: false });
+  return ((data ?? []) as BimModelRow[]).map(mapBimModelRow);
+});
+
+// Sin filtro de visibilidad: RLS decide. El autor entra a su pieza en
+// processing desde el admin; un visitante recibe undefined → notFound().
+export const getBimModelById = cache(async (id: string): Promise<BimModel | undefined> => {
+  if (!SUPABASE_CONFIGURED) return undefined;
+  const supabase = await createClient();
+  const { data } = await supabase.from('bim_models').select('*').eq('id', id).maybeSingle();
+  return data ? mapBimModelRow(data as BimModelRow) : undefined;
+});
+
+export const getPublicBimModelsByProject = cache(async (projectId: string): Promise<BimModel[]> => {
+  if (!SUPABASE_CONFIGURED) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('bim_models')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('is_public', true)
+    .eq('status', 'ready')
+    .order('created_at', { ascending: false });
+  return ((data ?? []) as BimModelRow[]).map(mapBimModelRow);
+});
