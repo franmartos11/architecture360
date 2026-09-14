@@ -1,12 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
 import { createClient } from '@/lib/supabase/server';
 import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
-import { mapBimModelRow, getBimModelsByAuthor, getBimModelById } from './bim-repository';
 import type { BimModelRow } from '@/types/database';
+
+// Set env vars before dynamically importing the module under test
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+
+// Dynamic import to ensure SUPABASE_CONFIGURED is evaluated with env vars set
+let mapBimModelRow: any;
+let getBimModelsByAuthor: any;
+let getBimModelById: any;
+
+beforeAll(async () => {
+  const module = await import('./bim-repository');
+  mapBimModelRow = module.mapBimModelRow;
+  getBimModelsByAuthor = module.getBimModelsByAuthor;
+  getBimModelById = module.getBimModelById;
+});
 
 const row: BimModelRow = {
   id: 'bim-1',
@@ -47,7 +62,7 @@ describe('mapBimModelRow', () => {
 });
 
 describe('getBimModelsByAuthor', () => {
-  beforeEach(() => {
+  beforeAll(() => {
     vi.mocked(createClient).mockReset();
   });
 
@@ -65,7 +80,7 @@ describe('getBimModelsByAuthor', () => {
 });
 
 describe('getBimModelById', () => {
-  beforeEach(() => {
+  beforeAll(() => {
     vi.mocked(createClient).mockReset();
   });
 
