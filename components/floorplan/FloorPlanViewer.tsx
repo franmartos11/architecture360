@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, startTransition } from 'react';
 import type { RefObject } from 'react';
 import Image from 'next/image';
-import { m as motion } from 'framer-motion';
+import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
@@ -734,7 +734,7 @@ export default function FloorPlanViewer({
                             key={unit.id}
                             points={unit.polygon!.map(p => `${p.x},${p.y}`).join(' ')}
                             vectorEffect="non-scaling-stroke"
-                            className={`unit-hover-zone pointer-events-auto${layers.siluetas ? ' unit-hover-zone--outlined' : ''}`}
+                            className={`unit-hover-zone pointer-events-auto${layers.siluetas ? ' unit-hover-zone--outlined' : ''}${hoveredUnit === unit.id ? ' unit-hover-zone--active' : ''}`}
                             opacity={passesFilter(unit) ? 1 : 0.3}
                             onMouseEnter={() => setHoveredUnit(unit.id)}
                             onMouseLeave={() => setHoveredUnit(null)}
@@ -754,6 +754,11 @@ export default function FloorPlanViewer({
                       const hu = polygonUnits.find(u => u.id === hoveredUnit);
                       const poly = hu?.polygon;
                       if (!hu || !poly || poly.length === 0) return null;
+                      // Si la unidad ya tiene su propia etiqueta (pill) visible,
+                      // esa etiqueta muestra la info al hacer hover/selección —
+                      // esta tarjeta queda solo para unidades sin etiqueta cargada.
+                      const dotForUnit = floor.unitDots.find(d => d.unitId === hu.id);
+                      if (layers.etiquetas && dotForUnit && dotForUnit.style !== 'dot') return null;
                       const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
                       const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
                       return (
@@ -813,6 +818,9 @@ export default function FloorPlanViewer({
                               onSelect={handleSelectUnit}
                               showStatus={showStatus}
                               dimmed={!passesFilter(unit)}
+                              isHovered={hoveredUnit === dot.unitId}
+                              onHoverChange={hovered => setHoveredUnit(hovered ? dot.unitId : null)}
+                              unitIsLand={unitIsLand}
                             />
                           );
                         })}
@@ -959,7 +967,7 @@ function CompassBadge() {
 const NEUTRAL_DOT_COLOR = '#4c5f54';
 
 function UnitDotMarker({
-  dot, unit, isSelected, onSelect, showStatus, dimmed,
+  dot, unit, isSelected, onSelect, showStatus, dimmed, isHovered, onHoverChange, unitIsLand,
 }: {
   dot: { x: number; y: number; color?: string; style?: 'pill' | 'dot' };
   unit: Unit;
@@ -967,17 +975,28 @@ function UnitDotMarker({
   onSelect: (unit: Unit) => void;
   showStatus: boolean;
   dimmed: boolean;
+  isHovered: boolean;
+  onHoverChange: (hovered: boolean) => void;
+  unitIsLand: boolean;
 }) {
   const color = dot.color || (showStatus ? getStatusColor(unit.status) : NEUTRAL_DOT_COLOR);
+  // La etiqueta se expande — en vez de mostrar una tarjeta blanca aparte —
+  // así hover/selección apuntan siempre al mismo elemento, sin ambigüedad
+  // sobre a qué unidad pertenece la info.
+  const expanded = dot.style !== 'dot' && (isSelected || isHovered);
   return (
     <motion.button
       variants={{
         hidden: { opacity: 0, scale: 0 },
         visible: { opacity: dimmed ? 0.35 : 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } }
       }}
-      className="absolute group pointer-events-auto"
+      className="absolute group pointer-events-auto z-10"
       style={{ left: `${dot.x}%`, top: `${dot.y}%`, transform: 'translate(-50%, -50%)' }}
       onClick={() => onSelect(unit)}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => onHoverChange(true)}
+      onBlur={() => onHoverChange(false)}
       aria-label={`Seleccionar ${unit.name}`}
     >
       {dot.style === 'dot' ? (
@@ -986,12 +1005,29 @@ function UnitDotMarker({
           style={{ backgroundColor: color }}
         />
       ) : (
-        <div
-          className={`flex items-center gap-1 rounded-full px-2 py-1 text-white text-[11px] font-bold shadow-lg transition-all duration-200 border-2 border-white ${isSelected ? 'scale-125' : 'hover:scale-110'}`}
+        <motion.div
+          layout
+          transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+          className="flex flex-col items-center rounded-2xl text-white shadow-lg border-2 border-white overflow-hidden"
           style={{ backgroundColor: color }}
         >
-          {unit.name}
-        </div>
+          <motion.div layout="position" className="flex items-center px-2 py-1 text-[11px] font-bold whitespace-nowrap">
+            {unit.name}
+          </motion.div>
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                key="details"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-2 pb-1.5 text-[10px] font-medium text-white/90 whitespace-nowrap"
+              >
+                {!unitIsLand && unit.modelName ? `${unit.modelName} · ` : ''}{unit.totalArea}m²
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
       )}
     </motion.button>
   );

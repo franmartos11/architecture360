@@ -221,7 +221,8 @@ body {
 }
 
 .unit-hover-zone:hover,
-.unit-hover-zone:focus-visible {
+.unit-hover-zone:focus-visible,
+.unit-hover-zone--active {
   fill: rgba(60, 60, 60, 0.4);
   stroke: rgba(255, 255, 255, 0.7);
   stroke-width: 1.5;
