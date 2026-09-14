@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -31,17 +31,11 @@ export default function BimModelEditor({
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
-  // Al cambiar de pieza en la lista, el formulario se recarga con la nueva.
-  // (reset intencional al cambiar de `model`, no una sincronización derivable en el render)
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setTitle(model.title);
-    setDescription(model.description);
-    setGalleryImages(model.galleryImages);
-    setProjectId(model.projectId ?? '');
-    setIsPublic(model.isPublic);
-  }, [model]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  // El formulario se recarga con la pieza nueva porque BimAdminClient monta
+  // este componente con key={selected.id}: al cambiar de pieza React
+  // desmonta y remonta, y los useState de arriba se reinicializan solos con
+  // el `model` correspondiente. No hace falta un efecto que copie el prop
+  // al estado.
 
   const publishable = canPublishBimModel({ geometryUrl: model.geometryUrl, galleryImages });
   const tooManyImages = galleryImages.filter(u => u.trim()).length > MAX_GALLERY_IMAGES;

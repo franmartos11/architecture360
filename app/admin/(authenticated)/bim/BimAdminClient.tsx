@@ -59,6 +59,7 @@ export default function BimAdminClient({
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           {selected ? (
             <BimModelEditor
+              key={selected.id}
               model={selected}
               projects={projects}
               onSaved={updated => setModels(prev => prev.map(m => (m.id === updated.id ? updated : m)))}
