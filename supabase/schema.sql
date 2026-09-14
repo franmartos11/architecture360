@@ -921,6 +921,25 @@ insert into storage.buckets (id, name, public)
 values ('message-attachments', 'message-attachments', false)
 on conflict (id) do nothing;
 
+-- Bucket aparte para piezas BIM (ver bim_models más arriba) — público en
+-- lectura como project-media, pero separado porque no lo toca
+-- deleteProjectStorageFiles() al borrar un proyecto: una pieza BIM vive
+-- en el portfolio del autor y sobrevive al proyecto salvo que el autor
+-- elija borrarla también (ver DeleteProjectModal).
+insert into storage.buckets (id, name, public)
+values ('bim-models', 'bim-models', true)
+on conflict (id) do nothing;
+
+drop policy if exists "public read bim-models" on storage.objects;
+create policy "public read bim-models"
+  on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'bim-models');
+
+-- Sin policy de escritura para anon/authenticated a propósito, mismo
+-- motivo que project-media: las subidas pasan por rutas del server con
+-- la service_role key.
+
 -- ─── Índices útiles ──────────────────────────────────────────────────
 create index if not exists idx_buildings_project on buildings(project_id);
 create index if not exists idx_floors_building on floors(building_id);
@@ -1501,8 +1520,8 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 -- Los archivos van al bucket 'bim-models', NO a 'project-media': ese
 -- bucket lo vacía deleteProjectStorageFiles() de las URLs que encuentra
 -- en las tablas del proyecto al borrarlo, y una pieza BIM tiene que
--- sobrevivir a eso salvo que su autor decida lo contrario.
--- Crear el bucket a mano en Supabase: público en lectura.
+-- sobrevivir a eso salvo que su autor decida lo contrario. El bucket se
+-- crea más abajo, junto con el resto del storage.
 --
 -- geometry_url / properties_url / source_* / stats quedan nulos hasta la
 -- Fase 2 (ingesta del modelo): una pieza puede publicarse solo con
