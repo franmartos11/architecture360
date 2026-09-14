@@ -2,11 +2,8 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { pluralize } from '@/lib/units';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
@@ -37,7 +34,6 @@ export default function AmenitiesView(props: AmenitiesViewProps) {
 }
 
 function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: AmenitiesViewProps) {
-  const basePath = useProjectBasePath();
   const [zone, setZone] = useState<string>(
     initialBuildingFilter && project.buildings.some(b => b.id === initialBuildingFilter)
       ? initialBuildingFilter
@@ -89,16 +85,9 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
   const prevAmenity = curIndex >= 0 && filtered.length > 0 ? filtered[(curIndex - 1 + filtered.length) % filtered.length] : null;
   const nextAmenity = curIndex >= 0 && filtered.length > 0 ? filtered[(curIndex + 1) % filtered.length] : null;
 
-  const unitLabelPlural = pluralize(typeConfig.unitLabel);
-
   if (project.amenities.length === 0) {
     return (
       <div className="min-h-screen bg-trevo-dark">
-        <div className="max-w-[1240px] mx-auto px-[16px] sm:px-[28px] pt-[26px]">
-          <Link href={basePath || '/'} className="text-[11px] font-medium tracking-[.16em] text-white/[.55] hover:text-white transition-colors">
-            ← {project.name.toUpperCase()}
-          </Link>
-        </div>
         <div className="text-center py-20 text-white/40 font-light">Todavía no hay amenidades cargadas.</div>
       </div>
     );
@@ -109,19 +98,6 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
 
       {/* ── Hero ──────────────────────────────────────────────── */}
       <div className="max-w-[1240px] mx-auto px-[16px] sm:px-[28px] pt-[26px]">
-        <div className="flex items-center justify-between gap-[16px] flex-wrap">
-          <Link href={basePath || '/'} className="text-[11px] font-medium tracking-[.16em] text-white/[.55] hover:text-white transition-colors">
-            ← {project.name.toUpperCase()}
-          </Link>
-          <div className="flex gap-[8px]">
-            <Link href={`${basePath}/unidades`} className="h-[34px] px-[14px] flex items-center border border-white/20 rounded-full text-[11.5px] font-medium text-white">
-              {unitLabelPlural}
-            </Link>
-            <Link href={`${basePath}/ubicacion`} className="h-[34px] px-[14px] flex items-center border border-white/20 rounded-full text-[11.5px] font-medium text-white">
-              Ubicación
-            </Link>
-          </div>
-        </div>
 
         <div className="flex items-end justify-between gap-[34px] flex-wrap mt-[26px]">
           <div className="min-w-[280px] flex-1">

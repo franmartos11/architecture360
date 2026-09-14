@@ -240,33 +240,16 @@ function UnitsListViewInner({ project, initialBuildingFilter, typeConfig }: Unit
         <div className="absolute inset-0 bg-gradient-to-b from-trevo-dark/[.72] via-trevo-dark/[.55] to-trevo-dark/[.94]" />
 
         <div className="relative max-w-[1220px] mx-auto px-[16px] sm:px-[28px] pt-[26px] pb-[30px]">
-          <div className="flex items-center justify-between gap-[16px] flex-wrap">
-            <Link
-              href={basePath || '/'}
-              className="flex items-center gap-[8px] font-medium text-[11px] leading-none tracking-[.16em] text-white/[.62] hover:text-white transition-colors"
+          <div className="flex items-center justify-end">
+            {/* Masterplan y Amenities salieron de acá: el Navbar global del
+                layout ya los ofrece. "Contactar" se queda porque el nav no
+                tiene ninguna acción de contacto — su CTA va al masterplan. */}
+            <button
+              onClick={() => openLead()}
+              className="h-[34px] px-[14px] flex items-center gap-[7px] bg-white rounded-full text-[11.5px] font-semibold text-trevo-dark"
             >
-              ← {project.name.toUpperCase()}
-            </Link>
-            <div className="flex gap-[8px]">
-              <Link
-                href={`${basePath}/masterplan`}
-                className="h-[34px] px-[14px] flex items-center gap-[7px] border border-white/[.28] rounded-full text-[11.5px] font-medium text-white"
-              >
-                Masterplan
-              </Link>
-              <Link
-                href={`${basePath}/amenities`}
-                className="h-[34px] px-[14px] flex items-center gap-[7px] border border-white/[.28] rounded-full text-[11.5px] font-medium text-white"
-              >
-                Amenities
-              </Link>
-              <button
-                onClick={() => openLead()}
-                className="h-[34px] px-[14px] flex items-center gap-[7px] bg-white rounded-full text-[11.5px] font-semibold text-trevo-dark"
-              >
-                Contactar
-              </button>
-            </div>
+              Contactar
+            </button>
           </div>
 
           <div className="flex items-end justify-between gap-[32px] flex-wrap mt-[34px]">

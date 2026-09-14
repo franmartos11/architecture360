@@ -2,10 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Footprints, Bike, Car } from 'lucide-react';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
-import { pluralize } from '@/lib/units';
 import { useContactModal } from '@/hooks/useContactModal';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { POI_CATEGORY_LABELS, PoiCategoryIcon } from '@/lib/poiCategories';
@@ -57,7 +54,6 @@ export default function LocationView({ project, typeConfig }: LocationViewProps)
 }
 
 function LocationViewInner({ project, typeConfig }: LocationViewProps) {
-  const basePath = useProjectBasePath();
   const [mode, setMode] = useState<Mode>('walk');
   const [category, setCategory] = useState<PoiCategory | 'all'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,19 +140,6 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
 
       {/* ── Hero ──────────────────────────────────────────────── */}
       <div className="max-w-[1300px] mx-auto px-[16px] sm:px-[28px] pt-[26px]">
-        <div className="flex items-center justify-between gap-[16px] flex-wrap">
-          <Link href={basePath || '/'} className="text-[11px] font-medium tracking-[.16em] text-white/[.55] hover:text-white transition-colors">
-            ← {project.name.toUpperCase()}
-          </Link>
-          <div className="flex gap-[8px]">
-            <Link href={`${basePath}/unidades`} className="h-[34px] px-[14px] flex items-center border border-white/20 rounded-full text-[11.5px] font-medium text-white">
-              {pluralize(typeConfig.unitLabel)}
-            </Link>
-            <Link href={`${basePath}/amenities`} className="h-[34px] px-[14px] flex items-center border border-white/20 rounded-full text-[11.5px] font-medium text-white">
-              Amenities
-            </Link>
-          </div>
-        </div>
 
         <div className="flex items-end justify-between gap-[30px] flex-wrap mt-[24px]">
           <div className="min-w-[280px] flex-1">
@@ -221,7 +204,7 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                     onClick={() => setSelectedId(null)}
                     className="h-[28px] px-[11px] flex items-center gap-[6px] bg-black/[.62] backdrop-blur-md rounded-full text-[11px] font-medium text-white cursor-pointer"
                   >
-                    Volver al proyecto ×
+                    Quitar selección ×
                   </button>
                 )}
               </div>
