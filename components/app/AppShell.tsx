@@ -98,6 +98,16 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                 <Building2 className="w-5 h-5" />
               </Link>
             )}
+            {loggedIn && (
+              <Link
+                href="/admin/bim"
+                className={`hidden sm:inline-flex p-2 rounded-lg transition-colors ${isActive('/admin/bim') ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                title="Modelos BIM"
+                aria-label="Modelos BIM"
+              >
+                <Box className="w-5 h-5" />
+              </Link>
+            )}
 
             {loggedIn ? (
               <>

@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { Globe, Mail, MapPin, Building2 } from 'lucide-react';
+import { Globe, Mail, MapPin, Building2, Box } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { getPortfolioByHandle } from '@/data/profile-repository';
 import { createClient } from '@/lib/supabase/server';
@@ -355,6 +355,27 @@ export default async function PortfolioPage({ params }: PageProps) {
                 hasLocation={!!portfolio.location}
                 hasProject={portfolio.projects.length > 0 || portfolio.collaborations.length > 0}
               />
+              {/* Aparte del checklist de arriba, a propósito — BIM es una
+                  feature opcional (no todo arquitecto modela en 3D), así
+                  que no suma al % de "perfil completo": eso dejaría a
+                  cualquiera que no la use permanentemente por debajo del
+                  100%. Desaparece sola apenas hay al menos una pieza. */}
+              {portfolio.bimModels.length === 0 && (
+                <Link
+                  href="/admin/bim"
+                  className="flex items-center gap-[13px] bg-white rounded-[13px] border border-trevo-dark/10 py-[16px] px-[17px] hover:border-trevo-dark/25 transition-colors"
+                >
+                  <div className="w-[34px] h-[34px] rounded-full bg-[#5c7a58]/10 flex items-center justify-center shrink-0">
+                    <Box className="w-4 h-4 text-[#5c7a58]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-trevo-dark">Subí tu primer modelo BIM</p>
+                    <p className="text-[11.5px] leading-[1.5] text-trevo-dark/50 font-light mt-0.5">
+                      Mostrá tu trabajo con imágenes y, más adelante, un modelo 3D navegable.
+                    </p>
+                  </div>
+                </Link>
+              )}
             </div>
           )}
         </div>
