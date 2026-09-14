@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, startTransition } from 'react';
+import type { RefObject } from 'react';
 import Image from 'next/image';
 import { m as motion } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -20,6 +21,66 @@ import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 interface BuildingTab {
   id: string;
   name: string;
+}
+
+type LayerKey = 'siluetas' | 'etiquetas' | 'fotos';
+type LayerOption = readonly [LayerKey, string, boolean];
+
+interface LayersToggleProps {
+  options: readonly LayerOption[];
+  layers: Record<LayerKey, boolean>;
+  onToggleLayer: (key: LayerKey) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  panelRef: RefObject<HTMLDivElement | null>;
+}
+
+/** Botón "capas" (siluetas/etiquetas/fotos) — colapsado por defecto, se
+ *  despliega hacia abajo desde la esquina donde vive. Se monta dos veces
+ *  (variante desktop y mobile, cada una oculta por CSS según el ancho de
+ *  pantalla) por eso recibe su propia ref de cada lado. */
+function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange, panelRef }: LayersToggleProps) {
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        aria-label="Capas del plano"
+        className="w-9 h-9 flex items-center justify-center rounded-full bg-white/95 shadow-sm text-gray-600 transition-colors"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3l9 5-9 5-9-5 9-5z" />
+          <path d="M3 13l9 5 9-5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-2 z-20 bg-white/95 rounded-xl shadow-lg border border-gray-200/60 p-2 w-max">
+          <p className="text-[9.5px] font-semibold tracking-[0.12em] text-gray-300 px-1.5 pt-0.5 pb-1.5">CAPAS</p>
+          <div className="flex flex-col gap-0.5">
+            {options.map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => onToggleLayer(key)}
+                className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                role="switch"
+                aria-checked={layers[key]}
+              >
+                <span
+                  className="w-3.5 h-3.5 rounded-[4px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors"
+                  style={{ background: layers[key] ? '#047857' : '#fff', borderColor: layers[key] ? '#047857' : 'rgba(27,30,28,.22)' }}
+                >
+                  {layers[key] && (
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3.6} strokeLinecap="round"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+                  )}
+                </span>
+                <span className="text-[11px] font-medium text-gray-700 whitespace-nowrap">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface FloorPlanViewerProps {
@@ -55,11 +116,30 @@ export default function FloorPlanViewer({
   // siluetas arrancan visibles (así se ven los límites de cada lote); en un
   // edificio no, para no cambiar el plano de siempre.
   const [layers, setLayers] = useState({ siluetas: unitIsLand, etiquetas: true, fotos: false });
+  const [layersOpen, setLayersOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
   const asideRef = useRef<HTMLElement>(null);
+  // El botón de capas se renderiza dos veces (variante desktop y mobile,
+  // una siempre oculta por CSS según el ancho) — cada una necesita su
+  // propia ref para que el "click afuera" no cierre por error la que sí
+  // está visible.
+  const layersRef = useRef<HTMLDivElement>(null);
+  const layersRefMobile = useRef<HTMLDivElement>(null);
+
+  // Cierra el panel de capas al tocar afuera.
+  useEffect(() => {
+    if (!layersOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (layersRef.current?.contains(target) || layersRefMobile.current?.contains(target)) return;
+      setLayersOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [layersOpen]);
 
   // Tamaño real (en px) al que dibujamos el plano — se calcula a mano en
   // vez de dejar que el ancho llene el contenedor y la altura "siga"
@@ -202,6 +282,17 @@ export default function FloorPlanViewer({
   const pricePerM2 = selectedUnit?.price && selectedUnit.totalArea > 0
     ? formatPrice(Math.round(selectedUnit.price / selectedUnit.totalArea), selectedUnit.currency)
     : null;
+
+  // Capas disponibles para el plano activo — solo se ofrece prender/apagar
+  // lo que efectivamente existe en esta planta.
+  const layerOptions = (floor && floor.planImage
+    ? ([
+        ['siluetas', unitIsLand ? 'Límites de los lotes' : 'Siluetas', polygonUnits.length > 0],
+        ['etiquetas', 'Etiquetas', floor.unitDots.length > 0],
+        ['fotos', 'Fotos', polygonUnits.some(u => u.interiorImageUrl)],
+      ] as const)
+    : []
+  ).filter(([, , available]) => available);
 
   return (
     <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-4rem)] md:overflow-hidden bg-white">
@@ -563,6 +654,16 @@ export default function FloorPlanViewer({
                 ))}
               </div>
             )}
+            {layerOptions.length > 0 && (
+              <LayersToggle
+                options={layerOptions}
+                layers={layers}
+                onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
+                open={layersOpen}
+                onOpenChange={setLayersOpen}
+                panelRef={layersRef}
+              />
+            )}
             {showLeads && (
               <button
                 onClick={() => contactModal.open()}
@@ -574,35 +675,20 @@ export default function FloorPlanViewer({
           </div>
         </div>
 
-        {/* Panel de capas — prender/apagar lo que se dibuja sobre el plano. */}
-        {floor && floor.planImage && (polygonUnits.length > 0 || floor.unitDots.length > 0) && (
-          <div className="absolute bottom-3.5 left-3.5 z-20 bg-white/95 rounded-xl shadow-lg border border-gray-200/60 p-2">
-            <p className="text-[9.5px] font-semibold tracking-[0.12em] text-gray-300 px-1.5 pt-0.5 pb-1.5">CAPAS</p>
-            <div className="flex flex-col gap-0.5">
-              {([
-                ['siluetas', unitIsLand ? 'Límites de los lotes' : 'Siluetas', polygonUnits.length > 0],
-                ['etiquetas', 'Etiquetas', floor.unitDots.length > 0],
-                ['fotos', 'Fotos', polygonUnits.some(u => u.interiorImageUrl)],
-              ] as const).filter(([, , available]) => available).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))}
-                  className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-gray-50 transition-colors text-left"
-                  role="switch"
-                  aria-checked={layers[key]}
-                >
-                  <span
-                    className="w-3.5 h-3.5 rounded-[4px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors"
-                    style={{ background: layers[key] ? '#047857' : '#fff', borderColor: layers[key] ? '#047857' : 'rgba(27,30,28,.22)' }}
-                  >
-                    {layers[key] && (
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3.6} strokeLinecap="round"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
-                    )}
-                  </span>
-                  <span className="text-[11px] font-medium text-gray-700 whitespace-nowrap">{label}</span>
-                </button>
-              ))}
-            </div>
+        {/* Botón de capas — variante mobile. En desktop el overlay superior
+            ya lo incluye; en mobile ese overlay está oculto (los mismos
+            controles viven en la franja de arriba, que no tiene lugar para
+            un panel de checkboxes), así que flota solo en esta esquina. */}
+        {layerOptions.length > 0 && (
+          <div className="md:hidden absolute top-3.5 right-3.5 z-20">
+            <LayersToggle
+              options={layerOptions}
+              layers={layers}
+              onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
+              open={layersOpen}
+              onOpenChange={setLayersOpen}
+              panelRef={layersRefMobile}
+            />
           </div>
         )}
 
@@ -622,7 +708,7 @@ export default function FloorPlanViewer({
               {(utils) => (
                 <>
                   <TransformComponent
-                    wrapperClass="!w-full !h-full !flex items-center justify-center"
+                    wrapperClass="!w-full !h-full"
                     contentClass="relative"
                     contentStyle={planFitSize ? { width: planFitSize.w, height: planFitSize.h } : { width: '100%', maxWidth: 1400 }}
                   >
