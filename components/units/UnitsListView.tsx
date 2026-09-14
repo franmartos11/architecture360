@@ -524,6 +524,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                 inCmp={cmp.includes(u.id)}
                 onToggleCmp={() => toggleCompare(u.id)}
                 basePath={basePath}
+                filtersQuery={filtersQuery}
               />
             ))}
 
@@ -563,6 +564,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   inCmp={cmp.includes(u.id)}
                   onToggleCmp={() => toggleCompare(u.id)}
                   basePath={basePath}
+                  filtersQuery={filtersQuery}
                 />
               ))}
             </div>
@@ -728,7 +730,7 @@ function Chip({ active, onClick, size = 'md', children }: { active: boolean; onC
 
 function UnitCard({
   unit, buildingName, hasFloorStep, unitIsLand, showPrice, showStatus, unitLabelLower,
-  isFav, onToggleFav, inCmp, onToggleCmp, basePath,
+  isFav, onToggleFav, inCmp, onToggleCmp, basePath, filtersQuery,
 }: {
   unit: Unit;
   buildingName?: string;
@@ -742,12 +744,14 @@ function UnitCard({
   inCmp: boolean;
   onToggleCmp: () => void;
   basePath: string;
+  filtersQuery: string;
 }) {
   const sold = showStatus && unit.status === 'sold';
   const statusColor = getStatusColor(unit.status);
   const tags = unitTags(unit);
   const img = unit.interiorImageUrl || unit.galleryImages?.[0];
-  const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`;
+  const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
+    + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
 
   return (
     <div className={'rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[.1] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-[3px]' + (sold ? ' opacity-[.62]' : '')}>
@@ -837,7 +841,7 @@ function UnitCard({
 }
 
 function UnitRow({
-  unit, columns, gridTemplate, buildingName, hasFloorStep, unitLabelLower, inCmp, onToggleCmp, basePath,
+  unit, columns, gridTemplate, buildingName, hasFloorStep, unitLabelLower, inCmp, onToggleCmp, basePath, filtersQuery,
 }: {
   unit: Unit;
   columns: { key: string; end?: boolean }[];
@@ -848,9 +852,11 @@ function UnitRow({
   inCmp: boolean;
   onToggleCmp: () => void;
   basePath: string;
+  filtersQuery: string;
 }) {
   const sold = unit.status === 'sold';
-  const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`;
+  const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
+    + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
   const thumb = unit.interiorImageUrl || unit.galleryImages?.[0];
 
   const cell = (key: string) => {

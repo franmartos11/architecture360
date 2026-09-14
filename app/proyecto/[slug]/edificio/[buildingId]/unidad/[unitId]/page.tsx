@@ -3,13 +3,14 @@ import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
 import { getPublicProjectBySlug, getUnitById } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
 
 const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'amenities', 'ubicacion'];
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string; unitId: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; volver?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function UnitPage({ params, searchParams }: PageProps) {
   const { slug, buildingId, unitId } = await params;
-  const { tab } = await searchParams;
+  const { tab, volver } = await searchParams;
 
   const project = await getPublicProjectBySlug(slug);
   const building = project?.buildings.find(b => b.id === buildingId);
@@ -41,6 +42,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
 
   const initialTab = VALID_TABS.includes(tab as UnitViewTab) ? (tab as UnitViewTab) : undefined;
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const basePath = await getProjectBasePath(slug);
 
   return (
     <UnitViewerWrapper
@@ -58,6 +60,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
       projectLongitude={project.longitude}
       initialTab={initialTab}
       typeConfig={typeConfig}
+      backHref={volver ? `${basePath}/unidades?${volver}` : undefined}
     />
   );
 }

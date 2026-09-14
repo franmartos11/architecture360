@@ -21,6 +21,8 @@ interface UnitViewerWrapperProps {
   projectLongitude?: number;
   initialTab?: UnitViewTab;
   typeConfig: ProjectTypeConfig;
+  /** Listado filtrado del que vino el usuario, para poder volver a él. Ausente si llegó por un link directo. */
+  backHref?: string;
 }
 
 export default function UnitViewerWrapper(props: UnitViewerWrapperProps) {

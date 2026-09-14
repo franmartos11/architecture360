@@ -42,6 +42,8 @@ interface UnitViewerProps {
   /** Tab con el que arranca el visor — ej. al entrar desde el botón "Amenities"/"Ubicación" del plano de piso */
   initialTab?: UnitViewTab;
   typeConfig: ProjectTypeConfig;
+  /** Listado filtrado del que vino el usuario, para poder volver a él. Ausente si llegó por un link directo. */
+  backHref?: string;
 }
 
 const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
@@ -94,6 +96,7 @@ export default function UnitViewer({
   projectLongitude,
   initialTab,
   typeConfig,
+  backHref,
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
@@ -631,8 +634,8 @@ export default function UnitViewer({
       {/* ── Mobile: fixed top bar ──────────────────────────── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center gap-3 px-4 py-3 shadow-sm">
         <button
-          onClick={() => router.push(`${basePath}/edificio/${buildingId}`)}
-          aria-label="Volver al plano"
+          onClick={() => router.push(backHref ?? `${basePath}/edificio/${buildingId}`)}
+          aria-label={backHref ? 'Volver a resultados' : 'Volver al plano'}
           className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"
         >
           <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -674,6 +677,17 @@ export default function UnitViewer({
 
         {/* Top bar — desktop only */}
         <div className="hidden md:flex absolute top-0 left-0 right-0 z-20 flex-wrap items-center justify-between gap-2 px-4 pt-4 pointer-events-none">
+          {backHref && (
+            <button
+              onClick={() => router.push(backHref)}
+              className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white shadow text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+              Volver a resultados
+            </button>
+          )}
           <div className="flex items-center gap-2 pointer-events-auto min-w-0">
             <Breadcrumbs crumbs={
               hasUnitStep
