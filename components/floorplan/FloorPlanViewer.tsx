@@ -204,7 +204,7 @@ export default function FloorPlanViewer({
     : null;
 
   return (
-    <div className="flex flex-col md:flex-row overflow-visible md:h-screen md:overflow-hidden bg-white">
+    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-4rem)] md:overflow-hidden bg-white">
 
       {/* ── Franja superior (solo pantallas angostas) — acá viven los
           controles que en desktop flotan sobre el plano: torre, filtro,
@@ -291,7 +291,7 @@ export default function FloorPlanViewer({
       {/* ── Panel de la unidad ───────────────────────────────────── */}
       <aside
         ref={asideRef}
-        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-screen"
+        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-4rem)]"
       >
         {selectedUnit ? (
           <div className="flex flex-col">

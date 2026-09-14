@@ -111,9 +111,14 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
   const filtersQuery = filtersToQuery(currentFilters);
 
   useEffect(() => {
-    const url = filtersQuery
-      ? `${window.location.pathname}?${filtersQuery}`
-      : window.location.pathname;
+    // No pisamos parámetros ajenos a los filtros (ej. utm_source, gclid) —
+    // sólo reemplazamos las claves que este componente conoce y dejamos el
+    // resto de la URL intacto.
+    const params = new URLSearchParams(window.location.search);
+    Object.keys(DEFAULT_UNIT_FILTERS).forEach(key => params.delete(key));
+    new URLSearchParams(filtersQuery).forEach((value, key) => params.set(key, value));
+    const merged = params.toString();
+    const url = merged ? `${window.location.pathname}?${merged}` : window.location.pathname;
     window.history.replaceState(null, '', url);
   }, [filtersQuery]);
 
@@ -313,7 +318,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
       </section>
 
       {/* ── Filtros (sticky) ─────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-trevo-light/[.92] backdrop-blur-md border-b border-trevo-dark/[.1]">
+      <div className="sticky top-16 z-30 bg-trevo-light/[.92] backdrop-blur-md border-b border-trevo-dark/[.1]">
         <div className="max-w-[1220px] mx-auto px-[16px] sm:px-[28px] py-[12px] flex flex-col gap-[10px]">
 
           <div className="flex items-center gap-[14px] flex-wrap">
@@ -562,6 +567,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   gridTemplate={gridTemplate}
                   buildingName={buildingName(u.buildingId)}
                   hasFloorStep={hasFloorStep}
+                  showStatus={showStatus}
                   unitLabelLower={unitLabelLower}
                   inCmp={cmp.includes(u.id)}
                   onToggleCmp={() => toggleCompare(u.id)}
@@ -846,9 +852,13 @@ function UnitCard({
             Comparar
           </button>
           {sold ? (
-            similares.length > 0 && (
+            similares.length > 0 ? (
               <Link href={similaresHref} className="text-[11.5px] font-semibold text-trevo-dark/50">
                 Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+              </Link>
+            ) : (
+              <Link href={href} className="text-[11.5px] font-semibold text-trevo-dark/50">
+                Ver {unitLabelLower} →
               </Link>
             )
           ) : (
@@ -863,13 +873,14 @@ function UnitCard({
 }
 
 function UnitRow({
-  unit, columns, gridTemplate, buildingName, hasFloorStep, unitLabelLower, inCmp, onToggleCmp, basePath, filtersQuery, allUnits,
+  unit, columns, gridTemplate, buildingName, hasFloorStep, showStatus, unitLabelLower, inCmp, onToggleCmp, basePath, filtersQuery, allUnits,
 }: {
   unit: Unit;
   columns: { key: string; end?: boolean }[];
   gridTemplate: string;
   buildingName?: string;
   hasFloorStep: boolean;
+  showStatus: boolean;
   unitLabelLower: string;
   inCmp: boolean;
   onToggleCmp: () => void;
@@ -877,7 +888,7 @@ function UnitRow({
   filtersQuery: string;
   allUnits: Unit[];
 }) {
-  const sold = unit.status === 'sold';
+  const sold = showStatus && unit.status === 'sold';
   const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
     + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
   const thumb = unit.interiorImageUrl || unit.galleryImages?.[0];
@@ -941,9 +952,13 @@ function UnitRow({
               {inCmp ? '✓' : '+'}
             </button>
             {sold ? (
-              similares.length > 0 && (
+              similares.length > 0 ? (
                 <Link href={similaresHref} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-dark/50">
                   Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+                </Link>
+              ) : (
+                <Link href={href} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-dark/50">
+                  Ver {unitLabelLower} →
                 </Link>
               )
             ) : (

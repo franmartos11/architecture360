@@ -175,7 +175,7 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
       )}
 
       {/* ── Filtros (sticky) ─────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-trevo-dark/90 backdrop-blur-md border-b border-white/[.08] mt-[26px]">
+      <div className="sticky top-16 z-20 bg-trevo-dark/90 backdrop-blur-md border-b border-white/[.08] mt-[26px]">
         <div className="max-w-[1240px] mx-auto px-[16px] sm:px-[28px] py-[12px] flex items-center gap-[14px] flex-wrap">
           {project.buildings.length > 0 && (
             <div className="flex gap-[8px] flex-wrap">

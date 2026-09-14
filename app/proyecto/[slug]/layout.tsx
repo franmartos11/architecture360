@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import Navbar from '@/components/ui/Navbar';
+import ProjectChrome from '@/components/ui/ProjectChrome';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { ProjectBasePathProvider } from '@/lib/project-base-path-context';
 import { getPublicProjectBySlug } from '@/data/project-repository';
@@ -40,7 +40,12 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
       >
         {theme.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: theme.fontFaceCss }} />}
-        <Navbar
+        {/* El Navbar es fixed h-16 y ProjectChrome compensa ese alto con
+            pt-16 para las seis sub-rutas a la vez (y se auto-oculta en modo
+            embed — ver ProjectChrome.tsx). La landing neutraliza el padding
+            con un margen negativo (ver page.tsx) porque su hero es a
+            pantalla completa y va por debajo del nav a propósito. */}
+        <ProjectChrome
           projectName={project.name}
           showCalculator={typeConfig.showCalculator}
           hasTour={!!project.commonAreasTour}
@@ -48,12 +53,9 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
             : undefined}
           unitsLabel={`${typeConfig.unitLabel}s`}
-        />
-        {/* El Navbar es fixed h-16: este padding es el único lugar donde se
-            compensa su alto, para las seis sub-rutas a la vez. La landing lo
-            neutraliza con un margen negativo (ver page.tsx) porque su hero es
-            a pantalla completa y va por debajo del nav a propósito. */}
-        <div className="pt-16">{children}</div>
+        >
+          {children}
+        </ProjectChrome>
       </div>
     </ProjectBasePathProvider>
   );

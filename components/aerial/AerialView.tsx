@@ -212,7 +212,7 @@ export default function AerialView({ project }: AerialViewProps) {
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-screen overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
+      className={`relative w-full h-[calc(100vh-4rem)] overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
       onClick={handleBackgroundClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
