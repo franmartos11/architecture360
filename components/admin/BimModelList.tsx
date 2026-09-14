@@ -29,6 +29,9 @@ export default function BimModelList({
     <ul className="flex flex-col gap-1.5">
       {models.map(m => {
         const status = STATUS_LABEL[m.status];
+        // Igual que canPublishBimModel (lib/bim.ts): los huecos en blanco
+        // que deja "agregar por URL" hasta que se pega algo no cuentan.
+        const imageCount = m.galleryImages.filter(u => u.trim().length > 0).length;
         return (
           <li key={m.id}>
             <button
@@ -50,7 +53,7 @@ export default function BimModelList({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900 truncate">{m.title}</p>
                   <p className="text-xs text-gray-500">
-                    {m.galleryImages.length} {m.galleryImages.length === 1 ? 'imagen' : 'imágenes'}
+                    {imageCount} {imageCount === 1 ? 'imagen' : 'imágenes'}
                     {m.geometryUrl ? ' · con modelo 3D' : ''}
                   </p>
                 </div>

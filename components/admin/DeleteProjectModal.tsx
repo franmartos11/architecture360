@@ -85,30 +85,34 @@ export default function DeleteProjectModal({
         <p className="text-sm text-gray-600">
           Se eliminará todo lo cargado en este proyecto — edificios, unidades, fotos, planos, tours, leads. Esta acción no se puede deshacer.
         </p>
-        {counts && counts.own > 0 && (
+        {counts && (counts.own > 0 || counts.other > 0) && (
           <div className="mt-4 rounded-xl border border-gray-200 p-3.5">
-            <p className="text-sm font-medium text-gray-900 mb-2">
-              Este proyecto tiene {counts.own}{' '}
-              {counts.own === 1 ? 'modelo BIM asociado' : 'modelos BIM asociados'}.
-            </p>
-            <label className="flex items-start gap-2.5 text-sm text-gray-700 mb-1.5">
-              <input
-                type="radio" name="bim-action" checked={!deleteBim}
-                onChange={() => setDeleteBim(false)} disabled={deleting}
-                className="mt-0.5"
-              />
-              <span>Conservarlos en mi portfolio <span className="text-gray-400">(recomendado)</span></span>
-            </label>
-            <label className="flex items-start gap-2.5 text-sm text-gray-700">
-              <input
-                type="radio" name="bim-action" checked={deleteBim}
-                onChange={() => setDeleteBim(true)} disabled={deleting}
-                className="mt-0.5"
-              />
-              <span>Eliminarlos también</span>
-            </label>
+            {counts.own > 0 && (
+              <>
+                <p className="text-sm font-medium text-gray-900 mb-2">
+                  Este proyecto tiene {counts.own}{' '}
+                  {counts.own === 1 ? 'modelo BIM asociado' : 'modelos BIM asociados'}.
+                </p>
+                <label className="flex items-start gap-2.5 text-sm text-gray-700 mb-1.5">
+                  <input
+                    type="radio" name="bim-action" checked={!deleteBim}
+                    onChange={() => setDeleteBim(false)} disabled={deleting}
+                    className="mt-0.5"
+                  />
+                  <span>Conservarlos en mi portfolio <span className="text-gray-400">(recomendado)</span></span>
+                </label>
+                <label className="flex items-start gap-2.5 text-sm text-gray-700">
+                  <input
+                    type="radio" name="bim-action" checked={deleteBim}
+                    onChange={() => setDeleteBim(true)} disabled={deleting}
+                    className="mt-0.5"
+                  />
+                  <span>Eliminarlos también</span>
+                </label>
+              </>
+            )}
             {counts.other > 0 && (
-              <p className="text-xs text-gray-500 mt-2.5">
+              <p className={`text-xs text-gray-500 ${counts.own > 0 ? 'mt-2.5' : ''}`}>
                 {counts.other === 1
                   ? '1 modelo de otro colaborador se desvinculará, no se elimina.'
                   : `${counts.other} modelos de otros colaboradores se desvincularán, no se eliminan.`}

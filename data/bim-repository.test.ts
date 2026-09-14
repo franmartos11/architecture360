@@ -8,11 +8,11 @@ import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
 import type { BimModel } from '@/types';
 import type { BimModelRow } from '@/types/database';
 
-// Set env vars before dynamically importing the module under test
+// Las env vars se setean ANTES de importar el módulo bajo test
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 
-// Dynamic import to ensure SUPABASE_CONFIGURED is evaluated with env vars set
+// Import dinámico para que SUPABASE_CONFIGURED se evalúe con las env vars ya seteadas
 let mapBimModelRow: (row: BimModelRow) => BimModel;
 let getBimModelsByAuthor: (authorId: string) => Promise<BimModel[]>;
 let getBimModelById: (id: string) => Promise<BimModel | undefined>;

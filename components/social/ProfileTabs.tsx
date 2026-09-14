@@ -209,7 +209,8 @@ export default function ProfileTabs({
   const pathname = usePathname();
   const router = useRouter();
   const paramTab = searchParams.get('tab');
-  const tab: TabKey = paramTab === 'bim' || paramTab === 'publicaciones' || paramTab === 'trayectoria' ? paramTab : 'proyectos';
+  const requestedTab: TabKey =
+    paramTab === 'bim' || paramTab === 'publicaciones' || paramTab === 'trayectoria' ? paramTab : 'proyectos';
   const setTab = (next: TabKey) => {
     const qs = new URLSearchParams(searchParams.toString());
     qs.set('tab', next);
@@ -238,6 +239,10 @@ export default function ProfileTabs({
     { key: 'publicaciones', label: 'Publicaciones', count: postsCount > 0 ? String(postsCount) : '' },
     ...(hasTrayectoria ? [{ key: 'trayectoria' as TabKey, label: 'Trayectoria', count: '' }] : []),
   ];
+  // El tab pedido por la URL puede no existir de verdad (p.ej. ?tab=bim en
+  // un perfil sin piezas BIM públicas y que no es el dueño) — en ese caso
+  // cae a 'proyectos' en vez de renderizar un panel vacío sin tab activo.
+  const tab: TabKey = tabs.some(t => t.key === requestedTab) ? requestedTab : 'proyectos';
 
   return (
     <div>

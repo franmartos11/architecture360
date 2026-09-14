@@ -1498,8 +1498,10 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 -- debe llevarse una pieza del portfolio (ver DeleteProjectModal, que
 -- pregunta explícitamente qué hacer).
 --
--- Los archivos van al bucket 'bim-models', NO a 'project-media': ese lo
--- barre entero deleteProjectStorageFiles() al borrar un proyecto.
+-- Los archivos van al bucket 'bim-models', NO a 'project-media': ese
+-- bucket lo vacía deleteProjectStorageFiles() de las URLs que encuentra
+-- en las tablas del proyecto al borrarlo, y una pieza BIM tiene que
+-- sobrevivir a eso salvo que su autor decida lo contrario.
 -- Crear el bucket a mano en Supabase: público en lectura.
 --
 -- geometry_url / properties_url / source_* / stats quedan nulos hasta la
