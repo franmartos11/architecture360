@@ -392,6 +392,7 @@ export default async function PortfolioPage({ params }: PageProps) {
             isOwner={isOwnProfile}
             projects={portfolio.projects}
             collaborations={portfolio.collaborations}
+            bimModels={portfolio.bimModels}
             hasTrayectoria={hasTrayectoria}
             experiences={experiences}
             education={education}

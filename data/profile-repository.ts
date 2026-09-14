@@ -1,7 +1,8 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import type { DirectoryProfile, Profile, PortfolioProjectSummary } from '@/types';
+import type { BimModel, DirectoryProfile, Profile, PortfolioProjectSummary } from '@/types';
 import type { ProfileRow, ProjectRow } from '@/types/database';
+import { getPublicBimModelsByAuthor } from './bim-repository';
 
 const SUPABASE_CONFIGURED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,6 +28,8 @@ export interface Portfolio extends Profile {
   collaborations: PortfolioCollaboration[];
   /** Solo para account_type='company' — gente con crédito confirmado en sus proyectos. */
   team?: PortfolioTeamMember[];
+  /** Piezas BIM públicas y publicadas de esta cuenta — pestaña "BIM" del perfil. */
+  bimModels: BimModel[];
 }
 
 interface CollaborationJoinRow {
@@ -122,6 +125,10 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
     team = Array.from(countByHandle.values()).sort((a, b) => b.projectCount - a.projectCount);
   }
 
+  // Piezas BIM públicas y listas — misma lógica de filtrado que usa el
+  // dueño mirando su propio perfil (ver getPublicBimModelsByAuthor).
+  const bimModels = await getPublicBimModelsByAuthor(row.id);
+
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -154,6 +161,7 @@ export const getPortfolioByHandle = cache(async (handle: string): Promise<Portfo
     projects,
     collaborations,
     team,
+    bimModels,
   };
 });
 
