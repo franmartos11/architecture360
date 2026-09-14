@@ -68,7 +68,7 @@ export default function BimModelEditor({
   };
 
   const remove = async () => {
-    if (!confirm(`¿Eliminar "${model.title}"? Se borran también sus imágenes. No se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar "${model.title}"? Esta acción no se puede deshacer.`)) return;
     setSaving(true);
     const res = await fetch(`/api/admin/bim/${model.id}`, { method: 'DELETE' });
     setSaving(false);
