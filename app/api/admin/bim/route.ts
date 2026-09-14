@@ -66,6 +66,20 @@ export async function POST(request: Request) {
   const status = canPublishBimModel({ geometryUrl: null, galleryImages }) ? 'ready' : 'processing';
 
   const supabase = await createClient();
+
+  // bim_models.author_id referencia profiles(id), no auth.users(id)
+  // directo — y profiles es opt-in (se crea recién cuando la cuenta
+  // define su handle en /admin/portfolio). Sin esto, una cuenta nueva
+  // sin portfolio todavía se lleva un 500 crudo por la foreign key en
+  // vez de un mensaje claro — mismo patrón que ya usan posts/events/
+  // conversations para esta misma condición. Va al final, después de
+  // validar el body y el projectId, para no gastar una consulta si el
+  // pedido ya iba a fallar por otro motivo.
+  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
+  if (!profile) {
+    return NextResponse.json({ error: 'Creá tu portfolio antes de publicar una pieza BIM.' }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from('bim_models')
     .insert({

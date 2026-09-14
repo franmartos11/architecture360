@@ -112,11 +112,29 @@ describe('POST /api/admin/bim', () => {
   it('error de la base: 500 con el mensaje', async () => {
     vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
     vi.mocked(createClient).mockResolvedValue(
-      mockSupabase({ results: [{ data: null, error: { message: 'insert failed' } }] }) as never
+      mockSupabase({
+        results: [
+          { data: { id: 'user-1' } },                        // chequeo de perfil
+          { data: null, error: { message: 'insert failed' } }, // insert
+        ],
+      }) as never
     );
     const res = await POST(jsonRequest(URL_, { title: 'Casa Patio' }));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('insert failed');
+  });
+
+  it('sin perfil (portfolio no creado todavía): 400, no llega a insertar', async () => {
+    // bim_models.author_id referencia profiles(id), que es opt-in — una
+    // cuenta logueada pero sin handle todavía no tiene fila en profiles.
+    vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
+    const supabase = mockSupabase({ results: [{ data: null }] }); // chequeo de perfil: no existe
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(jsonRequest(URL_, { title: 'Casa Patio' }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Creá tu portfolio antes de publicar una pieza BIM.');
+    expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
   it('projectId de un proyecto ajeno: 400, no llega a insertar', async () => {
