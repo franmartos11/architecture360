@@ -12,7 +12,8 @@ import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import { filtersFromQuery, filtersToQuery, type UnitFilters } from '@/lib/unit-filters-url';
+import { filtersFromQuery, filtersToQuery, DEFAULT_UNIT_FILTERS, type UnitFilters } from '@/lib/unit-filters-url';
+import { findSimilarUnits } from '@/lib/similar-units';
 import type { Project, Unit, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {
@@ -525,6 +526,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                 onToggleCmp={() => toggleCompare(u.id)}
                 basePath={basePath}
                 filtersQuery={filtersQuery}
+                allUnits={project.units}
               />
             ))}
 
@@ -565,6 +567,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   onToggleCmp={() => toggleCompare(u.id)}
                   basePath={basePath}
                   filtersQuery={filtersQuery}
+                  allUnits={project.units}
                 />
               ))}
             </div>
@@ -730,7 +733,7 @@ function Chip({ active, onClick, size = 'md', children }: { active: boolean; onC
 
 function UnitCard({
   unit, buildingName, hasFloorStep, unitIsLand, showPrice, showStatus, unitLabelLower,
-  isFav, onToggleFav, inCmp, onToggleCmp, basePath, filtersQuery,
+  isFav, onToggleFav, inCmp, onToggleCmp, basePath, filtersQuery, allUnits,
 }: {
   unit: Unit;
   buildingName?: string;
@@ -745,6 +748,7 @@ function UnitCard({
   onToggleCmp: () => void;
   basePath: string;
   filtersQuery: string;
+  allUnits: Unit[];
 }) {
   const sold = showStatus && unit.status === 'sold';
   const statusColor = getStatusColor(unit.status);
@@ -752,6 +756,16 @@ function UnitCard({
   const img = unit.interiorImageUrl || unit.galleryImages?.[0];
   const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
     + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
+  // Una unidad vendida ofrece alternativas reales en vez de llevar a sí misma.
+  // Si no hay ninguna comparable disponible, no se promete lo que no existe:
+  // no se muestra el link (ver lib/similar-units.ts).
+  const similares = sold ? findSimilarUnits(unit, allUnits) : [];
+  const similaresHref = `${basePath}/unidades?` + filtersToQuery({
+    ...DEFAULT_UNIT_FILTERS,
+    edificio: unit.buildingId,
+    tipo: unit.type,
+    estado: 'available',
+  });
 
   return (
     <div className={'rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[.1] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-[3px]' + (sold ? ' opacity-[.62]' : '')}>
@@ -831,9 +845,17 @@ function UnitCard({
             </span>
             Comparar
           </button>
-          <Link href={href} className={'text-[11.5px] font-semibold ' + (sold ? 'text-trevo-dark/50' : 'text-trevo-green')}>
-            {sold ? 'Ver similares' : `Ver ${unitLabelLower} →`}
-          </Link>
+          {sold ? (
+            similares.length > 0 && (
+              <Link href={similaresHref} className="text-[11.5px] font-semibold text-trevo-dark/50">
+                Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+              </Link>
+            )
+          ) : (
+            <Link href={href} className="text-[11.5px] font-semibold text-trevo-green">
+              Ver {unitLabelLower} →
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -841,7 +863,7 @@ function UnitCard({
 }
 
 function UnitRow({
-  unit, columns, gridTemplate, buildingName, hasFloorStep, unitLabelLower, inCmp, onToggleCmp, basePath, filtersQuery,
+  unit, columns, gridTemplate, buildingName, hasFloorStep, unitLabelLower, inCmp, onToggleCmp, basePath, filtersQuery, allUnits,
 }: {
   unit: Unit;
   columns: { key: string; end?: boolean }[];
@@ -853,11 +875,22 @@ function UnitRow({
   onToggleCmp: () => void;
   basePath: string;
   filtersQuery: string;
+  allUnits: Unit[];
 }) {
   const sold = unit.status === 'sold';
   const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
     + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
   const thumb = unit.interiorImageUrl || unit.galleryImages?.[0];
+  // Una unidad vendida ofrece alternativas reales en vez de llevar a sí misma.
+  // Si no hay ninguna comparable disponible, no se promete lo que no existe:
+  // no se muestra el link (ver lib/similar-units.ts).
+  const similares = sold ? findSimilarUnits(unit, allUnits) : [];
+  const similaresHref = `${basePath}/unidades?` + filtersToQuery({
+    ...DEFAULT_UNIT_FILTERS,
+    edificio: unit.buildingId,
+    tipo: unit.type,
+    estado: 'available',
+  });
 
   const cell = (key: string) => {
     switch (key) {
@@ -907,9 +940,17 @@ function UnitRow({
             >
               {inCmp ? '✓' : '+'}
             </button>
-            <Link href={href} className={'text-[11.5px] font-semibold whitespace-nowrap ' + (sold ? 'text-trevo-dark/50' : 'text-trevo-green')}>
-              {sold ? 'Ver similares' : `Ver ${unitLabelLower} →`}
-            </Link>
+            {sold ? (
+              similares.length > 0 && (
+                <Link href={similaresHref} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-dark/50">
+                  Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+                </Link>
+              )
+            ) : (
+              <Link href={href} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-green">
+                Ver {unitLabelLower} →
+              </Link>
+            )}
           </div>
         );
       default:
