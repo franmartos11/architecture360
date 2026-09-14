@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import Navbar from '@/components/ui/Navbar';
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import CommentSection from '@/components/CommentSection';
@@ -9,8 +8,6 @@ import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
-import { resolveTheme } from '@/lib/resolve-theme';
-import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { formatPrice } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
@@ -36,7 +33,6 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const basePath = await getProjectBasePath(slug);
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const sectionOrder = resolveSectionOrder(project.sectionConfig, typeConfig);
-  const theme = resolveTheme(project.themeConfig);
 
   // Postura del hero: venta apunta a conversión (precio desde + CTA a
   // disponibilidad), showcase apunta a credencial académica en vez de
@@ -54,20 +50,10 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         .join(' · ');
 
   return (
-    <div
-      className={`${ALL_FONT_CLASSNAMES} theme-bg-image theme-bg-image--fixed bg-[var(--theme-bg)] min-h-screen`}
-      style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
-    >
-      {theme.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: theme.fontFaceCss }} />}
-      <Navbar
-        showCalculator={typeConfig.showCalculator}
-        hasTour={!!project.commonAreasTour}
-        singleUnit={!typeConfig.hasUnitStep && project.units[0]
-          ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
-          : undefined}
-        unitsLabel={`${typeConfig.unitLabel}s`}
-      />
-
+    // -mt-16 anula el pt-16 que el layout aplica para despejar el Navbar
+    // fixed: acá el hero es a pantalla completa y tiene que pasar POR DEBAJO
+    // del nav, que es translúcido a propósito.
+    <div className="-mt-16">
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
