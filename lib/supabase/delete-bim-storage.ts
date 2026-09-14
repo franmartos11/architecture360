@@ -13,16 +13,22 @@ export interface BimStorageFields {
   gallery_images: string[];
 }
 
-// Mismo criterio que toStorageKey() en delete-project-storage.ts, pero
-// contra el bucket bim-models: de la URL pública saca la key relativa al
-// bucket, que es lo que pide storage.remove(). Cualquier URL que no sea
-// de este bucket no tiene nada que borrar acá.
+// A diferencia de toStorageKey() en delete-project-storage.ts (que busca
+// la marca "/project-media/" en cualquier parte de la URL), acá matcheamos
+// contra el PREFIJO real de URL pública de Supabase Storage. gallery_images
+// acepta URLs libres (la opción "agregar por URL" de MultiImageUploader),
+// así que un string arbitrario que solo CONTENGA la substring "/bim-models/"
+// en cualquier posición (sin ser realmente una URL de este proyecto de
+// Supabase) no debe tratarse como una key válida del bucket — eso dejaría
+// borrar, a través de un valor inventado, un objeto ajeno si su key se
+// llegara a adivinar u obtener por otro medio. El bucket en sí no se puede
+// "escapar" (storage.from(BIM_BUCKET) lo fija del lado del servidor), pero
+// vale la pena no tratar como válida una key que no vino de una URL nuestra.
 function toStorageKey(url: string | null | undefined): string | null {
   if (!url) return null;
-  const marker = `/${BIM_BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i === -1) return null;
-  return url.slice(i + marker.length);
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BIM_BUCKET}/`;
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length);
 }
 
 export function bimStorageKeys(models: BimStorageFields[]): string[] {

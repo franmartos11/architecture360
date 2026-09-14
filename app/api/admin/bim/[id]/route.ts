@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteBimStorageFiles } from '@/lib/supabase/delete-bim-storage';
 import { mapBimModelRow } from '@/data/bim-repository';
 import { canPublishBimModel, MAX_GALLERY_IMAGES } from '@/lib/bim';
+import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import type { BimModelRow } from '@/types/database';
 
 const patchSchema = z.object({
@@ -16,10 +17,17 @@ const patchSchema = z.object({
   isPublic: z.boolean().optional(),
 });
 
-// No hace falta chequear author_id a mano: el cliente de sesión pasa por
-// RLS, así que una pieza ajena simplemente no aparece y sale 404.
-async function loadOwn(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
-  const { data } = await supabase.from('bim_models').select('*').eq('id', id).maybeSingle();
+// OJO: bim_models también tiene una política RLS de lectura PÚBLICA
+// (is_public = true and status = 'ready'), así que el cliente de sesión
+// SÍ puede leer una pieza ajena ya publicada — no alcanza con dejar que
+// RLS "oculte" lo que no es tuyo. Por eso acá filtramos por author_id a
+// mano: sin esto, loadOwn devolvía piezas de otros autores como si
+// fueran propias, PATCH se estrellaba contra la política de escritura
+// (bloqueada, pero después de ya haber leído la fila ajena) y DELETE
+// terminaba borrando los archivos de Storage de un desconocido con el
+// cliente admin antes de que el borrado de la fila fallara silenciosamente.
+async function loadOwn(supabase: Awaited<ReturnType<typeof createClient>>, id: string, authorId: string) {
+  const { data } = await supabase.from('bim_models').select('*').eq('id', id).eq('author_id', authorId).maybeSingle();
   return (data as BimModelRow | null) ?? null;
 }
 
@@ -32,8 +40,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
 
   const supabase = await createClient();
-  const current = await loadOwn(supabase, id);
+  const current = await loadOwn(supabase, id, user.id);
   if (!current) return NextResponse.json({ error: 'Pieza no encontrada' }, { status: 404 });
+
+  // Asociar la pieza a un proyecto ajeno no lo bloquea RLS (la fila
+  // sigue siendo propia), así que hace falta chequearlo a mano — igual
+  // que en POST. Ownership únicamente por ahora: un colaborador sin ser
+  // dueño queda para cuando exista el flujo de invitación (Fase 4).
+  if (parsed.data.projectId !== undefined && parsed.data.projectId !== null) {
+    const access = await requireProjectAccess(parsed.data.projectId);
+    if (!access) return NextResponse.json({ error: 'No tenés acceso a ese proyecto.' }, { status: 400 });
+  }
 
   const galleryImages = parsed.data.galleryImages
     ? parsed.data.galleryImages.filter(u => u.trim().length > 0)
@@ -88,7 +105,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const supabase = await createClient();
-  const current = await loadOwn(supabase, id);
+  const current = await loadOwn(supabase, id, user.id);
   if (!current) return NextResponse.json({ error: 'Pieza no encontrada' }, { status: 404 });
 
   // Primero los archivos (hace falta la fila para saber qué URLs tenía),

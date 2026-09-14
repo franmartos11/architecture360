@@ -4,6 +4,7 @@ import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createClient } from '@/lib/supabase/server';
 import { mapBimModelRow } from '@/data/bim-repository';
 import { canPublishBimModel, MAX_GALLERY_IMAGES } from '@/lib/bim';
+import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import type { BimModelRow } from '@/types/database';
 
 const createSchema = z.object({
@@ -49,6 +50,15 @@ export async function POST(request: Request) {
       { error: `Máximo ${MAX_GALLERY_IMAGES} imágenes por pieza — subiste ${galleryImages.length}.` },
       { status: 400 }
     );
+  }
+
+  // La fila que se inserta es propia (author_id = user.id), así que RLS
+  // no protege contra asociarla a un proyecto ajeno con solo mandar su
+  // uuid. Se valida a mano, ownership únicamente — un colaborador sin
+  // ser dueño queda para el flujo de invitación de Fase 4.
+  if (projectId) {
+    const access = await requireProjectAccess(projectId);
+    if (!access) return NextResponse.json({ error: 'No tenés acceso a ese proyecto.' }, { status: 400 });
   }
 
   // Una pieza con contenido nace publicada; una vacía queda en
