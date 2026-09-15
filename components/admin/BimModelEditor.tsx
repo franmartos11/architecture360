@@ -54,35 +54,59 @@ export default function BimModelEditor({
     setUploading(true);
     setUploadProgress(0);
 
+    // 1. Obtener URL firmada
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    const urlRes = await fetch(`/api/admin/bim/${model.id}/upload-model`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'get-url', ext })
+    });
+    const urlData = await urlRes.json();
+    if (!urlRes.ok) {
+      toast(urlData.error ?? 'No se pudo generar link de subida.', 'error');
+      setUploading(false);
+      setUploadProgress(0);
+      return;
+    }
+
+    // 2. Subir directo a Supabase con XHR para tener progreso
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
     });
 
-    const result = await new Promise<{ ok: boolean; data: Record<string, unknown> }>((resolve) => {
-      xhr.addEventListener('load', () => {
-        try {
-          resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: JSON.parse(xhr.responseText) });
-        } catch {
-          resolve({ ok: false, data: { error: 'Respuesta inválida del servidor.' } });
-        }
-      });
-      xhr.addEventListener('error', () => resolve({ ok: false, data: { error: 'Error de red.' } }));
-      xhr.open('POST', `/api/admin/bim/${model.id}/upload-model`);
-      xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
-      xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
+    const uploadOk = await new Promise<boolean>((resolve) => {
+      xhr.addEventListener('load', () => resolve(xhr.status >= 200 && xhr.status < 300));
+      xhr.addEventListener('error', () => resolve(false));
+      xhr.open('PUT', urlData.signedUrl);
+      xhr.setRequestHeader('content-type', ext === 'glb' ? 'model/gltf-binary' : 'model/gltf+json');
       xhr.send(file);
     });
+
+    if (!uploadOk) {
+      toast('Error de red al enviar a Storage.', 'error');
+      setUploading(false);
+      setUploadProgress(0);
+      return;
+    }
+
+    // 3. Confirmar al servidor que ya subió para actualizar la BD
+    const compRes = await fetch(`/api/admin/bim/${model.id}/upload-model`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'complete', ext })
+    });
+    const compData = await compRes.json();
 
     setUploading(false);
     setUploadProgress(0);
 
-    if (!result.ok) {
-      toast((result.data.error as string) ?? 'No se pudo subir el modelo.', 'error');
+    if (!compRes.ok) {
+      toast(compData.error ?? 'Error al registrar la pieza.', 'error');
       return;
     }
 
-    const updated = result.data.model as BimModel;
+    const updated = compData.model as BimModel;
     setGeometryUrl(updated.geometryUrl);
     toast('Modelo 3D cargado.');
     onSaved(updated);
