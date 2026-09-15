@@ -54,10 +54,6 @@ export default function BimModelEditor({
     setUploading(true);
     setUploadProgress(0);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // XMLHttpRequest para tener progress — fetch no soporta upload progress.
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
@@ -73,7 +69,9 @@ export default function BimModelEditor({
       });
       xhr.addEventListener('error', () => resolve({ ok: false, data: { error: 'Error de red.' } }));
       xhr.open('POST', `/api/admin/bim/${model.id}/upload-model`);
-      xhr.send(formData);
+      xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
+      xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
+      xhr.send(file);
     });
 
     setUploading(false);
