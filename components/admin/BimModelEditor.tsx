@@ -14,19 +14,17 @@ const inputStyle =
 
 export default function BimModelEditor({
   model,
-  projects,
   onSaved,
   onDeleted,
 }: {
   model: BimModel;
-  projects: { id: string; name: string }[];
   onSaved: (updated: BimModel) => void;
   onDeleted: (id: string) => void;
 }) {
   const [title, setTitle] = useState(model.title);
   const [description, setDescription] = useState(model.description);
   const [galleryImages, setGalleryImages] = useState(model.galleryImages);
-  const [projectId, setProjectId] = useState(model.projectId ?? '');
+
   const [isPublic, setIsPublic] = useState(model.isPublic);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
@@ -53,7 +51,6 @@ export default function BimModelEditor({
         title,
         description,
         galleryImages,
-        projectId: projectId || null,
         isPublic,
       }),
     });
@@ -111,19 +108,6 @@ export default function BimModelEditor({
             Te pasaste del máximo de {MAX_GALLERY_IMAGES} imágenes.
           </p>
         )}
-      </div>
-
-      <div>
-        <label className={labelStyle}>Proyecto asociado (opcional)</label>
-        <select value={projectId} onChange={e => setProjectId(e.target.value)} className={inputStyle}>
-          <option value="">Ninguno — solo en mi portfolio</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <p className="text-xs text-gray-500 mt-1.5">
-          Si la asociás, además aparece en la landing de ese proyecto.
-        </p>
       </div>
 
       <label className="flex items-center gap-2.5 text-sm text-gray-700">
