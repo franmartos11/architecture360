@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getBimModelById } from '@/data/bim-repository';
-import BimModelViewer from '@/components/bim/BimModelViewer';
-import BimGallery from '@/components/bim/BimGallery';
+import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 
 interface PageProps { params: Promise<{ id: string }>; }
 
@@ -51,15 +50,6 @@ export default async function BimModelPage({ params }: PageProps) {
         )}
       </header>
 
-      {/* ── Visor 3D — solo aparece si el admin subió un .glb ── */}
-      {hasViewer && (
-        <BimModelViewer
-          src={model.geometryUrl!}
-          alt={model.title}
-          poster={model.coverImage}
-        />
-      )}
-
       {/* ── Stats del modelo ── */}
       {hasStats && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
@@ -75,8 +65,13 @@ export default async function BimModelPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── Galería de imágenes (renders, cortes, láminas) ── */}
-      {hasGallery && <BimGallery images={model.galleryImages} title={model.title} />}
+      {/* ── Visor Unificado (3D / Galería) ── */}
+      <BimUnifiedViewer 
+        geometryUrl={model.geometryUrl}
+        coverImage={model.coverImage}
+        galleryImages={model.galleryImages}
+        title={model.title}
+      />
     </main>
   );
 }
