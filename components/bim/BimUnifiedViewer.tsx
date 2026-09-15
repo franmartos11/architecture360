@@ -9,14 +9,24 @@ interface Props {
   coverImage: string | null;
   galleryImages: string[];
   title: string;
+  /** Si se provee, el componente no muestra su propio toggle y usa este valor */
+  controlledMode?: '3d' | 'gallery';
 }
 
-export default function BimUnifiedViewer({ geometryUrl, coverImage, galleryImages, title }: Props) {
+export default function BimUnifiedViewer({ 
+  geometryUrl, 
+  coverImage, 
+  galleryImages, 
+  title, 
+  controlledMode 
+}: Props) {
   const hasViewer = !!geometryUrl;
   const hasGallery = galleryImages.length > 0;
   
-  // Estado inicial: si hay 3D mostramos 3D, si no mostramos galería
-  const [activeTab, setActiveTab] = useState<'3d' | 'gallery'>(hasViewer ? '3d' : 'gallery');
+  // Estado interno (solo se usa si no hay controlledMode)
+  const [internalTab, setInternalTab] = useState<'3d' | 'gallery'>(hasViewer ? '3d' : 'gallery');
+  
+  const activeTab = controlledMode ?? internalTab;
 
   if (!hasViewer && !hasGallery) return null;
 
@@ -29,40 +39,43 @@ export default function BimUnifiedViewer({ geometryUrl, coverImage, galleryImage
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-center">
-        <div className="inline-flex items-center p-1 bg-gray-100 rounded-lg">
-          <button
-            onClick={() => setActiveTab('3d')}
-            className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === '3d'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            Modelo 3D
-          </button>
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'gallery'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            Imágenes
-          </button>
+    <div className="flex flex-col gap-6 w-full h-full">
+      {/* Solo mostramos el toggle interno si NO está controlado externamente */}
+      {!controlledMode && (
+        <div className="flex justify-center absolute top-4 left-1/2 -translate-x-1/2 z-20">
+          <div className="inline-flex items-center p-1 bg-gray-900/40 backdrop-blur-md rounded-lg shadow-lg border border-white/10">
+            <button
+              onClick={() => setInternalTab('3d')}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === '3d'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-white hover:text-gray-200'
+              }`}
+            >
+              Modelo 3D
+            </button>
+            <button
+              onClick={() => setInternalTab('gallery')}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'gallery'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-white hover:text-gray-200'
+              }`}
+            >
+              Imágenes
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="relative">
+      <div className="relative w-full h-full flex-1">
         {/* Usamos display:none en vez de desmontar para que el visor 3D 
             no pierda su estado (ni la descarga en memoria) al cambiar de tab */}
-        <div className={activeTab === '3d' ? 'block' : 'hidden'}>
+        <div className={activeTab === '3d' ? 'absolute inset-0 block' : 'hidden'}>
           <BimModelViewer src={geometryUrl!} alt={title} poster={coverImage} />
         </div>
         
-        <div className={activeTab === 'gallery' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'gallery' ? 'absolute inset-0 block' : 'hidden'}>
           <BimGallery images={galleryImages} title={title} />
         </div>
       </div>

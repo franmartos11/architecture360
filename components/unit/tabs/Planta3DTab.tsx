@@ -7,6 +7,8 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Unit, BimModel } from '@/types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 
+type ViewMode = 'render' | 'bim-3d' | 'bim-gallery';
+
 export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?: BimModel }) {
   // Planta baja (unit.floorPlan3dUrl) + plantas de más (unit.levels[].plan3dImage).
   const levels = useMemo(
@@ -19,17 +21,22 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
   );
 
   const hasRender = levels.length > 0;
-  const hasBim = !!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0);
+  const hasBim3D = !!bimModel?.geometryUrl;
+  const hasBimGallery = (bimModel?.galleryImages?.length ?? 0) > 0;
+  const hasBim = hasBim3D || hasBimGallery;
 
-  const [viewMode, setViewMode] = useState<'render' | 'bim'>(hasRender ? 'render' : 'bim');
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    hasRender ? 'render' : (hasBim3D ? 'bim-3d' : 'bim-gallery')
+  );
   const [activeIdx, setActiveIdx] = useState(0);
   const active = levels[activeIdx] ?? levels[0];
 
-  // Si cambia el hasRender o hasBim y estamos en un estado inválido
+  // Si el estado queda inválido
   useEffect(() => {
-    if (viewMode === 'render' && !hasRender && hasBim) setViewMode('bim');
-    if (viewMode === 'bim' && !hasBim && hasRender) setViewMode('render');
-  }, [hasRender, hasBim, viewMode]);
+    if (viewMode === 'render' && !hasRender) {
+      setViewMode(hasBim3D ? 'bim-3d' : 'bim-gallery');
+    }
+  }, [hasRender, hasBim3D, viewMode]);
 
   return (
     <motion.div
@@ -38,52 +45,66 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col"
+      className="absolute inset-0 flex flex-col"
     >
-      {/* Selector superior: toggle Render/BIM y selector de pisos */}
-      {(hasRender && hasBim || (viewMode === 'render' && levels.length > 1)) && (
-        <div className="flex-shrink-0 flex flex-col sm:flex-row items-center justify-center gap-2 px-4 pt-3 pb-2 relative z-10">
-          {hasRender && hasBim && (
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+      {/* Selector de pisos (si hay múltiples plantas estáticas) */}
+      {viewMode === 'render' && levels.length > 1 && (
+        <div className="absolute top-20 right-4 z-20">
+          <div className="flex flex-col bg-white/90 backdrop-blur-md rounded-xl p-1 shadow-lg border border-gray-100">
+            {levels.map((l, i) => (
               <button
-                onClick={() => setViewMode('render')}
-                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+                key={l.label}
+                onClick={() => setActiveIdx(i)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-left ${activeIdx === i ? 'bg-gray-900 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                Render 3D
+                {l.label}
               </button>
-              <button
-                onClick={() => setViewMode('bim')}
-                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${viewMode === 'bim' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                Modelo BIM
-              </button>
-            </div>
-          )}
-
-          {viewMode === 'render' && levels.length > 1 && (
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
-              {levels.map((l, i) => (
-                <button
-                  key={l.label}
-                  onClick={() => setActiveIdx(i)}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${activeIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="flex-1 relative p-2 sm:p-4">
-        {viewMode === 'bim' && bimModel && (
-          <div className="absolute inset-0 bg-gray-900 rounded-xl overflow-hidden shadow-inner">
+      {/* Selector principal inferior (tipo Glassmorphism) */}
+      {(hasRender && hasBim) && (
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 w-auto">
+          <div className="flex items-center p-1.5 bg-gray-900/60 backdrop-blur-xl rounded-full shadow-2xl border border-white/20">
+            {hasRender && (
+              <button
+                onClick={() => setViewMode('render')}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+              >
+                Planta Estática
+              </button>
+            )}
+            {hasBim3D && (
+              <button
+                onClick={() => setViewMode('bim-3d')}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+              >
+                Modelo BIM
+              </button>
+            )}
+            {hasBimGallery && (
+              <button
+                onClick={() => setViewMode('bim-gallery')}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+              >
+                Imágenes
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 relative">
+        {(viewMode === 'bim-3d' || viewMode === 'bim-gallery') && bimModel && (
+          <div className="absolute inset-0 bg-gray-900">
             <BimUnifiedViewer
               geometryUrl={bimModel.geometryUrl}
               coverImage={bimModel.coverImage}
               galleryImages={bimModel.galleryImages}
               title={bimModel.title}
+              controlledMode={viewMode === 'bim-3d' ? '3d' : 'gallery'}
             />
           </div>
         )}
@@ -95,32 +116,34 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
         )}
 
         {viewMode === 'render' && active && (
-          <TransformWrapper
-            key={activeIdx}
-            initialScale={1}
-            minScale={1}
-            maxScale={4}
-            centerOnInit={true}
-            centerZoomedOut={true}
-            wheel={{ step: 0.1 }}
-            doubleClick={{ step: 1 }}
-            panning={{ disabled: false }}
-          >
-            <TransformComponent
-              wrapperStyle={{ width: '100%', height: '100%' }}
-              contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          <div className="absolute inset-0 pt-16 p-2 sm:p-4 bg-gray-50/50">
+            <TransformWrapper
+              key={activeIdx}
+              initialScale={1}
+              minScale={1}
+              maxScale={4}
+              centerOnInit={true}
+              centerZoomedOut={true}
+              wheel={{ step: 0.1 }}
+              doubleClick={{ step: 1 }}
+              panning={{ disabled: false }}
             >
-              <Image
-                src={active.image}
-                alt={levels.length > 1 ? `Planta 3D — ${active.label}` : 'Planta 3D'}
-                width={1200}
-                height={1200}
-                priority
-                className="max-w-full max-h-[85vh] object-contain"
-                draggable={false}
-              />
-            </TransformComponent>
-          </TransformWrapper>
+              <TransformComponent
+                wrapperStyle={{ width: '100%', height: '100%' }}
+                contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <Image
+                  src={active.image}
+                  alt={levels.length > 1 ? `Planta 3D — ${active.label}` : 'Planta 3D'}
+                  width={1200}
+                  height={1200}
+                  priority
+                  className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
+                  draggable={false}
+                />
+              </TransformComponent>
+            </TransformWrapper>
+          </div>
         )}
       </div>
     </motion.div>
