@@ -10,8 +10,8 @@ const createSchema = z.object({
   description: z.string().optional(),
   galleryImages: z.array(z.string()).optional(),
   isPublic: z.boolean().optional(),
-  floorId: z.string().nullable().optional(),
-  unitId: z.string().nullable().optional(),
+  floorIds: z.array(z.string()).optional(),
+  unitIds: z.array(z.string()).optional(),
 });
 
 // Lista las piezas del proyecto activo (cookie de "proyecto activo", ver
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
 
-  const { title, description, isPublic, floorId, unitId } = parsed.data;
+  const { title, description, isPublic, floorIds, unitIds } = parsed.data;
   const galleryImages = (parsed.data.galleryImages ?? []).filter(u => u.trim().length > 0);
 
   if (title.trim().length === 0) {
@@ -66,8 +66,6 @@ export async function POST(request: Request) {
     .from('bim_models')
     .insert({
       project_id: projectId,
-      floor_id: floorId ?? null,
-      unit_id: unitId ?? null,
       title: title.trim(),
       description: description?.trim() || null,
       gallery_images: galleryImages,
@@ -79,5 +77,15 @@ export async function POST(request: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ model: mapBimModelRow(data as BimModelRow) }, { status: 201 });
+  const modelId = data.id;
+  if (floorIds && floorIds.length > 0) {
+    await access.supabase.from('bim_model_floors').insert(floorIds.map(f => ({ bim_model_id: modelId, floor_id: f })));
+  }
+  if (unitIds && unitIds.length > 0) {
+    await access.supabase.from('bim_model_units').insert(unitIds.map(u => ({ bim_model_id: modelId, unit_id: u })));
+  }
+
+  const { data: finalData } = await access.supabase.from('bim_models').select('*, bim_model_floors(floor_id), bim_model_units(unit_id)').eq('id', modelId).single();
+
+  return NextResponse.json({ model: mapBimModelRow(finalData as BimModelRow) }, { status: 201 });
 }

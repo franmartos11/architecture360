@@ -12,8 +12,8 @@ const patchSchema = z.object({
   description: z.string().optional(),
   galleryImages: z.array(z.string()).optional(),
   isPublic: z.boolean().optional(),
-  floorId: z.string().nullable().optional(),
-  unitId: z.string().nullable().optional(),
+  floorIds: z.array(z.string()).optional(),
+  unitIds: z.array(z.string()).optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -66,8 +66,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
       ...(parsed.data.description !== undefined ? { description: parsed.data.description.trim() || null } : {}),
       ...(parsed.data.isPublic !== undefined ? { is_public: parsed.data.isPublic } : {}),
-      ...(parsed.data.floorId !== undefined ? { floor_id: parsed.data.floorId } : {}),
-      ...(parsed.data.unitId !== undefined ? { unit_id: parsed.data.unitId } : {}),
       gallery_images: galleryImages,
       cover_image,
       status,
@@ -78,7 +76,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ model: mapBimModelRow(data as BimModelRow) });
+  if (parsed.data.floorIds !== undefined) {
+    await access.supabase.from('bim_model_floors').delete().eq('bim_model_id', id);
+    if (parsed.data.floorIds.length > 0) {
+      await access.supabase.from('bim_model_floors').insert(parsed.data.floorIds.map(f => ({ bim_model_id: id, floor_id: f })));
+    }
+  }
+
+  if (parsed.data.unitIds !== undefined) {
+    await access.supabase.from('bim_model_units').delete().eq('bim_model_id', id);
+    if (parsed.data.unitIds.length > 0) {
+      await access.supabase.from('bim_model_units').insert(parsed.data.unitIds.map(u => ({ bim_model_id: id, unit_id: u })));
+    }
+  }
+
+  const { data: finalData } = await access.supabase.from('bim_models').select('*, bim_model_floors(floor_id), bim_model_units(unit_id)').eq('id', id).single();
+
+  return NextResponse.json({ model: mapBimModelRow(finalData as BimModelRow) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {

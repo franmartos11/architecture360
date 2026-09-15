@@ -1529,8 +1529,6 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 create table if not exists bim_models (
   id             uuid primary key default gen_random_uuid(),
   project_id     uuid not null references projects(id) on delete cascade,
-  floor_id       uuid references floors(id) on delete set null,
-  unit_id        uuid references units(id) on delete set null,
   title          text not null,
   description    text,
   source_format  text check (source_format is null or source_format in ('ifc','glb')),
@@ -1577,7 +1575,27 @@ create policy "project owner write bim_models" on bim_models for all to authenti
     select 1 from projects where projects.id = bim_models.project_id and projects.owner_id = auth.uid()
   ));
 
--- Soporte para modelos BIM por Planta o Departamento (agregado retroactivamente)
-alter table bim_models add column if not exists floor_id uuid references floors(id) on delete set null;
-alter table bim_models add column if not exists unit_id uuid references units(id) on delete set null;
+-- Soporte para modelos BIM múltiples por Planta o Departamento (N a N)
+create table if not exists bim_model_floors (
+  bim_model_id uuid references bim_models(id) on delete cascade,
+  floor_id     uuid references floors(id) on delete cascade,
+  primary key (bim_model_id, floor_id)
+);
+alter table bim_model_floors enable row level security;
+create policy "public read bim_model_floors" on bim_model_floors for select to anon, authenticated using (true);
+create policy "project owner all bim_model_floors" on bim_model_floors for all to authenticated
+  using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_floors.bim_model_id and p.owner_id = auth.uid()))
+  with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_floors.bim_model_id and p.owner_id = auth.uid()));
+
+create table if not exists bim_model_units (
+  bim_model_id uuid references bim_models(id) on delete cascade,
+  unit_id      uuid references units(id) on delete cascade,
+  primary key (bim_model_id, unit_id)
+);
+alter table bim_model_units enable row level security;
+create policy "public read bim_model_units" on bim_model_units for select to anon, authenticated using (true);
+create policy "project owner all bim_model_units" on bim_model_units for all to authenticated
+  using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()))
+  with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()));
+
 

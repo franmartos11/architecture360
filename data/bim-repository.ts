@@ -14,8 +14,8 @@ export function mapBimModelRow(row: BimModelRow): BimModel {
   return {
     id: row.id,
     projectId: row.project_id,
-    floorId: row.floor_id,
-    unitId: row.unit_id,
+    floorIds: row.bim_model_floors?.map(f => f.floor_id) ?? [],
+    unitIds: row.bim_model_units?.map(u => u.unit_id) ?? [],
     title: row.title,
     description: row.description ?? '',
     sourceFormat: row.source_format,
@@ -41,7 +41,7 @@ export const getBimModelsByProject = cache(async (projectId: string): Promise<Bi
   const supabase = await createClient();
   const { data } = await supabase
     .from('bim_models')
-    .select('*')
+    .select('*, bim_model_floors(floor_id), bim_model_units(unit_id)')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
   return ((data ?? []) as BimModelRow[]).map(mapBimModelRow);
@@ -54,7 +54,7 @@ export const getPublicBimModelsByProject = cache(async (projectId: string): Prom
   const supabase = await createClient();
   const { data } = await supabase
     .from('bim_models')
-    .select('*')
+    .select('*, bim_model_floors(floor_id), bim_model_units(unit_id)')
     .eq('project_id', projectId)
     .eq('is_public', true)
     .eq('status', 'ready')
@@ -68,6 +68,6 @@ export const getPublicBimModelsByProject = cache(async (projectId: string): Prom
 export const getBimModelById = cache(async (id: string): Promise<BimModel | undefined> => {
   if (!SUPABASE_CONFIGURED) return undefined;
   const supabase = await createClient();
-  const { data } = await supabase.from('bim_models').select('*').eq('id', id).maybeSingle();
+  const { data } = await supabase.from('bim_models').select('*, bim_model_floors(floor_id), bim_model_units(unit_id)').eq('id', id).maybeSingle();
   return data ? mapBimModelRow(data as BimModelRow) : undefined;
 });

@@ -521,10 +521,10 @@ export interface BimModel {
   id: string;
   /** Proyecto dueño de la pieza — nunca null: BIM es contenido de un proyecto. */
   projectId: string;
-  /** Opcional: Planta a la que pertenece esta pieza. */
-  floorId: string | null;
-  /** Opcional: Unidad a la que pertenece esta pieza. */
-  unitId: string | null;
+  /** Opcional: Plantas a las que pertenece esta pieza. */
+  floorIds: string[];
+  /** Opcional: Unidades a las que pertenece esta pieza. */
+  unitIds: string[];
   title: string;
   description: string;
   sourceFormat: BimSourceFormat | null;

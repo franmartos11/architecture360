@@ -26,18 +26,14 @@ export default function BimModelEditor({
   onDeleted: (id: string) => void;
 }) {
   const resolveInitialScope = () => {
-    if (model.unitId) return 'unit';
-    if (model.floorId) return 'floor';
+    if (model.unitIds?.length > 0) return 'unit';
+    if (model.floorIds?.length > 0) return 'floor';
     return 'project';
   };
 
   const [scope, setScope] = useState<'project' | 'floor' | 'unit'>(resolveInitialScope());
-  const [selectedFloorId, setSelectedFloorId] = useState<string>(
-    model.floorId ?? (model.unitId ? (units as any[]).find(u => u.id === model.unitId)?.floor_id : '') ?? floors[0]?.id ?? ''
-  );
-  const [selectedUnitId, setSelectedUnitId] = useState<string>(
-    model.unitId ?? ((units as any[]).find(u => u.floor_id === selectedFloorId)?.id) ?? ''
-  );
+  const [selectedFloorIds, setSelectedFloorIds] = useState<string[]>(model.floorIds || []);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>(model.unitIds || []);
 
   const [title, setTitle] = useState(model.title);
   const [description, setDescription] = useState(model.description);
@@ -54,14 +50,7 @@ export default function BimModelEditor({
   const publishable = canPublishBimModel({ geometryUrl, galleryImages });
   const tooManyImages = galleryImages.filter(u => u.trim()).length > MAX_GALLERY_IMAGES;
 
-  // Actualizar la unidad por defecto si cambia el piso seleccionado
-  const handleFloorChange = (floorId: string) => {
-    setSelectedFloorId(floorId);
-    if (scope === 'unit') {
-      const firstUnit = (units as any[]).find(u => u.floor_id === floorId);
-      if (firstUnit) setSelectedUnitId(firstUnit.id);
-    }
-  };
+
 
   const uploadModel = async (file: File) => {
     if (file.size > MAX_GEOMETRY_BYTES) {
@@ -144,9 +133,6 @@ export default function BimModelEditor({
       toast('Ponele un título a la pieza.', 'error');
       return;
     }
-    const targetFloorId = scope === 'floor' ? selectedFloorId : null;
-    const targetUnitId = scope === 'unit' ? selectedUnitId : null;
-
     setSaving(true);
     const res = await fetch(`/api/admin/bim/${model.id}`, {
       method: 'PATCH',
@@ -156,8 +142,8 @@ export default function BimModelEditor({
         description,
         galleryImages,
         isPublic,
-        floorId: targetFloorId,
-        unitId: targetUnitId,
+        floorIds: scope === 'floor' ? selectedFloorIds : [],
+        unitIds: scope === 'unit' ? selectedUnitIds : [],
       }),
     });
     setSaving(false);
@@ -184,10 +170,8 @@ export default function BimModelEditor({
     onDeleted(model.id);
   };
 
-  const availableUnits = (units as any[]).filter(u => u.floor_id === selectedFloorId);
-
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6 max-w-2xl">
       <div className="flex flex-col gap-3">
         <label className={labelStyle}>Asignar modelo a</label>
         
@@ -199,41 +183,70 @@ export default function BimModelEditor({
               type="button"
               onClick={() => {
                 setScope(s);
-                if (s === 'unit' && !selectedUnitId && availableUnits.length > 0) {
-                  setSelectedUnitId(availableUnits[0].id);
-                }
               }}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 scope === s ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {s === 'project' ? 'Proyecto' : s === 'floor' ? 'Planta' : 'Unidad'}
+              {s === 'project' ? 'Proyecto' : s === 'floor' ? 'Plantas' : 'Unidades'}
             </button>
           ))}
         </div>
 
         {/* Floor selector */}
-        {(scope === 'floor' || scope === 'unit') && floors.length > 0 && (
+        {scope === 'floor' && floors.length > 0 && (
           <div>
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">Planta</label>
-            <select value={selectedFloorId} onChange={e => handleFloorChange(e.target.value)} className={inputStyle}>
-              {floors.map(f => <option key={f.id} value={f.id}>Planta {f.label}</option>)}
-            </select>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">Plantas asignadas</label>
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white p-2 flex flex-col gap-0.5">
+              {floors.map(f => (
+                <label key={f.id} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer p-1.5 hover:bg-gray-50 rounded">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    checked={selectedFloorIds.includes(f.id)}
+                    onChange={e => {
+                      if (e.target.checked) setSelectedFloorIds([...selectedFloorIds, f.id]);
+                      else setSelectedFloorIds(selectedFloorIds.filter(id => id !== f.id));
+                    }}
+                  />
+                  Planta {f.label}
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Unit selector */}
         {scope === 'unit' && floors.length > 0 && (
           <div>
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">Unidad</label>
-            <select value={selectedUnitId} onChange={e => setSelectedUnitId(e.target.value)} className={inputStyle}>
-              {availableUnits.map(u => (
-                <option key={u.id} value={u.id}>
-                  Unidad {u.name || u.code} {u.model_name ? `(${u.model_name})` : ''}
-                </option>
-              ))}
-              {availableUnits.length === 0 && <option value="" disabled>No hay unidades en esta planta</option>}
-            </select>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">Unidades asignadas</label>
+            <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-lg bg-white p-3 flex flex-col gap-4 shadow-inner">
+              {floors.map(f => {
+                const floorUnits = (units as any[]).filter(u => u.floor_id === f.id);
+                if (floorUnits.length === 0) return null;
+                return (
+                  <div key={f.id} className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1">Planta {f.label}</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {floorUnits.map(u => (
+                        <label key={u.id} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer p-1.5 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 shrink-0"
+                            checked={selectedUnitIds.includes(u.id)}
+                            onChange={e => {
+                              if (e.target.checked) setSelectedUnitIds([...selectedUnitIds, u.id]);
+                              else setSelectedUnitIds(selectedUnitIds.filter(id => id !== u.id));
+                            }}
+                          />
+                          <span className="truncate">Unidad {u.name || u.code}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

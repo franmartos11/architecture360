@@ -223,8 +223,8 @@ export interface SavedThemeRow {
 export interface BimModelRow {
   id: string;
   project_id: string;
-  floor_id: string | null;
-  unit_id: string | null;
+  bim_model_floors?: { floor_id: string }[];
+  bim_model_units?: { unit_id: string }[];
   title: string;
   description: string | null;
   source_format: BimSourceFormat | null;
