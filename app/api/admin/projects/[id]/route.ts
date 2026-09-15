@@ -6,7 +6,8 @@ import { deleteBimStorageFiles } from '@/lib/supabase/delete-bim-storage';
 
 // Borra un proyecto entero. El cascade de la base (ver supabase/schema.sql)
 // se lleva edificios/pisos/unidades, vistas aéreas, amenidades, ubicación,
-// colaboradores y comentarios solo. Dos cosas que el cascade NO resuelve:
+// colaboradores, comentarios y piezas BIM solo. Dos cosas que el cascade
+// NO resuelve:
 // - Los leads (on delete set null en vez de cascade) — se borran acá a
 //   mano para no dejar leads huérfanos apuntando a un proyecto que ya no
 //   existe.
@@ -21,22 +22,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const admin = createAdminClient();
 
-  // Piezas BIM asociadas: viven en el portfolio del AUTOR, no del
-  // proyecto, así que el modal pregunta qué hacer con ellas. Sin el flag
-  // se quedan (project_id pasa a null por el on delete set null del
-  // schema). Con el flag solo se borran las del que está borrando: el
-  // dueño del proyecto no puede borrarle una pieza de portfolio a un
-  // colaborador — esas se desvinculan igual que sin el flag.
-  const deleteBim = new URL(request.url).searchParams.get('deleteBim') === 'true';
+  // Piezas BIM del proyecto: el cascade de la base (bim_models.project_id
+  // on delete cascade, ver supabase/schema.sql) borra las FILAS solo al
+  // borrar el proyecto — pero nunca los archivos de Storage que
+  // apuntaban. Hay que juntarlos y borrarlos ANTES, con el cliente admin,
+  // igual que ya hace deleteProjectStorageFiles con el resto del proyecto.
   const { data: bimRows } = await admin
     .from('bim_models')
-    .select('id, author_id, geometry_url, properties_url, cover_image, source_url, gallery_images')
+    .select('id, geometry_url, properties_url, cover_image, source_url, gallery_images')
     .eq('project_id', id);
 
-  const own = (bimRows ?? []).filter(m => m.author_id === access.user.id);
-  if (deleteBim && own.length > 0) {
-    await deleteBimStorageFiles(admin, own);
-    await admin.from('bim_models').delete().in('id', own.map(m => m.id));
+  if (bimRows && bimRows.length > 0) {
+    await deleteBimStorageFiles(admin, bimRows);
   }
 
   await deleteProjectStorageFiles(admin, id);

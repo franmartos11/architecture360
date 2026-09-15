@@ -17,9 +17,8 @@ function params(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
-function req(id: string, deleteBim?: boolean) {
-  const qs = deleteBim ? '?deleteBim=true' : '';
-  return new Request(`http://localhost/api/admin/projects/${id}${qs}`, { method: 'DELETE' });
+function req(id: string) {
+  return new Request(`http://localhost/api/admin/projects/${id}`, { method: 'DELETE' });
 }
 
 describe('DELETE /api/admin/projects/[id]', () => {
@@ -62,12 +61,7 @@ describe('DELETE /api/admin/projects/[id]', () => {
   });
 });
 
-describe('DELETE /api/admin/projects/[id] — piezas BIM asociadas', () => {
-  const bimRows = [
-    { id: 'bim-1', author_id: 'user-1', geometry_url: null, properties_url: null, cover_image: null, source_url: null, gallery_images: ['https://x/1.png'] },
-    { id: 'bim-2', author_id: 'otro-user', geometry_url: null, properties_url: null, cover_image: null, source_url: null, gallery_images: [] },
-  ];
-
+describe('DELETE /api/admin/projects/[id] — limpieza de piezas BIM', () => {
   beforeEach(() => {
     vi.mocked(requireProjectAccess).mockReset();
     vi.mocked(createAdminClient).mockReset();
@@ -75,34 +69,27 @@ describe('DELETE /api/admin/projects/[id] — piezas BIM asociadas', () => {
     vi.mocked(deleteBimStorageFiles).mockReset().mockResolvedValue(undefined);
   });
 
-  it('sin deleteBim: no toca ninguna pieza BIM', async () => {
+  it('borra los archivos de Storage de TODAS las piezas del proyecto, sin preguntar', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: {}, user: { id: 'user-1' } } as never);
+    const bimRows = [
+      { id: 'bim-1', geometry_url: null, properties_url: null, cover_image: null, source_url: null, gallery_images: ['https://x/1.png'] },
+      { id: 'bim-2', geometry_url: null, properties_url: null, cover_image: null, source_url: null, gallery_images: [] },
+    ];
     // .from(): bim_models (lectura), leads, projects
     const admin = mockSupabase({ results: [{ data: bimRows }, { error: null }, { error: null }] });
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await DELETE(req('project-1'), params('project-1'));
     expect(res.status).toBe(200);
-    expect(deleteBimStorageFiles).not.toHaveBeenCalled();
+    expect(deleteBimStorageFiles).toHaveBeenCalledWith(admin, bimRows);
   });
 
-  it('con deleteBim: borra solo las propias, y sus archivos', async () => {
+  it('proyecto sin piezas BIM: no llama al borrado de archivos', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: {}, user: { id: 'user-1' } } as never);
-    // .from(): bim_models (lectura), bim_models (delete), leads, projects
-    const admin = mockSupabase({ results: [{ data: bimRows }, { error: null }, { error: null }, { error: null }] });
+    const admin = mockSupabase({ results: [{ data: [] }, { error: null }, { error: null }] });
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
-    const res = await DELETE(req('project-1', true), params('project-1'));
-    expect(res.status).toBe(200);
-    expect(deleteBimStorageFiles).toHaveBeenCalledWith(admin, [bimRows[0]]);
-  });
-
-  it('con deleteBim pero sin piezas propias: no llama al borrado de archivos', async () => {
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: {}, user: { id: 'user-1' } } as never);
-    const admin = mockSupabase({ results: [{ data: [bimRows[1]] }, { error: null }, { error: null }] });
-    vi.mocked(createAdminClient).mockReturnValue(admin as never);
-
-    const res = await DELETE(req('project-1', true), params('project-1'));
+    const res = await DELETE(req('project-1'), params('project-1'));
     expect(res.status).toBe(200);
     expect(deleteBimStorageFiles).not.toHaveBeenCalled();
   });
