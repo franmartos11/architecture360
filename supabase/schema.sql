@@ -1528,8 +1528,9 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 -- imágenes.
 create table if not exists bim_models (
   id             uuid primary key default gen_random_uuid(),
-  author_id      uuid not null references profiles(id) on delete cascade,
   project_id     uuid references projects(id) on delete set null,
+  floor_id       uuid references floors(id) on delete set null,
+  unit_id        uuid references units(id) on delete set null,
   title          text not null,
   description    text,
   source_format  text check (source_format is null or source_format in ('ifc','glb')),
@@ -1619,4 +1620,8 @@ create policy "project owner write bim_models" on bim_models for all to authenti
   with check (exists (
     select 1 from projects where projects.id = bim_models.project_id and projects.owner_id = auth.uid()
   ));
+
+-- Soporte para modelos BIM por Planta o Departamento (agregado retroactivamente)
+alter table bim_models add column if not exists floor_id uuid references floors(id) on delete set null;
+alter table bim_models add column if not exists unit_id uuid references units(id) on delete set null;
 

@@ -9,6 +9,7 @@ const UnitViewer = dynamic(() => import('./UnitViewer'), { ssr: false });
 interface UnitViewerWrapperProps {
   unit: Unit;
   allUnits: Unit[];
+  bimModel?: import('@/types').BimModel;
   projectSlug: string;
   projectName: string;
   buildingId: string;

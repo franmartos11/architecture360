@@ -7,7 +7,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import BimModelList from '@/components/admin/BimModelList';
 import BimModelEditor from '@/components/admin/BimModelEditor';
-import type { BimModel } from '@/types';
+import type { BimModel, Floor, Unit } from '@/types';
 
 // Editor de BIM autosuficiente — resuelve el proyecto activo por su
 // cuenta (la ruta de API lee la cookie, ver resolveRequestedProjectId),
@@ -18,6 +18,8 @@ import type { BimModel } from '@/types';
 // la lista + editor de siempre, sin volver a preguntar.
 export default function BimEditor() {
   const [models, setModels] = useState<BimModel[] | null>(null);
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -25,12 +27,17 @@ export default function BimEditor() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/admin/bim')
-      .then(res => (res.ok ? res.json() : { models: [] }))
-      .then(data => {
+    Promise.all([
+      fetch('/api/admin/bim').then(res => (res.ok ? res.json() : { models: [] })),
+      fetch('/api/admin/floors').then(res => (res.ok ? res.json() : { floors: [] })),
+      fetch('/api/admin/units').then(res => (res.ok ? res.json() : { units: [] }))
+    ])
+      .then(([bimData, floorsData, unitsData]) => {
         if (cancelled) return;
-        setModels(data.models as BimModel[]);
-        setSelectedId((data.models as BimModel[])[0]?.id ?? null);
+        setModels(bimData.models as BimModel[]);
+        setSelectedId((bimData.models as BimModel[])[0]?.id ?? null);
+        setFloors((floorsData.floors as Floor[]) ?? []);
+        setUnits((unitsData.units as Unit[]) ?? []);
       })
       .catch(() => { if (!cancelled) setModels([]); });
     return () => { cancelled = true; };
@@ -100,6 +107,8 @@ export default function BimEditor() {
           <BimModelEditor
             key={selected.id}
             model={selected}
+            floors={floors}
+            units={units}
             onSaved={updated => setModels(prev => (prev ?? []).map(m => (m.id === updated.id ? updated : m)))}
             onDeleted={id => {
               setModels(prev => (prev ?? []).filter(m => m.id !== id));

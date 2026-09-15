@@ -14,6 +14,8 @@ export function mapBimModelRow(row: BimModelRow): BimModel {
   return {
     id: row.id,
     projectId: row.project_id,
+    floorId: row.floor_id,
+    unitId: row.unit_id,
     title: row.title,
     description: row.description ?? '',
     sourceFormat: row.source_format,

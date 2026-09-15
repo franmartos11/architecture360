@@ -72,6 +72,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
       initialFloor={initialFloor}
       typeConfig={typeConfig}
       buildings={project.buildings.map(b => ({ id: b.id, name: b.name }))}
+      bimModels={project.bimModels}
     />
   );
 }

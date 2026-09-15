@@ -105,6 +105,7 @@ function mapProject(
       .filter(f => f.building_id === b.id)
       .sort((a, c) => a.number - c.number)
       .map((f): Floor => ({
+        id: f.id,
         number: f.number,
         label: f.label,
         planImage: f.plan_image ?? '',

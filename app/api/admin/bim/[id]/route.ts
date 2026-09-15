@@ -12,6 +12,8 @@ const patchSchema = z.object({
   description: z.string().optional(),
   galleryImages: z.array(z.string()).optional(),
   isPublic: z.boolean().optional(),
+  floorId: z.string().nullable().optional(),
+  unitId: z.string().nullable().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +66,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),
       ...(parsed.data.description !== undefined ? { description: parsed.data.description.trim() || null } : {}),
       ...(parsed.data.isPublic !== undefined ? { is_public: parsed.data.isPublic } : {}),
+      ...(parsed.data.floorId !== undefined ? { floor_id: parsed.data.floorId } : {}),
+      ...(parsed.data.unitId !== undefined ? { unit_id: parsed.data.unitId } : {}),
       gallery_images: galleryImages,
       cover_image,
       status,

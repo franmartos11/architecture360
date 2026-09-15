@@ -12,7 +12,7 @@ export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casa' | 'unico';
 export type ProjectSaleMode = 'venta' | 'showcase';
 
 // ─── View tabs inside unit ─────────────────────────────────────────
-export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
+export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion' | 'bim';
 
 // ─── Unit type ─────────────────────────────────────────────────────
 // Categorías estándar de aviso — las que ofrece el dropdown para
@@ -136,6 +136,7 @@ export interface UnitLevel {
 export type FloorKind = 'units' | 'amenity' | 'offices' | 'technical' | 'parking' | 'other';
 
 export interface Floor {
+  id: string;
   number: number;
   label: string;        // e.g. "Planta 1", "L" for lobby
   planImage: string;    // floor plan image URL
@@ -520,6 +521,10 @@ export interface BimModel {
   id: string;
   /** Proyecto dueño de la pieza — nunca null: BIM es contenido de un proyecto. */
   projectId: string;
+  /** Opcional: Planta a la que pertenece esta pieza. */
+  floorId: string | null;
+  /** Opcional: Unidad a la que pertenece esta pieza. */
+  unitId: string | null;
   title: string;
   description: string;
   sourceFormat: BimSourceFormat | null;

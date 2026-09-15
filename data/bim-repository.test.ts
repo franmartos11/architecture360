@@ -39,6 +39,8 @@ const row: BimModelRow = {
   is_public: true,
   created_at: '2026-09-14T10:00:00Z',
   updated_at: '2026-09-14T10:00:00Z',
+  floor_id: null,
+  unit_id: null,
 };
 
 describe('mapBimModelRow', () => {

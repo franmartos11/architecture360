@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { MAX_GALLERY_IMAGES, MAX_GEOMETRY_BYTES, GEOMETRY_WARN_BYTES, bimModelHref, canPublishBimModel } from '@/lib/bim';
-import type { BimModel } from '@/types';
+import type { BimModel, Floor, Unit } from '@/types';
 
 const labelStyle = 'block text-xs font-medium text-gray-500 mb-1.5';
 const inputStyle =
@@ -14,10 +14,14 @@ const inputStyle =
 
 export default function BimModelEditor({
   model,
+  floors,
+  units,
   onSaved,
   onDeleted,
 }: {
   model: BimModel;
+  floors: Floor[];
+  units: Unit[];
   onSaved: (updated: BimModel) => void;
   onDeleted: (id: string) => void;
 }) {
@@ -25,6 +29,11 @@ export default function BimModelEditor({
   const [description, setDescription] = useState(model.description);
   const [galleryImages, setGalleryImages] = useState(model.galleryImages);
   const [geometryUrl, setGeometryUrl] = useState(model.geometryUrl);
+  const [assignment, setAssignment] = useState<string>(
+    model.unitId ? `unit:${model.unitId}` :
+    model.floorId ? `floor:${model.floorId}` :
+    'project'
+  );
 
   const [isPublic, setIsPublic] = useState(model.isPublic);
   const [saving, setSaving] = useState(false);
@@ -123,6 +132,9 @@ export default function BimModelEditor({
       toast('Ponele un título a la pieza.', 'error');
       return;
     }
+    const targetFloorId = assignment.startsWith('floor:') ? assignment.split(':')[1] : null;
+    const targetUnitId = assignment.startsWith('unit:') ? assignment.split(':')[1] : null;
+
     setSaving(true);
     const res = await fetch(`/api/admin/bim/${model.id}`, {
       method: 'PATCH',
@@ -132,6 +144,8 @@ export default function BimModelEditor({
         description,
         galleryImages,
         isPublic,
+        floorId: targetFloorId,
+        unitId: targetUnitId,
       }),
     });
     setSaving(false);
@@ -160,6 +174,23 @@ export default function BimModelEditor({
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <label className={labelStyle}>Asignar modelo a</label>
+        <select value={assignment} onChange={e => setAssignment(e.target.value)} className={inputStyle}>
+          <option value="project">Proyecto completo</option>
+          {floors.length > 0 && (
+            <optgroup label="Plantas (Pisos)">
+              {floors.map(f => <option key={f.id} value={`floor:${f.id}`}>Planta {f.label}</option>)}
+            </optgroup>
+          )}
+          {units.length > 0 && (
+            <optgroup label="Departamentos (Unidades)">
+              {units.map(u => <option key={u.id} value={`unit:${u.id}`}>Unidad {u.name}</option>)}
+            </optgroup>
+          )}
+        </select>
+      </div>
+
       <div>
         <label className={labelStyle}>Título</label>
         <input value={title} onChange={e => setTitle(e.target.value)} className={inputStyle} />

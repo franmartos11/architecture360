@@ -8,8 +8,9 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import type { Building, Unit, Floor, Amenity, PointOfInterest } from '@/types';
+import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
+import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
 import { FLOOR_KIND_LABEL, FLOOR_KIND_ICON } from '@/lib/floorKinds';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
@@ -95,6 +96,7 @@ interface FloorPlanViewerProps {
   /** Todos los edificios del proyecto (incluye el actual) — para el
    *  selector de torre. Con uno solo, no se muestra ningún tab. */
   buildings?: BuildingTab[];
+  bimModels?: BimModel[];
 }
 
 export default function FloorPlanViewer({
@@ -107,6 +109,7 @@ export default function FloorPlanViewer({
   initialFloor = 1,
   typeConfig,
   buildings = [],
+  bimModels = [],
 }: FloorPlanViewerProps) {
   const { showPrice, showStatus, showLeads, unitIsLand, hasFloorStep } = typeConfig;
   const router = useTransitionRouter();
@@ -119,6 +122,7 @@ export default function FloorPlanViewer({
   const [layersOpen, setLayersOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
+  const [showBim, setShowBim] = useState(false);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
   const asideRef = useRef<HTMLElement>(null);
@@ -207,6 +211,15 @@ export default function FloorPlanViewer({
     () => getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor),
     [allUnits, building.id, activeFloor]
   );
+
+  const activeBimModel = useMemo(() => {
+    return bimModels.find(m => m.floorId === floor?.id);
+  }, [bimModels, floor?.id]);
+
+  // Cerrar BIM al cambiar de planta
+  if (showBim && planImageRef.current !== floor?.planImage) {
+    setShowBim(false);
+  }
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.
@@ -636,6 +649,17 @@ export default function FloorPlanViewer({
                 Solo disponibles
               </button>
             )}
+            {activeBimModel && (
+              <button
+                onClick={() => setShowBim(true)}
+                className="h-[26px] px-3 flex items-center gap-1.5 rounded-full bg-gray-900 text-white shadow-sm text-[11px] font-semibold transition-colors hover:bg-gray-800"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                </svg>
+                Modelo BIM 3D
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 pointer-events-auto shrink-0">
@@ -679,8 +703,19 @@ export default function FloorPlanViewer({
             ya lo incluye; en mobile ese overlay está oculto (los mismos
             controles viven en la franja de arriba, que no tiene lugar para
             un panel de checkboxes), así que flota solo en esta esquina. */}
-        {layerOptions.length > 0 && (
-          <div className="md:hidden absolute top-3.5 right-3.5 z-20">
+        <div className="md:hidden absolute top-3.5 right-3.5 z-20 flex flex-col items-end gap-2">
+          {activeBimModel && (
+            <button
+              onClick={() => setShowBim(true)}
+              className="h-9 px-3.5 flex items-center gap-2 rounded-full bg-gray-900 text-white shadow-sm text-xs font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+              </svg>
+              Ver 3D
+            </button>
+          )}
+          {layerOptions.length > 0 && (
             <LayersToggle
               options={layerOptions}
               layers={layers}
@@ -689,12 +724,30 @@ export default function FloorPlanViewer({
               onOpenChange={setLayersOpen}
               panelRef={layersRefMobile}
             />
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Plano + pines de unidad */}
         <div ref={planAreaRef} className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
-          {floor && floor.planImage ? (
+          {showBim && activeBimModel ? (
+            <div className="absolute inset-0 z-30 bg-gray-900 pointer-events-auto">
+              <button
+                onClick={() => setShowBim(false)}
+                className="absolute top-4 right-4 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur transition-colors"
+                aria-label="Cerrar vista 3D"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <BimUnifiedViewer
+                geometryUrl={activeBimModel.geometryUrl}
+                coverImage={activeBimModel.coverImage}
+                galleryImages={activeBimModel.galleryImages}
+                title={activeBimModel.title}
+              />
+            </div>
+          ) : floor && floor.planImage ? (
             <TransformWrapper
               key={`${floor.planImage}-${planFitSize ? 'fit' : 'pending'}`}
               initialScale={1}

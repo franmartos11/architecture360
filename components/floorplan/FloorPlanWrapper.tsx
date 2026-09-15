@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { Building, Unit, Amenity, PointOfInterest } from '@/types';
+import type { Building, Unit, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 
 const FloorPlanViewer = dynamic(() => import('./FloorPlanViewer'), { ssr: false });
@@ -16,6 +16,7 @@ export default function FloorPlanWrapper({
   initialFloor,
   typeConfig,
   buildings,
+  bimModels,
 }: {
   building: Building;
   units: Unit[];
@@ -26,6 +27,7 @@ export default function FloorPlanWrapper({
   initialFloor?: number;
   typeConfig: ProjectTypeConfig;
   buildings?: { id: string; name: string }[];
+  bimModels?: BimModel[];
 }) {
   return (
     <FloorPlanViewer
@@ -38,6 +40,7 @@ export default function FloorPlanWrapper({
       initialFloor={initialFloor}
       typeConfig={typeConfig}
       buildings={buildings}
+      bimModels={bimModels}
     />
   );
 }

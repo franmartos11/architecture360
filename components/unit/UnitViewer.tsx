@@ -25,6 +25,7 @@ import PlanoTab from './tabs/PlanoTab';
 import GaleriaTab from './tabs/GaleriaTab';
 import AmenitiesTab from './tabs/AmenitiesTab';
 import UbicacionTab from './tabs/UbicacionTab';
+import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 
 interface UnitViewerProps {
   unit: Unit;
@@ -44,6 +45,7 @@ interface UnitViewerProps {
   typeConfig: ProjectTypeConfig;
   /** Listado filtrado del que vino el usuario, para poder volver a él. Ausente si llegó por un link directo. */
   backHref?: string;
+  bimModel?: import('@/types').BimModel;
 }
 
 const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
@@ -79,6 +81,15 @@ const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: 'bim' as const,
+    label: 'BIM',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+      </svg>
+    ),
+  },
 ];
 
 export default function UnitViewer({
@@ -97,6 +108,7 @@ export default function UnitViewer({
   initialTab,
   typeConfig,
   backHref,
+  bimModel,
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
@@ -121,6 +133,7 @@ export default function UnitViewer({
     galeria: (unit.galleryImages?.length ?? 0) > 0,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
     ubicacion: pointsOfInterest.length > 0,
+    bim: !!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0),
   };
   const visibleTabs = TABS.filter(t => tabHasContent[t.id]);
   const firstTab = visibleTabs[0]?.id;
@@ -771,6 +784,17 @@ export default function UnitViewer({
 
             {visibleTabs.length > 0 && activeTab === 'planta3d' && (
               <Planta3DTab unit={unit} />
+            )}
+
+            {activeTab === 'bim' && bimModel && (
+              <div className="absolute inset-0 bg-gray-900">
+                <BimUnifiedViewer
+                  geometryUrl={bimModel.geometryUrl}
+                  coverImage={bimModel.coverImage}
+                  galleryImages={bimModel.galleryImages}
+                  title={bimModel.title}
+                />
+              </div>
             )}
 
             {activeTab === 'tour360' && (

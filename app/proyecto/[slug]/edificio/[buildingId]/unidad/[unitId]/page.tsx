@@ -48,6 +48,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
     <UnitViewerWrapper
       unit={unit}
       allUnits={project.units}
+      bimModel={project.bimModels?.find(m => m.unitId === unit.id)}
       projectSlug={slug}
       projectName={project.name}
       buildingId={building.id}
