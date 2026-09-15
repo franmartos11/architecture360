@@ -20,7 +20,7 @@ vi.mock('next/headers', () => ({
 vi.mock('server-only', () => ({}));
 
 import { createClient } from './server';
-import { requireProjectAccess } from './require-project-access';
+import { requireProjectAccess, resolveProjectIdFromBimModel } from './require-project-access';
 
 function mockSupabase({ user, projectRow }: { user: { id: string } | null; projectRow: { id: string } | null }) {
   return {
@@ -60,5 +60,33 @@ describe('requireProjectAccess', () => {
     const access = await requireProjectAccess('project-1');
     expect(access).not.toBeNull();
     expect(access?.user.id).toBe('user-1');
+  });
+});
+
+describe('resolveProjectIdFromBimModel', () => {
+  it('devuelve el project_id de la pieza', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { project_id: 'project-1' } }),
+          }),
+        }),
+      }),
+    } as never);
+    expect(await resolveProjectIdFromBimModel('bim-1')).toBe('project-1');
+  });
+
+  it('pieza inexistente: null', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: null }),
+          }),
+        }),
+      }),
+    } as never);
+    expect(await resolveProjectIdFromBimModel('bim-404')).toBeNull();
   });
 });

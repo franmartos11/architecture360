@@ -85,6 +85,12 @@ export async function resolveProjectIdFromAmenity(amenityId: string): Promise<st
   return data?.project_id ?? null;
 }
 
+export async function resolveProjectIdFromBimModel(bimModelId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from('bim_models').select('project_id').eq('id', bimModelId).maybeSingle();
+  return data?.project_id ?? null;
+}
+
 export async function resolveProjectIdFromPoi(poiId: string): Promise<string | null> {
   const supabase = await createClient();
   const { data } = await supabase.from('points_of_interest').select('project_id').eq('id', poiId).maybeSingle();
