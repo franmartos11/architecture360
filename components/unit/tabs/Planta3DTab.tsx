@@ -45,33 +45,16 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 flex flex-col"
+      className="absolute inset-0 pt-16 flex flex-col"
     >
-      {/* Selector de pisos (si hay múltiples plantas estáticas) */}
-      {viewMode === 'render' && levels.length > 1 && (
-        <div className="absolute top-20 right-4 z-20">
-          <div className="flex flex-col bg-white/90 backdrop-blur-md rounded-xl p-1 shadow-lg border border-gray-100">
-            {levels.map((l, i) => (
-              <button
-                key={l.label}
-                onClick={() => setActiveIdx(i)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-left ${activeIdx === i ? 'bg-gray-900 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Selector principal inferior (tipo pastilla clara) */}
+      {/* Selector superior central (estilo idéntico a PlanoTab) */}
       {(hasRender && hasBim) && (
-        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 w-auto">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-md border border-gray-200">
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2 z-30">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
             {hasRender && (
               <button
                 onClick={() => setViewMode('render')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Planta Estática
               </button>
@@ -79,7 +62,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
             {hasBim3D && (
               <button
                 onClick={() => setViewMode('bim-3d')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Modelo BIM
               </button>
@@ -87,11 +70,28 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
             {hasBimGallery && (
               <button
                 onClick={() => setViewMode('bim-gallery')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Imágenes
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Selector de pisos (si hay múltiples plantas estáticas y estamos en render) */}
+      {viewMode === 'render' && levels.length > 1 && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2 z-20">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+            {levels.map((l, i) => (
+              <button
+                key={l.label}
+                onClick={() => setActiveIdx(i)}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${activeIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {l.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -116,7 +116,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
         )}
 
         {viewMode === 'render' && active && (
-          <div className="absolute inset-0 pt-16 p-2 sm:p-4 bg-gray-50/50">
+          <div className="absolute inset-0 p-2 sm:p-4 bg-gray-50/50">
             <TransformWrapper
               key={activeIdx}
               initialScale={1}
