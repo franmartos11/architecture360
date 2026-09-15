@@ -218,6 +218,7 @@ export const demoProject: Project = {
   projectType: 'edificio',
   saleMode: 'venta',
   processGallery: [],
+  bimModels: [],
   beforeAfter: [],
   collaborators: [],
   aerialSlides: [

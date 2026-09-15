@@ -1,7 +1,8 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
-import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit } from '@/types';
+import { getPublicBimModelsByProject } from './bim-repository';
+import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit, BimModel } from '@/types';
 import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import type {
@@ -26,7 +27,8 @@ function mapProject(
   hotspotRows: AerialHotspotRow[],
   amenityRows: AmenityRow[],
   poiRows: PointOfInterestRow[],
-  collaboratorRows: CollaboratorJoinRow[]
+  collaboratorRows: CollaboratorJoinRow[],
+  bimModels: BimModel[]
 ): Project {
   const buildingSlugById = new Map(buildingRows.map(b => [b.id, b.slug]));
 
@@ -196,6 +198,7 @@ function mapProject(
     units,
     amenities,
     pointsOfInterest,
+    bimModels,
     commonAreasTour: project.common_areas_tour ?? undefined,
     tourOrientationDegrees: project.tour_orientation_degrees ?? undefined,
   };
@@ -227,7 +230,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
 
   // Todo lo que solo depende de project.id se pide en paralelo — buildings→floors→units
   // y slides→hotspots son las únicas cadenas de dependencia reales acá adentro.
-  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators] = await Promise.all([
+  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators, bimModels] = await Promise.all([
     supabase.from('buildings').select('*').eq('project_id', project.id),
     (async () => {
       const { data: slideRows } = await supabase
@@ -260,6 +263,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
       .eq('project_id', project.id)
       .eq('status', 'accepted')
       .then(({ data }) => (data ?? []) as unknown as CollaboratorJoinRow[]),
+    getPublicBimModelsByProject(project.id),
   ]);
   const buildings = (buildingsResult.data ?? []) as BuildingRow[];
 
@@ -273,7 +277,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
     : { data: [] };
   const units = (unitRows ?? []) as UnitRow[];
 
-  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators);
+  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
 });
 
 export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {

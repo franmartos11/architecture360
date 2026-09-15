@@ -76,6 +76,14 @@ describe('computeEmptySectionKeys', () => {
     const sinFotos = { ...full, pointsOfInterest: [{}, {}] };
     expect(computeEmptySectionKeys(sinFotos).has('location')).toBe(true);
   });
+
+  it('NUNCA marca "bim" como vacía — mismo criterio que calculator/contact, es opcional y no debe generar un aviso falso', () => {
+    const project = {
+      description: '', beforeAfter: [], processGallery: [], collaborators: [],
+      amenities: [], pointsOfInterest: [], units: [], aerialSlides: [],
+    };
+    expect(computeEmptySectionKeys(project).has('bim')).toBe(false);
+  });
 });
 
 describe('resolveSectionOrder', () => {

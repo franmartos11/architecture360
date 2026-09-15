@@ -12,6 +12,7 @@ export type SectionKey =
   | 'team'
   | 'amenities'
   | 'masterplan'
+  | 'bim'
   | 'typologies'
   | 'location'
   | 'calculator'
@@ -31,6 +32,7 @@ export const SECTION_REGISTRY: SectionMeta[] = [
   { key: 'team', label: 'Equipo' },
   { key: 'amenities', label: 'Amenidades' },
   { key: 'masterplan', label: 'Masterplan interactivo' },
+  { key: 'bim', label: 'Modelo BIM' },
   { key: 'typologies', label: 'Tipologías / unidades' },
   { key: 'location', label: 'Ubicación' },
   { key: 'calculator', label: 'Calculadora' },
@@ -83,6 +85,8 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
       return '/admin/proyecto';
     case 'amenities':
       return '/admin/proyecto/amenities';
+    case 'bim':
+      return '/admin/proyecto/bim';
     case 'location':
       return '/admin/proyecto/ubicacion';
     case 'typologies':
@@ -107,6 +111,7 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
     masterplan: typeConfig.hasUnitStep
       ? 'Foto aérea con hotspots — se carga en Proyecto → Vistas aéreas.'
       : 'Foto del frente de la casa — se carga en Proyecto → Vista frontal.',
+    bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
     typologies: `${typeConfig.unitLabel}s disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
@@ -141,6 +146,12 @@ interface EmptyCheckProject {
 // "siempre tiene fallback" y se dejaba afuera de este chequeo, pero el
 // fallback real (components/aerial/AerialView.tsx) era una pantalla en
 // blanco sin ningún aviso cuando no había ninguna vista aérea cargada.
+//
+// 'bim' queda AFUERA a propósito, igual que 'calculator'/'contact': es
+// opcional (no todo proyecto necesita un modelo BIM), así que marcarla
+// "vacía" generaría un aviso de "te falta esto" en cualquier proyecto que
+// legítimamente decidió no cargar uno. El componente de la sección igual
+// resuelve solo si tiene o no piezas para mostrar.
 export function computeEmptySectionKeys(project: EmptyCheckProject): Set<SectionKey> {
   const empty = new Set<SectionKey>();
   if (!project.description) empty.add('about');

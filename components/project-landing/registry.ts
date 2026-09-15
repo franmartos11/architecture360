@@ -7,6 +7,7 @@ import ProcessSection from './ProcessSection';
 import TeamSection from './TeamSection';
 import AmenitiesSection from './AmenitiesSection';
 import MasterplanCtaSection from './MasterplanCtaSection';
+import BimSection from './BimSection';
 import TypologiesSection from './TypologiesSection';
 import LocationSection from './LocationSection';
 import CalculatorSection from './CalculatorSection';
@@ -24,6 +25,7 @@ export const SECTION_COMPONENTS: Record<SectionKey, ComponentType<SectionProps>>
   team: TeamSection,
   amenities: AmenitiesSection,
   masterplan: MasterplanCtaSection,
+  bim: BimSection,
   typologies: TypologiesSection,
   location: LocationSection,
   calculator: CalculatorSection,
