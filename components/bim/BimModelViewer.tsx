@@ -26,7 +26,6 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
 
   return (
     <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-gray-900">
-      {/* @ts-expect-error — model-viewer es un web component, los tipos vienen de types/model-viewer.d.ts */}
       <model-viewer
         src={src}
         alt={alt}

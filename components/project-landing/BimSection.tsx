@@ -26,9 +26,9 @@ export default function BimSection({ project }: SectionProps) {
           <Reveal key={m.id} delay={i * 0.05}>
             <Link
               href={bimModelHref(m.id)}
-              className="group block rounded-[var(--theme-radius)] overflow-hidden bg-[var(--theme-bg-alt)] border border-[var(--theme-text)]/10 hover:border-[var(--theme-text)]/30 transition-colors"
+              className="group flex flex-col rounded-2xl overflow-hidden bg-[var(--theme-bg-alt)] border border-[var(--theme-text)]/10 hover:border-[var(--theme-text)]/30 transition-all hover:-translate-y-1 shadow-sm hover:shadow-md"
             >
-              <div className="relative aspect-[4/3] overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]">
+              <div className="relative aspect-square sm:aspect-[4/3] overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]">
                 {m.coverImage && (
                   <Image
                     src={m.coverImage} alt={m.title} fill
@@ -38,12 +38,12 @@ export default function BimSection({ project }: SectionProps) {
                   />
                 )}
               </div>
-              <div className="p-4">
-                <p className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text)] font-medium truncate">
+              <div className="p-5 bg-[var(--theme-text)] flex flex-col justify-center min-h-[5rem]">
+                <p className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-bg)] font-medium truncate">
                   {m.title}
                 </p>
                 {m.description && (
-                  <p className="text-sm text-[var(--theme-text-muted)] font-light line-clamp-2 mt-1">{m.description}</p>
+                  <p className="text-sm text-[var(--theme-bg)]/70 font-light line-clamp-2 mt-1">{m.description}</p>
                 )}
               </div>
             </Link>
