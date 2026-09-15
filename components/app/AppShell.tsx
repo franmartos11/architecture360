@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { Home, Building2, Bell, MessageCircle, User, ChevronDown, Pencil, LogOut, Box } from 'lucide-react';
+import { Home, Building2, Bell, MessageCircle, User, ChevronDown, Pencil, LogOut } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
 import NavSearch from '@/components/social/NavSearch';
@@ -98,16 +98,7 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                 <Building2 className="w-5 h-5" />
               </Link>
             )}
-            {loggedIn && (
-              <Link
-                href="/admin/bim"
-                className={`hidden sm:inline-flex p-2 rounded-lg transition-colors ${isActive('/admin/bim') ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-                title="Modelos BIM"
-                aria-label="Modelos BIM"
-              >
-                <Box className="w-5 h-5" />
-              </Link>
-            )}
+
 
             {loggedIn ? (
               <>
@@ -170,10 +161,7 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                         <Pencil className="w-4 h-4 text-trevo-dark/40" />
                         Editar perfil
                       </Link>
-                      <Link href="/admin/bim" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-trevo-dark hover:bg-trevo-dark/5 transition-colors">
-                        <Box className="w-4 h-4 text-trevo-dark/40" />
-                        Modelos BIM
-                      </Link>
+
                       <Link href="/admin/proyectos" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-trevo-dark hover:bg-trevo-dark/5 transition-colors">
                         <Building2 className="w-4 h-4 text-trevo-dark/40" />
                         Mis proyectos

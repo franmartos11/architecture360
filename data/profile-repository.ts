@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import type { BimModel, DirectoryProfile, Profile, PortfolioProjectSummary } from '@/types';
+import type { DirectoryProfile, Profile, PortfolioProjectSummary } from '@/types';
 import type { ProfileRow, ProjectRow } from '@/types/database';
 
 

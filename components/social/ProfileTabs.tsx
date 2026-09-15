@@ -9,18 +9,17 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { PROJECT_STRUCTURES } from '@/lib/project-types';
 import { getProjectHref } from '@/lib/project-url';
 import PostFeed from '@/components/social/PostFeed';
-import BimGrid from '@/components/social/BimGrid';
-import type { ProjectType, PortfolioProjectSummary, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, BimModel } from '@/types';
+import type { ProjectType, PortfolioProjectSummary, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward } from '@/types';
 import type { PortfolioCollaboration } from '@/data/profile-repository';
 
-type TabKey = 'proyectos' | 'bim' | 'publicaciones' | 'trayectoria';
+type TabKey = 'proyectos' | 'publicaciones' | 'trayectoria';
 
 interface ProfileTabsProps {
   handle: string;
   isOwner: boolean;
   projects: PortfolioProjectSummary[];
   collaborations: PortfolioCollaboration[];
-  bimModels: BimModel[];
+
   hasTrayectoria: boolean;
   experiences: ProfileExperience[];
   education: ProfileEducation[];
@@ -196,7 +195,7 @@ function AwardsCard({ items }: { items: ProfileAward[] }) {
 }
 
 export default function ProfileTabs({
-  handle, isOwner, projects, collaborations, bimModels, hasTrayectoria,
+  handle, isOwner, projects, collaborations, hasTrayectoria,
   experiences, education, certifications, awards, featuredProjectId, postsCount,
   loggedIn, currentProfileHandle, currentAvatarImage,
 }: ProfileTabsProps) {
@@ -210,7 +209,7 @@ export default function ProfileTabs({
   const router = useRouter();
   const paramTab = searchParams.get('tab');
   const requestedTab: TabKey =
-    paramTab === 'bim' || paramTab === 'publicaciones' || paramTab === 'trayectoria' ? paramTab : 'proyectos';
+    paramTab === 'publicaciones' || paramTab === 'trayectoria' ? paramTab : 'proyectos';
   const setTab = (next: TabKey) => {
     const qs = new URLSearchParams(searchParams.toString());
     qs.set('tab', next);
@@ -235,7 +234,7 @@ export default function ProfileTabs({
 
   const tabs: { key: TabKey; label: string; count: string }[] = [
     { key: 'proyectos', label: 'Proyectos', count: String(projects.length + collaborations.length) },
-    ...(bimModels.length > 0 || isOwner ? [{ key: 'bim' as TabKey, label: 'BIM', count: String(bimModels.length) }] : []),
+
     { key: 'publicaciones', label: 'Publicaciones', count: postsCount > 0 ? String(postsCount) : '' },
     ...(hasTrayectoria ? [{ key: 'trayectoria' as TabKey, label: 'Trayectoria', count: '' }] : []),
   ];
@@ -372,7 +371,7 @@ export default function ProfileTabs({
           </div>
         )}
 
-        {tab === 'bim' && <BimGrid models={bimModels} />}
+
 
         {tab === 'publicaciones' && (
           <PostFeed
