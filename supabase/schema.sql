@@ -1582,16 +1582,21 @@ alter table bim_models drop constraint if exists bim_models_project_id_fkey;
 alter table bim_models add constraint bim_models_project_id_fkey
   foreign key (project_id) references projects(id) on delete cascade;
 
+-- Las policies viejas referencian author_id — hay que dropearlas ANTES
+-- de dropear la columna, si no Postgres se queja de dependencias.
+drop policy if exists "public read bim_models" on bim_models;
+drop policy if exists "author read own bim_models" on bim_models;
+drop policy if exists "author write bim_models" on bim_models;
+
+-- El índice viejo también referencia author_id.
+drop index if exists idx_bim_models_author;
+
 -- author_id solo servía para la autorización (comparado contra
--- auth.uid() en las políticas de abajo) y referenciaba profiles(id), una
+-- auth.uid() en las políticas de arriba) y referenciaba profiles(id), una
 -- tabla opt-in — eso fue lo que causó el bug real encontrado probando en
 -- vivo (una cuenta sin portfolio no podía crear su primera pieza). Con
 -- el proyecto como dueño, esa columna queda sin un solo lector.
 alter table bim_models drop column if exists author_id;
-
-drop policy if exists "public read bim_models" on bim_models;
-drop policy if exists "author read own bim_models" on bim_models;
-drop policy if exists "author write bim_models" on bim_models;
 
 -- Pública: la pieza se ve si está lista, marcada visible, y su proyecto
 -- publicado. El dueño del proyecto la ve igual sin publicar (política de
