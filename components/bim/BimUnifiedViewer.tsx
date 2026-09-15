@@ -43,23 +43,23 @@ export default function BimUnifiedViewer({
       {/* Solo mostramos el toggle interno si NO está controlado externamente */}
       {!controlledMode && (
         <div className="flex justify-center absolute top-4 left-1/2 -translate-x-1/2 z-20">
-          <div className="inline-flex items-center p-1 bg-gray-900/40 backdrop-blur-md rounded-lg shadow-lg border border-white/10">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-md border border-gray-200">
             <button
               onClick={() => setInternalTab('3d')}
-              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${
                 activeTab === '3d'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-white hover:text-gray-200'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               Modelo 3D
             </button>
             <button
               onClick={() => setInternalTab('gallery')}
-              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${
                 activeTab === 'gallery'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-white hover:text-gray-200'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               Imágenes

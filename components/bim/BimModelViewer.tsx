@@ -25,7 +25,7 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
   }, []);
 
   return (
-    <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-gray-900">
+    <div className="relative w-full h-full aspect-[16/10] rounded-2xl overflow-hidden bg-white">
       <model-viewer
         src={src}
         alt={alt}
@@ -41,13 +41,13 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
         {/* Custom Poster para la carga inicial */}
         <div
           slot="poster"
-          className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 bg-center bg-cover bg-no-repeat text-white z-10"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-center bg-cover bg-no-repeat text-gray-900 z-10"
           style={poster ? { backgroundImage: `url(${poster})` } : undefined}
         >
-          {poster && <div className="absolute inset-0 bg-gray-900/60" />}
+          {poster && <div className="absolute inset-0 bg-white/60" />}
           
           <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
             <span className="text-sm font-medium tracking-wide">Cargando modelo 3D...</span>
           </div>
         </div>

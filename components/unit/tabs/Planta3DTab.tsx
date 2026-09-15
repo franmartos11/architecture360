@@ -64,14 +64,14 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
         </div>
       )}
 
-      {/* Selector principal inferior (tipo Glassmorphism) */}
+      {/* Selector principal inferior (tipo pastilla clara) */}
       {(hasRender && hasBim) && (
         <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-30 w-auto">
-          <div className="flex items-center p-1.5 bg-gray-900/60 backdrop-blur-xl rounded-full shadow-2xl border border-white/20">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-md border border-gray-200">
             {hasRender && (
               <button
                 onClick={() => setViewMode('render')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
               >
                 Planta Estática
               </button>
@@ -79,7 +79,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
             {hasBim3D && (
               <button
                 onClick={() => setViewMode('bim-3d')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
               >
                 Modelo BIM
               </button>
@@ -87,7 +87,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
             {hasBimGallery && (
               <button
                 onClick={() => setViewMode('bim-gallery')}
-                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-full transition-all duration-300 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow-sm scale-105' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all duration-200 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-900'}`}
               >
                 Imágenes
               </button>
@@ -96,9 +96,9 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
         </div>
       )}
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-white">
         {(viewMode === 'bim-3d' || viewMode === 'bim-gallery') && bimModel && (
-          <div className="absolute inset-0 bg-gray-900">
+          <div className="absolute inset-0 bg-white">
             <BimUnifiedViewer
               geometryUrl={bimModel.geometryUrl}
               coverImage={bimModel.coverImage}
