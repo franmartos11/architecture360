@@ -8,26 +8,23 @@ import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
 import type { BimModel } from '@/types';
 import type { BimModelRow } from '@/types/database';
 
-// Las env vars se setean ANTES de importar el módulo bajo test
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 
-// Import dinámico para que SUPABASE_CONFIGURED se evalúe con las env vars ya seteadas
 let mapBimModelRow: (row: BimModelRow) => BimModel;
-let getBimModelsByAuthor: (authorId: string) => Promise<BimModel[]>;
+let getBimModelsByProject: (projectId: string) => Promise<BimModel[]>;
 let getBimModelById: (id: string) => Promise<BimModel | undefined>;
 
 beforeAll(async () => {
   const bimRepository = await import('./bim-repository');
   mapBimModelRow = bimRepository.mapBimModelRow;
-  getBimModelsByAuthor = bimRepository.getBimModelsByAuthor;
+  getBimModelsByProject = bimRepository.getBimModelsByProject;
   getBimModelById = bimRepository.getBimModelById;
 });
 
 const row: BimModelRow = {
   id: 'bim-1',
-  author_id: 'user-1',
-  project_id: null,
+  project_id: 'project-1',
   title: 'Casa Patio',
   description: null,
   source_format: null,
@@ -48,8 +45,7 @@ describe('mapBimModelRow', () => {
   it('pasa snake_case a camelCase y normaliza los nulos de texto a string vacío', () => {
     const model = mapBimModelRow(row);
     expect(model.id).toBe('bim-1');
-    expect(model.authorId).toBe('user-1');
-    expect(model.projectId).toBeNull();
+    expect(model.projectId).toBe('project-1');
     expect(model.description).toBe('');
     expect(model.galleryImages).toEqual(['https://x/1.png']);
     expect(model.isPublic).toBe(true);
@@ -62,21 +58,21 @@ describe('mapBimModelRow', () => {
   });
 });
 
-describe('getBimModelsByAuthor', () => {
+describe('getBimModelsByProject', () => {
   beforeAll(() => {
     vi.mocked(createClient).mockReset();
   });
 
   it('devuelve las piezas mapeadas', async () => {
     vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: [row] }] }) as never);
-    const models = await getBimModelsByAuthor('user-1');
+    const models = await getBimModelsByProject('project-1');
     expect(models).toHaveLength(1);
     expect(models[0].title).toBe('Casa Patio');
   });
 
   it('sin filas: array vacío, no undefined', async () => {
     vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: null }] }) as never);
-    expect(await getBimModelsByAuthor('user-1')).toEqual([]);
+    expect(await getBimModelsByProject('project-1')).toEqual([]);
   });
 });
 

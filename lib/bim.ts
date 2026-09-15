@@ -3,9 +3,12 @@
 // el admin (deshabilitar el botón de publicar) y los tests, sin duplicar
 // el criterio en tres lugares.
 
-/** Bucket propio: NO es project-media, porque delete-project-storage.ts
- *  barre ese bucket entero al borrar un proyecto y una pieza BIM tiene que
- *  sobrevivir a eso salvo que su autor decida lo contrario. */
+/** Bucket propio: NO es project-media. Ese bucket lo vacía
+ *  deleteProjectStorageFiles() de las URLs que encuentra en las tablas
+ *  del proyecto al borrarlo — un mecanismo distinto del que usa este
+ *  archivo (ver lib/supabase/delete-bim-storage.ts), así que conviene
+ *  mantenerlos separados aunque ahora una pieza BIM SÍ muera junto con
+ *  su proyecto (cascade de la base). */
 export const BIM_BUCKET = 'bim-models';
 
 /** Tope de imágenes por pieza — el peso de cada una ya lo limita

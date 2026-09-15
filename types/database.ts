@@ -222,8 +222,7 @@ export interface SavedThemeRow {
 
 export interface BimModelRow {
   id: string;
-  author_id: string;
-  project_id: string | null;
+  project_id: string;
   title: string;
   description: string | null;
   source_format: BimSourceFormat | null;

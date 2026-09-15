@@ -477,6 +477,7 @@ export interface Project {
   commonAreasTour?: TourData;
   /** Grados (0-359, horario) desde el norte real hacia donde apunta yaw=0 de commonAreasTour — undefined = sin calibrar */
   tourOrientationDegrees?: number;
+  bimModels: BimModel[];
 }
 
 // ─── Filter state ──────────────────────────────────────────────────
@@ -517,9 +518,8 @@ export interface BimModelStats {
 
 export interface BimModel {
   id: string;
-  authorId: string;
-  /** Proyecto al que el autor lo asoció — null si es una pieza suelta del portfolio. */
-  projectId: string | null;
+  /** Proyecto dueño de la pieza — nunca null: BIM es contenido de un proyecto. */
+  projectId: string;
   title: string;
   description: string;
   sourceFormat: BimSourceFormat | null;
