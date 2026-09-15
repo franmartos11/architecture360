@@ -1555,17 +1555,20 @@ alter table bim_models enable row level security;
 -- Pública: la pieza se ve si está lista, marcada visible, y su proyecto
 -- publicado. El dueño del proyecto la ve igual sin publicar (política de
 -- abajo) — es previsualización, mismo criterio que ya usa /admin/sitio.
+drop policy if exists "public read bim_models" on bim_models;
 create policy "public read bim_models" on bim_models for select to anon, authenticated
   using (
     is_public and status = 'ready'
     and exists (select 1 from projects where projects.id = bim_models.project_id and projects.published)
   );
 
+drop policy if exists "project owner read bim_models" on bim_models;
 create policy "project owner read bim_models" on bim_models for select to authenticated
   using (exists (
     select 1 from projects where projects.id = bim_models.project_id and projects.owner_id = auth.uid()
   ));
 
+drop policy if exists "project owner write bim_models" on bim_models;
 create policy "project owner write bim_models" on bim_models for all to authenticated
   using (exists (
     select 1 from projects where projects.id = bim_models.project_id and projects.owner_id = auth.uid()
