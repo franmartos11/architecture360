@@ -1528,7 +1528,7 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 -- imágenes.
 create table if not exists bim_models (
   id             uuid primary key default gen_random_uuid(),
-  project_id     uuid references projects(id) on delete set null,
+  project_id     uuid not null references projects(id) on delete cascade,
   floor_id       uuid references floors(id) on delete set null,
   unit_id        uuid references units(id) on delete set null,
   title          text not null,
@@ -1548,56 +1548,9 @@ create table if not exists bim_models (
   updated_at     timestamptz not null default now()
 );
 
-create index if not exists idx_bim_models_author on bim_models(author_id, created_at desc);
 create index if not exists idx_bim_models_project on bim_models(project_id);
 
 alter table bim_models enable row level security;
-
--- El visitante anónimo solo ve piezas publicadas y públicas.
-drop policy if exists "public read bim_models" on bim_models;
-create policy "public read bim_models" on bim_models for select to anon, authenticated
-  using (is_public and status = 'ready');
-
--- El autor ve y escribe TODAS las suyas, incluidas las que están en
--- processing/failed o marcadas como privadas.
-drop policy if exists "author read own bim_models" on bim_models;
-create policy "author read own bim_models" on bim_models for select to authenticated
-  using (author_id = auth.uid());
-
-drop policy if exists "author write bim_models" on bim_models;
-create policy "author write bim_models" on bim_models for all to authenticated
-  using (author_id = auth.uid())
-  with check (author_id = auth.uid());
-
--- ─── Repliegue de BIM: del autor al proyecto ────────────────────────
--- La Fase 1 modeló bim_models como una pieza de PORTFOLIO (author_id
--- obligatorio, project_id opcional). El producto pide lo contrario: BIM
--- es contenido DEL PROYECTO. Esta feature nunca llegó a un usuario real
--- — no hay filas que perder — así que la migración no necesita backfill,
--- solo barrer cualquier fila de prueba que haya quedado sin proyecto.
-delete from bim_models where project_id is null;
-
-alter table bim_models alter column project_id set not null;
-
-alter table bim_models drop constraint if exists bim_models_project_id_fkey;
-alter table bim_models add constraint bim_models_project_id_fkey
-  foreign key (project_id) references projects(id) on delete cascade;
-
--- Las policies viejas referencian author_id — hay que dropearlas ANTES
--- de dropear la columna, si no Postgres se queja de dependencias.
-drop policy if exists "public read bim_models" on bim_models;
-drop policy if exists "author read own bim_models" on bim_models;
-drop policy if exists "author write bim_models" on bim_models;
-
--- El índice viejo también referencia author_id.
-drop index if exists idx_bim_models_author;
-
--- author_id solo servía para la autorización (comparado contra
--- auth.uid() en las políticas de arriba) y referenciaba profiles(id), una
--- tabla opt-in — eso fue lo que causó el bug real encontrado probando en
--- vivo (una cuenta sin portfolio no podía crear su primera pieza). Con
--- el proyecto como dueño, esa columna queda sin un solo lector.
-alter table bim_models drop column if exists author_id;
 
 -- Pública: la pieza se ve si está lista, marcada visible, y su proyecto
 -- publicado. El dueño del proyecto la ve igual sin publicar (política de
