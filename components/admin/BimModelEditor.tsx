@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ExternalLink, Upload, CheckCircle, Loader2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import { MAX_GALLERY_IMAGES, bimModelHref, canPublishBimModel } from '@/lib/bim';
+import { MAX_GALLERY_IMAGES, MAX_GEOMETRY_BYTES, GEOMETRY_WARN_BYTES, bimModelHref, canPublishBimModel } from '@/lib/bim';
 import type { BimModel } from '@/types';
 
 const labelStyle = 'block text-xs font-medium text-gray-500 mb-1.5';
@@ -24,9 +24,13 @@ export default function BimModelEditor({
   const [title, setTitle] = useState(model.title);
   const [description, setDescription] = useState(model.description);
   const [galleryImages, setGalleryImages] = useState(model.galleryImages);
+  const [geometryUrl, setGeometryUrl] = useState(model.geometryUrl);
 
   const [isPublic, setIsPublic] = useState(model.isPublic);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   // El formulario se recarga con la pieza nueva porque BimAdminClient monta
@@ -35,8 +39,56 @@ export default function BimModelEditor({
   // el `model` correspondiente. No hace falta un efecto que copie el prop
   // al estado.
 
-  const publishable = canPublishBimModel({ geometryUrl: model.geometryUrl, galleryImages });
+  const publishable = canPublishBimModel({ geometryUrl, galleryImages });
   const tooManyImages = galleryImages.filter(u => u.trim()).length > MAX_GALLERY_IMAGES;
+
+  const uploadModel = async (file: File) => {
+    if (file.size > MAX_GEOMETRY_BYTES) {
+      toast(`El modelo pesa más de ${MAX_GEOMETRY_BYTES / (1024 * 1024)}MB.`, 'error');
+      return;
+    }
+    if (file.size > GEOMETRY_WARN_BYTES) {
+      toast('Modelo grande — puede tardar en subir y en abrir.');
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // XMLHttpRequest para tener progress — fetch no soporta upload progress.
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+    });
+
+    const result = await new Promise<{ ok: boolean; data: Record<string, unknown> }>((resolve) => {
+      xhr.addEventListener('load', () => {
+        try {
+          resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: JSON.parse(xhr.responseText) });
+        } catch {
+          resolve({ ok: false, data: { error: 'Respuesta inválida del servidor.' } });
+        }
+      });
+      xhr.addEventListener('error', () => resolve({ ok: false, data: { error: 'Error de red.' } }));
+      xhr.open('POST', `/api/admin/bim/${model.id}/upload-model`);
+      xhr.send(formData);
+    });
+
+    setUploading(false);
+    setUploadProgress(0);
+
+    if (!result.ok) {
+      toast((result.data.error as string) ?? 'No se pudo subir el modelo.', 'error');
+      return;
+    }
+
+    const updated = result.data.model as BimModel;
+    setGeometryUrl(updated.geometryUrl);
+    toast('Modelo 3D cargado.');
+    onSaved(updated);
+  };
 
   const save = async () => {
     if (!title.trim()) {
@@ -96,6 +148,60 @@ export default function BimModelEditor({
         />
       </div>
 
+      {/* ── Modelo 3D ── */}
+      <div>
+        <label className={labelStyle}>Modelo 3D (.glb / .gltf)</label>
+        {geometryUrl ? (
+          <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+            <span className="text-sm text-green-800 flex-1">Modelo 3D cargado</span>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-xs text-green-700 hover:text-green-900 font-medium"
+            >
+              Reemplazar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Subir modelo .glb o .gltf
+          </button>
+        )}
+
+        {uploading && (
+          <div className="mt-2 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-brand-600 animate-spin" />
+            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-600 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500 tabular-nums">{uploadProgress}%</span>
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".glb,.gltf"
+          className="hidden"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) uploadModel(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
       <div>
         <MultiImageUploader
           values={galleryImages}
@@ -122,7 +228,7 @@ export default function BimModelEditor({
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <Button type="button" onClick={save} disabled={saving || tooManyImages}>
+        <Button type="button" onClick={save} disabled={saving || uploading || tooManyImages}>
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
         {model.status === 'ready' && (
@@ -138,7 +244,7 @@ export default function BimModelEditor({
         <button
           type="button"
           onClick={remove}
-          disabled={saving}
+          disabled={saving || uploading}
           className="ml-auto text-sm text-red-600 hover:text-red-700 disabled:opacity-40"
         >
           Eliminar pieza

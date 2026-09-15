@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getBimModelById } from '@/data/bim-repository';
+import BimModelViewer from '@/components/bim/BimModelViewer';
 import BimGallery from '@/components/bim/BimGallery';
 
 interface PageProps { params: Promise<{ id: string }>; }
@@ -37,6 +38,10 @@ export default async function BimModelPage({ params }: PageProps) {
   // pieza suya que todavía no publicó.
   if (!model || model.status !== 'ready') notFound();
 
+  const hasViewer = !!model.geometryUrl;
+  const hasGallery = model.galleryImages.length > 0;
+  const hasStats = !!model.stats;
+
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-6 py-10 flex flex-col gap-8">
       <header className="flex flex-col gap-2">
@@ -46,9 +51,32 @@ export default async function BimModelPage({ params }: PageProps) {
         )}
       </header>
 
-      {/* El visor 3D lo monta la Fase 3 acá arriba, cuando geometryUrl deje de ser null. */}
+      {/* ── Visor 3D — solo aparece si el admin subió un .glb ── */}
+      {hasViewer && (
+        <BimModelViewer
+          src={model.geometryUrl!}
+          alt={model.title}
+          poster={model.coverImage}
+        />
+      )}
 
-      <BimGallery images={model.galleryImages} title={model.title} />
+      {/* ── Stats del modelo ── */}
+      {hasStats && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+          {model.stats!.elements > 0 && (
+            <span>{model.stats!.elements.toLocaleString('es-AR')} elementos</span>
+          )}
+          {model.stats!.storeys > 0 && (
+            <span>{model.stats!.storeys} {model.stats!.storeys === 1 ? 'planta' : 'plantas'}</span>
+          )}
+          {model.stats!.triangles > 0 && (
+            <span>{(model.stats!.triangles / 1_000_000).toFixed(1)}M triángulos</span>
+          )}
+        </div>
+      )}
+
+      {/* ── Galería de imágenes (renders, cortes, láminas) ── */}
+      {hasGallery && <BimGallery images={model.galleryImages} title={model.title} />}
     </main>
   );
 }
