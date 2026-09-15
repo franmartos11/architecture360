@@ -1,6 +1,28 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { requireProjectAccess, resolveProjectIdFromBuilding, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
+
+export async function GET(request: Request) {
+  const projectId = await resolveRequestedProjectId(request);
+  if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+  const access = await requireProjectAccess(projectId);
+  if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const { supabase } = access;
+
+  const { data: buildings } = await supabase.from('buildings').select('id').eq('project_id', projectId);
+  const buildingIds = (buildings ?? []).map(b => b.id);
+  
+  if (buildingIds.length === 0) return NextResponse.json([]);
+
+  const { data: floors, error } = await supabase
+    .from('floors')
+    .select('*')
+    .in('building_id', buildingIds)
+    .order('number');
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(floors ?? []);
+}
 
 export async function POST(request: Request) {
   const body = await request.json();

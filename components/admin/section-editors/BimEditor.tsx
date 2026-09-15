@@ -29,15 +29,15 @@ export default function BimEditor() {
     let cancelled = false;
     Promise.all([
       fetch('/api/admin/bim').then(res => (res.ok ? res.json() : { models: [] })),
-      fetch('/api/admin/floors').then(res => (res.ok ? res.json() : { floors: [] })),
-      fetch('/api/admin/units').then(res => (res.ok ? res.json() : { units: [] }))
+      fetch('/api/admin/floors').then(res => (res.ok ? res.json() : [])),
+      fetch('/api/admin/units').then(res => (res.ok ? res.json() : []))
     ])
       .then(([bimData, floorsData, unitsData]) => {
         if (cancelled) return;
         setModels(bimData.models as BimModel[]);
         setSelectedId((bimData.models as BimModel[])[0]?.id ?? null);
-        setFloors((floorsData.floors as Floor[]) ?? []);
-        setUnits((unitsData.units as Unit[]) ?? []);
+        setFloors((floorsData as Floor[]) ?? []);
+        setUnits((unitsData as Unit[]) ?? []);
       })
       .catch(() => { if (!cancelled) setModels([]); });
     return () => { cancelled = true; };
