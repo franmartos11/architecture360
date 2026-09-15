@@ -11,6 +11,7 @@ import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
 import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
 import LocationEditor from '@/components/admin/section-editors/LocationEditor';
 import AmenitiesEditor from '@/components/admin/section-editors/AmenitiesEditor';
+import BimEditor from '@/components/admin/section-editors/BimEditor';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -20,7 +21,7 @@ import { buildingAgreement } from '@/lib/project-types';
 import { FLOOR_KIND_OPTIONS, FLOOR_KIND_ICON } from '@/lib/floorKinds';
 import type { FloorKind } from '@/types';
 
-type Step = 'edificio' | 'piso' | 'unidades' | 'delimitacion' | 'ambientes' | 'ubicacion' | 'amenities';
+type Step = 'edificio' | 'piso' | 'unidades' | 'delimitacion' | 'ambientes' | 'ubicacion' | 'amenities' | 'bim';
 
 const STORAGE_KEY = 'admin-wizard-state';
 
@@ -31,7 +32,7 @@ interface FloorRow { id: string; number: number; label: string; plan_image: stri
 interface UnitRow { id: string; code: string }
 
 type Screen = 'wizard' | 'continuar' | 'proyecto' | 'resumen';
-type ProjectStep = 'ubicacion' | 'amenities';
+type ProjectStep = 'ubicacion' | 'amenities' | 'bim';
 
 // Ubicación y Amenities son de nivel PROYECTO, no de este edificio/casa en
 // particular — se cargan una sola vez, no una vez por edificio. Por eso
@@ -40,6 +41,7 @@ type ProjectStep = 'ubicacion' | 'amenities';
 const PROJECT_STEPS: { id: ProjectStep; label: string }[] = [
   { id: 'ubicacion', label: 'Ubicación' },
   { id: 'amenities', label: 'Amenities' },
+  { id: 'bim', label: 'Modelo BIM' },
 ];
 
 export default function AdminWizardPage() {
@@ -94,6 +96,7 @@ function AdminWizardPageInner() {
         { id: 'ambientes', label: 'Ambientes y Tour' },
         { id: 'ubicacion', label: 'Ubicación' },
         { id: 'amenities', label: 'Amenities' },
+        { id: 'bim', label: 'Modelo BIM' },
       ];
 
   const [screen, setScreen] = useState<Screen>('wizard');
@@ -468,9 +471,9 @@ function AdminWizardPageInner() {
     return (
       <div className="max-w-3xl mx-auto space-y-6 py-10">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Ya está la estructura — faltan dos cosas del proyecto</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Ya está la estructura — faltan estas cosas del proyecto</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Ubicación y Amenities no son de {agree.esta} {buildingLabelLower} en particular, sino de todo el proyecto — se cargan una sola vez, no en cada {buildingLabelLower}.
+            Ubicación, Amenities y Modelo BIM no son de {agree.esta} {buildingLabelLower} en particular, sino de todo el proyecto — se cargan una sola vez, no en cada {buildingLabelLower}.
           </p>
         </div>
 
@@ -496,6 +499,7 @@ function AdminWizardPageInner() {
         <div>
           {projectStep === 'ubicacion' && <LocationEditor />}
           {projectStep === 'amenities' && <AmenitiesEditor />}
+          {projectStep === 'bim' && <BimEditor />}
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-100">
@@ -767,6 +771,7 @@ function AdminWizardPageInner() {
 
         {step === 'ubicacion' && <LocationEditor />}
         {step === 'amenities' && <AmenitiesEditor />}
+        {step === 'bim' && <BimEditor />}
 
         {step === 'ambientes' && buildingId && floorId && (
           units.length === 0 ? (
