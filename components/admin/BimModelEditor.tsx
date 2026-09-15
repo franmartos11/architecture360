@@ -25,16 +25,25 @@ export default function BimModelEditor({
   onSaved: (updated: BimModel) => void;
   onDeleted: (id: string) => void;
 }) {
+  const resolveInitialScope = () => {
+    if (model.unitId) return 'unit';
+    if (model.floorId) return 'floor';
+    return 'project';
+  };
+
+  const [scope, setScope] = useState<'project' | 'floor' | 'unit'>(resolveInitialScope());
+  const [selectedFloorId, setSelectedFloorId] = useState<string>(
+    model.floorId ?? (model.unitId ? (units as any[]).find(u => u.id === model.unitId)?.floor_id : '') ?? floors[0]?.id ?? ''
+  );
+  const [selectedUnitId, setSelectedUnitId] = useState<string>(
+    model.unitId ?? ((units as any[]).find(u => u.floor_id === selectedFloorId)?.id) ?? ''
+  );
+
   const [title, setTitle] = useState(model.title);
   const [description, setDescription] = useState(model.description);
   const [galleryImages, setGalleryImages] = useState(model.galleryImages);
   const [geometryUrl, setGeometryUrl] = useState(model.geometryUrl);
-  const [assignment, setAssignment] = useState<string>(
-    model.unitId ? `unit:${model.unitId}` :
-    model.floorId ? `floor:${model.floorId}` :
-    'project'
-  );
-
+  
   const [isPublic, setIsPublic] = useState(model.isPublic);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -42,14 +51,17 @@ export default function BimModelEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  // El formulario se recarga con la pieza nueva porque BimAdminClient monta
-  // este componente con key={selected.id}: al cambiar de pieza React
-  // desmonta y remonta, y los useState de arriba se reinicializan solos con
-  // el `model` correspondiente. No hace falta un efecto que copie el prop
-  // al estado.
-
   const publishable = canPublishBimModel({ geometryUrl, galleryImages });
   const tooManyImages = galleryImages.filter(u => u.trim()).length > MAX_GALLERY_IMAGES;
+
+  // Actualizar la unidad por defecto si cambia el piso seleccionado
+  const handleFloorChange = (floorId: string) => {
+    setSelectedFloorId(floorId);
+    if (scope === 'unit') {
+      const firstUnit = (units as any[]).find(u => u.floor_id === floorId);
+      if (firstUnit) setSelectedUnitId(firstUnit.id);
+    }
+  };
 
   const uploadModel = async (file: File) => {
     if (file.size > MAX_GEOMETRY_BYTES) {
@@ -132,8 +144,8 @@ export default function BimModelEditor({
       toast('Ponele un título a la pieza.', 'error');
       return;
     }
-    const targetFloorId = assignment.startsWith('floor:') ? assignment.split(':')[1] : null;
-    const targetUnitId = assignment.startsWith('unit:') ? assignment.split(':')[1] : null;
+    const targetFloorId = scope === 'floor' ? selectedFloorId : null;
+    const targetUnitId = scope === 'unit' ? selectedUnitId : null;
 
     setSaving(true);
     const res = await fetch(`/api/admin/bim/${model.id}`, {
@@ -172,23 +184,58 @@ export default function BimModelEditor({
     onDeleted(model.id);
   };
 
+  const availableUnits = (units as any[]).filter(u => u.floor_id === selectedFloorId);
+
   return (
     <div className="flex flex-col gap-5">
-      <div>
+      <div className="flex flex-col gap-3">
         <label className={labelStyle}>Asignar modelo a</label>
-        <select value={assignment} onChange={e => setAssignment(e.target.value)} className={inputStyle}>
-          <option value="project">Proyecto completo</option>
-          {floors.length > 0 && (
-            <optgroup label="Plantas (Pisos)">
-              {floors.map(f => <option key={f.id} value={`floor:${f.id}`}>Planta {f.label}</option>)}
-            </optgroup>
-          )}
-          {units.length > 0 && (
-            <optgroup label="Departamentos (Unidades)">
-              {units.map(u => <option key={u.id} value={`unit:${u.id}`}>Unidad {u.name}</option>)}
-            </optgroup>
-          )}
-        </select>
+        
+        {/* Scope selector */}
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+          {(['project', 'floor', 'unit'] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setScope(s);
+                if (s === 'unit' && !selectedUnitId && availableUnits.length > 0) {
+                  setSelectedUnitId(availableUnits[0].id);
+                }
+              }}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                scope === s ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {s === 'project' ? 'Proyecto' : s === 'floor' ? 'Planta' : 'Unidad'}
+            </button>
+          ))}
+        </div>
+
+        {/* Floor selector */}
+        {(scope === 'floor' || scope === 'unit') && floors.length > 0 && (
+          <div>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">Planta</label>
+            <select value={selectedFloorId} onChange={e => handleFloorChange(e.target.value)} className={inputStyle}>
+              {floors.map(f => <option key={f.id} value={f.id}>Planta {f.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Unit selector */}
+        {scope === 'unit' && floors.length > 0 && (
+          <div>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">Unidad</label>
+            <select value={selectedUnitId} onChange={e => setSelectedUnitId(e.target.value)} className={inputStyle}>
+              {availableUnits.map(u => (
+                <option key={u.id} value={u.id}>
+                  Unidad {u.name || u.code} {u.model_name ? `(${u.model_name})` : ''}
+                </option>
+              ))}
+              {availableUnits.length === 0 && <option value="" disabled>No hay unidades en esta planta</option>}
+            </select>
+          </div>
+        )}
       </div>
 
       <div>

@@ -8,6 +8,8 @@ import { FilterStat } from '@/components/ui/FilterStat';
 import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
 import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
 import FloorPlanModal from '@/components/admin/FloorPlanModal';
+import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
+import BimEditorModal from '@/components/admin/BimEditorModal';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { FLOOR_KIND_OPTIONS } from '@/lib/floorKinds';
@@ -43,6 +45,7 @@ export default function FloorsEditor({
   const [planTarget, setPlanTarget] = useState<Floor | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<Floor | null>(null);
   const [applyTemplateTarget, setApplyTemplateTarget] = useState<Floor | null>(null);
+  const [bimModalOpen, setBimModalOpen] = useState(false);
   const [newFloor, setNewFloor] = useState({ number: '', label: '', floorKind: 'units' as FloorKind });
   const router = useRouter();
   const toast = useToast();
@@ -268,6 +271,7 @@ export default function FloorsEditor({
                   <span className={status === 'complete' ? 'text-green-600' : status === 'partial' ? 'text-amber-600' : 'text-gray-400'}>{label}</span>
                 </span>
                 <span className="shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  <button type="button" title="Modelos BIM 3D" onClick={() => setBimModalOpen(true)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium text-[10px]">3D</button>
                   <button type="button" title="Duplicar" onClick={() => setDuplicateTarget(f)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">⧉</button>
                   {isUnitsFloor && c.total === 0 && floors.length > 1 && (
                     <button type="button" title="Aplicar plantilla" onClick={() => setApplyTemplateTarget(f)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">▦</button>
@@ -349,6 +353,9 @@ export default function FloorsEditor({
           onClose={() => setApplyTemplateTarget(null)}
           onDone={() => { setApplyTemplateTarget(null); onChanged(); }}
         />
+      )}
+      {bimModalOpen && (
+        <BimEditorModal onClose={() => setBimModalOpen(false)} />
       )}
     </div>
   );
