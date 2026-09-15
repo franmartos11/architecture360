@@ -30,7 +30,6 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
       <model-viewer
         src={src}
         alt={alt}
-        poster={poster ?? undefined}
         camera-controls
         touch-action="pan-y"
         auto-rotate
@@ -39,7 +38,24 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
         interaction-prompt="auto"
         loading="lazy"
         style={{ width: '100%', height: '100%' }}
-      />
+      >
+        {/* Custom Poster para la carga inicial */}
+        <div
+          slot="poster"
+          className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 bg-center bg-cover bg-no-repeat text-white z-10"
+          style={poster ? { backgroundImage: `url(${poster})` } : undefined}
+        >
+          {poster && <div className="absolute inset-0 bg-gray-900/60" />}
+          
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+            <span className="text-sm font-medium tracking-wide">Cargando modelo 3D...</span>
+          </div>
+        </div>
+
+        {/* Ocultamos la barra de progreso nativa porque ya tenemos nuestro spinner */}
+        <div slot="progress-bar" className="hidden" />
+      </model-viewer>
     </div>
   );
 }
