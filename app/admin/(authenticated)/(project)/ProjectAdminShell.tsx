@@ -79,6 +79,7 @@ export default function ProjectAdminShell({
     { label: 'Amenidades', href: '/admin/proyecto/amenities' },
     { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
     { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },
+    { label: 'Modelo BIM', href: '/admin/proyecto/bim' },
   ];
   const isProjectSection = pathname === '/admin/proyecto' || pathname.startsWith('/admin/proyecto/') || pathname.startsWith('/admin/edificios');
 
