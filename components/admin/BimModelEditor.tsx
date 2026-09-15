@@ -75,16 +75,22 @@ export default function BimModelEditor({
       if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
     });
 
-    const uploadOk = await new Promise<boolean>((resolve) => {
-      xhr.addEventListener('load', () => resolve(xhr.status >= 200 && xhr.status < 300));
-      xhr.addEventListener('error', () => resolve(false));
+    const uploadResult = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ ok: true });
+        } else {
+          resolve({ ok: false, error: xhr.responseText || `HTTP ${xhr.status}` });
+        }
+      });
+      xhr.addEventListener('error', () => resolve({ ok: false, error: 'Error de red (CORS o conexión perdida)' }));
       xhr.open('PUT', urlData.signedUrl);
       xhr.setRequestHeader('content-type', ext === 'glb' ? 'model/gltf-binary' : 'model/gltf+json');
       xhr.send(file);
     });
 
-    if (!uploadOk) {
-      toast('Error de red al enviar a Storage.', 'error');
+    if (!uploadResult.ok) {
+      toast(`Fallo al subir a Storage: ${uploadResult.error}`, 'error');
       setUploading(false);
       setUploadProgress(0);
       return;
