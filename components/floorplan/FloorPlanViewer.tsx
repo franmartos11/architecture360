@@ -213,7 +213,9 @@ export default function FloorPlanViewer({
   );
 
   const activeBimModel = useMemo(() => {
-    return floor?.id ? bimModels.find(m => m.floorIds.includes(floor.id)) : undefined;
+    if (!floor?.id) return undefined;
+    return bimModels.find(m => m.floorIds.includes(floor.id)) ??
+           bimModels.find(m => m.floorIds.length === 0 && m.unitIds.length === 0);
   }, [bimModels, floor?.id]);
 
   // Cerrar BIM al cambiar de planta
