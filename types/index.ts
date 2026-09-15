@@ -12,7 +12,7 @@ export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casa' | 'unico';
 export type ProjectSaleMode = 'venta' | 'showcase';
 
 // ─── View tabs inside unit ─────────────────────────────────────────
-export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion' | 'bim';
+export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
 
 // ─── Unit type ─────────────────────────────────────────────────────
 // Categorías estándar de aviso — las que ofrece el dropdown para
@@ -153,6 +153,7 @@ export interface Unit {
   name: string;         // e.g. "N01-07"
   modelName: string;    // e.g. "DUET 106 JARDIN"
   buildingId: string;
+  floorId: string;
   floor: number;
   type: UnitType;
   totalArea: number;    // m²

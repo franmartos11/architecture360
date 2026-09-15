@@ -52,6 +52,7 @@ function mapProject(
       name: isSingleUnit ? project.name : u.code,
       modelName: u.model_name ?? '',
       buildingId: building.slug,
+      floorId: u.floor_id,
       floor: floor.number,
       type: u.type,
       totalArea: Number(u.total_area ?? 0),

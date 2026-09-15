@@ -81,15 +81,6 @@ const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
-  {
-    id: 'bim' as const,
-    label: 'BIM',
-    icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
-      </svg>
-    ),
-  },
 ];
 
 export default function UnitViewer({
@@ -126,14 +117,13 @@ export default function UnitViewer({
   // Amenities/Ubicación ya seguían este criterio; acá se unifica para los
   // 4 tabs de la unidad.
   const tabHasContent: Record<UnitViewTab, boolean> = {
-    planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage),
+    planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage) || (!!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0)),
     tour360: hasTour,
     plano: hasRooms || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
       || !!unit.levels?.some(l => l.planImage),
     galeria: (unit.galleryImages?.length ?? 0) > 0,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
     ubicacion: pointsOfInterest.length > 0,
-    bim: !!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0),
   };
   const visibleTabs = TABS.filter(t => tabHasContent[t.id]);
   const firstTab = visibleTabs[0]?.id;
@@ -783,18 +773,7 @@ export default function UnitViewer({
             )}
 
             {visibleTabs.length > 0 && activeTab === 'planta3d' && (
-              <Planta3DTab unit={unit} />
-            )}
-
-            {activeTab === 'bim' && bimModel && (
-              <div className="absolute inset-0 bg-gray-900">
-                <BimUnifiedViewer
-                  geometryUrl={bimModel.geometryUrl}
-                  coverImage={bimModel.coverImage}
-                  galleryImages={bimModel.galleryImages}
-                  title={bimModel.title}
-                />
-              </div>
+              <Planta3DTab unit={unit} bimModel={bimModel} />
             )}
 
             {activeTab === 'tour360' && (

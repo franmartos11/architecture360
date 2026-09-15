@@ -50,7 +50,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
       allUnits={project.units}
       bimModel={
         project.bimModels?.find(m => m.unitIds?.includes(unit.id)) ??
-        project.bimModels?.find(m => m.floorIds?.includes(unit.floor_id)) ??
+        project.bimModels?.find(m => m.floorIds?.includes(unit.floorId)) ??
         project.bimModels?.find(m => m.unitIds?.length === 0 && m.floorIds?.length === 0)
       }
       projectSlug={slug}
