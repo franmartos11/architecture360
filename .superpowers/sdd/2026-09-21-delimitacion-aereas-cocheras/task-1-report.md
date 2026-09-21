@@ -168,3 +168,78 @@ global de "no montar testing de componentes".
 4. No pude correr las otras dos tareas en paralelo para confirmar en vivo que
    no rompí nada de su lado — me basé en no tocar la interfaz del componente,
    que es la garantía que pedía el plan.
+
+## Ronda de corrección 1 — barra vacía en el estado inicial
+
+**Hallazgo (Important) del revisor**: el punto 2 de "Riesgos / dudas" de
+arriba minimizaba mal el problema. La condición de montaje de la barra era
+solo `activeShape` (línea `{activeShape && (...)}`), sin retomar la condición
+completa que ya existía para el grupo de botones (`canUndo ||
+activeShape.points.length > 0 || rectStart`). Resultado: apenas el usuario
+elige una forma activa nueva (0 puntos, sin historial, sin `rectStart`, modo
+distinto de `pin`), `helpText` era `null`, el grupo de botones no renderizaba
+nada, y la barra se montaba igual como una caja gris vacía debajo de la
+imagen. No era un instante imperceptible: es el estado inicial más común del
+flujo (recién se eligió la forma a dibujar) y dura todo lo que tarde el
+usuario en marcar el primer punto.
+
+El revisor dio dos caminos: (a) condicionar el montaje también al contenido
+(`helpText || canUndo || points.length > 0 || rectStart`), reintroduciendo el
+riesgo de parpadeo que yo mismo había señalado; o (b) darle a `helpText` un
+texto por defecto según el modo, para que nunca sea `null` — resuelve la caja
+vacía sin volver a atar el montaje al contenido cambiante.
+
+**Elegí la opción (b)**, tal como sugería el revisor: `helpText` ahora siempre
+tiene contenido no vacío. Prioridad, de mayor a menor:
+
+1. Modo pin → el texto que ya existía ("Click para ubicar el pin" / "Click
+   para reubicar…").
+2. `nearFirstPoint` → "Click para cerrar la forma" (sin cambios).
+3. Si no, un texto instructivo por defecto según el modo:
+   - modo `rectangle` → "Arrastrá de una esquina a la otra para armar el
+     rectángulo".
+   - modo `point` (default) → "Marcá los puntos sobre la imagen".
+
+La condición de montaje de la barra (`{activeShape && (...)}`) **no cambió** —
+sigue atada solo a si hay una forma activa, que es justamente lo que evita el
+parpadeo por `nearFirstPoint` cambiando en cada `mousemove`. Lo que cambió es
+que ahora el contenido de esa barra nunca está vacío, así que no hay caja
+gris sin texto ni botones en ningún momento: siempre hay, como mínimo, una
+instrucción de qué hacer.
+
+Efecto colateral positivo no pedido explícitamente pero consistente con la
+intención del hallazgo: el texto por defecto también le dice al usuario qué
+hacer en el estado inicial (antes no había ninguna pista ahí), no solo tapa el
+hueco visual.
+
+### Verificación después del fix
+
+```
+$ npx tsc --noEmit -p .
+(sin salida — sin errores)
+
+$ npx eslint components/admin/PolygonCanvas.tsx
+  73:9  warning  … react-hooks/exhaustive-deps
+✖ 1 problem (0 errors, 1 warning)
+```
+
+Mismo warning preexistente de antes (línea 73, código no tocado por esta
+tarea ni por esta corrección).
+
+```
+$ npx vitest run --exclude "**/node_modules/**" --exclude ".claude/**"
+ Test Files  1 failed | 106 passed (107)
+      Tests  2 failed | 862 passed (864)
+```
+
+Mismos 2 tests preexistentes de `app/api/admin/bim/[id]/route.test.ts` que ya
+fallaban antes de esta tarea (documentados como ruido en el plan). Resto de la
+suite verde, sin cambios respecto a la primera entrega.
+
+### Dudas que quedan después de esta corrección
+
+- El copy exacto de los textos por defecto ("Marcá los puntos sobre la
+  imagen", "Arrastrá de una esquina a la otra para armar el rectángulo") es
+  criterio propio; no fue pedido literalmente por el plan ni por el usuario.
+  Si no gusta el tono o la redacción, es un cambio de un par de strings, sin
+  impacto estructural.

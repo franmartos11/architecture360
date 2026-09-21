@@ -230,10 +230,16 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
 
   // Texto de ayuda de la barra inferior: el del modo pin tiene prioridad
   // (es el que describe qué hace el click en ese modo); si no, el aviso de
-  // "estás por cerrar la forma".
+  // "estás por cerrar la forma"; si no, una instrucción por defecto según el
+  // modo. Siempre hay algo que mostrar (nunca null) para que la barra nunca
+  // se vea vacía cuando se elige una forma activa recién, sin puntos todavía.
   const helpText = mode === 'pin'
     ? (pinPoint ? 'Click para reubicar · arrastrá el pin · doble click para quitarlo' : 'Click para ubicar el pin')
-    : (nearFirstPoint ? 'Click para cerrar la forma' : null);
+    : nearFirstPoint
+      ? 'Click para cerrar la forma'
+      : mode === 'rectangle'
+        ? 'Arrastrá de una esquina a la otra para armar el rectángulo'
+        : 'Marcá los puntos sobre la imagen';
 
   return (
     <div className="w-full">
@@ -360,9 +366,10 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
 
       {/* Barra de acciones y ayuda, debajo de la imagen (no encima): así los
           botones nunca tapan la foto ni compiten con el click de dibujo.
-          Se monta apenas hay una forma activa y con alto mínimo reservado,
-          para que el texto de ayuda o los botones aparezcan/desaparezcan
-          durante el dibujo sin correr el resto del layout. */}
+          Se monta apenas hay una forma activa (helpText siempre tiene texto,
+          nunca queda vacía) y con alto mínimo reservado, para que los botones
+          aparezcan/desaparezcan durante el dibujo sin correr el resto del
+          layout. */}
       {activeShape && (
         <div className="min-h-[38px] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 mt-2">
           <span className="text-xs text-gray-500">{helpText}</span>
