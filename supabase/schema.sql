@@ -1595,7 +1595,9 @@ create table if not exists bim_model_floors (
   primary key (bim_model_id, floor_id)
 );
 alter table bim_model_floors enable row level security;
+drop policy if exists "public read bim_model_floors" on bim_model_floors;
 create policy "public read bim_model_floors" on bim_model_floors for select to anon, authenticated using (true);
+drop policy if exists "project owner all bim_model_floors" on bim_model_floors;
 create policy "project owner all bim_model_floors" on bim_model_floors for all to authenticated
   using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_floors.bim_model_id and p.owner_id = auth.uid()))
   with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_floors.bim_model_id and p.owner_id = auth.uid()));
@@ -1606,7 +1608,9 @@ create table if not exists bim_model_units (
   primary key (bim_model_id, unit_id)
 );
 alter table bim_model_units enable row level security;
+drop policy if exists "public read bim_model_units" on bim_model_units;
 create policy "public read bim_model_units" on bim_model_units for select to anon, authenticated using (true);
+drop policy if exists "project owner all bim_model_units" on bim_model_units;
 create policy "project owner all bim_model_units" on bim_model_units for all to authenticated
   using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()))
   with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()));
