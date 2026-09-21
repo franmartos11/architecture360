@@ -172,3 +172,88 @@ nueva, siguiendo la restricción global 2) — la verificación de la UI es
    entorno) — solo verificación estática + suite de tests. Recomiendo una
    pasada manual en `/admin/proyecto/aereas/<id>` con un proyecto que tenga
    2+ aéreas antes de dar por cerrado el ítem.
+
+## Ronda de corrección 1
+
+Dos hallazgos Important de la revisión, ambos en
+`app/admin/(authenticated)/(project)/proyecto/aereas/[slideId]/page.tsx`.
+No hizo falta tocar `components/admin/PolygonCanvas.tsx` (cerrado por el otro
+agente) ni el modelo de datos.
+
+### Hallazgo 1 — condición de carrera entre "guardar" y "seguir editando"
+
+El bug real: `handleSave`/`handleSaveAll` limpiaban `dirty[key] = false` de
+forma incondicional cuando volvía la respuesta del servidor, sin chequear si
+`points[key]`/`pinOverrides[key]` habían cambiado *después* de armar el
+payload que ya estaba en vuelo. Escenario del revisor (cerrar una forma
+dispara `onComplete` → `handleSave`, y justo después arrastrar un vértice de
+esa misma forma mientras el POST/PATCH todavía no respondió) hacía que el
+ajuste más nuevo quedara marcado como "guardado" sin estarlo, y encima
+apagaba `hasUnsavedChanges` — con lo cual ni `beforeunload` ni
+`guardedNavigate` alcanzaban a avisar.
+
+Arreglo: un contador de versión por combinación slide+edificio,
+`editVersionRef` (un `useRef<Record<string, number>>`, no `useState`, porque
+no necesita re-render — es solo para comparar en el momento en que vuelve la
+respuesta). `bumpVersion(key)` se llama en los tres lugares que tocan una
+forma: `handlePointsChange`, `handleClear` y el `onPinPlace` del canvas.
+
+- `handleSave`: captura `versionAtSave = editVersionRef.current[key]` justo
+  antes de mandar el fetch. Al volver la respuesta, solo hace
+  `setDirty(..., [key]: false)` si `editVersionRef.current[key]` sigue
+  siendo igual a `versionAtSave` — si cambió, quiere decir que hubo una
+  edición nueva mientras el request estaba en vuelo, y `dirty` se deja como
+  estaba (true).
+- `handleSaveAll`: mismo mecanismo pero por cada item de la tanda —
+  `versionAtSave` se captura al armar el array de `items` (justo antes del
+  fetch), y al procesar `results` cada key se limpia de `dirty` solo si su
+  versión no cambió desde entonces.
+
+Con esto, el estado guardado en el servidor puede quedar momentáneamente
+"un paso atrás" de lo que hay en memoria (el POST ya salió con el payload
+viejo), pero **eso ya era así antes** de este fix — el punto es que ahora
+`dirty`/`hasUnsavedChanges` reflejan la verdad: si hay algo sin mandar, se
+sigue avisando y "Guardar todo" lo sigue ofreciendo.
+
+### Hallazgo 2 — "Guardar" individual y "Guardar todo" no se excluían
+
+Aplicada la corrección mínima que sugirió el revisor, sin tocar el modelo de
+datos: los dos botones ahora respetan el estado del otro.
+
+- Botón "Guardar todo": `disabled={savingAll || savingId !== null}` (antes
+  solo miraba `savingAll`).
+- Botón "Guardar" de cada edificio: `disabled={savingId === b.id || savingAll
+  || (pointCount < 3 && !pinOverrides[key])}` (se agregó `savingAll`).
+
+No se tocaron los guardados individuales de edificios *distintos* entre sí
+(pueden seguir corriendo en paralelo): como cada uno usa una key
+`slideId::buildingId` distinta, no hay riesgo de fila duplicada entre ellos —
+el riesgo descrito por el revisor era específicamente individual-vs-"todo".
+
+### Verificación
+
+```
+$ npx tsc --noEmit -p .
+(sin salida — sin errores)
+
+$ npx eslint "app/admin/(authenticated)/(project)/proyecto/aereas/[slideId]/page.tsx"
+(sin salida — sin errores)
+
+$ npx vitest run --exclude "**/node_modules/**" --exclude ".claude/**"
+ Test Files  1 failed | 107 passed (108)
+      Tests  2 failed | 870 passed (872)
+```
+
+Mismos 2 fallos preexistentes de `bim/[id]/route.test.ts` (no tocado en esta
+ronda tampoco). No agregué tests de componente para estos dos fixes —
+siguen sin existir tests de componentes en el repo (restricción global 2) y
+ambos son cambios de lógica de UI pura, cubiertos por `tsc`/`eslint` +
+lectura manual del flujo completo (los tests de `bulk/route.test.ts`, que sí
+cubren el endpoint, no cambiaron porque el endpoint no se tocó en esta
+ronda).
+
+### Dudas que quedan
+
+Ninguna nueva. Siguen en pie las 4 ya declaradas en el reporte original
+(especialmente la limitación del botón Atrás del navegador, que no es parte
+de estos dos hallazgos y no la toqué).

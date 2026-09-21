@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useMemo, startTransition } from 'react';
+import { useState, useEffect, useRef, use, useMemo, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
@@ -54,6 +54,15 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   // todavía no se mandó al servidor. Se limpia al guardar (uno por uno o
   // con "Guardar todo").
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  // Contador de ediciones por combinación slide×edificio — NO es estado
+  // (no necesita re-render), es para poder comparar "¿se editó esta forma
+  // de nuevo mientras el guardado que ya mandé todavía estaba en vuelo?".
+  // Sin esto, un guardado que responde tarde podía limpiar `dirty` de una
+  // edición más nueva que nunca se mandó (ver handleSave/handleSaveAll).
+  const editVersionRef = useRef<Record<string, number>>({});
+  const bumpVersion = (key: string) => {
+    editVersionRef.current[key] = (editVersionRef.current[key] ?? 0) + 1;
+  };
 
   // La aérea y el edificio activos NO están atados a la URL de React: son
   // estado de la página, para poder saltar de una aérea a otra sin
@@ -165,6 +174,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     const key = keyOf(activeSlideId, buildingId);
     setPoints(prev => ({ ...prev, [key]: newPoints }));
     setDirty(prev => ({ ...prev, [key]: true }));
+    bumpVersion(key);
   };
 
   // Arma, para una combinación slide+edificio, el payload a mandar al
@@ -187,6 +197,12 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     const key = keyOf(activeSlideId, buildingId);
     const payload = buildPayload(activeSlideId, buildingId);
     if (!payload) return;
+    // Versión de esta forma en el momento justo de armar el payload que se
+    // manda: si al volver la respuesta la versión cambió, es porque el
+    // usuario la siguió editando (ej. cerrar la forma dispara onComplete →
+    // handleSave, y justo después arrastra un vértice) — en ese caso NO hay
+    // que limpiar "dirty", porque lo que se guardó ya quedó desactualizado.
+    const versionAtSave = editVersionRef.current[key] ?? 0;
     setSavingId(buildingId);
 
     const existing = hotspots.find(h => h.slide_id === activeSlideId && h.building_id === buildingId);
@@ -212,7 +228,9 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
         const others = prev.filter(h => !(h.slide_id === activeSlideId && h.building_id === buildingId));
         return [...others, saved];
       });
-      setDirty(prev => ({ ...prev, [key]: false }));
+      if ((editVersionRef.current[key] ?? 0) === versionAtSave) {
+        setDirty(prev => ({ ...prev, [key]: false }));
+      }
       toast('Guardado.');
     } else {
       toast('Error al guardar.', 'error');
@@ -220,12 +238,17 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   };
 
   const handleSaveAll = async () => {
+    // Igual que en handleSave: se anota la versión de cada forma en el
+    // momento de armar la tanda, para no limpiar "dirty" de una edición que
+    // llegó después de que el payload ya había salido.
+    const versionAtSave: Record<string, number> = {};
     const items = slides.flatMap(slide =>
       buildings.flatMap(building => {
         const key = keyOf(slide.id, building.id);
         if (!dirty[key]) return [];
         const payload = buildPayload(slide.id, building.id);
         if (!payload) return [];
+        versionAtSave[key] = editVersionRef.current[key] ?? 0;
         return [{ slideId: slide.id, buildingId: building.id, ...payload }];
       })
     );
@@ -252,7 +275,10 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
       });
       setDirty(prev => {
         const next = { ...prev };
-        for (const r of okResults) delete next[keyOf(r.slideId, r.buildingId)];
+        for (const r of okResults) {
+          const key = keyOf(r.slideId, r.buildingId);
+          if ((editVersionRef.current[key] ?? 0) === versionAtSave[key]) delete next[key];
+        }
         return next;
       });
       const failedCount = results.length - okResults.length;
@@ -269,6 +295,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     const key = keyOf(activeSlideId, buildingId);
     setPoints(prev => ({ ...prev, [key]: [] }));
     setDirty(prev => ({ ...prev, [key]: true }));
+    bumpVersion(key);
   };
 
   if (loading) return <LoadingSpinner text={`Cargando ${aerialLower}...`} tone="light" />;
@@ -294,7 +321,12 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
           <button
             type="button"
             onClick={handleSaveAll}
-            disabled={savingAll}
+            // También deshabilitado mientras hay un guardado individual en
+            // vuelo: si no, "Guardar todo" podría mandar el mismo
+            // slide+edificio que ya está guardándose por su cuenta, y como
+            // aerial_hotspots no tiene constraint único ahí, los dos
+            // guardados podrían decidir INSERT y duplicar la fila.
+            disabled={savingAll || savingId !== null}
             className="shrink-0 h-9 px-4 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
           >
             {savingAll ? 'Guardando todo...' : `Guardar todo (${Object.values(dirty).filter(Boolean).length})`}
@@ -375,6 +407,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
                   if (!activePinKey) return;
                   setPinOverrides(prev => ({ ...prev, [activePinKey]: point }));
                   setDirty(prev => ({ ...prev, [activePinKey]: true }));
+                  bumpVersion(activePinKey);
                 }}
               />
             </div>
@@ -409,7 +442,11 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
                           </button>
                           <button
                             onClick={() => handleSave(b.id)}
-                            disabled={savingId === b.id || (pointCount < 3 && !pinOverrides[key])}
+                            // También deshabilitado mientras corre "Guardar
+                            // todo" (mismo motivo que arriba: evitar que dos
+                            // guardados en simultáneo decidan INSERT los dos
+                            // para la misma fila slide+edificio).
+                            disabled={savingId === b.id || savingAll || (pointCount < 3 && !pinOverrides[key])}
                             className="text-xs px-2.5 py-1 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white rounded-lg transition-colors ml-auto"
                           >
                             {savingId === b.id ? 'Guardando...' : 'Guardar'}
