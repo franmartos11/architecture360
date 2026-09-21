@@ -76,6 +76,9 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savingAll, setSavingAll] = useState(false);
+  // Forma que PolygonCanvas dio por terminada y que hay que guardar recién
+  // en el efecto siguiente, ya con `points` actualizado (ver handleComplete).
+  const [pendingSave, setPendingSave] = useState<{ slideId: string; buildingId: string } | null>(null);
 
   const hasUnsavedChanges = Object.values(dirty).some(Boolean);
 
@@ -192,20 +195,23 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     return payload;
   }
 
-  const handleSave = async (buildingId: string) => {
-    if (!activeSlideId) return;
-    const key = keyOf(activeSlideId, buildingId);
-    const payload = buildPayload(activeSlideId, buildingId);
+  // Guarda UNA combinación slide+edificio. Toma el slide por parámetro (y no
+  // de `activeSlideId`) para que el guardado diferido de handleComplete mande
+  // siempre contra la aérea en la que se dibujó la forma.
+  const saveHotspot = async (slideId: string, buildingId: string) => {
+    const key = keyOf(slideId, buildingId);
+    const payload = buildPayload(slideId, buildingId);
     if (!payload) return;
     // Versión de esta forma en el momento justo de armar el payload que se
     // manda: si al volver la respuesta la versión cambió, es porque el
     // usuario la siguió editando (ej. cerrar la forma dispara onComplete →
-    // handleSave, y justo después arrastra un vértice) — en ese caso NO hay
-    // que limpiar "dirty", porque lo que se guardó ya quedó desactualizado.
+    // el guardado diferido, y justo después arrastra un vértice) — en ese
+    // caso NO hay que limpiar "dirty", porque lo que se guardó ya quedó
+    // desactualizado.
     const versionAtSave = editVersionRef.current[key] ?? 0;
     setSavingId(buildingId);
 
-    const existing = hotspots.find(h => h.slide_id === activeSlideId && h.building_id === buildingId);
+    const existing = hotspots.find(h => h.slide_id === slideId && h.building_id === buildingId);
     const res = existing
       ? await fetch(`/api/admin/aerial-hotspots/${existing.id}`, {
           method: 'PATCH',
@@ -215,7 +221,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
       : await fetch('/api/admin/aerial-hotspots', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, slideId: activeSlideId, buildingId }),
+          body: JSON.stringify({ ...payload, slideId, buildingId }),
         });
 
     setSavingId(null);
@@ -225,7 +231,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
       // volver a pedir todo el proyecto: con varias aéreas abiertas, ese
       // refetch pisaría cambios sin guardar de las otras.
       setHotspots(prev => {
-        const others = prev.filter(h => !(h.slide_id === activeSlideId && h.building_id === buildingId));
+        const others = prev.filter(h => !(h.slide_id === slideId && h.building_id === buildingId));
         return [...others, saved];
       });
       if ((editVersionRef.current[key] ?? 0) === versionAtSave) {
@@ -237,8 +243,43 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     }
   };
 
+  // Guardado a mano desde el panel lateral: siempre sobre la aérea activa.
+  const handleSave = async (buildingId: string) => {
+    if (!activeSlideId) return;
+    await saveHotspot(activeSlideId, buildingId);
+  };
+
+  // PolygonCanvas avisa que la forma quedó terminada ("Listo", Escape, o
+  // soltar el rectángulo) en el MISMO evento en que manda los puntos nuevos:
+  // en modo Rectángulo son onPointsChange + onComplete sincrónicos, uno atrás
+  // del otro. Si guardáramos acá mismo, `points` todavía tendría la silueta
+  // ANTERIOR y le mandaríamos esa al servidor, limpiando "sin guardar" con un
+  // "Guardado." falso — el rectángulo recién dibujado se veía en pantalla pero
+  // se perdía al recargar. Se agenda y se guarda en el efecto de abajo, ya con
+  // el estado al día. Se anota también la aérea, para que el guardado diferido
+  // apunte siempre a la foto en la que se dibujó.
+  const handleComplete = (buildingId: string) => {
+    if (!activeSlideId) return;
+    setPendingSave({ slideId: activeSlideId, buildingId });
+  };
+
+  useEffect(() => {
+    if (!pendingSave) return;
+    const scheduled = pendingSave;
+    void (async () => {
+      await saveHotspot(scheduled.slideId, scheduled.buildingId);
+      // Se limpia solo si en el medio no se agendó OTRA forma: si el admin
+      // terminó una segunda mientras esta se estaba guardando, ese pedido
+      // nuevo tiene que sobrevivir a la limpieza de este.
+      setPendingSave(current => (current === scheduled ? null : current));
+    })();
+    // saveHotspot se recrea en cada render: la dependencia real es "hay una
+    // forma agendada para guardar".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSave]);
+
   const handleSaveAll = async () => {
-    // Igual que en handleSave: se anota la versión de cada forma en el
+    // Igual que en saveHotspot: se anota la versión de cada forma en el
     // momento de armar la tanda, para no limpiar "dirty" de una edición que
     // llegó después de que el payload ya había salido.
     const versionAtSave: Record<string, number> = {};
@@ -396,12 +437,22 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
                 </button>
               </div>
               <PolygonCanvas
+                // El historial de "Deshacer" vive adentro de PolygonCanvas,
+                // indexado solo por el id de la forma (acá, el edificio) — no
+                // sabe nada de aéreas. Como saltar de foto NO remonta la
+                // página, sin este key el historial del edificio activo
+                // sobrevivía el salto y un "Deshacer" en la aérea nueva
+                // estampaba la silueta dibujada en la anterior. Con el key por
+                // aérea, React remonta el canvas y el historial arranca limpio
+                // en cada foto (el estado de la página —points, pinOverrides,
+                // dirty— no se toca, así que no se pierde nada de lo cargado).
+                key={activeSlide.id}
                 imageUrl={activeSlide.image_url}
                 shapes={shapes}
                 activeId={activeBuildingId}
                 mode={mode}
                 onPointsChange={handlePointsChange}
-                onComplete={handleSave}
+                onComplete={handleComplete}
                 pinPoint={activeBuildingId ? (pinOverrides[activePinKey!] ?? (activePinPoints.length >= 3 ? centroid(activePinPoints) : null)) : null}
                 onPinPlace={point => {
                   if (!activePinKey) return;
