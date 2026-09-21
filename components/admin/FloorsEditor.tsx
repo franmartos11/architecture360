@@ -342,6 +342,7 @@ export default function FloorsEditor({
       {duplicateTarget && (
         <DuplicateFloorModal
           floor={duplicateTarget}
+          existingNumbers={floors.map(f => f.number)}
           onClose={() => setDuplicateTarget(null)}
           onDone={() => { setDuplicateTarget(null); onChanged(); }}
         />

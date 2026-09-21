@@ -480,8 +480,9 @@ function AdminWizardPageInner() {
         {showDuplicateModal && selectedFloor && (
           <DuplicateFloorModal
             floor={selectedFloor}
+            existingNumbers={floors.map(f => f.number)}
             onClose={() => setShowDuplicateModal(false)}
-            onDone={() => setShowDuplicateModal(false)}
+            onDone={() => { setShowDuplicateModal(false); loadFloors(); }}
           />
         )}
       </div>

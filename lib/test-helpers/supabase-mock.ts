@@ -36,20 +36,33 @@ export interface MockResult {
   count?: number | null;
 }
 
-/** Envoltorio encadenable + awaitable alrededor de un resultado fijo. */
+/**
+ * Envoltorio encadenable + awaitable alrededor de un resultado fijo.
+ *
+ * Cada método de la cadena es un `vi.fn()` memoizado, así el test puede
+ * afirmar sobre lo que la ruta le pasó — ej. el payload de un update:
+ *   `supabase.from.mock.results[2].value.update.mock.calls[0][0]`
+ */
 function chain(result: MockResult) {
+  const methods = new Map<string | symbol, unknown>();
   const proxy: unknown = new Proxy(() => {}, {
     get(_t, prop) {
       if (prop === 'then') {
         return (resolve: (r: MockResult) => void) => resolve(result);
       }
-      if (prop === 'single' || prop === 'maybeSingle') {
-        return () => Promise.resolve(result);
+      if (!methods.has(prop)) {
+        // Cualquier método de la cadena (select, eq, in, order, limit, lt,
+        // gte, is, neq, ilike, insert, update, delete, upsert, ...) devuelve
+        // el mismo proxy para poder seguir encadenando; single/maybeSingle
+        // cierran la cadena resolviendo el resultado.
+        methods.set(
+          prop,
+          prop === 'single' || prop === 'maybeSingle'
+            ? vi.fn(() => Promise.resolve(result))
+            : vi.fn(() => proxy)
+        );
       }
-      // Cualquier otro método de la cadena (select, eq, in, order, limit,
-      // lt, gte, is, neq, ilike, insert, update, delete, upsert, ...)
-      // devuelve el mismo proxy para poder seguir encadenando.
-      return (..._args: unknown[]) => proxy;
+      return methods.get(prop);
     },
   });
   return proxy as PromiseLike<MockResult> & Record<string, (...args: unknown[]) => unknown>;
