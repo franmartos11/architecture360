@@ -1,4 +1,4 @@
-import type { Unit, Room, RoomKind, UnitParkingSpot } from '@/types';
+import type { Unit, Room, RoomKind, ParkingSpot, UnitParkingSpot } from '@/types';
 
 // Utilidades de unidades usadas en todo el sitio (producción y admin) —
 // antes vivían en data/mockData.ts, que en realidad es solo datos de
@@ -167,6 +167,26 @@ export function cocheraLabel(u: Pick<Unit, 'garageSpaces' | 'garageType' | 'gara
 // pintar, así que no cuenta.
 export function drawnParkingSpots(spots: UnitParkingSpot[] | null | undefined): UnitParkingSpot[] {
   return (spots ?? []).filter(s => !!s.planImage && (s.polygon?.length ?? 0) >= 3);
+}
+
+// Al duplicar un edificio o un proyecto entero (app/api/admin/buildings/[id]/
+// duplicate y app/api/admin/projects/[id]/duplicate) cada unidad copiada
+// necesita que su(s) cochera(s) apunten al piso YA DUPLICADO, no al piso
+// original — si no, la unidad copiada y la original terminan señalando el
+// mismo espacio físico del subsuelo. `floorIdMap` es el mismo Map viejo→nuevo
+// que esos endpoints arman para remapear floor_id. Un floorId que no esté en
+// el mapa (spot huérfano de un piso ya borrado) se descarta en vez de copiarse
+// roto.
+export function remapParkingSpotFloors(
+  spots: ParkingSpot[] | null | undefined,
+  floorIdMap: Map<string, string>
+): ParkingSpot[] {
+  const out: ParkingSpot[] = [];
+  for (const spot of spots ?? []) {
+    const newFloorId = floorIdMap.get(spot.floorId);
+    if (newFloorId) out.push({ ...spot, floorId: newFloorId });
+  }
+  return out;
 }
 
 // Las cocheras agrupadas por piso: un depto puede tener dos espacios en el

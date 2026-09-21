@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { remapParkingSpotFloors } from '@/lib/units';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Copia completa de un edificio: pisos → unidades, remapeando FKs con un
@@ -96,8 +97,11 @@ async function copyBuildingFloors(supabase: SupabaseClient, sourceBuildingId: st
 
   const { error: unitsError } = await supabase.from('units').insert(units.map(u => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _id, floor_id, created_at, updated_at, ...rest } = u;
-    return { ...rest, floor_id: floorIdMap.get(floor_id) };
+    const { id: _id, floor_id, created_at, updated_at, parking_spots, ...rest } = u;
+    // La cochera de la unidad copiada tiene que apuntar al piso YA
+    // duplicado (floorIdMap), no al del edificio original — si no, dos
+    // edificios distintos muestran la misma cochera como propia.
+    return { ...rest, floor_id: floorIdMap.get(floor_id), parking_spots: remapParkingSpotFloors(parking_spots, floorIdMap) };
   }));
   if (unitsError) throw unitsError;
 }

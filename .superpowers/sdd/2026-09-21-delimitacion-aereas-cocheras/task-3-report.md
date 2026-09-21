@@ -257,3 +257,189 @@ del plan). Para el admin y el visor público la verificación fue typecheck + li
    hay que entrar al plano del subsuelo y reasignarla desde ahí. Alcanza para lo
    pedido; un padrón de cocheras (espacios libres, venta suelta) quedó
    explícitamente fuera de alcance.
+
+## Ronda de corrección 1
+
+El redespacho anterior de esta corrección se había caído por límite de cuenta
+antes de escribir código (árbol en `e8240c1`, limpio). Este es ese mismo
+trabajo, retomado desde cero en el mismo worktree, sobre los cuatro hallazgos
+del brief (`task-3-fix-round-1-brief.md`). Las dos decisiones de diseño ya
+ratificadas (reemplazo de pantalla en piso de cocheras, resolución del plano
+en `mapProject()`) no se tocaron.
+
+### Hallazgo 1 — floorId de `parking_spots` sin remapear al duplicar
+
+**Arreglo elegido: remapear, no excluir.** Agregué `remapParkingSpotFloors()`
+en `lib/units.ts` (al lado de los otros helpers de cocheras) y la usé en
+`app/api/admin/buildings/[id]/duplicate/route.ts` y
+`app/api/admin/projects/[id]/duplicate/route.ts`, donde antes el spread de
+`...rest` copiaba `parking_spots` tal cual.
+
+Elegí remapear en vez de excluir (que es lo que hace `floors/[id]/duplicate`
+y `apply-template`) porque el contexto es distinto: esos dos duplican DENTRO
+del mismo edificio, así que copiar la cochera dejaría al depto nuevo
+señalando el subsuelo de siempre — de ahí la exclusión deliberada del
+implementador original. `buildings/[id]/duplicate` y `projects/[id]/duplicate`
+en cambio copian el edificio (o el proyecto) ENTERO, subsuelo incluido: el
+`floorIdMap` que arman dos líneas antes de la copia de unidades ya cubre el
+piso de cocheras, así que remapear deja a la unidad copiada apuntando al
+subsuelo de SU PROPIA copia — mismo resultado visual para el admin (la Torre
+B nace con sus cocheras ya marcadas) sin el bug de dos deptos dueños del
+mismo espacio. Excluir habría sido más simple pero peor: un dato ya cargado
+a mano (la ubicación de 20 cocheras) desaparecería de la copia sin necesidad,
+justo lo que el usuario pidió explícitamente evitar.
+
+`remapParkingSpotFloors()` descarta (no rompe) una cochera cuyo `floorId` no
+esté en el mapa — no debería pasar en el flujo normal (una cochera siempre
+pertenece a un piso del mismo edificio que la unidad, y ese edificio se
+duplica entero), pero cubre el caso de datos ya huérfanos de antes.
+
+Tests nuevos: `lib/units.test.ts` (la función pura) y un test por endpoint
+(`buildings/[id]/duplicate/route.test.ts`,
+`projects/[id]/duplicate/route.test.ts` — **no existían antes**, los creé
+siguiendo el patrón `mockSupabase`/`jsonRequest`, interceptando la llamada de
+`.insert()` de unidades con un spy para poder inspeccionar el payload
+insertado) que verifican el remapeo y el descarte de huérfanas.
+
+### Hallazgo 2 — "Vaciar esta forma" podía borrar una cochera guardada
+
+En `components/admin/FloorParkingDelimiter.tsx`, `buildParkingSpots()` armaba
+la lista a persistir mirando solo el polígono EN VIVO de cada `WorkingSpot`
+(`polygon.length >= 3`). "Vaciar esta forma" de `PolygonCanvas` llama a
+`onPointsChange` con `[]` sin pasar por `onComplete` — es decir, dibuja un
+estado "a medio redibujar", no un pedido de guardar ni de borrar. Si en ese
+momento se guardaba OTRA cochera del mismo depto en el mismo piso, la
+reconstrucción de la lista completa de esa unidad perdía la vaciada.
+
+**Arreglo**: agregué `savedPolygon` a `WorkingSpot` (el último polígono
+confirmado en la base — se completa al cargar y se actualiza en cada guardado
+exitoso). `buildParkingSpots()` ahora usa el polígono en vivo si tiene forma
+cerrada, y si no, cae a `savedPolygon` en vez de descartar el spot. Así,
+resetear una forma sin guardar/borrar no le hace perder su dato persistido a
+otro guardado disparado por una acción distinta.
+
+No toqué `PolygonCanvas.tsx` (fuera de alcance, otro agente lo está tocando
+en paralelo). El único residuo visual: la fila de la cochera "vaciada" sigue
+mostrando "sin dibujar" en pantalla hasta que se recarga el plano o se
+redibuja — ya no es pérdida de dato (queda intacto en la base), solo un
+reflejo de que el admin todavía no terminó de redibujarla. Me pareció la
+frontera correcta: el hallazgo era sobre pérdida de datos, no sobre pulir esa
+UX.
+
+### Hallazgo 3 — falla parcial al reasignar dejaba la cochera en dos deptos
+
+`persist()` mandaba los dos PATCH de una reasignación con `Promise.all`
+(en paralelo): si el de la unidad nueva salía bien y el de la anterior
+fallaba, la base quedaba con la cochera en las dos.
+
+**Arreglo**: `persist()` ahora es secuencial para el caso de dos destinos
+(los llamadores — `handleSave`/`handleAssign` — ya pasaban `[dueña nueva,
+dueña anterior]` en ese orden, no hizo falta tocarlos). Se aplica primero a
+la unidad nueva; solo si eso sale bien se saca de la anterior. Si el segundo
+PATCH falla, se intenta revertir el primero (un PATCH más, con el
+`parking_spots` que tenía la unidad nueva ANTES de esta operación) para
+volver al estado previo a la reasignación en vez de dejarla duplicada.
+`persist()` devuelve `'ok' | 'error' | 'inconsistent'`: `'inconsistent'` es
+el caso raro en que ni la reversión se pudo aplicar — ahí sí puede haber
+quedado duplicada, y el toast dice explícitamente que hay que revisar a
+mano, en vez del genérico "Error al guardar".
+
+Elegí este orden (agregar-primero, sacar-después, con reversión) por sobre
+sacar-primero-agregar-después porque ese segundo orden, ante la misma falla
+parcial, termina en la cochera PERDIDA de las dos unidades (ni A ni B la
+tienen) en vez de duplicada — peor resultado dado que el usuario pidió
+explícitamente no perder datos cargados a mano. El caso con reversión exitosa
+(el más común) no deja ningún residuo: la cochera queda exactamente como
+estaba antes del intento fallido.
+
+El caso de un solo destino (guardar sin reasignar, o borrar) sigue siendo un
+solo PATCH — ahí no hay estado intermedio posible, no necesitaba este
+tratamiento.
+
+### Hallazgo 4 — pantalla de delimitar unidades inalcanzable en un loteo con piso Cochera
+
+En `.../pisos/[floorId]/plano/page.tsx`, el render probaba
+`view === 'cocheras'` ANTES que `unitIsLand`, así que un piso `floor_kind =
+'parking'` dentro de un proyecto de lotes (donde `showTabs` es `false` por
+`unitIsLand`, y no hay forma de cambiar `view` desde la UI) dejaba
+`FloorUnitsDelimiter` inalcanzable — sin pantalla para delimitar los lotes
+propios de ese piso.
+
+**Arreglo**: dí vuelta la prioridad del ternario — `unitIsLand` ahora gana
+sobre `view === 'cocheras'`, coherente con el criterio que ya usa `showTabs`
+(`!unitIsLand && ...`: un loteo nunca tiene vista de cocheras). También
+ajusté el ternario del título/instrucciones de arriba (`isParking &&
+!unitIsLand`) para que no diga "Marcar cocheras en el plano" mientras en
+realidad se muestra el delimitador de lotes — quedaría un texto mintiendo
+sobre lo que hay en pantalla. No toqué el `useEffect` que decide el `view`
+inicial (sigue poniendo `'cocheras'` aunque sea un loteo): es inofensivo,
+porque el render ya lo ignora en ese caso, y tocarlo agregaba un warning de
+`react-hooks/exhaustive-deps` sin ganar nada.
+
+### Qué no toqué
+
+Sin validación de forma del jsonb, sin tocar `PolygonCanvas.tsx` ni
+`proyecto/aereas/**` ni `api/admin/aerial-hotspots/**`, sin resolver los
+spots huérfanos al borrar/recrear un piso (diferido, inherente al diseño sin
+FK), sin persistir la etiqueta antes de Guardar — todo según el brief.
+
+### Verificación
+
+```
+$ npx tsc --noEmit -p .
+(sin salida)
+```
+
+```
+$ npx vitest run --exclude "**/node_modules/**" --exclude ".claude/**"
+ Test Files  1 failed | 108 passed (109)
+      Tests  2 failed | 877 passed (879)
+```
+
+Los 2 que fallan siguen siendo los mismos preexistentes de
+`app/api/admin/bim/[id]/route.test.ts` ("se quedó sin resultados en la
+cola"), ajenos a esta tarea — ya estaban así antes de esta ronda. Los 10
+tests nuevos de esta ronda (3 de `lib/units.test.ts` para
+`remapParkingSpotFloors`, 4 en el test nuevo de `buildings/[id]/duplicate`, 3
+en el test nuevo de `projects/[id]/duplicate`) pasan:
+
+```
+$ npx vitest run lib/units.test.ts "app/api/admin/buildings/[id]/duplicate" "app/api/admin/projects/[id]/duplicate" --reporter=verbose
+ Test Files  3 passed (3)
+      Tests  24 passed (24)
+```
+
+```
+$ npx eslint lib/units.ts lib/units.test.ts \
+    "app/api/admin/buildings/[id]/duplicate/route.ts" "app/api/admin/buildings/[id]/duplicate/route.test.ts" \
+    "app/api/admin/projects/[id]/duplicate/route.ts" "app/api/admin/projects/[id]/duplicate/route.test.ts" \
+    components/admin/FloorParkingDelimiter.tsx \
+    "app/admin/(authenticated)/(project)/edificios/[id]/pisos/[floorId]/plano/page.tsx"
+```
+Sin errores. Dos warnings preexistentes en su forma (`_rows is defined but
+never used`), misma convención que ya usan los tests de rutas de la casa
+(parámetro con `_` a propósito para poder tipar el spy).
+
+No hay tests de componente para `FloorParkingDelimiter.tsx` ni para
+`plano/page.tsx` (el repo no monta infraestructura para eso — restricción
+del plan): la verificación ahí fue lectura + typecheck + lint + revisión
+manual del flujo de estados.
+
+### Riesgos y dudas que quedan
+
+1. **Finding 2, residuo visual**: como se explica arriba, después de "Vaciar
+   esta forma" sin redibujar ni borrar, la fila sigue diciendo "sin dibujar"
+   en esa sesión aunque el dato siga intacto en la base (se ve bien de nuevo
+   al recargar el plano). No me pareció parte del hallazgo (que era sobre
+   pérdida de datos), pero lo dejo anotado por si se prefiere pulirlo.
+2. **Sin probar contra la base real** — mismo límite que la implementación
+   original: no tengo acceso a Supabase, así que no pude ejercitar a mano ni
+   la duplicación de edificio/proyecto con cocheras cargadas, ni la
+   reasignación con falla parcial simulada de verdad (esa parte se cubre acá
+   solo con el test de `lib/units.test.ts` y la lectura del código; no hay
+   test de componente que la ejercite).
+3. **Orden de `persist()` para dos destinos**: depende de que los llamadores
+   sigan pasando `[nueva, anterior]` en ese orden — es así hoy en los dos
+   lugares que llaman con dos ids (`handleSave`, `handleAssign`), pero si en
+   el futuro se agrega un tercer llamador con ese patrón, tiene que respetar
+   el mismo orden o el rollback queda invertido.

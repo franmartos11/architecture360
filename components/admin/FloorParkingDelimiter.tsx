@@ -22,13 +22,19 @@ type ParkingUnitRow = Pick<DbUnitRow, 'id' | 'code' | 'floor_id' | 'garage_space
 // Una cochera mientras se la está editando en pantalla. `savedUnitId` es la
 // unidad bajo la que quedó guardada la última vez (vacío si todavía no se
 // guardó): sin eso, reasignar una cochera a otro depto dejaría una copia
-// colgada en el depto anterior.
+// colgada en el depto anterior. `savedPolygon` es el último polígono
+// confirmado en la base (vacío si nunca se guardó): "Vaciar esta forma" de
+// PolygonCanvas dispara onPointsChange pero no onComplete, así que deja el
+// polígono en pantalla en `[]` sin que eso sea todavía un pedido de guardar
+// ese vaciado — buildParkingSpots usa este campo para no perder la cochera
+// si se guarda OTRA del mismo piso mientras esta quedó a medio redibujar.
 type WorkingSpot = {
   key: string;
   unitId: string;
   savedUnitId: string;
   label: string;
   polygon: Point[];
+  savedPolygon: Point[];
 };
 
 const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
@@ -36,6 +42,17 @@ const NEW_SPOT_COLOR = '#f59e0b';
 
 let spotSeq = 0;
 const nextKey = () => `spot-${++spotSeq}`;
+
+// 'error' es el caso común (red, validación, etc.): la reasignación no se
+// aplicó, la cochera sigue como estaba. 'inconsistent' es el caso raro en
+// que además falló el intento de revertir — ahí sí puede haber quedado
+// duplicada entre las dos unidades y hace falta un vistazo manual.
+type PersistResult = 'ok' | 'error' | 'inconsistent';
+
+const reasignacionErrorMessage = (result: PersistResult) =>
+  result === 'inconsistent'
+    ? 'No se pudo completar la reasignación ni deshacerla del todo: revisá a mano si esta cochera quedó duplicada en dos unidades.'
+    : 'Error al guardar la cochera.';
 
 // Marcado masivo de cocheras sobre el plano de un piso de tipo Cochera: se
 // dibuja cada espacio y se elige de un desplegable a qué departamento le
@@ -85,6 +102,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
             savedUnitId: u.id,
             label: spot.label ?? '',
             polygon: spot.polygon ?? [],
+            savedPolygon: spot.polygon ?? [],
           });
         }
       }
@@ -118,40 +136,78 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
 
   // Lista completa de cocheras que le corresponde guardar a una unidad: las
   // que tenga en OTROS pisos se conservan tal cual (nunca se pisa lo que se
-  // cargó desde otro subsuelo) + las de este piso que estén dibujadas.
+  // cargó desde otro subsuelo) + las de este piso.
+  //
+  // Para "este piso" no alcanza con mirar el polígono EN VIVO: "Vaciar esta
+  // forma" de PolygonCanvas vacía `polygon` sin pasar por onComplete (o sea,
+  // sin que el admin haya pedido guardar ni borrar nada). Si en ese momento
+  // se guarda OTRA cochera del mismo depto en este piso, este `working`
+  // todavía trae la vaciada con `polygon: []` — usar `savedPolygon` como
+  // respaldo evita que esa reconstrucción la pise en la base.
   const buildParkingSpots = (unitId: string, working: WorkingSpot[]): ParkingSpot[] => {
     const stored = units.find(u => u.id === unitId)?.parking_spots ?? [];
     const otherFloors = stored.filter(s => s.floorId !== floorId);
     const onThisFloor = working
-      .filter(s => s.unitId === unitId && s.polygon.length >= 3)
-      .map((s): ParkingSpot => ({
+      .filter(s => s.unitId === unitId)
+      .map(s => ({ s, polygon: s.polygon.length >= 3 ? s.polygon : s.savedPolygon }))
+      .filter(({ polygon }) => polygon.length >= 3)
+      .map(({ s, polygon }): ParkingSpot => ({
         floorId,
         ...(s.label.trim() ? { label: s.label.trim() } : {}),
-        polygon: s.polygon,
+        polygon,
       }));
     return [...otherFloors, ...onThisFloor];
   };
 
   // Guarda las unidades afectadas (la dueña nueva y, si hubo reasignación, la
-  // anterior) y refleja el resultado en el estado local.
-  const persist = async (unitIds: string[], working: WorkingSpot[]): Promise<boolean> => {
+  // anterior). Con un solo destino es un PATCH y listo. Con dos —se cambió
+  // el depto de una cochera ya guardada— el orden importa: los llamadores
+  // (handleSave/handleAssign) siempre pasan [dueña nueva, dueña anterior], y
+  // acá se aplica primero a la nueva y recién si eso sale bien se saca de la
+  // anterior. Si falla el segundo PATCH, se intenta revertir el primero para
+  // no dejar la cochera duplicada en las dos unidades; si ni eso se puede,
+  // se devuelve 'inconsistent' para avisar distinto (ahí sí puede haber
+  // quedado duplicada y hace falta revisar a mano).
+  const persist = async (unitIds: string[], working: WorkingSpot[]): Promise<PersistResult> => {
+    const patch = (unitId: string, parkingSpots: ParkingSpot[]) =>
+      fetch(`/api/admin/units/${unitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parkingSpots }),
+      });
+
     const targets = [...new Set(unitIds.filter(Boolean))];
-    const payloads = targets.map(id => ({ id, parkingSpots: buildParkingSpots(id, working) }));
-    const results = await Promise.all(
-      payloads.map(p =>
-        fetch(`/api/admin/units/${p.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parkingSpots: p.parkingSpots }),
-        })
-      )
-    );
-    if (results.some(r => !r.ok)) return false;
+    if (targets.length === 0) return 'ok';
+
+    if (targets.length === 1) {
+      const [id] = targets;
+      const parkingSpots = buildParkingSpots(id, working);
+      const res = await patch(id, parkingSpots);
+      if (!res.ok) return 'error';
+      setUnits(prev => prev.map(u => (u.id === id ? { ...u, parking_spots: parkingSpots } : u)));
+      return 'ok';
+    }
+
+    const [newOwnerId, oldOwnerId] = targets;
+    const newOwnerPrev = units.find(u => u.id === newOwnerId)?.parking_spots ?? [];
+    const newOwnerNext = buildParkingSpots(newOwnerId, working);
+
+    const firstRes = await patch(newOwnerId, newOwnerNext);
+    if (!firstRes.ok) return 'error';
+
+    const oldOwnerNext = buildParkingSpots(oldOwnerId, working);
+    const secondRes = await patch(oldOwnerId, oldOwnerNext);
+    if (!secondRes.ok) {
+      const rollbackRes = await patch(newOwnerId, newOwnerPrev);
+      return rollbackRes.ok ? 'error' : 'inconsistent';
+    }
+
     setUnits(prev => prev.map(u => {
-      const payload = payloads.find(p => p.id === u.id);
-      return payload ? { ...u, parking_spots: payload.parkingSpots } : u;
+      if (u.id === newOwnerId) return { ...u, parking_spots: newOwnerNext };
+      if (u.id === oldOwnerId) return { ...u, parking_spots: oldOwnerNext };
+      return u;
     }));
-    return true;
+    return 'ok';
   };
 
   const handleSave = async (key: string) => {
@@ -167,13 +223,13 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
       return;
     }
     setSavingKey(key);
-    const ok = await persist([spot.unitId, spot.savedUnitId], spots);
+    const result = await persist([spot.unitId, spot.savedUnitId], spots);
     setSavingKey(null);
-    if (!ok) {
-      toast('Error al guardar la cochera.', 'error');
+    if (result !== 'ok') {
+      toast(reasignacionErrorMessage(result), 'error');
       return;
     }
-    setSpots(prev => prev.map(s => (s.key === key ? { ...s, savedUnitId: s.unitId } : s)));
+    setSpots(prev => prev.map(s => (s.key === key ? { ...s, savedUnitId: s.unitId, savedPolygon: s.polygon } : s)));
     toast('Cochera guardada.');
   };
 
@@ -185,13 +241,13 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     const spot = next.find(s => s.key === key);
     if (!spot || !unitId || spot.polygon.length < 3) return;
     setSavingKey(key);
-    const ok = await persist([unitId, spot.savedUnitId], next);
+    const result = await persist([unitId, spot.savedUnitId], next);
     setSavingKey(null);
-    if (!ok) {
-      toast('Error al guardar la cochera.', 'error');
+    if (result !== 'ok') {
+      toast(reasignacionErrorMessage(result), 'error');
       return;
     }
-    setSpots(prev => prev.map(s => (s.key === key ? { ...s, savedUnitId: unitId } : s)));
+    setSpots(prev => prev.map(s => (s.key === key ? { ...s, savedUnitId: unitId, savedPolygon: s.polygon } : s)));
     toast('Cochera guardada.');
   };
 
@@ -201,9 +257,9 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     const next = spots.filter(s => s.key !== key);
     if (spot.savedUnitId) {
       setSavingKey(key);
-      const ok = await persist([spot.savedUnitId], next);
+      const result = await persist([spot.savedUnitId], next);
       setSavingKey(null);
-      if (!ok) {
+      if (result !== 'ok') {
         toast('Error al borrar la cochera.', 'error');
         return;
       }
@@ -231,7 +287,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
   }, [pendingSaveKey]);
 
   const handleAdd = () => {
-    const spot: WorkingSpot = { key: nextKey(), unitId: '', savedUnitId: '', label: '', polygon: [] };
+    const spot: WorkingSpot = { key: nextKey(), unitId: '', savedUnitId: '', label: '', polygon: [], savedPolygon: [] };
     setSpots(prev => [...prev, spot]);
     setActiveKey(spot.key);
   };

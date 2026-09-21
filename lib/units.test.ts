@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups } from './units';
-import type { Room, UnitParkingSpot } from '@/types';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors } from './units';
+import type { ParkingSpot, Room, UnitParkingSpot } from '@/types';
 
 describe('deriveUnitType', () => {
   it('genera los strings del catálogo para los primeros valores', () => {
@@ -125,5 +125,32 @@ describe('cocheras marcadas en el plano', () => {
     expect(groups[0].planImage).toBe('/ss1.png');
     expect(groups[0].label).toBe('Subsuelo 1');
     expect(parkingFloorGroups([])).toEqual([]);
+  });
+
+  // Usado al duplicar un edificio o un proyecto entero (Hallazgo 1 de la
+  // ronda de corrección): la cochera copiada tiene que apuntar al piso YA
+  // duplicado, no al original.
+  describe('remapParkingSpotFloors', () => {
+    it('remapea el floorId de cada cochera con el mapa viejo→nuevo', () => {
+      const spots: ParkingSpot[] = [
+        { floorId: 'ss1-viejo', label: 'C-12', polygon: square },
+        { floorId: 'ss2-viejo', polygon: square },
+      ];
+      const floorIdMap = new Map([['ss1-viejo', 'ss1-nuevo'], ['ss2-viejo', 'ss2-nuevo']]);
+      expect(remapParkingSpotFloors(spots, floorIdMap)).toEqual([
+        { floorId: 'ss1-nuevo', label: 'C-12', polygon: square },
+        { floorId: 'ss2-nuevo', polygon: square },
+      ]);
+    });
+
+    it('descarta las que apuntan a un piso fuera del mapa (huérfanas) en vez de copiarlas rotas', () => {
+      const spots: ParkingSpot[] = [{ floorId: 'piso-borrado', polygon: square }];
+      expect(remapParkingSpotFloors(spots, new Map([['otro', 'otro-nuevo']]))).toEqual([]);
+    });
+
+    it('null/undefined se tratan como sin cocheras', () => {
+      expect(remapParkingSpotFloors(null, new Map())).toEqual([]);
+      expect(remapParkingSpotFloors(undefined, new Map())).toEqual([]);
+    });
   });
 });

@@ -50,7 +50,9 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       setFloorLabel(floor?.label ?? '');
       // Un piso de tipo Cochera no se delimita por unidades ni por ambientes:
       // lo que se marca sobre su plano son las cocheras de deptos de otros
-      // pisos. Por eso arranca directo en esa vista.
+      // pisos. Por eso arranca directo en esa vista. En un loteo esto queda
+      // sin efecto (ver el render más abajo): unitIsLand le gana a esta
+      // vista porque un loteo no tiene cocheras que marcar.
       const kind: FloorKind = floor?.floor_kind ?? 'units';
       setFloorKind(kind);
       if (kind === 'parking') setView('cocheras');
@@ -102,7 +104,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     <div className="space-y-6">
       <div>
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
-        {isParking ? (
+        {isParking && !unitIsLand ? (
           <>
             <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Marcar cocheras en el plano</h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -146,9 +148,15 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         </div>
       )}
 
-      {view === 'cocheras' ? (
+      {unitIsLand ? (
+        // Un loteo no tiene vista de cocheras (showTabs ya la esconde
+        // arriba): si un piso igual quedó marcado como Cochera, esta rama
+        // tiene que ganarle a `view === 'cocheras'` para no dejar sin
+        // pantalla la delimitación de los lotes propios de ese piso.
+        <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
+      ) : view === 'cocheras' ? (
         <FloorParkingDelimiter buildingId={buildingId} floorId={floorId} />
-      ) : view === 'deptos' || unitIsLand ? (
+      ) : view === 'deptos' ? (
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">

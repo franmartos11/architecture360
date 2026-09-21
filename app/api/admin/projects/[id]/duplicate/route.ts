@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
+import { remapParkingSpotFloors } from '@/lib/units';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Copia completa de un proyecto: edificios → pisos → unidades, más
@@ -119,8 +120,11 @@ async function copyProjectContent(supabase: SupabaseClient, sourceProjectId: str
       if (units && units.length > 0) {
         const { error: unitsError } = await supabase.from('units').insert(units.map(u => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { id: _id, floor_id, created_at, updated_at, ...rest } = u;
-          return { ...rest, floor_id: floorIdMap.get(floor_id) };
+          const { id: _id, floor_id, created_at, updated_at, parking_spots, ...rest } = u;
+          // Misma razón que en buildings/[id]/duplicate: la cochera copiada
+          // tiene que señalar al piso ya duplicado (floorIdMap cubre todos
+          // los edificios del proyecto), no al del proyecto original.
+          return { ...rest, floor_id: floorIdMap.get(floor_id), parking_spots: remapParkingSpotFloors(parking_spots, floorIdMap) };
         }));
         if (unitsError) throw unitsError;
       }
