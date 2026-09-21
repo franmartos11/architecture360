@@ -228,171 +228,183 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
       }
     : null;
 
+  // Texto de ayuda de la barra inferior: el del modo pin tiene prioridad
+  // (es el que describe qué hace el click en ese modo); si no, el aviso de
+  // "estás por cerrar la forma".
+  const helpText = mode === 'pin'
+    ? (pinPoint ? 'Click para reubicar · arrastrá el pin · doble click para quitarlo' : 'Click para ubicar el pin')
+    : (nearFirstPoint ? 'Click para cerrar la forma' : null);
+
   return (
-    <div className="relative w-full select-none rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt="Plano" className="w-full h-auto block pointer-events-none" draggable={false} />
-      <svg
-        ref={svgRef}
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        onClick={handleBackgroundClick}
-        onMouseDown={handleBackgroundMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setDragIndex(null); setDraggingPin(false); setCursorPos(null); }}
-        style={{
-          cursor: draggingPin || dragIndex !== null
-            ? 'grabbing'
-            : mode === 'pin' ? 'crosshair' : activeShape ? (mode === 'rectangle' ? 'crosshair' : nearFirstPoint ? 'pointer' : 'crosshair') : 'default',
-        }}
-      >
-        {shapes.map(shape => {
-          if (shape.points.length === 0) return null;
-          const isActive = shape.id === activeId;
-          const pointsAttr = shape.points.map(p => `${p.x},${p.y}`).join(' ');
-          return (
-            <g key={shape.id} opacity={isActive ? 1 : 0.35}>
-              <polygon
-                points={pointsAttr}
-                fill={shape.color}
-                fillOpacity={isActive ? 0.3 : 0.15}
-                stroke={shape.color}
-                strokeWidth={0.4}
-                vectorEffect="non-scaling-stroke"
-              />
-              {/* Línea de vista previa hacia el cursor mientras se dibuja en modo punto */}
-              {isActive && mode === 'point' && cursorPos && dragIndex === null && !nearFirstPoint && (
-                <line
-                  x1={shape.points[shape.points.length - 1].x}
-                  y1={shape.points[shape.points.length - 1].y}
-                  x2={cursorPos.x}
-                  y2={cursorPos.y}
+    <div className="w-full">
+      <div className="relative w-full select-none rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt="Plano" className="w-full h-auto block pointer-events-none" draggable={false} />
+        <svg
+          ref={svgRef}
+          className="absolute inset-0 w-full h-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          onClick={handleBackgroundClick}
+          onMouseDown={handleBackgroundMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => { setDragIndex(null); setDraggingPin(false); setCursorPos(null); }}
+          style={{
+            cursor: draggingPin || dragIndex !== null
+              ? 'grabbing'
+              : mode === 'pin' ? 'crosshair' : activeShape ? (mode === 'rectangle' ? 'crosshair' : nearFirstPoint ? 'pointer' : 'crosshair') : 'default',
+          }}
+        >
+          {shapes.map(shape => {
+            if (shape.points.length === 0) return null;
+            const isActive = shape.id === activeId;
+            const pointsAttr = shape.points.map(p => `${p.x},${p.y}`).join(' ');
+            return (
+              <g key={shape.id} opacity={isActive ? 1 : 0.35}>
+                <polygon
+                  points={pointsAttr}
+                  fill={shape.color}
+                  fillOpacity={isActive ? 0.3 : 0.15}
                   stroke={shape.color}
-                  strokeWidth={0.3}
-                  strokeDasharray="1.2 1"
+                  strokeWidth={0.4}
                   vectorEffect="non-scaling-stroke"
                 />
-              )}
-              {isActive && shape.points.map((p, i) => (
-                <circle
-                  key={i}
-                  cx={p.x} cy={p.y}
-                  r={i === 0 && nearFirstPoint ? 2.2 : 1.3}
-                  fill={i === 0 && nearFirstPoint ? shape.color : '#fff'}
-                  stroke={shape.color} strokeWidth={0.6}
-                  vectorEffect="non-scaling-stroke"
-                  style={{ cursor: 'grab' }}
-                  onMouseDown={handleVertexMouseDown(i)}
-                  onClick={e => e.stopPropagation()}
-                  onDoubleClick={handleVertexDoubleClick(i)}
-                />
-              ))}
-            </g>
+                {/* Línea de vista previa hacia el cursor mientras se dibuja en modo punto */}
+                {isActive && mode === 'point' && cursorPos && dragIndex === null && !nearFirstPoint && (
+                  <line
+                    x1={shape.points[shape.points.length - 1].x}
+                    y1={shape.points[shape.points.length - 1].y}
+                    x2={cursorPos.x}
+                    y2={cursorPos.y}
+                    stroke={shape.color}
+                    strokeWidth={0.3}
+                    strokeDasharray="1.2 1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {/* Zona invisible para agarrar cada vértice (el punto visible se dibuja aparte, en HTML,
+                    para que no se estire con el viewBox sin preserveAspectRatio) */}
+                {isActive && shape.points.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={p.x} cy={p.y}
+                    r={2.5}
+                    fill="transparent"
+                    vectorEffect="non-scaling-stroke"
+                    style={{ cursor: 'grab' }}
+                    onMouseDown={handleVertexMouseDown(i)}
+                    onClick={e => e.stopPropagation()}
+                    onDoubleClick={handleVertexDoubleClick(i)}
+                  />
+                ))}
+              </g>
+            );
+          })}
+
+          {/* Vista previa del rectángulo mientras se arrastra */}
+          {rectPreview && activeShape && (
+            <rect
+              x={rectPreview.x} y={rectPreview.y} width={rectPreview.w} height={rectPreview.h}
+              fill={activeShape.color} fillOpacity={0.25}
+              stroke={activeShape.color} strokeWidth={0.4} strokeDasharray="1.2 1"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {/* Zona invisible para arrastrar el pin (el ícono visible se dibuja aparte, en HTML) */}
+          {pinPoint && activeShape && (
+            <circle
+              cx={pinPoint.x} cy={pinPoint.y} r={2.5}
+              fill="transparent"
+              style={{ cursor: draggingPin ? 'grabbing' : 'grab' }}
+              onMouseDown={handlePinMouseDown}
+              onClick={e => e.stopPropagation()}
+              onDoubleClick={handlePinDoubleClick}
+            />
+          )}
+        </svg>
+
+        {/* Puntos de los vértices (overlay HTML, chicos y redondos: no se deforman
+            con el stretch del SVG como pasaría con un <circle>). El primer punto
+            se agranda un poco cuando el cursor está cerca, como aviso de que un
+            click ahí cierra la forma. */}
+        {activeShape && activeShape.points.map((p, i) => {
+          const isFirstNearClose = i === 0 && nearFirstPoint;
+          const size = isFirstNearClose ? 11 : 7;
+          return (
+            <div
+              key={i}
+              className="absolute pointer-events-none rounded-full"
+              style={{
+                left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -50%)',
+                width: size, height: size, background: activeShape.color,
+                boxShadow: '0 0 0 1.5px white',
+              }}
+            />
           );
         })}
 
-        {/* Vista previa del rectángulo mientras se arrastra */}
-        {rectPreview && activeShape && (
-          <rect
-            x={rectPreview.x} y={rectPreview.y} width={rectPreview.w} height={rectPreview.h}
-            fill={activeShape.color} fillOpacity={0.25}
-            stroke={activeShape.color} strokeWidth={0.4} strokeDasharray="1.2 1"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-
-        {/* Zona invisible para arrastrar el pin (el ícono visible se dibuja aparte, en HTML) */}
+        {/* Pin — siempre visible si hay una posición (calculada o elegida a mano) */}
         {pinPoint && activeShape && (
-          <circle
-            cx={pinPoint.x} cy={pinPoint.y} r={2.5}
-            fill="transparent"
-            style={{ cursor: draggingPin ? 'grabbing' : 'grab' }}
-            onMouseDown={handlePinMouseDown}
-            onClick={e => e.stopPropagation()}
-            onDoubleClick={handlePinDoubleClick}
-          />
+          <div
+            className="absolute pointer-events-none"
+            style={{ left: `${pinPoint.x}%`, top: `${pinPoint.y}%`, transform: 'translate(-50%, -100%)' }}
+          >
+            <svg className="w-6 h-6 drop-shadow-lg" viewBox="0 0 24 24" fill={pinColor || activeShape.color} stroke="white" strokeWidth={1}>
+              <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 110-6 3 3 0 010 6z" />
+            </svg>
+          </div>
         )}
-      </svg>
+      </div>
 
-      {/* Números de los puntos (overlay HTML para que no se deformen con el stretch del SVG) */}
-      {activeShape && activeShape.points.map((p, i) => (
-        <div
-          key={i}
-          className="absolute pointer-events-none flex items-center justify-center text-[9px] font-bold text-white rounded-full"
-          style={{
-            left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -50%)',
-            width: 14, height: 14, background: activeShape.color,
-            boxShadow: '0 0 0 1.5px white',
-          }}
-        >
-          {i + 1}
-        </div>
-      ))}
-
-      {/* Pin — siempre visible si hay una posición (calculada o elegida a mano) */}
-      {pinPoint && activeShape && (
-        <div
-          className="absolute pointer-events-none"
-          style={{ left: `${pinPoint.x}%`, top: `${pinPoint.y}%`, transform: 'translate(-50%, -100%)' }}
-        >
-          <svg className="w-6 h-6 drop-shadow-lg" viewBox="0 0 24 24" fill={pinColor || activeShape.color} stroke="white" strokeWidth={1}>
-            <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 110-6 3 3 0 010 6z" />
-          </svg>
-        </div>
-      )}
-      {mode === 'pin' && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none shadow-lg">
-          {pinPoint ? 'Click para reubicar · arrastrá el pin · doble click para quitarlo' : 'Click para ubicar el pin'}
-        </div>
-      )}
-
-      {/* Hint de "click para cerrar" */}
-      {nearFirstPoint && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none shadow-lg">
-          Click para cerrar la forma
-        </div>
-      )}
-
-      {/* Listo (terminar y conservar) · Deshacer · Vaciar la forma activa */}
-      {activeShape && (canUndo || activeShape.points.length > 0 || rectStart) && (
-        <div className="absolute top-2 right-2 flex items-center gap-2">
-          {activeShape.points.length >= 3 && (
-            <button
-              onClick={handleFinish}
-              title="Terminar de dibujar esta forma y guardarla (Escape). No borra nada."
-              className="flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              Listo
-            </button>
-          )}
-          {canUndo && (
-            <button
-              onClick={handleUndo}
-              title="Deshacer el último cambio (Ctrl/Cmd+Z)"
-              className="flex items-center gap-1.5 bg-white/95 hover:bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg border border-gray-200 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L4 10m0 0l5-5m-5 5h11a5 5 0 010 10h-1" />
-              </svg>
-              Deshacer
-            </button>
-          )}
-          {(activeShape.points.length > 0 || rectStart) && (
-            <button
-              onClick={handleReset}
-              title="Borrar los puntos de esta forma para dibujarla de nuevo. Solo afecta a esta forma, no al resto de la carga."
-              className="flex items-center gap-1.5 bg-white/95 hover:bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg border border-gray-200 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-              Vaciar esta forma
-            </button>
+      {/* Barra de acciones y ayuda, debajo de la imagen (no encima): así los
+          botones nunca tapan la foto ni compiten con el click de dibujo.
+          Se monta apenas hay una forma activa y con alto mínimo reservado,
+          para que el texto de ayuda o los botones aparezcan/desaparezcan
+          durante el dibujo sin correr el resto del layout. */}
+      {activeShape && (
+        <div className="min-h-[38px] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 mt-2">
+          <span className="text-xs text-gray-500">{helpText}</span>
+          {(canUndo || activeShape.points.length > 0 || rectStart) && (
+            <div className="flex items-center gap-2">
+              {activeShape.points.length >= 3 && (
+                <button
+                  onClick={handleFinish}
+                  title="Terminar de dibujar esta forma y guardarla (Escape). No borra nada."
+                  className="flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Listo
+                </button>
+              )}
+              {canUndo && (
+                <button
+                  onClick={handleUndo}
+                  title="Deshacer el último cambio (Ctrl/Cmd+Z)"
+                  className="flex items-center gap-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm border border-gray-200 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L4 10m0 0l5-5m-5 5h11a5 5 0 010 10h-1" />
+                  </svg>
+                  Deshacer
+                </button>
+              )}
+              {(activeShape.points.length > 0 || rectStart) && (
+                <button
+                  onClick={handleReset}
+                  title="Borrar los puntos de esta forma para dibujarla de nuevo. Solo afecta a esta forma, no al resto de la carga."
+                  className="flex items-center gap-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm border border-gray-200 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  Vaciar esta forma
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
