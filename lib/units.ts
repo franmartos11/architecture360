@@ -1,4 +1,4 @@
-import type { Unit, Room, RoomKind } from '@/types';
+import type { Unit, Room, RoomKind, UnitParkingSpot } from '@/types';
 
 // Utilidades de unidades usadas en todo el sitio (producción y admin) —
 // antes vivían en data/mockData.ts, que en realidad es solo datos de
@@ -158,6 +158,30 @@ export function cocheraLabel(u: Pick<Unit, 'garageSpaces' | 'garageType' | 'gara
   if (cov > 0) return `${noun} cubierta${cov !== 1 ? 's' : ''}`;
   if (unc > 0) return `${noun} descubierta${unc !== 1 ? 's' : ''}`;
   return u.garageType ? `${noun} (${u.garageType})` : noun;
+}
+
+// Cocheras de la unidad que se pueden mostrar en el sitio público: hace
+// falta la forma dibujada Y el plano del piso de cocheras al que apunta
+// (que lo resuelve mapProject en data/project-repository.ts). Una cochera
+// marcada sobre un piso al que después le sacaron el plano no se puede
+// pintar, así que no cuenta.
+export function drawnParkingSpots(spots: UnitParkingSpot[] | null | undefined): UnitParkingSpot[] {
+  return (spots ?? []).filter(s => !!s.planImage && (s.polygon?.length ?? 0) >= 3);
+}
+
+// Las cocheras agrupadas por piso: un depto puede tener dos espacios en el
+// mismo subsuelo (un solo plano) o en subsuelos distintos (un plano cada
+// uno, con selector).
+export function parkingFloorGroups(
+  spots: UnitParkingSpot[] | null | undefined
+): { floorId: string; label: string; planImage: string; spots: UnitParkingSpot[] }[] {
+  const groups: { floorId: string; label: string; planImage: string; spots: UnitParkingSpot[] }[] = [];
+  for (const spot of drawnParkingSpots(spots)) {
+    const existing = groups.find(g => g.floorId === spot.floorId);
+    if (existing) existing.spots.push(spot);
+    else groups.push({ floorId: spot.floorId, label: spot.floorLabel || 'Cocheras', planImage: spot.planImage!, spots: [spot] });
+  }
+  return groups;
 }
 
 // Todos los ambientes de una unidad — la planta baja (rooms) más los de

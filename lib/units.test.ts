@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions } from './units';
-import type { Room } from '@/types';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups } from './units';
+import type { Room, UnitParkingSpot } from '@/types';
 
 describe('deriveUnitType', () => {
   it('genera los strings del catálogo para los primeros valores', () => {
@@ -97,5 +97,33 @@ describe('programa de ambientes', () => {
     expect(roomCounts(all)).toEqual({ bedrooms: 1, bathrooms: 1, living: 1, kitchen: 1, other: 0 });
     expect(allProgramRooms(base, null)).toHaveLength(2);
     expect(allProgramRooms(null, null)).toEqual([]);
+  });
+});
+
+describe('cocheras marcadas en el plano', () => {
+  const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+
+  it('descarta las que no se pueden pintar: sin plano del piso o sin forma cerrada', () => {
+    const spots: UnitParkingSpot[] = [
+      { floorId: 'ss1', polygon: square, planImage: '/planos/ss1.png' },
+      { floorId: 'ss1', polygon: square },                                 // el piso perdió su plano
+      { floorId: 'ss1', polygon: [{ x: 1, y: 1 }], planImage: '/x.png' },  // forma incompleta
+    ];
+    expect(drawnParkingSpots(spots)).toHaveLength(1);
+    expect(drawnParkingSpots(undefined)).toEqual([]);
+  });
+
+  it('agrupa por piso: dos espacios en el mismo subsuelo comparten un solo plano', () => {
+    const spots: UnitParkingSpot[] = [
+      { floorId: 'ss1', label: 'C-12', polygon: square, planImage: '/ss1.png', floorLabel: 'Subsuelo 1' },
+      { floorId: 'ss2', label: 'C-40', polygon: square, planImage: '/ss2.png', floorLabel: 'Subsuelo 2' },
+      { floorId: 'ss1', label: 'C-13', polygon: square, planImage: '/ss1.png', floorLabel: 'Subsuelo 1' },
+    ];
+    const groups = parkingFloorGroups(spots);
+    expect(groups.map(g => g.floorId)).toEqual(['ss1', 'ss2']);
+    expect(groups[0].spots).toHaveLength(2);
+    expect(groups[0].planImage).toBe('/ss1.png');
+    expect(groups[0].label).toBe('Subsuelo 1');
+    expect(parkingFloorGroups([])).toEqual([]);
   });
 });
