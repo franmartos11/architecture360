@@ -52,6 +52,10 @@ export async function GET(request: Request) {
     return {
       ...u,
       floor_number: floor?.number ?? null,
+      // building_id (el uuid, además del slug) lo necesita la pantalla de
+      // cocheras: lista las unidades de TODOS los pisos del edificio y solo
+      // conoce el uuid del edificio por la URL.
+      building_id: floor?.building_id ?? null,
       building_slug: building?.slug ?? null,
       building_name: building?.name ?? null,
     };
@@ -138,6 +142,12 @@ export async function POST(request: Request) {
       room_plan_image: body.roomPlanImage ?? null,
       rooms: body.rooms ?? null,
       levels: body.levels ?? null,
+      // Una unidad nueva arranca sin cocheras marcadas (el default de la
+      // columna es '[]') — se cargan después desde el plano del piso de
+      // cocheras. Solo se manda la columna si el body la trae: así un alta
+      // normal sigue funcionando en bases donde todavía no se aplicó la
+      // migración de parking_spots.
+      ...(body.parkingSpots !== undefined ? { parking_spots: body.parkingSpots } : {}),
       tour_image_url: body.tourImageUrl ?? null,
       tour_data: body.tourData ?? null,
     })
