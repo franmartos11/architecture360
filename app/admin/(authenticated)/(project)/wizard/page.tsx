@@ -358,6 +358,29 @@ function AdminWizardPageInner() {
     });
   };
 
+  // La carga automática de pisos les pone nombre y tipo genéricos ("Piso 3",
+  // Departamentos) — esto deja corregirlos después sin tener que borrar y
+  // recrear el piso.
+  const handleFloorLabelChange = (label: string) => {
+    if (!floorId) return;
+    setFloors(prev => prev.map(f => (f.id === floorId ? { ...f, label } : f)));
+  };
+
+  const handleUpdateFloorMeta = async (updates: { label?: string; floorKind?: FloorKind; floorKindDescription?: string }) => {
+    if (!floorId) return;
+    setFloors(prev => prev.map(f => (f.id === floorId ? {
+      ...f,
+      ...(updates.label !== undefined ? { label: updates.label } : {}),
+      ...(updates.floorKind !== undefined ? { floor_kind: updates.floorKind } : {}),
+      ...(updates.floorKindDescription !== undefined ? { floor_kind_description: updates.floorKindDescription } : {}),
+    } : f)));
+    await fetch(`/api/admin/floors/${floorId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+  };
+
   const stepIndex = STEPS.findIndex(s => s.id === step);
   const isLastStep = stepIndex === STEPS.length - 1;
   const canGoNext =
@@ -695,9 +718,40 @@ function AdminWizardPageInner() {
             {selectedFloor && (
               <Card>
                 <CardHeader><h3 className="text-sm font-semibold text-gray-900">Plano de {selectedFloor.label}</h3></CardHeader>
-                <div className="p-5">
+                <div className="p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Etiqueta (ej: Planta 1)"
+                        value={selectedFloor.label}
+                        onChange={e => handleFloorLabelChange(e.target.value)}
+                        onBlur={e => handleUpdateFloorMeta({ label: e.target.value })}
+                        aria-label="Etiqueta del piso"
+                      />
+                    </div>
+                    <div className="w-full sm:w-44 shrink-0">
+                      <select
+                        value={selectedFloor.floor_kind}
+                        onChange={e => handleUpdateFloorMeta({ floorKind: e.target.value as FloorKind })}
+                        aria-label="Tipo de piso"
+                        className="w-full h-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
+                      >
+                        {FLOOR_KIND_OPTIONS.map(o => (
+                          <option key={o.value} value={o.value}>{o.icon} {o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {selectedFloor.floor_kind !== 'units' && (
+                    <Input
+                      placeholder="Qué hay en este piso (ej: Pileta y solárium)"
+                      value={selectedFloor.floor_kind_description ?? ''}
+                      onChange={e => handleUpdateFloorMeta({ floorKindDescription: e.target.value })}
+                      aria-label="Descripción del tipo de piso"
+                    />
+                  )}
                   <ImageUploader value={selectedFloor.plan_image ?? ''} onChange={handleUpdateFloorPlan} folder="floorplans" />
-                  <p className="text-xs text-gray-400 mt-2">Este es el plano sobre el que vas a delimitar {unitLabel.toLowerCase()}s en el paso &quot;Delimitación&quot;.</p>
+                  <p className="text-xs text-gray-400">Este es el plano sobre el que vas a delimitar {unitLabel.toLowerCase()}s en el paso &quot;Delimitación&quot;.</p>
                 </div>
               </Card>
             )}
