@@ -3,12 +3,14 @@
 import { useState, useEffect, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
+import FloorParkingDelimiter from '@/components/admin/FloorParkingDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
+import type { FloorKind } from '@/types';
 
 type UnitRow = Pick<DbUnitRow, 'id' | 'code'>;
 
@@ -27,9 +29,10 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
 
   const [buildingName, setBuildingName] = useState('');
   const [floorLabel, setFloorLabel] = useState('');
+  const [floorKind, setFloorKind] = useState<FloorKind>('units');
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [view, setView] = useState<'deptos' | 'ambientes'>('deptos');
+  const [view, setView] = useState<'deptos' | 'ambientes' | 'cocheras'>('deptos');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -45,6 +48,12 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       setBuildingName(buildingData.building?.name ?? '');
       const floor = (buildingData.floors ?? []).find((f: { id: string }) => f.id === floorId);
       setFloorLabel(floor?.label ?? '');
+      // Un piso de tipo Cochera no se delimita por unidades ni por ambientes:
+      // lo que se marca sobre su plano son las cocheras de deptos de otros
+      // pisos. Por eso arranca directo en esa vista.
+      const kind: FloorKind = floor?.floor_kind ?? 'units';
+      setFloorKind(kind);
+      if (kind === 'parking') setView('cocheras');
       const list: UnitRow[] = Array.isArray(unitsData) ? unitsData : [];
       setUnits(list);
       if (list.length > 0) setActiveId(prev => prev ?? list[0].id);
@@ -81,20 +90,47 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     );
   }
 
+  // Piso de cocheras: lo que se marca sobre su plano son las cocheras de
+  // deptos de otros pisos, así que las dos vistas de siempre (delimitar
+  // unidades del piso y sus ambientes) no aplican y se reemplaza el
+  // contenido. Solo si igual tiene unidades propias cargadas se mantienen
+  // como solapas, para no dejar esos datos sin pantalla.
+  const isParking = floorKind === 'parking';
+  const showTabs = !unitIsLand && (!isParking || units.length > 0);
+
   return (
     <div className="space-y-6">
       <div>
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {unitLabelLower}s en el plano</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno; cuando terminaste tocá <strong>Listo</strong> (o Escape) y queda guardado. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
-        </p>
+        {isParking ? (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Marcar cocheras en el plano</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Tocá <strong>Agregar cochera</strong>, marcá el espacio sobre el plano y elegí de qué {unitLabelLower} es — podés cargar todas las de este subsuelo de una sentada. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. El desplegable incluye {unitLabelLower}s de todos los pisos del edificio, porque la cochera del subsuelo es de un depto de arriba.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {unitLabelLower}s en el plano</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno; cuando terminaste tocá <strong>Listo</strong> (o Escape) y queda guardado. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Un lote no tiene "ambientes" — solo se delimita su silueta. El resto
           de los tipos sí (deptos, dúplex): solapa aparte para eso. */}
-      {!unitIsLand && (
+      {showTabs && (
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          {isParking && (
+            <button
+              onClick={() => setView('cocheras')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'cocheras' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Cocheras
+            </button>
+          )}
           <button
             onClick={() => setView('deptos')}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'deptos' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
@@ -110,7 +146,9 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         </div>
       )}
 
-      {view === 'deptos' || unitIsLand ? (
+      {view === 'cocheras' ? (
+        <FloorParkingDelimiter buildingId={buildingId} floorId={floorId} />
+      ) : view === 'deptos' || unitIsLand ? (
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
