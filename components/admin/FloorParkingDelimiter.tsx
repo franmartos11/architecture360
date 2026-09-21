@@ -144,12 +144,30 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
   // se guarda OTRA cochera del mismo depto en este piso, este `working`
   // todavía trae la vaciada con `polygon: []` — usar `savedPolygon` como
   // respaldo evita que esa reconstrucción la pise en la base.
+  //
+  // Ese respaldo SOLO vale si no hay una reasignación pendiente sin guardar
+  // (`s.unitId === s.savedUnitId`): si el admin vació la forma y después
+  // cambió el depto del desplegable, `handleAssign` no llega a persistir
+  // porque el polígono tiene menos de 3 puntos — el spot queda con
+  // `unitId` nuevo pero `savedUnitId`/`savedPolygon` del dueño viejo. Si acá
+  // igual cayéramos a `savedPolygon`, cualquier guardado NO relacionado que
+  // apunte al depto nuevo terminaría copiándole la cochera del viejo sin
+  // que nadie confirmó esa reasignación — el dueño viejo la conserva porque
+  // nunca se lo vuelve a persistir, así que quedaría duplicada en los dos.
+  // Con la condición, ese spot directamente no entra en la lista de nadie
+  // hasta que el admin la termine de dibujar o de asignar: no se pierde
+  // (sigue en la base bajo el dueño viejo), pero tampoco se copia sola.
   const buildParkingSpots = (unitId: string, working: WorkingSpot[]): ParkingSpot[] => {
     const stored = units.find(u => u.id === unitId)?.parking_spots ?? [];
     const otherFloors = stored.filter(s => s.floorId !== floorId);
     const onThisFloor = working
       .filter(s => s.unitId === unitId)
-      .map(s => ({ s, polygon: s.polygon.length >= 3 ? s.polygon : s.savedPolygon }))
+      .map(s => ({
+        s,
+        polygon: s.polygon.length >= 3
+          ? s.polygon
+          : (s.unitId === s.savedUnitId ? s.savedPolygon : []),
+      }))
       .filter(({ polygon }) => polygon.length >= 3)
       .map(({ s, polygon }): ParkingSpot => ({
         floorId,
@@ -169,12 +187,24 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
   // se devuelve 'inconsistent' para avisar distinto (ahí sí puede haber
   // quedado duplicada y hace falta revisar a mano).
   const persist = async (unitIds: string[], working: WorkingSpot[]): Promise<PersistResult> => {
-    const patch = (unitId: string, parkingSpots: ParkingSpot[]) =>
-      fetch(`/api/admin/units/${unitId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parkingSpots }),
-      });
+    // `fetch` RECHAZA (no devuelve `ok: false`) ante red caída, DNS, CORS o
+    // abort — sin este try/catch esa falla se escapaba de `persist` entera:
+    // la reversión del PATCH anterior nunca se intentaba (cochera duplicada)
+    // y encima ni siquiera quedaba un toast de error, porque la excepción
+    // volaba hasta handleSave/handleAssign sin pasar por el `if (!ok)`.
+    const patch = async (unitId: string, parkingSpots: ParkingSpot[]): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/admin/units/${unitId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parkingSpots }),
+        });
+        return res.ok;
+      } catch (err) {
+        console.error('Error de red al guardar la cochera', unitId, err);
+        return false;
+      }
+    };
 
     const targets = [...new Set(unitIds.filter(Boolean))];
     if (targets.length === 0) return 'ok';
@@ -182,8 +212,8 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     if (targets.length === 1) {
       const [id] = targets;
       const parkingSpots = buildParkingSpots(id, working);
-      const res = await patch(id, parkingSpots);
-      if (!res.ok) return 'error';
+      const ok = await patch(id, parkingSpots);
+      if (!ok) return 'error';
       setUnits(prev => prev.map(u => (u.id === id ? { ...u, parking_spots: parkingSpots } : u)));
       return 'ok';
     }
@@ -192,14 +222,14 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     const newOwnerPrev = units.find(u => u.id === newOwnerId)?.parking_spots ?? [];
     const newOwnerNext = buildParkingSpots(newOwnerId, working);
 
-    const firstRes = await patch(newOwnerId, newOwnerNext);
-    if (!firstRes.ok) return 'error';
+    const firstOk = await patch(newOwnerId, newOwnerNext);
+    if (!firstOk) return 'error';
 
     const oldOwnerNext = buildParkingSpots(oldOwnerId, working);
-    const secondRes = await patch(oldOwnerId, oldOwnerNext);
-    if (!secondRes.ok) {
-      const rollbackRes = await patch(newOwnerId, newOwnerPrev);
-      return rollbackRes.ok ? 'error' : 'inconsistent';
+    const secondOk = await patch(oldOwnerId, oldOwnerNext);
+    if (!secondOk) {
+      const rollbackOk = await patch(newOwnerId, newOwnerPrev);
+      return rollbackOk ? 'error' : 'inconsistent';
     }
 
     setUnits(prev => prev.map(u => {

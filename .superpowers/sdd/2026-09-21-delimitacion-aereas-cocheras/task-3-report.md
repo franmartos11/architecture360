@@ -443,3 +443,113 @@ manual del flujo de estados.
    lugares que llaman con dos ids (`handleSave`, `handleAssign`), pero si en
    el futuro se agrega un tercer llamador con ese patrón, tiene que respetar
    el mismo orden o el rollback queda invertido.
+
+## Ronda de corrección 2
+
+La re-revisión de la ronda 1 confirmó que los cuatro mecanismos de esa ronda
+(`remapParkingSpotFloors`, `savedPolygon`, `persist()` secuencial con
+`'inconsistent'`, prioridad de `unitIsLand`) funcionan como se pensaron — no
+se tocó ninguno de los cuatro. Encontró, en cambio, que el arreglo del
+hallazgo 2 (`savedPolygon`) abría de nuevo el mismo agujero del hallazgo 3
+por otra puerta, y que la reversión de `persist()` no cubría fallas de
+transporte. Dos hallazgos nuevos, los dos en
+`components/admin/FloorParkingDelimiter.tsx`.
+
+### Hallazgo nuevo 1 — `savedPolygon` podía duplicar una cochera con una reasignación pendiente sin guardar
+
+`buildParkingSpots()` caía a `savedPolygon` mirando solo si el polígono en
+vivo estaba vacío, sin mirar si el spot tenía una reasignación de depto
+pendiente (`unitId` ya cambiado por el desplegable, pero `savedUnitId`
+todavía apuntando al dueño anterior porque `handleAssign` no llegó a
+persistir por tener menos de 3 puntos). En ese estado intermedio, cualquier
+guardado NO relacionado que apuntara al depto nuevo terminaba arrastrando la
+cochera del depto viejo a través de `savedPolygon`, sin que nadie hubiera
+confirmado esa reasignación — y el depto viejo la conservaba porque nunca se
+lo volvía a persistir. Resultado: la misma cochera en dos deptos, en
+silencio.
+
+**Arreglo, tal como lo sugirió el re-revisor**: condicioné el respaldo a que
+no haya reasignación pendiente (`s.unitId === s.savedUnitId`). Con eso:
+
+- el caso original del hallazgo 2 (vaciar una forma del MISMO depto sin
+  reasignar y guardar otra cochera del mismo piso) se sigue cubriendo, porque
+  ahí `unitId` nunca cambió;
+- el caso reasignado deja directamente de entrar en la lista de nadie hasta
+  que el admin termine de redibujarla o de confirmar la asignación — sin
+  pérdida de dato, porque sigue intacta en la base bajo el dueño anterior
+  (nunca se la vuelve a persistir mientras el spot esté en ese estado).
+
+### Hallazgo nuevo 2 — la reversión de `persist()` no cubría fallas de transporte
+
+Ni `patch()` ni `persist()` tenían `try/catch`: `fetch` RECHAZA (no devuelve
+`res.ok === false`) ante red caída, DNS, CORS o un abort. Si eso pasaba
+justo en el segundo PATCH de una reasignación de dos destinos, la reversión
+del primero nunca se intentaba (cochera duplicada, el mismo escenario que el
+hallazgo 3 pedía cerrar) y la excepción se escapaba hasta `handleSave`/
+`handleAssign` sin pasar por el `if (!ok)`: ni `setSavingKey(null)` corría ni
+había toast, así que el admin se quedaba con Guardar/Borrar deshabilitados y
+sin ningún aviso hasta recargar la página.
+
+**Arreglo, tal como lo sugirió el re-revisor**: `patch()` ahora envuelve el
+`fetch` en `try/catch` y devuelve `false` ante cualquier rechazo (con
+`console.error` para no perder el rastro), en vez de devolver el `Response`
+crudo. Con eso, una falla de transporte en el segundo PATCH termina en el
+mismo camino que una respuesta HTTP de error: se intenta la reversión del
+primero, y si esa reversión también falla (por la misma clase de problema de
+red), `persist()` igual devuelve `'inconsistent'` en vez de dejar escapar una
+excepción — el admin siempre termina con un toast, nunca con la pantalla
+muda.
+
+### Qué no toqué (diferido por el re-revisor para esta ronda)
+
+- Los dos endpoints de duplicar ahora escriben `parking_spots` siempre
+  explícito; en una base sin la migración de la Tarea 3 aplicada, el insert
+  de unidades fallaría silenciosamente (se traga el error, ya documentado en
+  la Tarea 3, y devuelve 201 con 0 unidades copiadas). Tema de orden de
+  despliegue, no de este código.
+- En el caso `'inconsistent'` de `persist()`, el estado local `units` queda
+  desfasado (no se fuerza un reload). El mensaje al admin ya avisa que hace
+  falta revisar a mano; impacto chico.
+- Los tests de los dos endpoints de duplicar identifican la llamada al
+  insert de unidades contando el índice de invocación de `.from()` en vez de
+  por nombre de tabla — funciona hoy, es frágil a futuro si se reordenan las
+  consultas del endpoint.
+
+### Verificación
+
+```
+$ npx tsc --noEmit -p .
+(sin salida)
+```
+
+```
+$ npx eslint components/admin/FloorParkingDelimiter.tsx
+(sin salida)
+```
+
+```
+$ npx vitest run --exclude "**/node_modules/**" --exclude ".claude/**"
+ Test Files  1 failed | 108 passed (109)
+      Tests  2 failed | 877 passed (879)
+```
+
+Mismos 2 tests preexistentes de `app/api/admin/bim/[id]/route.test.ts`
+fallando (ajenos a esta tarea), mismos números que al cierre de la ronda 1 —
+esta ronda no tocó ningún archivo con tests propios (los dos hallazgos caen
+los dos en la misma lógica de `FloorParkingDelimiter.tsx`, que no tiene
+infraestructura de test de componente en este repo). Verificación acá:
+typecheck + lint + relectura manual, caso por caso, de los cuatro escenarios
+de `persist()` (single-target ok/error, two-target ok, two-target
+error-con-rollback-ok, two-target error-con-rollback-fallido, y ahora los
+mismos cinco con rechazo de `fetch` en lugar de respuesta de error) y de la
+condición nueva en `buildParkingSpots` contra los dos casos del hallazgo
+nuevo 1 (mismo-depto sin reasignar, depto reasignado sin confirmar).
+
+### Dudas que quedan
+
+Ninguna nueva sobre los dos hallazgos de esta ronda — la lógica quedó
+acotada al mismo archivo y a las funciones puras (`buildParkingSpots`,
+`persist`) donde ya se había revisado todo el flujo en la ronda 1. Siguen
+abiertas las dudas 2 y 3 de la ronda 1 (sin poder probar contra la base real;
+el orden `[nueva, anterior]` de `persist()` depende de que futuros
+llamadores lo respeten).
