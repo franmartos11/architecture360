@@ -55,7 +55,17 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
   };
 
   return (
-    <div>
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={e => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
+      }}
+      className={`rounded-lg transition-colors ${dragOver ? 'ring-2 ring-brand-500 bg-brand-50' : ''}`}
+    >
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
       <div className="flex gap-3 items-start">
         <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden shrink-0 flex items-center justify-center">
@@ -71,14 +81,6 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
 
         <div className="flex-1 min-w-0 space-y-1.5">
           <div
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={e => {
-              e.preventDefault();
-              setDragOver(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFile(file);
-            }}
             onClick={() => inputRef.current?.click()}
             role="button"
             tabIndex={0}
@@ -90,7 +92,7 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
               }
             }}
             className={`px-3 py-2.5 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500
-              ${dragOver ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 hover:border-gray-300 text-gray-500'}`}
+              ${dragOver ? 'border-brand-500 text-brand-700' : 'border-gray-200 hover:border-gray-300 text-gray-500'}`}
           >
             {uploading ? 'Subiendo...' : 'Arrastrá una imagen o hacé click para elegir un archivo'}
             <input
