@@ -37,6 +37,14 @@ function mapProject(
   // hayan creado en la base (evita "Casa CASA" en migas, títulos, etc.).
   const isSingleUnit = !getProjectTypeConfig(project.project_type, project.sale_mode).hasUnitStep;
 
+  // La cochera de un depto está dibujada sobre el plano de OTRO piso (el
+  // subsuelo de cocheras), así que la fila de la unidad sola no alcanza para
+  // pintarla: guarda el floorId, no la imagen. Acá — que es el único lugar
+  // donde ya están a mano TODOS los pisos del proyecto — se le adosa el
+  // plan_image (y la etiqueta) de ese piso, y el visor público no necesita
+  // ninguna consulta extra.
+  const floorById = new Map(floorRows.map(f => [f.id, f]));
+
   const units: Unit[] = unitRows.map(u => {
     const floor = floorRows.find(f => f.id === u.floor_id)!;
     const building = buildingRows.find(b => b.id === floor.building_id)!;
@@ -92,6 +100,13 @@ function mapProject(
       roomPlanImage: u.room_plan_image ?? undefined,
       rooms: u.rooms ?? undefined,
       levels: u.levels ?? undefined,
+      parkingSpots: u.parking_spots?.length
+        ? u.parking_spots.map(spot => ({
+            ...spot,
+            planImage: floorById.get(spot.floorId)?.plan_image ?? undefined,
+            floorLabel: floorById.get(spot.floorId)?.label,
+          }))
+        : undefined,
     };
   });
 

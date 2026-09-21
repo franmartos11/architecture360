@@ -128,6 +128,41 @@ describe('PATCH /api/admin/units/[id]', () => {
     expect(updatePayload).toHaveProperty('updated_at');
   });
 
+  it('parkingSpots se mapea a la columna parking_spots tal cual', async () => {
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    const updateSpy = vi.fn((_payload: Record<string, unknown>) => ({
+      eq: () => ({ select: () => ({ single: async () => ({ data: { id: 'unit-1' }, error: null }) }) }),
+    }));
+    const supabase = { from: vi.fn(() => ({ update: updateSpy })) };
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const spots = [
+      { floorId: 'floor-ss1', label: 'C-12', polygon: [{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 40 }] },
+    ];
+    const res = await PATCH(
+      jsonRequest('http://localhost/api/admin/units/unit-1', { parkingSpots: spots }, { method: 'PATCH' }),
+      ctx('unit-1')
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateSpy.mock.calls[0][0].parking_spots).toEqual(spots);
+  });
+
+  it('vaciar las cocheras: manda [] (no se confunde con "no mandar nada")', async () => {
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    const updateSpy = vi.fn((_payload: Record<string, unknown>) => ({
+      eq: () => ({ select: () => ({ single: async () => ({ data: { id: 'unit-1' }, error: null }) }) }),
+    }));
+    const supabase = { from: vi.fn(() => ({ update: updateSpy })) };
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    await PATCH(
+      jsonRequest('http://localhost/api/admin/units/unit-1', { parkingSpots: [] }, { method: 'PATCH' }),
+      ctx('unit-1')
+    );
+    expect(updateSpy.mock.calls[0][0].parking_spots).toEqual([]);
+  });
+
   it('error de la base al actualizar: 500 con el mensaje', async () => {
     vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ error: { message: 'boom' } }] });

@@ -14,7 +14,7 @@ function makeRow(overrides: Partial<DbUnitRow> = {}): DbUnitRow {
     price: 150000, currency: 'USD', status: 'available', orientation: 'NE',
     interior_image_url: null, gallery_images: [],
     floor_plan_3d_url: null, plan_3d_url: null, technical_plan_url: null,
-    room_plan_image: null, polygon: null, rooms: null, levels: null,
+    room_plan_image: null, polygon: null, rooms: null, levels: null, parking_spots: null,
     tour_image_url: null, tour_data: null,
     created_at: '', updated_at: '',
     ...overrides,

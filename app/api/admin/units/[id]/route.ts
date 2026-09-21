@@ -49,6 +49,11 @@ const FIELD_MAP: Record<string, string> = {
   technicalPlanUrl: 'technical_plan_url',
   roomPlanImage: 'room_plan_image',
   polygon: 'polygon',
+  // Cocheras marcadas en el plano del piso de cocheras — las manda la
+  // pantalla de marcado masivo (components/admin/FloorParkingDelimiter.tsx),
+  // siempre con la lista COMPLETA de la unidad (todos los pisos), no solo
+  // las del piso que se está editando.
+  parkingSpots: 'parking_spots',
   rooms: 'rooms',
   levels: 'levels',
   tourImageUrl: 'tour_image_url',

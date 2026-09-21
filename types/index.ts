@@ -132,6 +132,30 @@ export interface UnitLevel {
   rooms: Room[];
 }
 
+// ─── Cochera marcada en el plano del piso de cocheras ───────────────
+// La cochera de un depto está dibujada sobre el plano de OTRO piso (el
+// subsuelo), no sobre el del piso de la unidad — por eso guarda a qué piso
+// pertenece, además de su forma. Es la forma tal cual se guarda en
+// units.parking_spots.
+export interface ParkingSpot {
+  /** floors.id del piso de cocheras sobre cuyo plan_image está dibujada. */
+  floorId: string;
+  /** Etiqueta opcional del espacio, ej. "C-12". */
+  label?: string;
+  /** Polígono en % sobre el plan_image de ese piso. */
+  polygon: { x: number; y: number }[];
+}
+
+// La misma cochera ya resuelta para el sitio público: el plano del piso
+// referenciado se completa en mapProject() (data/project-repository.ts),
+// porque la unidad vive en un piso y su cochera en otro.
+export interface UnitParkingSpot extends ParkingSpot {
+  /** plan_image del piso de cocheras — vacío si ese piso todavía no tiene plano. */
+  planImage?: string;
+  /** Etiqueta del piso de cocheras, ej. "Subsuelo 1". */
+  floorLabel?: string;
+}
+
 // ─── Floor ─────────────────────────────────────────────────────────
 export type FloorKind = 'units' | 'amenity' | 'offices' | 'technical' | 'parking' | 'other';
 
@@ -195,6 +219,8 @@ export interface Unit {
   roomPlanImage?: string;      // plano de ambientes de la planta baja/única
   rooms?: Room[];              // ambientes delimitados de la planta baja/única
   levels?: UnitLevel[];        // plantas adicionales (casa de 2+ niveles) — ver floorsCount
+  /** Cocheras de la unidad marcadas sobre el plano del piso de cocheras — ver UnitParkingSpot. */
+  parkingSpots?: UnitParkingSpot[];
 }
 
 // ─── Building (tower) ──────────────────────────────────────────────

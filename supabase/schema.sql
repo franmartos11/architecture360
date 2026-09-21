@@ -496,6 +496,7 @@ create table if not exists units (
   polygon jsonb,                    -- [{x,y}, ...] en % sobre floors.plan_image
   rooms jsonb,                      -- [{id,name,polygon,tourNodeId}, ...] de la planta baja/única
   levels jsonb,                     -- [{id,label,planImage,plan3dImage,rooms}, ...] plantas 2+ de una casa
+  parking_spots jsonb not null default '[]'::jsonb, -- [{floorId,label,polygon}, ...] cocheras marcadas en el plano del piso de cocheras
   tour_image_url text,
   tour_data jsonb,                  -- { initialNodeId, nodes: [...] }
   created_at timestamptz not null default now(),
@@ -550,6 +551,18 @@ update units set garage_covered = garage_spaces
   where garage_spaces > 0 and coalesce(garage_type, 'cubierta') = 'cubierta' and garage_covered = 0 and garage_uncovered = 0;
 update units set garage_uncovered = garage_spaces
   where garage_spaces > 0 and garage_type = 'descubierta' and garage_covered = 0 and garage_uncovered = 0;
+
+-- Cochera marcada sobre el plano del piso de cocheras: qué espacio le toca
+-- a cada depto. No reemplaza a garage_spaces/garage_covered/garage_uncovered
+-- (esos son contadores) — esto es *cuál* es el espacio y *en qué piso* está.
+-- Es una lista porque un depto puede tener más de una cochera, y cada
+-- elemento apunta a un piso distinto del de la unidad (la cochera del 7B
+-- está dibujada sobre el plano del subsuelo):
+--   [{ "floorId": "<uuid de floors>", "label": "C-12",
+--      "polygon": [{"x":12.5,"y":40.1}, ...] }, ...]
+-- x/y en % sobre floors.plan_image de ese piso — mismas coordenadas que
+-- units.polygon y units.rooms.
+alter table units add column if not exists parking_spots jsonb not null default '[]'::jsonb;
 
 -- ─── Vistas aéreas (carrusel) ───────────────────────────────────────
 create table if not exists aerial_slides (
