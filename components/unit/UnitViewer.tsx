@@ -10,7 +10,7 @@ import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, cocheraLabel, unitConditionLabel } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, cocheraLabel, unitConditionLabel, drawnParkingSpots } from '@/lib/units';
 import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -111,6 +111,9 @@ export default function UnitViewer({
 
   const hasTour = !!(unit.tourImageUrl || unit.tourData);
   const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
+  // Cochera marcada sobre el plano del piso de cocheras — se ve como una
+  // vista más adentro del tab "Planos".
+  const hasParking = drawnParkingSpots(unit.parkingSpots).length > 0;
 
   // Solo se muestran los tabs con contenido cargado — así un visitante no
   // clickea "360°" o "Planos" para encontrar una pantalla vacía. Los tabs
@@ -120,7 +123,7 @@ export default function UnitViewer({
     planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage) || (!!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0)),
     tour360: hasTour,
     plano: hasRooms || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
-      || !!unit.levels?.some(l => l.planImage),
+      || !!unit.levels?.some(l => l.planImage) || hasParking,
     galeria: (unit.galleryImages?.length ?? 0) > 0,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
     ubicacion: pointsOfInterest.length > 0,
@@ -165,7 +168,15 @@ export default function UnitViewer({
     ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(r => r.kind || isRoomDrawn(r)) })),
   ].filter(g => g.rooms.length > 0);
   const showRoomList = showRoomProgram || roomFloors.length > 0;
-  const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes'>(hasRooms ? 'ambientes' : '3d');
+  // Vista con la que arranca el tab "Planos": ambientes si los hay; si no
+  // hay ambientes ni planos 3D/técnico pero sí cochera marcada, la cochera
+  // (si no, el selector abriría en una vista vacía).
+  const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes' | 'cochera'>(
+    hasRooms ? 'ambientes'
+    : (unit.plan3dUrl || unit.technicalPlanUrl || unit.floorPlan3dUrl) ? '3d'
+    : hasParking ? 'cochera'
+    : '3d'
+  );
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Programa de ambientes de la sidebar — fila expandible + lightbox de fotos.
   const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);

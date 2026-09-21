@@ -64,7 +64,10 @@ describe('GET /api/admin/units', () => {
     const res = await GET(get('http://localhost/api/admin/units'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { id: 'unit-1', floor_id: 'floor-1', floor_number: 3, building_slug: 'torre', building_name: 'Torre del Mar' },
+      {
+        id: 'unit-1', floor_id: 'floor-1', floor_number: 3,
+        building_id: 'building-1', building_slug: 'torre', building_name: 'Torre del Mar',
+      },
     ]);
   });
 
@@ -133,5 +136,29 @@ describe('POST /api/admin/units', () => {
     const res = await POST(jsonRequest('http://localhost/api/admin/units', { floorId: 'floor-1', code: 'A1', type: 'monoambiente' }));
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'unit-1', code: 'A1' });
+  });
+
+  // parking_spots tiene default '[]' en la base: un alta normal no manda la
+  // columna (así sigue andando en bases sin la migración aplicada), y solo
+  // la manda si el body la trae.
+  it('alta normal: no manda parking_spots; si el body lo trae, sí', async () => {
+    vi.mocked(resolveProjectIdFromFloor).mockResolvedValue('project-1');
+    const insertSpy = vi.fn((_payload: Record<string, unknown>) => ({
+      select: () => ({ single: async () => ({ data: { id: 'unit-1' }, error: null }) }),
+    }));
+    const supabase = {
+      from: vi.fn(() => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { project_type: 'edificio', sale_mode: 'venta' } }) }) }),
+        insert: insertSpy,
+      })),
+    };
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    await POST(jsonRequest('http://localhost/api/admin/units', { floorId: 'floor-1', code: 'A1', type: 'monoambiente' }));
+    expect(insertSpy.mock.calls[0][0]).not.toHaveProperty('parking_spots');
+
+    const spots = [{ floorId: 'floor-ss1', label: 'C-12', polygon: [{ x: 1, y: 2 }] }];
+    await POST(jsonRequest('http://localhost/api/admin/units', { floorId: 'floor-1', code: 'A2', type: 'monoambiente', parkingSpots: spots }));
+    expect(insertSpy.mock.calls[1][0].parking_spots).toEqual(spots);
   });
 });

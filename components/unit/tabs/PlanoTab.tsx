@@ -6,8 +6,10 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Unit, Room } from '@/types';
 import RoomPlanViewer from '../RoomPlanViewer';
+import ParkingPlanViewer from '../ParkingPlanViewer';
+import { parkingFloorGroups } from '@/lib/units';
 
-type PlanView = '3d' | '2d' | 'ambientes';
+type PlanView = '3d' | '2d' | 'ambientes' | 'cochera';
 
 export default function PlanoTab({
   unit,
@@ -34,6 +36,13 @@ export default function PlanoTab({
   ], [unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
   const [activeLevelIdx, setActiveLevelIdx] = useState(0);
   const activeLevel = levels[activeLevelIdx] ?? levels[0];
+
+  // Cocheras: la forma está dibujada sobre el plano de OTRO piso (el
+  // subsuelo), así que cada grupo trae su propio plano. Un depto puede
+  // tener espacios en más de un subsuelo → selector, igual que las plantas.
+  const parkingGroups = useMemo(() => parkingFloorGroups(unit.parkingSpots), [unit.parkingSpots]);
+  const [activeParkingIdx, setActiveParkingIdx] = useState(0);
+  const activeParking = parkingGroups[activeParkingIdx] ?? parkingGroups[0];
 
   // Si se pidió resaltar un ambiente, saltar a la planta que lo contiene —
   // ajustado durante el render comparando contra el focusRoomId anterior,
@@ -79,8 +88,36 @@ export default function PlanoTab({
           >
             Plano técnico
           </button>
+          {/* Solo si este depto tiene al menos una cochera marcada y con
+              plano — mismo criterio de "sin contenido no se muestra" que
+              usan los tabs del visor. */}
+          {parkingGroups.length > 0 && (
+            <button
+              onClick={() => onPlanViewChange('cochera')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'cochera' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Cochera
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Selector de subsuelo — solo si tiene cocheras en más de un piso */}
+      {planView === 'cochera' && parkingGroups.length > 1 && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+            {parkingGroups.map((g, i) => (
+              <button
+                key={g.floorId}
+                onClick={() => setActiveParkingIdx(i)}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-200 ${activeParkingIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Selector de planta — solo si hay más de una (casa de 2+ niveles) */}
       {planView === 'ambientes' && levels.length > 1 && (
@@ -101,7 +138,9 @@ export default function PlanoTab({
 
       {/* Plan image with zoom */}
       <div className="flex-1 relative overflow-hidden">
-        {planView === 'ambientes' && hasRooms && activeLevel.planImage ? (
+        {planView === 'cochera' && activeParking ? (
+          <ParkingPlanViewer planImage={activeParking.planImage} spots={activeParking.spots} />
+        ) : planView === 'ambientes' && hasRooms && activeLevel.planImage ? (
           <RoomPlanViewer
             planImage={activeLevel.planImage}
             rooms={activeLevel.rooms}

@@ -4,7 +4,7 @@
 // propia copia a mano de estas mismas interfaces — un rename de columna
 // obligaba a cazar N archivos. Las páginas que solo necesitan un
 // subconjunto de columnas usan `Pick<...>` sobre estos tipos completos.
-import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig, BimModelStatus, BimSourceFormat, BimModelStats } from './index';
+import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ParkingSpot, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig, BimModelStatus, BimSourceFormat, BimModelStats } from './index';
 
 export interface ProjectRow {
   id: string;
@@ -144,6 +144,9 @@ export interface UnitRow {
   polygon: { x: number; y: number }[] | null;
   rooms: Room[] | null;
   levels: UnitLevel[] | null;
+  /** Cocheras de la unidad dibujadas sobre el plano de un piso de cocheras.
+   *  null = base todavía sin la columna (migración sin aplicar). */
+  parking_spots: ParkingSpot[] | null;
   tour_image_url: string | null;
   tour_data: TourData | null;
   created_at: string;
