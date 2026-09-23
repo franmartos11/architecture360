@@ -6,6 +6,8 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitOrRespond } from './rate-limit';
 
+// Cliente cuya función check_rate_limit NO existe todavía en la base: así
+// estos casos siguen ejercitando el camino de respaldo (las dos consultas).
 function mockAdminClient(count: number) {
   const insert = vi.fn().mockResolvedValue({ error: null });
   const del = vi.fn().mockResolvedValue({ error: null });
@@ -18,7 +20,16 @@ function mockAdminClient(count: number) {
     insert,
     delete: () => ({ lt: del }),
   }));
-  return { from, insert, delete: del };
+  const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '42883', message: 'function does not exist' } });
+  return { from, insert, delete: del, rpc };
+}
+
+/** Cliente con la función ya aplicada: devuelve lo que decida Postgres. */
+function mockAdminClientConRpc(permitido: boolean) {
+  const insert = vi.fn();
+  const from = vi.fn(() => ({ select: () => ({ eq: () => ({ gte: () => Promise.resolve({ count: 0 }) }) }), insert }));
+  const rpc = vi.fn().mockResolvedValue({ data: permitido, error: null });
+  return { from, insert, rpc };
 }
 
 describe('checkRateLimit', () => {
@@ -61,6 +72,43 @@ describe('checkRateLimit', () => {
     vi.mocked(createAdminClient).mockReturnValue(client as never);
     await checkRateLimit({ key: 'k', windowSeconds: 600, max: 5 });
     expect(client.delete).not.toHaveBeenCalled();
+  });
+
+  it('con la función en la base: resuelve en una sola llamada y no consulta la tabla', async () => {
+    const client = mockAdminClientConRpc(true);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
+
+    const allowed = await checkRateLimit({ key: 'leads:ip:9.9.9.9', windowSeconds: 600, max: 5 });
+
+    expect(allowed).toBe(true);
+    expect(client.rpc).toHaveBeenCalledWith('check_rate_limit', {
+      p_key: 'leads:ip:9.9.9.9', p_window_seconds: 600, p_max: 5,
+    });
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.insert).not.toHaveBeenCalled();
+  });
+
+  it('con la función en la base: si Postgres dice que se pasó, devuelve false', async () => {
+    vi.mocked(createAdminClient).mockReturnValue(mockAdminClientConRpc(false) as never);
+    expect(await checkRateLimit({ key: 'k', windowSeconds: 60, max: 3 })).toBe(false);
+  });
+
+  it('sin la función todavía: cae al camino de dos pasos en vez de romper', async () => {
+    const client = mockAdminClient(0);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
+
+    expect(await checkRateLimit({ key: 'k', windowSeconds: 60, max: 3 })).toBe(true);
+    expect(client.insert).toHaveBeenCalled();
+  });
+
+  it('ante un error real de la base no deja pasar: falla fuerte', async () => {
+    const client = {
+      ...mockAdminClient(0),
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: '57P01', message: 'server closed the connection' } }),
+    };
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
+
+    await expect(checkRateLimit({ key: 'k', windowSeconds: 60, max: 3 })).rejects.toThrow(/server closed/);
   });
 });
 

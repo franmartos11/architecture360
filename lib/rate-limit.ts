@@ -34,20 +34,49 @@ async function countRecentHits(key: string, windowSeconds: number): Promise<numb
   return count ?? 0;
 }
 
+/** Código de Postgres para "esa función no existe" (undefined_function). */
+const FUNCION_INEXISTENTE = '42883';
+
 /**
  * true = dentro del límite (y ya registró este intento). false = se pasó
  * — el caller decide qué responder.
+ *
+ * Por defecto lo resuelve la función check_rate_limit de Postgres: una sola
+ * ida y vuelta, y sin la ventana de carrera que tenía hacerlo en dos pasos
+ * desde acá (dos pedidos simultáneos leían el mismo conteo por debajo del
+ * límite y pasaban los dos).
+ *
+ * Si la función todavía no está en la base —el SQL se aplica a mano, ver
+ * supabase/migrations/— cae al camino viejo en vez de romper. Así el deploy
+ * del código y el de la migración pueden ir en cualquier orden.
  */
 export async function checkRateLimit({ key, windowSeconds, max }: RateLimitOptions): Promise<boolean> {
+  const { data, error } = await createAdminClient().rpc('check_rate_limit', {
+    p_key: key,
+    p_window_seconds: windowSeconds,
+    p_max: max,
+  });
+
+  if (!error) return data === true;
+
+  if (error.code !== FUNCION_INEXISTENTE) {
+    // Un error de verdad (base caída, permisos). No dejar pasar a ciegas:
+    // un rate-limit que falla abierto no sirve de nada.
+    throw new Error(`rate limit: ${error.message}`);
+  }
+
+  console.warn('[rate-limit] falta check_rate_limit en la base — usando el camino viejo. Aplicá supabase/migrations/2026-09-23-rate-limit-atomico.sql');
+  return checkRateLimitEnDosPasos({ key, windowSeconds, max });
+}
+
+/** El camino de antes. Queda sólo como red por si la función no está todavía. */
+async function checkRateLimitEnDosPasos({ key, windowSeconds, max }: RateLimitOptions): Promise<boolean> {
   const recent = await countRecentHits(key, windowSeconds);
   if (recent >= max) return false;
 
   const admin = createAdminClient();
   await admin.from('api_rate_limit_hits').insert({ key });
 
-  // Housekeeping oportunista: sin esto la tabla crece para siempre. Baja
-  // probabilidad para no sumarle una query de DELETE a cada request; no
-  // hace falta que sea exacto, solo que la tabla no crezca sin límite.
   if (Math.random() < 0.01) {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     void admin.from('api_rate_limit_hits').delete().lt('created_at', cutoff);
