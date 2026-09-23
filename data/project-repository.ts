@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { demoProject } from './mockData';
 import { getPublicBimModelsByProject } from './bim-repository';
+import { flattenBuildingTree, type NestedBuildingRow } from './building-tree';
 import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit, BimModel } from '@/types';
 import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
 import { getProjectTypeConfig } from '@/lib/project-types';
@@ -245,10 +246,14 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
   const { data: project } = await supabase.from('projects').select('*').eq('slug', slug).maybeSingle();
   if (!project) return undefined;
 
-  // Todo lo que solo depende de project.id se pide en paralelo — buildings→floors→units
-  // y slides→hotspots son las únicas cadenas de dependencia reales acá adentro.
+  // Todo lo que solo depende de project.id se pide en paralelo. buildings,
+  // floors y units vienen embebidos en una sola consulta: antes eran tres
+  // idas y vueltas encadenadas (cada una necesitaba los ids de la anterior),
+  // ~570ms contra los ~196ms que cuesta pedirlos juntos. Como es latencia y
+  // no volumen, el ahorro es el mismo para un proyecto chico que para uno
+  // grande. slides→hotspots sigue siendo la única cadena real acá adentro.
   const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators, bimModels] = await Promise.all([
-    supabase.from('buildings').select('*').eq('project_id', project.id),
+    supabase.from('buildings').select('*, floors(*, units(*))').eq('project_id', project.id),
     (async () => {
       const { data: slideRows } = await supabase
         .from('aerial_slides')
@@ -282,17 +287,13 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
       .then(({ data }) => (data ?? []) as unknown as CollaboratorJoinRow[]),
     getPublicBimModelsByProject(project.id),
   ]);
-  const buildings = (buildingsResult.data ?? []) as BuildingRow[];
-
-  const { data: floorRows } = buildings.length
-    ? await supabase.from('floors').select('*').in('building_id', buildings.map(b => b.id))
-    : { data: [] };
-  const floors = (floorRows ?? []) as FloorRow[];
-
-  const { data: unitRows } = floors.length
-    ? await supabase.from('units').select('*').in('floor_id', floors.map(f => f.id))
-    : { data: [] };
-  const units = (unitRows ?? []) as UnitRow[];
+  // Nota: PostgREST corta a 1000 filas por defecto. El límite pega sobre los
+  // buildings (el nivel de arriba), no sobre lo embebido — al revés de las
+  // consultas sueltas que esto reemplazó, donde el tope caía justo sobre
+  // `units`, que es la tabla que más crece.
+  const { buildings, floors, units } = flattenBuildingTree(
+    (buildingsResult.data ?? []) as NestedBuildingRow[]
+  );
 
   return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
 });
