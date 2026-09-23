@@ -58,8 +58,12 @@ export async function requireProjectAccess(
 // ─── Resolver el project_id dueño de un recurso anidado ─────────────
 // Las rutas de building/floor/unit reciben el id del recurso, no el del
 // proyecto — hace falta subir la cadena de FKs antes de poder llamar a
-// requireProjectAccess(). Las lecturas acá son públicas (no dependen de
-// sesión), así que alcanza con el cliente anon/sesión.
+// requireProjectAccess().
+//
+// Estas lecturas TIENEN que ir con el cliente de sesión (./server.ts): desde
+// que las políticas de lectura son `published or owner_id = auth.uid()`, un
+// cliente anónimo no ve las filas de un proyecto sin publicar y el dueño se
+// quedaría sin poder editar su propio borrador. No cambiar a ./public.ts.
 
 export async function resolveProjectIdFromBuilding(buildingId: string): Promise<string | null> {
   const supabase = await createClient();
