@@ -8,6 +8,7 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import type { Amenity, Building } from '@/types';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 interface AmenityDetailModalProps {
   amenity: Amenity | null;
@@ -52,6 +53,7 @@ export default function AmenityDetailModal({ amenity, building, onClose, onReque
     : null;
 
   return (
+    <ModalPortal open={!!amenity}>
     <AnimatePresence>
       {amenity && (
         <>
@@ -241,5 +243,6 @@ export default function AmenityDetailModal({ amenity, building, onClose, onReque
         </>
       )}
     </AnimatePresence>
+    </ModalPortal>
   );
 }

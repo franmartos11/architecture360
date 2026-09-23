@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { formatPrice } from '@/lib/units';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 interface MortgageCalculatorModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
     : 0;
 
   return (
+    <ModalPortal open={isOpen}>
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -146,5 +148,6 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
         </div>
       )}
     </AnimatePresence>
+    </ModalPortal>
   );
 }

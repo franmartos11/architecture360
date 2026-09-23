@@ -1,6 +1,7 @@
 'use client';
 
 import { m as motion, AnimatePresence } from 'framer-motion';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 // Lightbox de imagen a pantalla completa con prev/next/contador — usado
 // tanto por la Galería de la unidad como por el detalle de una amenity.
@@ -20,6 +21,7 @@ export default function ImageLightbox({
   altPrefix?: string;
 }) {
   return (
+    <ModalPortal open={isOpen && images.length > 0}>
     <AnimatePresence>
       {isOpen && images.length > 0 && (
         <motion.div
@@ -84,5 +86,6 @@ export default function ImageLightbox({
         </motion.div>
       )}
     </AnimatePresence>
+    </ModalPortal>
   );
 }

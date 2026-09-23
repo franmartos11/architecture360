@@ -7,6 +7,7 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { Unit } from '@/types';
 import { formatPrice, getStatusLabel } from '@/lib/units';
 import Badge from '@/components/ui/Badge';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 interface UnitModalProps {
   unit: Unit | null;
@@ -25,6 +26,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
   }, [onClose]);
 
   return (
+    <ModalPortal open={!!unit}>
     <AnimatePresence>
       {unit && (
         <>
@@ -153,6 +155,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
         </>
       )}
     </AnimatePresence>
+    </ModalPortal>
   );
 }
 

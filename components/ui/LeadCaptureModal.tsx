@@ -5,6 +5,7 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
+import ModalPortal from '@/components/ui/ModalPortal';
 
 interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -111,6 +112,7 @@ export default function LeadCaptureModal({
   };
 
   return (
+    <ModalPortal open={isOpen}>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -259,5 +261,6 @@ export default function LeadCaptureModal({
         </>
       )}
     </AnimatePresence>
+    </ModalPortal>
   );
 }
