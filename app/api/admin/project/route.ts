@@ -111,7 +111,7 @@ export async function PATCH(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

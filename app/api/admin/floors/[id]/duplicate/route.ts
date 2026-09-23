@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
 
 // Duplica un piso entero: clona cada unidad del piso de origen —incluyendo
@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const projectId = await resolveProjectIdFromFloor(sourceFloorId);
   if (!projectId) return NextResponse.json({ error: 'Piso de origen no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

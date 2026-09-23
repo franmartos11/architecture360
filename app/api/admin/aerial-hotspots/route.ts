@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromSlide, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'La vista aérea y el edificio no pertenecen al mismo proyecto' }, { status: 400 });
   }
 
-  const access = await requireProjectAccess(slideProjectId);
+  const access = await requireProjectAccess(slideProjectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

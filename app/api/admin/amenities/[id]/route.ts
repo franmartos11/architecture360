@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromAmenity, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromAmenity, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText, sanitizeMultiline, sanitizeSpecs } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +15,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
@@ -41,7 +41,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const projectId = await resolveProjectIdFromAmenity(id);
   if (!projectId) return NextResponse.json({ error: 'Amenity no encontrada' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

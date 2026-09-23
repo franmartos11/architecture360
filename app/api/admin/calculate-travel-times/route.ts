@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'projectId requerido.' }, { status: 400 });
   }
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 
 // Aplica el "piso tipo" de un piso de referencia a OTRO piso que ya existe
 // (a diferencia de /duplicate, que siempre crea un piso nuevo) — para
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'El piso de origen no pertenece a este proyecto' }, { status: 400 });
   }
 
-  const access = await requireProjectAccess(targetProjectId);
+  const access = await requireProjectAccess(targetProjectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

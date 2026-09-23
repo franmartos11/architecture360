@@ -1,5 +1,7 @@
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createPublicClient } from '@/lib/supabase/public';
 import { demoProject } from './mockData';
 import { getPublicBimModelsByProject } from './bim-repository';
 import { flattenBuildingTree, type NestedBuildingRow } from './building-tree';
@@ -222,28 +224,79 @@ function mapProject(
   };
 }
 
-// Para las páginas públicas (y el sitemap) — a diferencia de
-// getProjectBySlug, que también usa /admin/sitio para su preview en vivo
-// y por eso NO puede filtrar por published (el modo borrador existe
-// justamente para poder previsualizar antes de publicar).
+/** Tag de caché de un proyecto. El admin lo invalida al guardar (ver lib/revalidate-project.ts). */
+export const projectCacheTag = (slug: string) => `project:${slug}`;
+
+/**
+ * Para las páginas públicas (y el sitemap).
+ *
+ * Dos diferencias con getProjectBySlug, que es la que usa /admin/sitio para
+ * su preview en vivo:
+ *
+ * - Filtra por published. El preview del admin no puede, porque el modo
+ *   borrador existe justamente para ver el proyecto antes de publicarlo.
+ * - Lee con el cliente público (sin cookies) y el resultado queda cacheado
+ *   bajo el tag del proyecto. Un microsite es el mismo para todos los
+ *   visitantes anónimos, y antes se rearmaba entero en cada visita: cuatro
+ *   consultas encadenadas a Supabase, ~800ms, multiplicado por cada persona
+ *   que entra. Ahora se arma una vez y se rehace cuando el admin guarda algo
+ *   de ese proyecto (o cuando pasa el revalidate, como red de seguridad por
+ *   si un cambio entra por fuera de la app).
+ */
 export const getPublicProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
   if (!SUPABASE_CONFIGURED) {
-    return getProjectBySlug(slug);
+    return slug === demoProject.slug ? demoProject : undefined;
   }
-  const supabase = await createClient();
-  const { data: row } = await supabase.from('projects').select('published').eq('slug', slug).maybeSingle();
-  if (!row || row.published === false) return undefined;
-  return getProjectBySlug(slug);
+  return readPublicProject(slug)(slug);
 });
+
+/** Red de seguridad por si un cambio entra por fuera de la app (SQL a mano, otro servicio). */
+const PUBLIC_PROJECT_REVALIDATE_SECONDS = 3600;
+
+/**
+ * La función cacheada, una por slug y creada una sola vez.
+ *
+ * unstable_cache tiene que envolver algo estable: si se lo llama adentro del
+ * handler se arma una closure nueva en cada request y la caché no se
+ * comparte entre ellas (así estaba y por eso no pegaba una).
+ */
+const publicProjectReaders = new Map<string, (slug: string) => Promise<Project | undefined>>();
+
+function readPublicProject(slug: string) {
+  let reader = publicProjectReaders.get(slug);
+  if (!reader) {
+    reader = unstable_cache(
+      (s: string) => fetchProjectBySlug(createPublicClient(), s, { onlyPublished: true }),
+      ['public-project', slug],
+      { tags: [projectCacheTag(slug)], revalidate: PUBLIC_PROJECT_REVALIDATE_SECONDS }
+    );
+    publicProjectReaders.set(slug, reader);
+  }
+  return reader;
+}
 
 export const getProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
   if (!SUPABASE_CONFIGURED) {
     return slug === demoProject.slug ? demoProject : undefined;
   }
+  // Sin cachear a propósito: es la que alimenta el preview del admin, que
+  // tiene que mostrar lo último guardado, borradores incluidos.
+  return fetchProjectBySlug(await createClient(), slug);
+});
 
-  const supabase = await createClient();
+type ProjectQueryClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
-  const { data: project } = await supabase.from('projects').select('*').eq('slug', slug).maybeSingle();
+/** Las consultas en sí, sin decidir con qué cliente ni si se cachean. */
+async function fetchProjectBySlug(
+  supabase: ProjectQueryClient,
+  slug: string,
+  { onlyPublished = false }: { onlyPublished?: boolean } = {}
+): Promise<Project | undefined> {
+  // El filtro de publicado va acá y no en una consulta aparte: antes el
+  // camino público preguntaba primero "¿está publicado?" y recién después
+  // traía el proyecto, pagando una ida y vuelta de más.
+  const projectQuery = supabase.from('projects').select('*').eq('slug', slug);
+  const { data: project } = await (onlyPublished ? projectQuery.eq('published', true) : projectQuery).maybeSingle();
   if (!project) return undefined;
 
   // Todo lo que solo depende de project.id se pide en paralelo. buildings,
@@ -285,7 +338,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
       .eq('project_id', project.id)
       .eq('status', 'accepted')
       .then(({ data }) => (data ?? []) as unknown as CollaboratorJoinRow[]),
-    getPublicBimModelsByProject(project.id),
+    getPublicBimModelsByProject(project.id, supabase),
   ]);
   // Nota: PostgREST corta a 1000 filas por defecto. El límite pega sobre los
   // buildings (el nivel de arriba), no sobre lo embebido — al revés de las
@@ -296,7 +349,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
   );
 
   return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
-});
+}
 
 export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {
   const project = await getProjectBySlug(slug);

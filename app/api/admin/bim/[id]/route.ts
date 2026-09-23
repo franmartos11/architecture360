@@ -21,7 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromBimModel(id);
   if (!projectId) return NextResponse.json({ error: 'Pieza no encontrada' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => ({})));
@@ -102,7 +102,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const projectId = await resolveProjectIdFromBimModel(id);
   if (!projectId) return NextResponse.json({ error: 'Pieza no encontrada' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data: currentData } = await access.supabase.from('bim_models').select('*').eq('id', id).maybeSingle();

@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  requireProjectAccess,
-  resolveProjectIdFromSlide,
-  resolveProjectIdFromBuilding,
-} from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 
 // "Guardar todo" desde /admin/proyecto/aereas/[slideId]: la pantalla ahora
 // trabaja sobre todas las vistas aéreas del proyecto a la vez, así que en
@@ -66,7 +62,7 @@ export async function POST(request: Request) {
   }
   const projectId = [...allProjectIds][0];
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

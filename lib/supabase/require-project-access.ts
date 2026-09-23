@@ -1,6 +1,8 @@
 import 'server-only';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { after } from 'next/server';
+import { revalidateProjectById } from '@/lib/revalidate-project';
 import { createClient } from './server';
 import { getRequestUser } from './auth';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
@@ -24,7 +26,18 @@ export interface ProjectAccess {
 // proyecto puntual. Devuelve el cliente de sesión del usuario para que
 // la ruta lo use — así, cuando existan políticas RLS de escritura
 // (próximo sprint), quedan aplicadas de verdad y no solo de nombre.
-export async function requireProjectAccess(projectId: string): Promise<ProjectAccess | null> {
+/**
+ * @param revalidate lo pasan las rutas que ESCRIBEN: además de chequear el
+ *   permiso, tiran la caché del microsite público de ese proyecto, que queda
+ *   viejo con cualquier cambio. Va por after(), o sea una vez despachada la
+ *   respuesta, que es la única forma de que caiga DESPUÉS del write —
+ *   invalidar antes dejaría que una visita en el medio volviera a cachear el
+ *   contenido viejo.
+ */
+export async function requireProjectAccess(
+  projectId: string,
+  { revalidate = false }: { revalidate?: boolean } = {}
+): Promise<ProjectAccess | null> {
   const supabase = await createClient();
   const user = await getRequestUser();
   if (!user) return null;
@@ -36,6 +49,8 @@ export async function requireProjectAccess(projectId: string): Promise<ProjectAc
     .eq('owner_id', user.id)
     .maybeSingle();
   if (!project) return null;
+
+  if (revalidate) after(() => revalidateProjectById(projectId));
 
   return { user, supabase };
 }

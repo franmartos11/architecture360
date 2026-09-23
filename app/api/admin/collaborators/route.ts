@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { resolveRequestedProjectId, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!body.handle || typeof body.handle !== 'string') return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
   const contribution = sanitizeText(body.contribution, 300);
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 

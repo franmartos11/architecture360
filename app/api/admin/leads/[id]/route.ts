@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromLead } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromLead, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { isValidEnum, LEAD_STATUSES } from '@/lib/validate';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -7,7 +7,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromLead(id);
   if (!projectId) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

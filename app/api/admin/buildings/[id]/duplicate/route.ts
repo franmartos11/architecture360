@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { remapParkingSpotFloors } from '@/lib/units';
@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const projectId = await resolveProjectIdFromBuilding(id);
   if (!projectId) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

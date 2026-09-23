@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -7,7 +7,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromFloor(id);
   if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
@@ -31,7 +31,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const projectId = await resolveProjectIdFromFloor(id);
   if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

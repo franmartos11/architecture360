@@ -17,7 +17,7 @@ import { deleteBimStorageFiles } from '@/lib/supabase/delete-bim-storage';
 //   bucket con el cliente admin, igual que /api/admin/upload los sube.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const access = await requireProjectAccess(id);
+  const access = await requireProjectAccess(id, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const admin = createAdminClient();

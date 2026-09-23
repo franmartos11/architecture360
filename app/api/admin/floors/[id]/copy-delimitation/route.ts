@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveProjectIdFromFloor } from '@/lib/supabase/require-project-access';
+import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 
 // Copia polígono + pin de cada depto de un piso de referencia a este piso —
 // para cuando los pisos ya tienen sus unidades cargadas (ej. vía CSV o uno
@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'El piso de origen no pertenece a este proyecto' }, { status: 400 });
   }
 
-  const access = await requireProjectAccess(targetProjectId);
+  const access = await requireProjectAccess(targetProjectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

@@ -20,7 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // la copia.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const access = await requireProjectAccess(id);
+  const access = await requireProjectAccess(id, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 

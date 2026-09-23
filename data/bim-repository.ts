@@ -49,9 +49,17 @@ export const getBimModelsByProject = cache(async (projectId: string): Promise<Bi
 
 // Para la landing pública: el filtro va explícito además de RLS, mismo
 // criterio que ya usa amenities/pointsOfInterest en project-repository.ts.
-export const getPublicBimModelsByProject = cache(async (projectId: string): Promise<BimModel[]> => {
+/**
+ * @param client cliente con el que leer. Lo pasa quien llama desde un scope
+ *   cacheado (el microsite público): ahí no puede crearse uno con createClient(),
+ *   que lee cookies, porque unstable_cache no admite datos dinámicos adentro.
+ */
+export const getPublicBimModelsByProject = cache(async (
+  projectId: string,
+  client?: Pick<Awaited<ReturnType<typeof createClient>>, 'from'>
+): Promise<BimModel[]> => {
   if (!SUPABASE_CONFIGURED) return [];
-  const supabase = await createClient();
+  const supabase = client ?? await createClient();
   const { data } = await supabase
     .from('bim_models')
     .select('*, bim_model_floors(floor_id), bim_model_units(unit_id)')

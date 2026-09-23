@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromBuilding(id);
   if (!projectId) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
@@ -61,7 +61,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const projectId = await resolveProjectIdFromBuilding(id);
   if (!projectId) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

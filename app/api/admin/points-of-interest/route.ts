@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { resolveRequestedProjectId, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
 
@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId);
+  const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
