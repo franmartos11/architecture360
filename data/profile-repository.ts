@@ -207,6 +207,26 @@ export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]>
   }));
 });
 
+/**
+ * Sólo los handles que van al sitemap.
+ *
+ * getPortfolioDirectory() trae el perfil entero (bio, avatar, ubicación) y
+ * encima cuenta los proyectos de cada uno con una segunda consulta, para que
+ * el sitemap termine usando nada más que el handle. Acá se pide lo que se
+ * usa y se filtra is_indexed en la base en vez de en memoria.
+ */
+export const getIndexableProfileHandles = cache(async (): Promise<string[]> => {
+  if (!SUPABASE_CONFIGURED) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('handle')
+    .eq('is_public', true)
+    .eq('is_indexed', true)
+    .order('handle');
+  return (data ?? []).map(p => p.handle as string);
+});
+
 type ProfileJoinRow = Pick<ProfileRow, 'id' | 'handle' | 'display_name' | 'account_type' | 'avatar_image' | 'bio' | 'location'>;
 
 async function toDirectoryProfiles(profiles: ProfileJoinRow[]): Promise<DirectoryProfile[]> {

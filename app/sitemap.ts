@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getPublicProjectBySlug } from '@/data/project-repository';
-import { getPortfolioDirectory } from '@/data/profile-repository';
+import { getIndexableProfileHandles } from '@/data/profile-repository';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -11,14 +11,13 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 // sitemap central no puede listarlos igual — necesitaría un sitemap propio por
 // subdominio. Portfolio/directorio sí viven siempre en el dominio principal.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // getPortfolioDirectory() ya filtra is_public=true — acá además se saca
-  // a quien apagó "Aparecer en buscadores" (isIndexed), que sí puede
-  // querer seguir listado en /directorio sin que Google lo indexe.
-  const directory = await getPortfolioDirectory();
+  // Filtra is_public y is_indexed en la base: quien apagó "Aparecer en
+  // buscadores" sigue listado en /directorio pero no acá.
+  const handles = await getIndexableProfileHandles();
   const profileRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/directorio`, changeFrequency: 'daily', priority: 0.5 },
-    ...directory.filter(p => p.isIndexed).map(p => ({
-      url: `${SITE_URL}/portfolio/${p.handle}`,
+    ...handles.map(handle => ({
+      url: `${SITE_URL}/portfolio/${handle}`,
       changeFrequency: 'weekly' as const,
       priority: 0.4,
     })),
