@@ -174,7 +174,7 @@ function ConversationListItem({
           <div className="flex items-center justify-between gap-2">
             <p className={`text-sm truncate flex items-center gap-1.5 ${c.unreadCount > 0 ? 'font-semibold text-trevo-dark' : 'font-medium text-trevo-dark/80'}`}>
               {pinned && <Pin className="w-3 h-3 text-trevo-dark/30 shrink-0 fill-current" />}
-              <span className="truncate">{c.other?.display_name ?? 'Usuario'}</span>
+              <span className="min-w-0 truncate">{c.other?.display_name ?? 'Usuario'}</span>
             </p>
             <span className="text-xs text-trevo-dark/30 shrink-0">{formatRelativeTime(c.lastMessageAt)}</span>
           </div>

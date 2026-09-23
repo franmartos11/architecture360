@@ -54,7 +54,7 @@ export default function CommonAreasTour({
   }, [embed, resolvedBackHref, router]);
 
   return (
-    <div className={`relative w-full bg-black overflow-hidden ${embed ? 'h-screen' : 'h-[calc(100vh-4rem)]'}`}>
+    <div className={`relative w-full bg-black overflow-hidden ${embed ? 'h-[100dvh]' : 'h-[calc(100dvh-4rem)]'}`}>
       <VirtualTour tourData={tourData} focusNodeId={focusNodeId} orientationDegrees={orientationDegrees} sunAzimuths={sunAzimuths} />
 
       {!embed && (

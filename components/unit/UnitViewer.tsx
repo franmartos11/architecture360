@@ -748,7 +748,10 @@ export default function UnitViewer({
           </div>
         </div>        {/* Right tab selector (hidden below md — redundant with the sidebar's own
              tab row while the sidebar renders as a full overlay drawer; from md up
-             the sidebar sits in-flow and this floating strip has room of its own) */}
+             the sidebar sits in-flow and this floating strip has room of its own).
+             Solo cubre los tabs de material visual (TABS); en Amenities/Ubicación
+             no representa nada seleccionable y flotaba tapando el contenido. */}
+        {activeTab !== 'amenities' && activeTab !== 'ubicacion' && (
         <div className="hidden md:flex absolute right-4 top-20 z-20 flex-col gap-2">
           {visibleTabs.map(tab => (
             <button
@@ -767,6 +770,7 @@ export default function UnitViewer({
             </button>
           ))}
         </div>
+        )}
 
         {/* Viewer area — on mobile pad top (top bar) and bottom (bottom nav) */}
         <div className="absolute inset-0 md:top-0 top-[61px] md:bottom-0 bottom-[64px] overflow-hidden">

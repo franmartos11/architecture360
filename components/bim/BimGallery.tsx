@@ -10,7 +10,7 @@ export default function BimGallery({ images, title }: { images: string[]; title:
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-gray-100">
+      <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-gray-100">
         <Image
           src={images[active]}
           alt={`${title} — imagen ${active + 1}`}

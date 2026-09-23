@@ -62,14 +62,19 @@ html {
      consistente en todo el admin y el sitio público de una sola vez. */
   font-size: 18px;
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  /* clip, no hidden: "overflow-x: hidden" con overflow-y en su default
+     "visible" fuerza (por spec) que overflow-y pase a "auto", y eso es lo
+     que en WebKit rompe el position:sticky de cualquier descendiente
+     (Navbar, filtros de Amenities/Unidades, etc.). "clip" también corta
+     el desborde horizontal pero no dispara ese acoplamiento. */
+  overflow-x: clip;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Montserrat', system-ui, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* ─── Animations ───────────────────────────────────────────────── */

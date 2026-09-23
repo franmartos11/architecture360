@@ -28,7 +28,7 @@ export default function BimSection({ project }: SectionProps) {
               href={bimModelHref(m.id)}
               className="group flex flex-col rounded-2xl overflow-hidden bg-[var(--theme-bg-alt)] border border-[var(--theme-text)]/10 hover:border-[var(--theme-text)]/30 transition-all hover:-translate-y-1 shadow-sm hover:shadow-md"
             >
-              <div className="relative aspect-square sm:aspect-[4/3] overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]">
+              <div className="relative w-full aspect-square sm:aspect-[4/3] overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]">
                 {m.coverImage && (
                   <Image
                     src={m.coverImage} alt={m.title} fill

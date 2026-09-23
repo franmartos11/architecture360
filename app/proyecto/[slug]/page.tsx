@@ -55,7 +55,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
     // del nav, que es translúcido a propósito.
     <div className="-mt-16">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <Image
             src={project.masterplanImage || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'}

@@ -43,7 +43,7 @@ function ProjectTile({ slug, name, masterplanImage, label, sub, featured = false
       href={getProjectHref(slug)}
       className={`group rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[0.09] hover:border-trevo-dark/30 transition-colors flex flex-col ${featured ? '' : ''}`}
     >
-      <div className={`relative ${featured ? 'aspect-[16/10]' : 'aspect-[4/3]'} overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]`}>
+      <div className={`relative w-full ${featured ? 'aspect-[16/10]' : 'aspect-[4/3]'} overflow-hidden bg-[repeating-linear-gradient(115deg,#e6e3dc_0px,#e6e3dc_18px,#dcd8d0_18px,#dcd8d0_36px)]`}>
         {masterplanImage ? (
           <Image
             src={masterplanImage} alt={name} fill

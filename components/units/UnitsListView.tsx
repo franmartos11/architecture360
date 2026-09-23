@@ -775,7 +775,7 @@ function UnitCard({
 
   return (
     <div className={'rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[.1] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-[3px]' + (sold ? ' opacity-[.62]' : '')}>
-      <Link href={href} className="relative aspect-[4/3] bg-trevo-dark/10 block overflow-hidden">
+      <Link href={href} className="relative w-full aspect-[4/3] bg-trevo-dark/10 block overflow-hidden">
         {img ? (
           <Image
             src={img}

@@ -338,7 +338,7 @@ function AmenityCard({ amenity, place, onClick }: { amenity: Amenity; place: str
       onClick={onClick}
       className="text-left bg-white/[.04] border border-white/[.1] rounded-[18px] overflow-hidden flex flex-col cursor-pointer transition-all duration-300 hover:border-white/30 hover:-translate-y-[3px]"
     >
-      <div className="relative aspect-[4/3] bg-white/[.05] overflow-hidden">
+      <div className="relative w-full aspect-[4/3] bg-white/[.05] overflow-hidden">
         {amenity.images[0] ? (
           <Image
             src={amenity.images[0]}
