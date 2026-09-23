@@ -46,9 +46,9 @@ const FUNCION_INEXISTENTE = '42883';
  * desde acá (dos pedidos simultáneos leían el mismo conteo por debajo del
  * límite y pasaban los dos).
  *
- * Si la función todavía no está en la base —el SQL se aplica a mano, ver
- * supabase/migrations/— cae al camino viejo en vez de romper. Así el deploy
- * del código y el de la migración pueden ir en cualquier orden.
+ * Si la función todavía no está en la base —el esquema se aplica a mano, ver
+ * supabase/README.md— cae al camino viejo en vez de romper. Así el deploy del
+ * código y el de la base pueden ir en cualquier orden.
  */
 export async function checkRateLimit({ key, windowSeconds, max }: RateLimitOptions): Promise<boolean> {
   const { data, error } = await createAdminClient().rpc('check_rate_limit', {
@@ -65,7 +65,7 @@ export async function checkRateLimit({ key, windowSeconds, max }: RateLimitOptio
     throw new Error(`rate limit: ${error.message}`);
   }
 
-  console.warn('[rate-limit] falta check_rate_limit en la base — usando el camino viejo. Aplicá supabase/migrations/2026-09-23-rate-limit-atomico.sql');
+  console.warn('[rate-limit] falta check_rate_limit en la base — usando el camino viejo. Volvé a correr supabase/schema.sql.');
   return checkRateLimitEnDosPasos({ key, windowSeconds, max });
 }
 

@@ -14,6 +14,20 @@ Estos son los únicos pasos manuales que hacen falta para activar la base de dat
 2. Abrí `supabase/schema.sql` de este repo, copiá todo el contenido y pegalo ahí.
 3. Ejecutar (`Run`). Crea todas las tablas, las políticas de seguridad (RLS) y el bucket de storage para imágenes/panorámicas.
 
+### Actualizar una base que ya existe
+
+El mismo paso sirve para aplicar cambios de esquema sobre una base con datos: `schema.sql` está escrito para poder re-ejecutarse entero (`create table if not exists`, `drop policy if exists` antes de cada `create policy`, `create or replace function`, `create index if not exists`). No borra ni pisa datos: sólo crea lo que falta y redefine políticas y funciones.
+
+Por eso no hay carpeta de migraciones — la fuente de verdad es este archivo. Cuando cambia, se vuelve a pegar entero en el SQL Editor.
+
+Después de correrlo, para comprobar que las políticas de lectura pública quedaron bien (que un proyecto sin publicar no se lea desde afuera y que lo publicado sí):
+
+```bash
+node supabase/verificar-rls.mjs
+```
+
+Crea un proyecto de prueba sin publicar, lo lee con la anon key —la misma que va en el bundle del navegador— y lo borra al terminar. Los 7 chequeos tienen que dar en verde.
+
 ## 3. Completar las variables de entorno
 
 1. Copiá `.env.local.example` a un archivo nuevo `.env.local` (ya está en `.gitignore`, no se sube al repo).

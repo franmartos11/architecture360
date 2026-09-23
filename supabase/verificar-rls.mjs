@@ -1,11 +1,11 @@
 /**
- * Comprueba que las políticas de lectura pública hacen lo que dicen.
+ * Comprueba que las políticas de lectura pública hacen lo que dicen: que un
+ * proyecto sin publicar no se lea desde afuera, y que lo publicado sí.
  *
- * Corre ANTES y DESPUÉS de aplicar 2026-09-23-rls-borradores.sql:
- * antes tiene que fallar (es el agujero que la migración cierra), después
- * tiene que pasar entero.
+ * Corre ANTES y DESPUÉS de aplicar schema.sql sobre la base. Antes tiene que
+ * fallar —ese es el agujero que las políticas cierran— y después pasar entero.
  *
- *   node supabase/migrations/verificar-rls.mjs
+ *   node supabase/verificar-rls.mjs
  *
  * Crea un proyecto de prueba sin publicar, con un edificio, un piso y una
  * unidad con precio, y lo borra al terminar pase lo que pase.
