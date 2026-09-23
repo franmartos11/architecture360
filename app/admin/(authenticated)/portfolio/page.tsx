@@ -15,6 +15,7 @@ import StrengthCard, { type StrengthCheck } from '@/components/admin/portfolio-e
 import PreviewCard from '@/components/admin/portfolio-editor/PreviewCard';
 import VisibilityCard from '@/components/admin/portfolio-editor/VisibilityCard';
 import type { ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability } from '@/types';
+import { poppins } from '@/lib/panel-comercial-style';
 
 const ANCHORS = [
   { label: 'Aptitudes', href: '#aptitudes' },
@@ -251,10 +252,7 @@ export default function AdminPortfolioPage() {
   ];
 
   return (
-    <div style={{ fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif" }}>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <div className={poppins.className}>
 
       <div className="sticky top-14 z-30 bg-[rgba(245,244,240,0.92)] backdrop-blur-md border-b border-[rgba(28,25,23,0.08)]">
         <div className="max-w-[1260px] mx-auto px-[24px] py-[12px] flex items-center gap-[16px] flex-wrap">

@@ -60,7 +60,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   // projectId ya no se acepta del body — la pieza nace y muere en su
   // proyecto, no se reasocia (ver spec, decisión 1).
-  const { data, error } = await access.supabase
+  // El resultado del update no se usa: la respuesta sale de la re-lectura de
+  // más abajo, que además trae los joins con floors/units.
+  const { error } = await access.supabase
     .from('bim_models')
     .update({
       ...(parsed.data.title !== undefined ? { title: parsed.data.title.trim() } : {}),

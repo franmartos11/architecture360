@@ -3,6 +3,7 @@ import { getFeedRailData } from '@/lib/feed-rail';
 import FeedLeftRail from '@/components/social/FeedLeftRail';
 import FeedRightRail from '@/components/social/FeedRightRail';
 import PostFeed from '@/components/social/PostFeed';
+import { poppins } from '@/lib/panel-comercial-style';
 
 interface EtiquetaPageProps {
   params: Promise<{ tag: string }>;
@@ -24,10 +25,7 @@ export default async function EtiquetaPage({ params }: EtiquetaPageProps) {
   const rail = await getFeedRailData();
 
   return (
-    <div style={{ fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif" }}>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <div className={poppins.className}>
       <section className="py-8 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_280px] gap-6 items-start">
           <div className="hidden lg:block">

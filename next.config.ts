@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizePackageImports: ['framer-motion', '@react-three/fiber', '@react-three/drei', 'lucide-react', 'swiper'],
+    optimizePackageImports: ['framer-motion', 'lucide-react', 'swiper'],
   },
 };
 

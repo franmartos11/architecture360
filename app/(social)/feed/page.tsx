@@ -3,6 +3,7 @@ import { getFeedRailData } from '@/lib/feed-rail';
 import FeedTabs from '@/components/social/FeedTabs';
 import FeedLeftRail from '@/components/social/FeedLeftRail';
 import FeedRightRail from '@/components/social/FeedRightRail';
+import { poppins } from '@/lib/panel-comercial-style';
 
 const title = 'Feed — Atrium';
 const description = 'Lo que están publicando arquitectos y estudios en Atrium.';
@@ -22,10 +23,7 @@ export default async function FeedPage() {
     // Montserrat) — así el feed calca la tipografía exacta del mockup
     // Feed.dc.html sin recolorear/retipografiar admin, portfolio o los
     // sitios públicos de proyecto.
-    <div style={{ fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif" }}>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <div className={poppins.className}>
       <section className="py-8 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_280px] gap-6 items-start">
           {/* Rail izquierdo — solo con perfil propio; en mobile no ocupa lugar. */}

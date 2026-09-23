@@ -1,11 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100;200;300;400;500;600;700;800;900&display=swap');
+/* Montserrat NO se importa de Google: la auto-hostea next/font/google en
+   lib/fonts.ts y el layout raíz expone su variable (--font-montserrat).
+   El @import que había acá la volvía a bajar de fonts.googleapis.com con
+   los 9 pesos, y esa cadena (CSS → googleapis → gstatic) era el camino
+   crítico que retrasaba el LCP ~1.6s. */
 @import "tailwindcss";
 
 /* ─── Custom Tailwind Theme ────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Montserrat', var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans: var(--font-montserrat), var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 
   /* Tipografía de marca de Atrium — landing, auth y red social. No se usa
@@ -73,7 +77,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Montserrat', system-ui, sans-serif;
+  font-family: var(--font-montserrat), system-ui, sans-serif;
   overflow-x: clip;
 }
 

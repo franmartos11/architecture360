@@ -130,7 +130,8 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
                 src={featured.images[0]}
                 alt={featured.name}
                 fill
-                sizes="100vw"
+                /* el contenedor tope es max-w-[1240px] menos el padding, no el viewport */
+                sizes="(min-width: 1240px) 1184px, 100vw"
                 placeholder="blur"
                 blurDataURL={shimmerDataUrl(1240, 340)}
                 className="object-cover"
@@ -344,7 +345,7 @@ function AmenityCard({ amenity, place, onClick }: { amenity: Amenity; place: str
             src={amenity.images[0]}
             alt={amenity.name}
             fill
-            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            sizes="(min-width: 1024px) 300px, (min-width: 640px) 50vw, 100vw"
             placeholder="blur"
             blurDataURL={shimmerDataUrl()}
             className="object-cover"

@@ -54,8 +54,11 @@ describe('PATCH /api/admin/bim/[id]', () => {
   it('agregar la primera imagen a una pieza vacía la pasa a ready y le pone portada', async () => {
     vi.mocked(resolveProjectIdFromBimModel).mockResolvedValue('project-1');
     const supabase = mockSupabase({
+      // 3 lecturas a bim_models: la fila actual, el update, y la re-lectura
+      // final que trae los joins con floors/units (de ahí sale la respuesta).
       results: [
         { data: row() },
+        { data: row({ status: 'ready', gallery_images: ['https://x/1.png'], cover_image: 'https://x/1.png' }) },
         { data: row({ status: 'ready', gallery_images: ['https://x/1.png'], cover_image: 'https://x/1.png' }) },
       ],
     });
@@ -71,7 +74,7 @@ describe('PATCH /api/admin/bim/[id]', () => {
   it('un proyectId en el body se ignora — la pieza no se puede reasociar', async () => {
     vi.mocked(resolveProjectIdFromBimModel).mockResolvedValue('project-1');
     const supabase = mockSupabase({
-      results: [{ data: row() }, { data: row({ title: 'Nuevo título' }) }],
+      results: [{ data: row() }, { data: row({ title: 'Nuevo título' }) }, { data: row({ title: 'Nuevo título' }) }],
     });
     vi.mocked(requireProjectAccess).mockResolvedValue({ user: { id: 'user-1' }, supabase } as never);
 

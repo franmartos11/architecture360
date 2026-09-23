@@ -1009,7 +1009,7 @@ function CompassBadge() {
       <svg width="24" height="24" viewBox="0 0 40 40">
         <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(27,30,28,.14)" strokeWidth={1} />
         <path d="M20 7l4 9-4-2.6L16 16z" fill="#047857" />
-        <text x="20" y="33" textAnchor="middle" fontFamily="Montserrat" fontSize="8" fontWeight="600" fill="#83978c">N</text>
+        <text x="20" y="33" textAnchor="middle" fontFamily="var(--font-montserrat), system-ui, sans-serif" fontSize="8" fontWeight="600" fill="#83978c">N</text>
       </svg>
     </div>
   );

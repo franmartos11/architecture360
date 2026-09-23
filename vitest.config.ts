@@ -15,6 +15,10 @@ export default defineConfig({
     // cambiar el default global (Vitest v4 sacó `environmentMatchGlobs`).
     environment: 'node',
     include: ['**/*.test.ts'],
-    exclude: ['node_modules', '.next'],
+    // .claude/worktrees son copias completas del repo: sin excluirlas Vitest
+    // corría la suite varias veces (919 archivos en vez de 110, 13.6s en vez
+    // de 2.1s) y sumaba ~40 archivos "fallando" que eran de ramas en progreso
+    // y tapaban los fallos reales.
+    exclude: ['**/node_modules/**', '**/.next/**', '**/.claude/**'],
   },
 });
