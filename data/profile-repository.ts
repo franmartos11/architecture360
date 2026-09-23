@@ -207,6 +207,98 @@ export const getPortfolioDirectory = cache(async (): Promise<DirectoryProfile[]>
   }));
 });
 
+/** Cuántos perfiles trae el directorio de una. Uno más para saber si hay cola. */
+export const DIRECTORY_PAGE_SIZE = 48;
+
+export interface DirectorySearch {
+  query?: string;
+  accountType?: 'person' | 'company';
+}
+
+export interface DirectoryPage {
+  profiles: DirectoryProfile[];
+  /** true si la búsqueda da más de los que se devuelven: la UI avisa que hay que afinar. */
+  hayMas: boolean;
+}
+
+/**
+ * El directorio, buscado y acotado en la base.
+ *
+ * getPortfolioDirectory() trae TODOS los perfiles públicos sin límite y el
+ * navegador filtra en memoria. Con pocos usuarios va bien y la búsqueda sale
+ * instantánea; cuando sean miles, cada visita al directorio se baja la lista
+ * entera para mostrar 48.
+ *
+ * Acá el filtro baja a Postgres (ilike sobre nombre, handle y ubicación) y se
+ * pide una página. El cliente sigue filtrando al instante lo que ya tiene —
+ * eso no se toca, porque es lo que hace que escribir se sienta inmediato—,
+ * pero deja de ser la única barrera.
+ */
+export const searchPortfolioDirectory = cache(async (
+  { query, accountType }: DirectorySearch = {}
+): Promise<DirectoryPage> => {
+  if (!SUPABASE_CONFIGURED) return { profiles: [], hayMas: false };
+
+  const supabase = await createClient();
+
+  let q = supabase
+    .from('profiles')
+    .select('id, handle, display_name, account_type, avatar_image, bio, location, is_indexed')
+    .eq('is_public', true);
+
+  if (accountType) q = q.eq('account_type', accountType);
+
+  const termino = query?.trim();
+  if (termino) {
+    // Escapar los comodines de LIKE: sin esto un "%" tipeado por el usuario
+    // matchea todo y una búsqueda cualquiera devuelve el directorio entero.
+    const t = termino.replace(/[%_\\]/g, c => `\\${c}`);
+    q = q.or(`display_name.ilike.%${t}%,handle.ilike.%${t}%,location.ilike.%${t}%`);
+  }
+
+  const { data } = await q.order('display_name').limit(DIRECTORY_PAGE_SIZE + 1);
+  const filas = (data ?? []) as Pick<ProfileRow, 'id' | 'handle' | 'display_name' | 'account_type' | 'avatar_image' | 'bio' | 'location' | 'is_indexed'>[];
+
+  const hayMas = filas.length > DIRECTORY_PAGE_SIZE;
+  const visibles = hayMas ? filas.slice(0, DIRECTORY_PAGE_SIZE) : filas;
+  if (visibles.length === 0) return { profiles: [], hayMas: false };
+
+  const conteos = await contarProyectosPorDuenio(supabase, visibles.map(p => p.id));
+
+  return {
+    profiles: visibles.map(p => ({
+      id: p.id,
+      handle: p.handle,
+      displayName: p.display_name,
+      accountType: p.account_type,
+      avatarImage: p.avatar_image ?? undefined,
+      bio: p.bio ?? undefined,
+      location: p.location ?? undefined,
+      projectCount: conteos.get(p.id) ?? 0,
+      isIndexed: p.is_indexed,
+    })),
+    hayMas,
+  };
+});
+
+async function contarProyectosPorDuenio(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerIds: string[]
+): Promise<Map<string, number>> {
+  const { data } = await supabase
+    .from('projects')
+    .select('owner_id')
+    .eq('show_in_portfolio', true)
+    .eq('published', true)
+    .in('owner_id', ownerIds);
+
+  const conteos = new Map<string, number>();
+  for (const p of (data ?? [])) {
+    conteos.set(p.owner_id, (conteos.get(p.owner_id) ?? 0) + 1);
+  }
+  return conteos;
+}
+
 /**
  * Sólo los handles que van al sitemap.
  *

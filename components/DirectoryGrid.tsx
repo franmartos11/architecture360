@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SearchX } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FollowButton from '@/components/social/FollowButton';
@@ -11,13 +11,40 @@ import type { DirectoryProfile } from '@/types';
 
 type Filter = 'all' | 'person' | 'company';
 
-export default function DirectoryGrid({ profiles, followingSet = new Set(), loggedIn = false, currentProfileId }: { profiles: DirectoryProfile[], followingSet?: Set<string>, loggedIn?: boolean, currentProfileId?: string }) {
+export default function DirectoryGrid({ profiles, followingSet = new Set(), loggedIn = false, currentProfileId, hayMas = false }: { profiles: DirectoryProfile[], followingSet?: Set<string>, loggedIn?: boolean, currentProfileId?: string, hayMas?: boolean }) {
   // Precarga el filtro cuando se llega con ?q= (ej. desde el buscador de
   // la nav) — solo como valor inicial, así el usuario puede seguir
   // editando la búsqueda sin que se resetee.
-  const initialQuery = useSearchParams().get('q') ?? '';
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>(() => {
+    const tipo = searchParams.get('tipo');
+    return tipo === 'person' || tipo === 'company' ? tipo : 'all';
+  });
+
+  // Dos filtrados que se complementan: éste, en memoria, para que escribir se
+  // sienta instantáneo sobre lo que ya está en pantalla, y el de la base, que
+  // corre cuando el usuario frena. Hace falta el segundo porque el servidor
+  // manda una página, no el directorio entero: lo que no vino no se puede
+  // filtrar acá.
+  const yaEnLaUrl = useRef(true);
+  useEffect(() => {
+    const actualQ = searchParams.get('q') ?? '';
+    const actualTipo = searchParams.get('tipo') ?? 'all';
+    if (query === actualQ && filter === actualTipo) { yaEnLaUrl.current = true; return; }
+
+    yaEnLaUrl.current = false;
+    const id = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set('q', query.trim());
+      if (filter !== 'all') params.set('tipo', filter);
+      const qs = params.toString();
+      router.replace(qs ? `/directorio?${qs}` : '/directorio', { scroll: false });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [query, filter, searchParams, router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -51,6 +78,12 @@ export default function DirectoryGrid({ profiles, followingSet = new Set(), logg
           ))}
         </div>
       </div>
+
+      {hayMas && (
+        <p className="text-sm text-trevo-dark/50 mb-6 -mt-4">
+          Hay más resultados de los que entran acá — afiná la búsqueda para encontrar a quien buscás.
+        </p>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState icon={<SearchX className="w-6 h-6" />} title="No encontramos a nadie con esa búsqueda." />
