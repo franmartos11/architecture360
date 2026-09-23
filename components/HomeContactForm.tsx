@@ -90,7 +90,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full mt-2 py-4 rounded-[var(--theme-radius)] bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity tracking-wider text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+        className="w-full mt-2 py-4 rounded-[var(--theme-radius)] bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity tracking-wider text-sm disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {isSubmitting ? 'Enviando...' : 'ENVIAR'}
       </button>

@@ -80,6 +80,7 @@ export function resolveTheme(themeConfig: ThemeConfig | undefined, ownerFonts: C
     '--theme-text-on-dark': t.textOnDark,
     '--theme-text-on-dark-muted': `rgba(${hexToRgbTriplet(t.textOnDark)}, 0.7)`,
     '--theme-accent': t.accent,
+    '--theme-text-on-accent': textOnAccent(t.accent, t.textOnDark, t.text),
     '--theme-border': `rgba(${hexToRgbTriplet(t.text)}, 0.12)`,
     '--theme-border-on-dark': `rgba(${hexToRgbTriplet(t.textOnDark)}, 0.15)`,
     '--theme-radius': radius,
@@ -90,6 +91,20 @@ export function resolveTheme(themeConfig: ThemeConfig | undefined, ownerFonts: C
   };
 
   return { cssVars, fontFaceCss: [heading.fontFaceCss, body.fontFaceCss].filter(Boolean).join('\n') };
+}
+
+/**
+ * Color de texto para lo que va encima del acento (botones, chips).
+ *
+ * El acento lo elige cada cliente, así que un color de texto fijo no sirve:
+ * blanco sobre un acento medio-claro se queda en ~3.5:1, que pasa el mínimo
+ * de "texto grande" pero no el 4.5:1 de AA. Acá se prueba el claro y el
+ * oscuro del tema y gana el que contrasta mejor, así el botón queda legible
+ * sea cual sea el acento. Se mantiene dentro de la paleta del tema en vez de
+ * meter un blanco/negro puro, para no romper la identidad visual.
+ */
+function textOnAccent(accent: string, light: string, dark: string): string {
+  return contrastRatio(light, accent) >= contrastRatio(dark, accent) ? light : dark;
 }
 
 function relativeLuminance(hex: string): number {

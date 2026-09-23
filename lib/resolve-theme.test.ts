@@ -30,6 +30,17 @@ describe('resolveTheme', () => {
     expect(cssVars['--theme-text-muted']).toBe('rgba(27, 30, 28, 0.65)');
   });
 
+  it('--theme-text-on-accent elige el color que más contrasta con el acento', () => {
+    // El acento del preset "natural" (#968676) es medio-claro: con blanco
+    // queda en ~3.5:1, así que gana el texto oscuro del tema.
+    const natural = resolveTheme(undefined).cssVars;
+    expect(natural['--theme-text-on-accent']).toBe('#1b1e1c');
+
+    // Con un acento oscuro, el que contrasta es el claro.
+    const oscuro = resolveTheme({ customColors: { accent: '#101010' } } as never).cssVars;
+    expect(oscuro['--theme-text-on-accent']).toBe('#ffffff');
+  });
+
   it('customColors pisa los tokens del preset campo por campo', () => {
     const { cssVars } = resolveTheme({ presetKey: 'natural', customColors: { text: '#ff0000' } } as never);
     expect(cssVars['--theme-text']).toBe('#ff0000');

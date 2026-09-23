@@ -68,8 +68,9 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           <h2 className="font-[family-name:var(--theme-font-heading)] text-2xl md:text-3xl font-light text-[var(--theme-text)] mb-6 md:mb-8 tracking-wide text-center md:text-left">CALCULA TU CUOTA</h2>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-[var(--theme-text)]">Modelo interesado</label>
+            <label htmlFor="calc-modelo" className="text-sm font-semibold text-[var(--theme-text)]">Modelo interesado</label>
             <select
+              id="calc-modelo"
               value={modelo}
               onChange={(e) => setModelo(Number(e.target.value))}
               className="p-3 border border-[var(--theme-border)] rounded-[var(--theme-radius)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
@@ -82,8 +83,9 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-[var(--theme-text)]">Prima</label>
+            <label htmlFor="calc-prima" className="text-sm font-semibold text-[var(--theme-text)]">Prima</label>
             <select
+              id="calc-prima"
               value={prima}
               onChange={(e) => setPrima(Number(e.target.value))}
               className="p-3 border border-[var(--theme-border)] rounded-[var(--theme-radius)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
@@ -93,8 +95,9 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-[var(--theme-text)]">Tasa de interés</label>
+            <label htmlFor="calc-tasa" className="text-sm font-semibold text-[var(--theme-text)]">Tasa de interés</label>
             <select
+              id="calc-tasa"
               value={tasa}
               onChange={(e) => setTasa(Number(e.target.value))}
               className="p-3 border border-[var(--theme-border)] rounded-[var(--theme-radius)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
@@ -104,8 +107,9 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-[var(--theme-text)]">Años plazo</label>
+            <label htmlFor="calc-plazo" className="text-sm font-semibold text-[var(--theme-text)]">Años plazo</label>
             <select
+              id="calc-plazo"
               value={plazo}
               onChange={(e) => setPlazo(Number(e.target.value))}
               className="p-3 border border-[var(--theme-border)] rounded-[var(--theme-radius)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
@@ -115,8 +119,9 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           </div>
 
           <div className="flex flex-col gap-2 pt-2">
-            <label className="text-sm font-semibold text-[var(--theme-text)]">Monto a financiar</label>
+            <label htmlFor="calc-monto" className="text-sm font-semibold text-[var(--theme-text)]">Monto a financiar</label>
             <input
+              id="calc-monto"
               readOnly
               value={formatUSD(monto)}
               className="p-3 border border-transparent rounded-[var(--theme-radius)] bg-[var(--theme-surface)]/50 text-[var(--theme-text)] font-medium cursor-default"
@@ -130,7 +135,7 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
           <h2 className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text-on-dark)] text-3xl sm:text-4xl md:text-5xl font-light text-center">{formatUSD(resultado)}</h2>
           <button
             onClick={() => setIsLeadModalOpen(true)}
-            className="w-full mt-2 md:mt-4 px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+            className="w-full mt-2 md:mt-4 px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
           >
             SOLICITAR INFORMACIÓN
           </button>

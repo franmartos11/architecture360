@@ -110,7 +110,7 @@ export function TabsSection({ units, showPrice, unitIsLand = false }: { units: U
           <div className="pt-4">
             <a
               href={`${basePath}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`}
-              className="inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+              className="inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
             >
               CONOCER {activeData.label.toUpperCase()}
             </a>

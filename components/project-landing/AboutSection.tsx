@@ -35,7 +35,7 @@ export default function AboutSection({ project, basePath }: SectionProps) {
               </a>
               <a
                 href="#tour-360"
-                className="px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+                className="px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
               >
                 TOUR 360°
               </a>

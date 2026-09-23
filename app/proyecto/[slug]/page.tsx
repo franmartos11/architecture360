@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import type { Project } from '@/types';
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import CommentSection from '@/components/CommentSection';
@@ -21,8 +22,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: project.name,
-    description: project.description,
+    // La descripción es opcional y muchos proyectos no la cargan; sin
+    // fallback la página sale sin meta description y los buscadores se
+    // inventan el resumen. Con los datos que siempre hay (nombre, bajada,
+    // ubicación) alcanza para una línea decente.
+    description: projectDescription(project),
   };
+}
+
+function projectDescription(project: Project): string {
+  if (project.description?.trim()) return project.description;
+
+  const contexto = [project.tagline, project.location].filter(Boolean).join(' · ');
+  return contexto
+    ? `${project.name} — ${contexto}. Conocé el proyecto: unidades, espacios comunes y ubicación.`
+    : `${project.name}. Conocé el proyecto: unidades, espacios comunes y ubicación.`;
 }
 
 export default async function ProjectLandingPage({ params }: PageProps) {
@@ -83,7 +97,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           {typeConfig.saleMode === 'venta' && project.units.length > 0 && (
             <a
               href={`${basePath}/unidades`}
-              className="mt-8 inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
+              className="mt-8 inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
             >
               VER DISPONIBILIDAD
             </a>

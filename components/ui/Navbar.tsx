@@ -73,7 +73,7 @@ export default function Navbar({ projectName, showCalculator, hasTour, singleUni
             <Link
               href={masterplanHref}
               aria-label="Explorar Proyecto"
-              className="hidden sm:inline-flex items-center gap-2 px-2.5 md:px-3 lg:px-4 py-2 rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-dark)] text-sm font-medium transition-all duration-200"
+              className="hidden sm:inline-flex items-center gap-2 px-2.5 md:px-3 lg:px-4 py-2 rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-accent)] text-sm font-medium transition-all duration-200"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -132,7 +132,7 @@ export default function Navbar({ projectName, showCalculator, hasTour, singleUni
           <Link
             href={masterplanHref}
             onClick={() => setIsMobileMenuOpen(false)}
-            className="sm:hidden flex items-center justify-center gap-2 mt-4 px-4 py-3 w-full rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-dark)] text-sm font-medium transition-colors"
+            className="sm:hidden flex items-center justify-center gap-2 mt-4 px-4 py-3 w-full rounded-lg bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-accent)] text-sm font-medium transition-colors"
           >
             Explorar Proyecto
           </Link>

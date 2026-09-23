@@ -60,17 +60,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${archivo.variable} ${CURATED_FONTS.montserrat.className} h-full antialiased`}>
-      <head>
-        {/* Todas las imágenes del sitio salen de Supabase Storage y se piden
-            recién cuando el HTML ya se parseó — abrir la conexión (DNS + TLS)
-            de entrada le saca ese costo al camino crítico. */}
-        {SUPABASE_ORIGIN && (
-          <>
-            <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />
-            <link rel="dns-prefetch" href={SUPABASE_ORIGIN} />
-          </>
-        )}
-      </head>
+      {/* Todas las imágenes del sitio salen de Supabase Storage y se piden
+          recién cuando el HTML ya se parseó — abrir la conexión (DNS + TLS)
+          de entrada le saca ese costo al camino crítico.
+          Van sueltos, sin <head>: React los sube solo, y un <head> escrito a
+          mano acá le pisa a Next dónde inyectar su metadata (la meta
+          description terminaba dentro del <body>). */}
+      {SUPABASE_ORIGIN && (
+        <>
+          <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />
+          <link rel="dns-prefetch" href={SUPABASE_ORIGIN} />
+        </>
+      )}
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <MotionProvider>
           <ToastProvider>

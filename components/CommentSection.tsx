@@ -131,7 +131,7 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
             <button
               type="submit"
               disabled={posting || !text.trim()}
-              className="px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-dark)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {posting ? 'Publicando...' : 'Comentar'}
             </button>
