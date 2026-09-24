@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 interface CollaboratorRow {
   id: string;
@@ -36,23 +37,24 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContribution, setEditingContribution] = useState('');
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
 
   const load = () => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => { setCollaborators(data.collaborators ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [activeProjectId]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
     setError('');
     setAdding(true);
-    const res = await fetch('/api/admin/collaborators', {
+    const res = await fetch(withActiveProject('/api/admin/collaborators', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ handle: selected.handle, contribution }),

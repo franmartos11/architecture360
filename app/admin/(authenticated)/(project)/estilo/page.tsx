@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { THEME_PRESETS, RADIUS_OPTIONS } from '@/lib/theme-presets';
 import { CURATED_FONTS, ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { resolveTheme, getContrastWarnings } from '@/lib/resolve-theme';
@@ -60,6 +61,7 @@ export default function AdminEstiloPage() {
   const [open, setOpen] = useState<Record<Group, boolean>>({ preset: true, colors: true, type: false, shape: false, themes: false });
   const fontInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   const load = () => {
     startTransition(() => {
@@ -67,7 +69,7 @@ export default function AdminEstiloPage() {
       setLoadError(false);
     });
     Promise.all([
-      fetch('/api/admin/project/preview').then(r => r.json()),
+      fetch(withActiveProject('/api/admin/project/preview', activeProjectId)).then(r => r.json()),
       fetch('/api/admin/fonts').then(r => r.json()),
       fetch('/api/admin/saved-themes').then(r => r.json()),
     ])
@@ -90,12 +92,12 @@ export default function AdminEstiloPage() {
       });
   };
 
-  useEffect(load, []);
+  useEffect(load, [activeProjectId]);
 
   const persist = async (next: ThemeConfig) => {
     setThemeConfig(next);
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ themeConfig: next }),

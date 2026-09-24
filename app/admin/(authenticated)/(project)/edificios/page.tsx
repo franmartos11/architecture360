@@ -11,6 +11,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import ImageUploader from '@/components/admin/ImageUploader';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type { BuildingRow as DbBuildingRow } from '@/types/database';
@@ -51,6 +52,7 @@ export default function AdminBuildingsPage() {
   const [redirecting, setRedirecting] = useState(false);
   const [redirectFailed, setRedirectFailed] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
 
   const load = () => {
@@ -61,8 +63,8 @@ export default function AdminBuildingsPage() {
     // Para casa solo hace falta el edificio (para el redirect); el resto
     // (slides de la vista frontal) no se muestra porque no se llega a
     // renderizar la lista.
-    const reqs: Promise<unknown>[] = [fetch('/api/admin/buildings').then(res => res.json())];
-    if (!isSingleBuilding) reqs.push(fetch('/api/admin/project').then(res => res.json()));
+    const reqs: Promise<unknown>[] = [fetch(withActiveProject('/api/admin/buildings', activeProjectId)).then(res => res.json())];
+    if (!isSingleBuilding) reqs.push(fetch(withActiveProject('/api/admin/project', activeProjectId)).then(res => res.json()));
     Promise.all(reqs).then(([buildingsData, projectData]) => {
       const list = Array.isArray(buildingsData) ? (buildingsData as BuildingRow[]) : [];
       setBuildings(list);
@@ -83,14 +85,14 @@ export default function AdminBuildingsPage() {
     });
   };
 
-  useEffect(load, []);
+  useEffect(load, [activeProjectId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!form.name) return;
     setCreating(true);
-    const res = await fetch('/api/admin/buildings', {
+    const res = await fetch(withActiveProject('/api/admin/buildings', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: form.name, totalFloors: form.totalFloors, planImage: form.planImage || null }),

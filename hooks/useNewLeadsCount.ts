@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useCallback, useEffect, useState } from 'react';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 const STORAGE_KEY = 'leads-last-seen-at';
 const POLL_INTERVAL_MS = 30000;
@@ -15,11 +16,12 @@ function getLastSeenAt(): number {
 // /admin/leads, para mostrar un badge en el sidebar sin tener que entrar
 // a revisar manualmente.
 export function useNewLeadsCount() {
+  const activeProjectId = useActiveProjectId();
   const [count, setCount] = useState(0);
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/leads');
+      const res = await fetch(withActiveProject('/api/admin/leads', activeProjectId));
       if (!res.ok) return;
       const leads: { created_at: string }[] = await res.json();
       const lastSeenAt = getLastSeenAt();
@@ -28,7 +30,7 @@ export function useNewLeadsCount() {
     } catch {
       // silencioso — no interrumpir la navegación del admin por esto
     }
-  }, []);
+  }, [activeProjectId]);
 
   useEffect(() => {
     startTransition(() => {

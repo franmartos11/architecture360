@@ -17,6 +17,7 @@ import {
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import type { Lead } from '@/types';
 import { poppins, LEAD_BADGE, CHIP_CLASS, chipStyle } from '@/lib/panel-comercial-style';
 
@@ -185,6 +186,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
 }
 
 export default function AdminLeads() {
+  const activeProjectId = useActiveProjectId();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -200,7 +202,7 @@ export default function AdminLeads() {
       setLoading(true);
       setError(false);
     });
-    fetch('/api/admin/leads')
+    fetch(withActiveProject('/api/admin/leads', activeProjectId))
       .then(res => {
         if (!res.ok) throw new Error('Request failed');
         return res.json();
@@ -218,7 +220,8 @@ export default function AdminLeads() {
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId]);
 
   const handleWhatsApp = (phone: string | null, name: string | null) => {
     if (!phone) return;

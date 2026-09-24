@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import TourEditor from '@/components/admin/TourEditor';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -10,6 +11,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminCommonAreasTourPage() {
+  const activeProjectId = useActiveProjectId();
   const [tourData, setTourData] = useState<TourData | null>(null);
   const [orientationDegrees, setOrientationDegrees] = useState<number | undefined>(undefined);
   const [savingOrientation, setSavingOrientation] = useState(false);
@@ -21,7 +23,7 @@ export default function AdminCommonAreasTourPage() {
       setLoading(true);
       setLoadError(false);
     });
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         setTourData(data.project?.common_areas_tour ?? null);
@@ -33,29 +35,29 @@ export default function AdminCommonAreasTourPage() {
         setLoadError(true);
         setLoading(false);
       });
-  }, []);
+  }, [activeProjectId]);
 
   useEffect(load, [load]);
 
   const handlePersist = useCallback(async (next: TourData) => {
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ commonAreasTour: next }),
     });
     return res.ok;
-  }, []);
+  }, [activeProjectId]);
 
   const handleOrientationChange = useCallback(async (degrees: number | undefined) => {
     setOrientationDegrees(degrees);
     setSavingOrientation(true);
-    await fetch('/api/admin/project', {
+    await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tourOrientationDegrees: degrees ?? null }),
     });
     setSavingOrientation(false);
-  }, []);
+  }, [activeProjectId]);
 
   if (loading) return <LoadingSpinner text="Cargando recorrido..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;

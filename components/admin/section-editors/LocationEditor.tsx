@@ -15,6 +15,7 @@ import { POI_CATEGORY_COLORS } from '@/lib/poiCategoryColors';
 import type { PoiCategory } from '@/types';
 import type { PointOfInterestRow } from '@/types/database';
 import type { OverviewPoi } from '@/components/admin/LocationOverviewMap';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 const LocationOverviewMap = dynamic(() => import('@/components/admin/LocationOverviewMap'), {
   ssr: false,
@@ -85,13 +86,14 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   const [calculatingTimes, setCalculatingTimes] = useState(false);
 
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
 
   // Sin resets sincrónicos: se usa directo como callback del efecto de
   // montaje (los valores iniciales de loading/loadError ya son los
   // correctos para esa primera carga).
   const fetchData = () => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         setProjectId(data.project?.id ?? null);
@@ -116,7 +118,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     fetchData();
   };
 
-  useEffect(fetchData, []);
+  useEffect(fetchData, [activeProjectId]);
 
   const visible = useMemo(() => {
     let list = filter === 'todos' ? pois.slice() : pois.filter(p => p.category === filter);
@@ -158,7 +160,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     const name = draftName.trim();
     if (!name || creatingDraft) return;
     setCreatingDraft(true);
-    const res = await fetch('/api/admin/points-of-interest', {
+    const res = await fetch(withActiveProject('/api/admin/points-of-interest', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, category: draftCat, sortOrder: pois.length }),

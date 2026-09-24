@@ -11,6 +11,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { poppins, ACCENT, CHART_COLOR, LEAD_BADGE, money } from '@/lib/panel-comercial-style';
 
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const shareLink = useShareLink();
+  const activeProjectId = useActiveProjectId();
   const { missing: missingSections } = useProjectCompleteness(typeConfig);
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -44,9 +46,9 @@ export default function AdminDashboard() {
       setError(false);
     });
     Promise.all([
-      fetch('/api/admin/units').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
-      fetch('/api/admin/leads').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
-      fetch('/api/admin/project').then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
+      fetch(withActiveProject('/api/admin/units', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
+      fetch(withActiveProject('/api/admin/leads', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
+      fetch(withActiveProject('/api/admin/project', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
     ]).then(([unitsData, leadsData, projectData]) => {
       setUnits(Array.isArray(unitsData) ? unitsData : []);
       setLeads(Array.isArray(leadsData) ? leadsData : []);
@@ -62,7 +64,7 @@ export default function AdminDashboard() {
       setError(true);
       setLoading(false);
     });
-  }, []);
+  }, [activeProjectId]);
 
   useEffect(load, [load]);
 

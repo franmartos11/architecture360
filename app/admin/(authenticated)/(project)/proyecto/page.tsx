@@ -16,6 +16,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useShareLink } from '@/hooks/useShareLink';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
@@ -93,6 +94,7 @@ export default function AdminProjectPage() {
   const [editingCollaboratorId, setEditingCollaboratorId] = useState<string | null>(null);
   const [editingContribution, setEditingContribution] = useState('');
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
   const shareLink = useShareLink();
 
@@ -101,7 +103,7 @@ export default function AdminProjectPage() {
       setLoading(true);
       setLoadError(false);
     });
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         setProject(data.project);
@@ -120,7 +122,7 @@ export default function AdminProjectPage() {
       });
   };
 
-  useEffect(load, []);
+  useEffect(load, [activeProjectId]);
 
   // Se completa recién en el cliente para no desalinear el render de
   // servidor — antes de eso mostramos solo la ruta, sin el dominio.
@@ -133,7 +135,7 @@ export default function AdminProjectPage() {
     e?.preventDefault();
     if (!project) return;
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -168,7 +170,7 @@ export default function AdminProjectPage() {
     if (!project) return;
     const published = !project.published;
     setPublishing(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ published }),
@@ -200,7 +202,7 @@ export default function AdminProjectPage() {
       toast('Faltan la foto y/o la etiqueta.', 'error');
       return;
     }
-    const res = await fetch('/api/admin/aerial-slides', {
+    const res = await fetch(withActiveProject('/api/admin/aerial-slides', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...newSlide, sortOrder: slides.length }),
@@ -244,7 +246,7 @@ export default function AdminProjectPage() {
     if (!selectedCollaborator) return;
     setCollaboratorError('');
     setAddingCollaborator(true);
-    const res = await fetch('/api/admin/collaborators', {
+    const res = await fetch(withActiveProject('/api/admin/collaborators', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ handle: selectedCollaborator.handle, contribution: newCollaborator.contribution }),

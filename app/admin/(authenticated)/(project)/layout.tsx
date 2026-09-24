@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { resolveActiveProjectId, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { ActiveProjectIdProvider } from '@/lib/active-project-context';
 import ProjectAdminShell from './ProjectAdminShell';
 
 // Todo lo que cuelga de este grupo de rutas (dashboard, edificios,
@@ -40,8 +41,10 @@ export default async function ProjectAdminLayout({ children }: { children: React
   }
 
   return (
-    <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref}>
-      {children}
-    </ProjectAdminShell>
+    <ActiveProjectIdProvider projectId={project.id}>
+      <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref}>
+        {children}
+      </ProjectAdminShell>
+    </ActiveProjectIdProvider>
   );
 }

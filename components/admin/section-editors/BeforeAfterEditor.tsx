@@ -7,19 +7,21 @@ import ImageUploader from '@/components/admin/ImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { BeforeAfterPair } from '@/types';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) {
   const [pairs, setPairs] = useState<BeforeAfterPair[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => { setPairs(data.project?.before_after ?? []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProjectId]);
 
   const updateAt = (i: number, updates: Partial<BeforeAfterPair>) => {
     if (!pairs) return;
@@ -38,7 +40,7 @@ export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) 
   const handleSave = async () => {
     if (!pairs) return;
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ beforeAfter: pairs }),

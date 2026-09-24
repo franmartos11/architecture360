@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useState } from 'react';
 import { resolveSectionList, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 
 export interface MissingSection {
@@ -15,6 +16,7 @@ export interface MissingSection {
 // ANTES de que comparta el link, en vez de que se entere por un cliente
 // que vio una página vacía.
 export function useProjectCompleteness(typeConfig: ProjectTypeConfig) {
+  const activeProjectId = useActiveProjectId();
   const [missing, setMissing] = useState<MissingSection[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +25,7 @@ export function useProjectCompleteness(typeConfig: ProjectTypeConfig) {
     startTransition(() => {
       setLoading(true);
     });
-    fetch('/api/admin/project/preview')
+    fetch(withActiveProject('/api/admin/project/preview', activeProjectId))
       .then(res => res.json())
       .then(data => {
         if (cancelled || !data.project) return;
@@ -37,7 +39,7 @@ export function useProjectCompleteness(typeConfig: ProjectTypeConfig) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeConfig.saleMode, typeConfig.buildingLabel, typeConfig.unitLabel]);
+  }, [typeConfig.saleMode, typeConfig.buildingLabel, typeConfig.unitLabel, activeProjectId]);
 
   return { missing, loading };
 }

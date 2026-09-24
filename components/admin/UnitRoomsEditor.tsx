@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { slugify } from '@/lib/slug';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
@@ -62,6 +63,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
 
   const load = () => {
@@ -128,7 +130,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   // Unidades candidatas para "copiar diseño": cualquier otra unidad del
   // proyecto que ya tenga ambientes o recorrido 360° cargado.
   useEffect(() => {
-    fetch('/api/admin/units')
+    fetch(withActiveProject('/api/admin/units', activeProjectId))
       .then(res => res.json())
       .then((data: CopySourceUnit[]) => {
         setOtherUnits(
@@ -141,7 +143,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         );
       })
       .catch(() => {});
-  }, [unitId]);
+  }, [unitId, activeProjectId]);
 
   const handleCopyFromUnit = async () => {
     const source = otherUnits.find(u => u.id === copySourceId);

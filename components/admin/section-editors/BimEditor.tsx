@@ -5,18 +5,21 @@ import { Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import BimModelList from '@/components/admin/BimModelList';
 import BimModelEditor from '@/components/admin/BimModelEditor';
 import type { BimModel, Floor, Unit } from '@/types';
 
-// Editor de BIM autosuficiente — resuelve el proyecto activo por su
-// cuenta (la ruta de API lee la cookie, ver resolveRequestedProjectId),
-// mismo patrón que AmenitiesEditor/LocationEditor. Se usa en dos lugares:
-// el paso "Modelo BIM" del asistente guiado, y /admin/proyecto/bim para
-// activarlo o seguir cargando después. Con cero piezas muestra la
-// decisión explícita "¿querés mostrar un modelo BIM?" — con una o más,
-// la lista + editor de siempre, sin volver a preguntar.
+// Editor de BIM autosuficiente — resuelve el proyecto por el id fijado al
+// entrar (useActiveProjectId, ver lib/active-project-context.tsx), no
+// releyendo la cookie compartida en el momento del pedido. Mismo patrón que
+// AmenitiesEditor/LocationEditor. Se usa en dos lugares: el paso "Modelo
+// BIM" del asistente guiado, y /admin/proyecto/bim para activarlo o seguir
+// cargando después. Con cero piezas muestra la decisión explícita "¿querés
+// mostrar un modelo BIM?" — con una o más, la lista + editor de siempre,
+// sin volver a preguntar.
 export default function BimEditor() {
+  const activeProjectId = useActiveProjectId();
   const [models, setModels] = useState<BimModel[] | null>(null);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -28,9 +31,9 @@ export default function BimEditor() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/admin/bim').then(res => (res.ok ? res.json() : { models: [] })),
-      fetch('/api/admin/floors').then(res => (res.ok ? res.json() : [])),
-      fetch('/api/admin/units').then(res => (res.ok ? res.json() : []))
+      fetch(withActiveProject('/api/admin/bim', activeProjectId)).then(res => (res.ok ? res.json() : { models: [] })),
+      fetch(withActiveProject('/api/admin/floors', activeProjectId)).then(res => (res.ok ? res.json() : [])),
+      fetch(withActiveProject('/api/admin/units', activeProjectId)).then(res => (res.ok ? res.json() : []))
     ])
       .then(([bimData, floorsData, unitsData]) => {
         if (cancelled) return;
@@ -41,11 +44,11 @@ export default function BimEditor() {
       })
       .catch(() => { if (!cancelled) setModels([]); });
     return () => { cancelled = true; };
-  }, []);
+  }, [activeProjectId]);
 
   const create = async () => {
     setCreating(true);
-    const res = await fetch('/api/admin/bim', {
+    const res = await fetch(withActiveProject('/api/admin/bim', activeProjectId), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Pieza sin título' }),

@@ -5,24 +5,26 @@ import Button from '@/components/ui/Button';
 import ImageUploader from '@/components/admin/ImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function MasterplanEditor({ onSaved }: { onSaved: () => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => { setImage(data.project?.masterplan_image ?? ''); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProjectId]);
 
   const handleSave = async () => {
     if (image === null) return;
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ masterplanImage: image }),

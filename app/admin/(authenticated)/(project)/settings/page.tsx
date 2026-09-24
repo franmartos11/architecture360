@@ -5,6 +5,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import type { ProjectSaleMode, ProjectType } from '@/types';
@@ -12,19 +13,20 @@ import type { ProjectSaleMode, ProjectType } from '@/types';
 export default function SettingsPage() {
   const { showCalculator } = useProjectTypeConfig();
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const [project, setProject] = useState<{ id: string; name: string; project_type: string; sale_mode: string; published: boolean } | null>(null);
   const [savingMode, setSavingMode] = useState(false);
   const [savingPublished, setSavingPublished] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => setProject(data.project
         ? { id: data.project.id, name: data.project.name, project_type: data.project.project_type, sale_mode: data.project.sale_mode, published: data.project.published }
         : null))
       .catch(() => {});
-  }, []);
+  }, [activeProjectId]);
 
   // La FORMA del proyecto (edificio/casa/loteo…) se elige al crearlo y no
   // se cambia — define toda la jerarquía y ya hay estructura colgando. Lo
@@ -35,7 +37,7 @@ export default function SettingsPage() {
   const handleSaveMode = async (saleMode: ProjectSaleMode) => {
     if (!project || saleMode === project.sale_mode) return;
     setSavingMode(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ saleMode }),
@@ -55,7 +57,7 @@ export default function SettingsPage() {
     if (!project) return;
     const published = !project.published;
     setSavingPublished(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ published }),

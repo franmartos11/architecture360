@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { getProjectHref } from '@/lib/project-url';
@@ -60,13 +61,14 @@ export default function AdminSitioPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<Selected>('portada');
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const sectionsRef = useRef<SectionRow[] | null>(null);
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
 
   const load = () => {
     startTransition(() => { setLoading(true); setLoadError(false); });
     Promise.all([
-      fetch('/api/admin/project/preview').then(res => res.json()),
+      fetch(withActiveProject('/api/admin/project/preview', activeProjectId)).then(res => res.json()),
       fetch('/api/admin/fonts').then(res => res.json()),
     ])
       .then(([data, fontsData]) => {
@@ -86,12 +88,12 @@ export default function AdminSitioPage() {
       });
   };
 
-  useEffect(load, []);
+  useEffect(load, [activeProjectId, typeConfig]);
 
   const persist = async (next: SectionRow[]) => {
     setSections(next);
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sectionConfig: next.map(({ key, enabled }) => ({ key, enabled })) }),

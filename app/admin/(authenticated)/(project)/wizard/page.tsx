@@ -16,6 +16,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import { FLOOR_KIND_OPTIONS, FLOOR_KIND_ICON } from '@/lib/floorKinds';
@@ -53,6 +54,7 @@ export default function AdminWizardPage() {
 }
 
 function AdminWizardPageInner() {
+  const activeProjectId = useActiveProjectId();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -159,14 +161,14 @@ function AdminWizardPageInner() {
 
   const loadBuildings = useCallback(() => {
     startTransition(() => setLoadingBuildings(true));
-    fetch('/api/admin/buildings')
+    fetch(withActiveProject('/api/admin/buildings', activeProjectId))
       .then(res => res.json())
       .then(data => {
         setBuildings(Array.isArray(data) ? data : []);
         setLoadingBuildings(false);
       })
       .catch(() => setLoadingBuildings(false));
-  }, []);
+  }, [activeProjectId]);
 
   useEffect(loadBuildings, [loadBuildings]);
 
@@ -195,11 +197,11 @@ function AdminWizardPageInner() {
   // abajo (auto-crear la casa si un proyecto viejo no la tiene).
   const [projectName, setProjectName] = useState('');
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => setProjectName(data.project?.name ?? ''))
       .catch(() => {});
-  }, []);
+  }, [activeProjectId]);
 
   // "casa": normalmente la crea el POST de /api/admin/projects con el
   // nombre del proyecto. Si un proyecto viejo (o una creación a medias)
@@ -209,7 +211,7 @@ function AdminWizardPageInner() {
   useEffect(() => {
     if (hasUnitStep || loadingBuildings || buildings.length > 0 || !projectName || casaProvisionRef.current) return;
     casaProvisionRef.current = true;
-    fetch('/api/admin/buildings', {
+    fetch(withActiveProject('/api/admin/buildings', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: projectName }),
@@ -222,7 +224,7 @@ function AdminWizardPageInner() {
         if (created.floor_id) setFloorId(created.floor_id);
       })
       .catch(() => { casaProvisionRef.current = false; });
-  }, [hasUnitStep, loadingBuildings, buildings.length, projectName, loadBuildings]);
+  }, [hasUnitStep, loadingBuildings, buildings.length, projectName, loadBuildings, activeProjectId]);
 
   const loadFloors = useCallback(() => {
     if (!buildingId) { startTransition(() => setFloors([])); return; }
@@ -285,7 +287,7 @@ function AdminWizardPageInner() {
     e.preventDefault();
     if (!newBuilding.name) return;
     setCreatingBuilding(true);
-    const res = await fetch('/api/admin/buildings', {
+    const res = await fetch(withActiveProject('/api/admin/buildings', activeProjectId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newBuilding.name, totalFloors: newBuilding.totalFloors, planImage: newBuilding.planImage || null }),

@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { AMENITY_CATEGORY_SUGGESTIONS } from '@/lib/amenities';
 import type { TourData } from '@/types';
 import type { BuildingRow as DbBuildingRow, AmenityRow as DbAmenityRow } from '@/types/database';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'amenities_tour'>;
 type AmenityRow = Pick<DbAmenityRow,
@@ -48,10 +49,11 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
 
   const fetchData = () => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         setAmenities(data.amenities ?? []);
@@ -72,7 +74,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
     fetchData();
   };
 
-  useEffect(fetchData, []);
+  useEffect(fetchData, [activeProjectId]);
 
   const availableNodes = useMemo(() => {
     if (!form.buildingId) return commonAreasTour?.nodes ?? [];
@@ -132,7 +134,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-      : await fetch('/api/admin/amenities', {
+      : await fetch(withActiveProject('/api/admin/amenities', activeProjectId), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, sortOrder: amenities.length }),
@@ -164,7 +166,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   };
 
   const handleDuplicate = async (a: AmenityRow) => {
-    const res = await fetch('/api/admin/amenities', {
+    const res = await fetch(withActiveProject('/api/admin/amenities', activeProjectId), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         buildingId: a.building_id, name: `${a.name} (copia)`, description: a.description,

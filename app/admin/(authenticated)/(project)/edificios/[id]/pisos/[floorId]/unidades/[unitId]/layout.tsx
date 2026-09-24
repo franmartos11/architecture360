@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
 import { getStatusLabel } from '@/lib/units';
@@ -45,6 +46,7 @@ export default function UnitShellLayout({
   const unitLabelLower = unitLabel.toLowerCase();
   const uAgree = unitAgreement(typeConfig);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   const [unit, setUnit] = useState<DbUnitRow | null>(null);
   const [siblings, setSiblings] = useState<SiblingUnit[]>([]);
@@ -80,11 +82,11 @@ export default function UnitShellLayout({
   // (ver el filtro por unitId al construir las opciones más abajo).
   useEffect(() => {
     if (unitIsLand) return;
-    fetch('/api/admin/units')
+    fetch(withActiveProject('/api/admin/units', activeProjectId))
       .then(res => res.json())
       .then((data: OtherUnitRow[]) => setOtherUnits(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [unitIsLand]);
+  }, [unitIsLand, activeProjectId]);
 
   const copyOptions = useMemo(() => otherUnits.filter(u => u.id !== unitId), [otherUnits, unitId]);
 

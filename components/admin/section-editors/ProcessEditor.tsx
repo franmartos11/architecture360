@@ -5,24 +5,26 @@ import Button from '@/components/ui/Button';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function ProcessEditor({ onSaved }: { onSaved: () => void }) {
   const [images, setImages] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => { setImages(data.project?.process_gallery ?? []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProjectId]);
 
   const handleSave = async () => {
     if (!images) return;
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ processGallery: images }),

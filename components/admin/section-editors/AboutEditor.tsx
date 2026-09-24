@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 interface AboutForm {
   description: string;
@@ -29,9 +30,10 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   useEffect(() => {
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         const p = data.project ?? {};
@@ -45,13 +47,13 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeProjectId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
     setSaving(true);
-    const res = await fetch('/api/admin/project', {
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

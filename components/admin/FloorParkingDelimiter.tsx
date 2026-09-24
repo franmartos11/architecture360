@@ -5,6 +5,7 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { ParkingSpot } from '@/types';
@@ -71,6 +72,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [pendingSaveKey, setPendingSaveKey] = useState<string | null>(null);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   const load = () => {
     startTransition(() => {
@@ -79,7 +81,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     });
     Promise.all([
       fetch(`/api/admin/buildings/${buildingId}`).then(res => res.json()),
-      fetch('/api/admin/units').then(res => res.json()),
+      fetch(withActiveProject('/api/admin/units', activeProjectId)).then(res => res.json()),
     ]).then(([buildingData, unitsData]) => {
       const floor = (buildingData.floors ?? []).find((f: { id: string }) => f.id === floorId);
       setPlanImage(floor?.plan_image ?? null);
@@ -116,7 +118,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     });
   };
 
-  useEffect(load, [buildingId, floorId]);
+  useEffect(load, [buildingId, floorId, activeProjectId]);
 
   const unitById = useMemo(() => new Map(units.map(u => [u.id, u])), [units]);
 

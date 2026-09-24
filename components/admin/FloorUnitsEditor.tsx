@@ -23,6 +23,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Accordion, AccordionItem } from '@/components/ui/Accordion';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
@@ -196,6 +197,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const [editUnitTourData, setEditUnitTourData] = useState<TourData | null>(null);
   const toast = useToast();
   const confirmDialog = useConfirm();
+  const activeProjectId = useActiveProjectId();
   const inheritedDefaultsApplied = useRef(false);
   const singleRecordAutoEdited = useRef(false);
   // Casa: último estado guardado, para saber si hay cambios sin guardar
@@ -224,11 +226,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   // `units`), y el filtro contra las de este piso se hace al renderizar.
   useEffect(() => {
     if (!hasUnitStep) return;
-    fetch('/api/admin/units')
+    fetch(withActiveProject('/api/admin/units', activeProjectId))
       .then(res => res.json())
       .then((data: OtherUnitRow[]) => setAllProjectUnits(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [hasUnitStep]);
+  }, [hasUnitStep, activeProjectId]);
   const otherUnits = useMemo(
     () => allProjectUnits.filter(u => !units.some(un => un.id === u.id)),
     [allProjectUnits, units],

@@ -7,6 +7,7 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type {
@@ -44,6 +45,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const aerialLower = typeConfig.aerialLabel.toLowerCase();
   const router = useTransitionRouter();
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
 
   const [slides, setSlides] = useState<SlideRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
@@ -87,7 +89,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
       setLoading(true);
       setLoadError(false);
     });
-    fetch('/api/admin/project')
+    fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => {
         const s: SlideRow[] = data.slides ?? [];
@@ -126,7 +128,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
 
   // Se pide una sola vez: ya no depende de qué aérea está activa, así que
   // cambiar de aérea no dispara un refetch.
-  useEffect(load, []);
+  useEffect(load, [activeProjectId]);
 
   // La URL sigue reflejando la aérea (y el edificio) activos, para que los
   // links que ya existen a esta pantalla sigan armándose igual — pero se
