@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { downloadCsv } from '@/lib/csv';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
@@ -36,6 +37,7 @@ export default function AdminInventory() {
   const [bulkPriceAmount, setBulkPriceAmount] = useState('');
   const [bulkWorking, setBulkWorking] = useState(false);
   const toast = useToast();
+  const activeProjectId = useActiveProjectId();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel } = typeConfig;
   const uAgree = unitAgreement(typeConfig);
@@ -70,7 +72,7 @@ export default function AdminInventory() {
       setLoading(true);
       setError(false);
     });
-    fetch('/api/admin/units')
+    fetch(withActiveProject('/api/admin/units', activeProjectId))
       .then(res => {
         if (!res.ok) throw new Error('Request failed');
         return res.json();
@@ -88,7 +90,8 @@ export default function AdminInventory() {
 
   useEffect(() => {
     fetchUnits();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId]);
 
   const handleUpdateUnit = async (id: string, updates: Partial<Pick<UnitRow, 'status' | 'price'>>) => {
     setSavingId(id);
@@ -137,42 +140,48 @@ export default function AdminInventory() {
   const handleBulkStatus = async () => {
     setBulkWorking(true);
     const ids = Array.from(selectedIds);
-    const results = await Promise.all(ids.map(id =>
-      fetch(`/api/admin/units/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: bulkStatus }),
-      }).then(r => r.ok)
-    ));
+    // Un solo request para todo el lote — antes era un fetch por unidad en
+    // paralelo, y con más de 120 seleccionadas el límite de escrituras del
+    // admin (proxy.ts) cortaba el resto en silencio: el toast decía
+    // "actualizado" igual, sin que quedara rastro de qué no se guardó.
+    const res = await fetch(withActiveProject('/api/admin/units/bulk', activeProjectId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status: bulkStatus }),
+    });
     setBulkWorking(false);
-    const okIds = ids.filter((_, i) => results[i]);
-    setUnits(prev => prev.map(u => (okIds.includes(u.id) ? { ...u, status: bulkStatus } : u)));
-    toast(`Estado actualizado en ${okIds.length} ${unitLabelLower}${okIds.length === 1 ? '' : 's'}.`, okIds.length < ids.length ? 'error' : undefined);
+    if (!res.ok) { toast('No se pudo actualizar el estado.', 'error'); return; }
+    const { updated, skipped } = await res.json() as { updated: string[]; skipped: { id: string; reason: string }[] };
+    setUnits(prev => prev.map(u => (updated.includes(u.id) ? { ...u, status: bulkStatus } : u)));
+    toast(
+      `Estado actualizado en ${updated.length} ${unitLabelLower}${updated.length === 1 ? '' : 's'}.${skipped.length > 0 ? ` ${skipped.length} sin poder actualizar.` : ''}`,
+      skipped.length > 0 ? 'error' : undefined
+    );
   };
 
   const handleBulkPrice = async () => {
     const amount = Number(bulkPriceAmount);
     if (!bulkPriceAmount || Number.isNaN(amount) || amount <= 0) { toast('Ingresá un monto válido.', 'error'); return; }
     setBulkWorking(true);
-    const targets = units.filter(u => selectedIds.has(u.id) && u.price != null);
-    const results = await Promise.all(targets.map(u => {
-      const delta = bulkPriceMode === 'pct' ? Math.round((u.price as number) * (amount / 100)) : amount;
-      const newPrice = Math.max(0, bulkPriceSign === 'increase' ? (u.price as number) + delta : (u.price as number) - delta);
-      return fetch(`/api/admin/units/${u.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price: newPrice }),
-      }).then(r => (r.ok ? newPrice : null));
-    }));
+    // El delta de cada unidad lo calcula el servidor a partir del precio que
+    // hay en la base en este momento, no del que el navegador tiene en
+    // pantalla (que puede haber quedado viejo si alguien más editó esa
+    // unidad mientras tanto).
+    const res = await fetch(withActiveProject('/api/admin/units/bulk', activeProjectId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ids: Array.from(selectedIds),
+        priceAdjustment: { mode: bulkPriceMode, sign: bulkPriceSign, amount },
+      }),
+    });
     setBulkWorking(false);
-    setUnits(prev => prev.map(u => {
-      const idx = targets.findIndex(t => t.id === u.id);
-      const result = idx >= 0 ? results[idx] : null;
-      return result != null ? { ...u, price: result } : u;
-    }));
-    const updated = results.filter(r => r != null).length;
-    const skippedNoPrice = selectedIds.size - targets.length;
-    toast(`Precio actualizado en ${updated} ${unitLabelLower}${updated === 1 ? '' : 's'}.${skippedNoPrice > 0 ? ` ${skippedNoPrice} sin precio cargado, omitida${skippedNoPrice === 1 ? '' : 's'}.` : ''}`);
+    if (!res.ok) { toast('No se pudo ajustar el precio.', 'error'); return; }
+    const { updated, skipped } = await res.json() as { updated: { id: string; price: number }[]; skipped: { id: string; reason: string }[] };
+    const priceById = new Map(updated.map(u => [u.id, u.price]));
+    setUnits(prev => prev.map(u => (priceById.has(u.id) ? { ...u, price: priceById.get(u.id)! } : u)));
+    const skippedNoPrice = skipped.filter(s => s.reason === 'Sin precio cargado').length;
+    toast(`Precio actualizado en ${updated.length} ${unitLabelLower}${updated.length === 1 ? '' : 's'}.${skippedNoPrice > 0 ? ` ${skippedNoPrice} sin precio cargado, omitida${skippedNoPrice === 1 ? '' : 's'}.` : ''}`);
   };
 
   const handleExportCsv = () => {

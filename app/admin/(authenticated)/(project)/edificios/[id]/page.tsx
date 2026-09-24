@@ -97,6 +97,21 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     if (res.ok) toast('Guardado.'); else toast('Error al guardar.', 'error');
   };
 
+  // La foto se guarda sola apenas termina de subir — antes quedaba solo en
+  // el estado local hasta apretar "Guardar", así que si alguien subía la
+  // foto y se iba de la página (o la cerraba) sin tocar ese botón, el
+  // archivo quedaba huérfano en el storage y el edificio seguía sin
+  // portada, sin ningún aviso de que se había perdido.
+  const handleCoverImageChange = async (url: string) => {
+    setBuilding(prev => (prev ? { ...prev, cover_image: url } : prev));
+    const res = await fetch(`/api/admin/buildings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverImage: url }),
+    });
+    if (res.ok) toast('Foto guardada.'); else toast('Error al guardar la foto.', 'error');
+  };
+
   const handleUpdateFloor = async (floorId: string, updates: Partial<FloorRow>) => {
     const res = await fetch(`/api/admin/floors/${floorId}`, {
       method: 'PATCH',
@@ -196,12 +211,12 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             <ImageUploader
               label={hasFloorStep ? 'Foto del edificio' : `Foto ${agree.del} ${buildingLabelLower}`}
               value={building.cover_image ?? ''}
-              onChange={url => setBuilding({ ...building, cover_image: url })}
+              onChange={handleCoverImageChange}
               folder="buildings"
             />
             {hasFloorStep && (
               <p className="text-xs text-gray-500">
-                &quot;Pisos declarados&quot; es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto no se guarda sola, hacé click en &quot;Guardar&quot;.
+                &quot;Pisos declarados&quot; es solo informativo (para saber cuántos faltan cargar); los pisos reales del sitio son los de la tabla de abajo. La foto se guarda sola al subirla; nombre y pisos declarados necesitan &quot;Guardar&quot;.
               </p>
             )}
           </form>
