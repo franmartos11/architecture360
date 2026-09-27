@@ -93,6 +93,24 @@ export function sanitizeSpecs(input: unknown, maxItems = 12): { key: string; val
     .slice(0, maxItems);
 }
 
+type PlanPoint = { x: number; y: number };
+
+/** Punto en % sobre un plano (0–100 en ambos ejes). null si no es un punto válido. */
+export function sanitizePoint(input: unknown): PlanPoint | null {
+  if (!input || typeof input !== 'object') return null;
+  const { x, y } = input as { x?: unknown; y?: unknown };
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+  return { x: clamp(x), y: clamp(y) };
+}
+
+/** Polígono en % sobre un plano — descarta puntos inválidos; menos de 3 puntos = sin polígono. */
+export function sanitizePolygon(input: unknown, maxPoints = 200): PlanPoint[] {
+  if (!Array.isArray(input)) return [];
+  const points = input.slice(0, maxPoints).map(sanitizePoint).filter((p): p is PlanPoint => p !== null);
+  return points.length >= 3 ? points : [];
+}
+
 const HTML_ESCAPES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',

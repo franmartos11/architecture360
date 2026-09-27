@@ -12,7 +12,9 @@ import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
-import { FLOOR_KIND_LABEL, FLOOR_KIND_ICON } from '@/lib/floorKinds';
+import { FLOOR_KIND_LABEL } from '@/lib/floorKinds';
+import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor, floorName } from '@/lib/floor-explorer';
+import { AmenityPanel, SpotPanel, IncludesBlock, NextAvailableCard, AmenityMarkerIcon, AMENITY_COLOR, AMENITY_TEXT } from './FloorPlanPanels';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
@@ -121,6 +123,9 @@ export default function FloorPlanViewer({
   const [layers, setLayers] = useState({ siluetas: unitIsLand, etiquetas: true, fotos: false });
   const [layersOpen, setLayersOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  // Lo que no es una unidad: una amenity ubicada en el plano o una cochera
+  // del piso de cocheras. Excluyente con selectedUnit.
+  const [selOther, setSelOther] = useState<{ kind: 'amenity' | 'spot'; id: string } | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   const [showBim, setShowBim] = useState(false);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -230,6 +235,19 @@ export default function FloorPlanViewer({
     [unitsOnFloor]
   );
 
+  const floorAmenities = useMemo(
+    () => (floor ? amenities.filter(a => a.floorId === floor.id && a.pin) : []),
+    [amenities, floor]
+  );
+  const placedAmenities = useMemo(() => amenitiesPlacedIn(amenities, building.floors), [amenities, building.floors]);
+  const buildingAmenityCount = useMemo(
+    () => amenities.filter(a => !a.buildingId || a.buildingId === building.id).length,
+    [amenities, building.id]
+  );
+  const floorSpots = useMemo(() => (floor ? parkingSpotsOnFloor(allUnits, floor.id) : []), [allUnits, floor]);
+  const selectedAmenity = selOther?.kind === 'amenity' ? floorAmenities.find(a => a.id === selOther.id) ?? null : null;
+  const selectedSpot = selOther?.kind === 'spot' ? floorSpots.find(s => s.key === selOther.id) ?? null : null;
+
   // Unidades de todo el edificio (todas las plantas) — para "disponibles"
   // totales y "siguiente disponible".
   const buildingUnits = useMemo(() => allUnits.filter(u => u.buildingId === building.id), [allUnits, building.id]);
@@ -248,23 +266,66 @@ export default function FloorPlanViewer({
     return [...candidates].sort((a, b) => Math.abs(a.floor - referenceFloor) - Math.abs(b.floor - referenceFloor))[0];
   }, [showStatus, availableInBuilding, selectedUnit, activeFloor]);
 
+  // Al llegar a un piso sin nada elegido: la primera unidad; si el piso no
+  // tiene unidades, su primera amenity; si es de cocheras, la primera
+  // cochera cuya unidad sigue disponible.
+  const hasSelectionOnFloor = (!!selectedUnit && selectedUnit.floor === activeFloor) || !!selectedAmenity || !!selectedSpot;
   useEffect(() => {
-    if (unitsOnFloor.length > 0) {
-      if (!selectedUnit || selectedUnit.floor !== activeFloor) {
-        startTransition(() => setSelectedUnit(unitsOnFloor[0]));
+    if (hasSelectionOnFloor) return;
+    startTransition(() => {
+      if (unitsOnFloor.length > 0) {
+        setSelectedUnit(unitsOnFloor[0]);
+        setSelOther(null);
+      } else if (floorAmenities.length > 0) {
+        setSelectedUnit(null);
+        setSelOther({ kind: 'amenity', id: floorAmenities[0].id });
+      } else if (floorSpots.length > 0) {
+        setSelectedUnit(null);
+        setSelOther({ kind: 'spot', id: (floorSpots.find(sp => sp.unit.status === 'available') ?? floorSpots[0]).key });
       }
-    }
-  }, [activeFloor, unitsOnFloor, selectedUnit]);
+    });
+  }, [hasSelectionOnFloor, unitsOnFloor, floorAmenities, floorSpots]);
 
-  const handleSelectUnit = useCallback((unit: Unit) => {
-    setSelectedUnit(unit);
-    // En pantallas angostas la ficha de la unidad vive debajo del plano, no
-    // al costado — sin este scroll, tocar un pin no da ninguna señal de que
-    // pasó algo (la info cambió fuera de la vista).
+  // En pantallas angostas el panel vive debajo del plano, no al costado —
+  // sin este scroll, tocar algo en el plano no da ninguna señal de que pasó
+  // algo (la info cambió fuera de la vista).
+  const revealAside = useCallback(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
       requestAnimationFrame(() => asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     }
   }, []);
+
+  const handleSelectUnit = useCallback((unit: Unit) => {
+    setSelectedUnit(unit);
+    setSelOther(null);
+    revealAside();
+  }, [revealAside]);
+
+  const goToFloor = useCallback((num: number) => {
+    setActiveFloor(num);
+    setSelectedUnit(null);
+    setSelOther(null);
+  }, []);
+
+  // Elegir una amenity o cochera, cambiando de piso si hace falta.
+  const selectOther = useCallback((kind: 'amenity' | 'spot', id: string, floorNumber: number) => {
+    setActiveFloor(floorNumber);
+    setSelectedUnit(null);
+    setSelOther({ kind, id });
+    revealAside();
+  }, [revealAside]);
+
+  const floorNumberById = useCallback((floorId?: string) => building.floors.find(f => f.id === floorId)?.number, [building.floors]);
+
+  const handleSelectAmenity = useCallback((a: Amenity) => {
+    const n = floorNumberById(a.floorId);
+    if (n !== undefined) selectOther('amenity', a.id, n);
+  }, [floorNumberById, selectOther]);
+
+  const handleGoUnitSpot = useCallback((unit: Unit, index: number) => {
+    const n = floorNumberById(unit.parkingSpots?.[index]?.floorId);
+    if (n !== undefined) selectOther('spot', `${unit.id}#${index}`, n);
+  }, [floorNumberById, selectOther]);
 
   const handleGoNextAvailable = useCallback(() => {
     if (!nextAvailableUnit) return;
@@ -293,6 +354,25 @@ export default function FloorPlanViewer({
     .map(f => f.number)
     .sort((a, b) => b - a); // descending (top = highest)
 
+  const mainAmenityFloorNumber = mainAmenityFloor(placedAmenities, building.floors)?.number;
+  const nextAvailableLabel = nextAvailableUnit
+    ? `${nextAvailableUnit.name} · Piso ${nextAvailableUnit.floor} · ${nextAvailableUnit.totalArea} m²${showPrice && nextAvailableUnit.price ? ` · ${formatPrice(nextAvailableUnit.price, nextAvailableUnit.currency)}` : ''}`
+    : null;
+
+  const parkingLegend = [
+    { label: 'Con unidad disponible', color: getStatusColor('available'), n: floorSpots.filter(sp => sp.unit.status === 'available').length },
+    { label: 'Reservadas', color: getStatusColor('reserved'), n: floorSpots.filter(sp => sp.unit.status === 'reserved').length },
+    { label: 'Vendidas', color: getStatusColor('sold'), n: floorSpots.filter(sp => sp.unit.status === 'sold').length },
+  ];
+  const floorSummary = unitsOnFloor.length > 0
+    ? [
+        showStatus ? `${unitsOnFloor.filter(u => u.status === 'available').length} de ${unitsOnFloor.length} disponibles` : `${unitsOnFloor.length} unidades`,
+        floorAmenities.length ? `incluye ${floorAmenities.map(a => a.name.toLowerCase()).join(', ')}` : '',
+      ].filter(Boolean).join(' · ')
+    : floorAmenities.length > 0
+      ? `${floorAmenities.length} espacio${floorAmenities.length === 1 ? '' : 's'} de uso común`
+      : `${floorSpots.length} cochera${floorSpots.length === 1 ? '' : 's'} asignada${floorSpots.length === 1 ? '' : 's'} a unidades`;
+
   const priceCaption = selectedUnit?.status === 'available' ? 'PRECIO' : 'PRECIO DE LISTA';
   const pricePerM2 = selectedUnit?.price && selectedUnit.totalArea > 0
     ? formatPrice(Math.round(selectedUnit.price / selectedUnit.totalArea), selectedUnit.currency)
@@ -302,9 +382,9 @@ export default function FloorPlanViewer({
   // lo que efectivamente existe en esta planta.
   const layerOptions = (floor && floor.planImage
     ? ([
-        ['siluetas', unitIsLand ? 'Límites de los lotes' : 'Siluetas', polygonUnits.length > 0],
-        ['etiquetas', 'Etiquetas', floor.unitDots.length > 0],
-        ['fotos', 'Fotos', polygonUnits.some(u => u.interiorImageUrl)],
+        ['siluetas', unitIsLand ? 'Límites de los lotes' : 'Siluetas', polygonUnits.length > 0 || floorAmenities.some(a => a.polygon)],
+        ['etiquetas', 'Etiquetas', floor.unitDots.length > 0 || floorAmenities.length > 0 || floorSpots.length > 0],
+        ['fotos', 'Fotos', polygonUnits.some(u => u.interiorImageUrl) || floorAmenities.some(a => a.images[0])],
       ] as const)
     : []
   ).filter(([, , available]) => available);
@@ -375,16 +455,18 @@ export default function FloorPlanViewer({
                 return (
                   <button
                     key={num}
-                    onClick={() => { setActiveFloor(num); setSelectedUnit(null); }}
+                    onClick={() => goToFloor(num)}
                     className={`shrink-0 min-w-[54px] px-2.5 py-1.5 rounded-[11px] text-center border transition-colors ${
                       active ? 'bg-gray-900 border-gray-900' : 'border-gray-200'
                     }`}
                   >
                     <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-gray-800'}`}>
-                      {special ? FLOOR_KIND_ICON[kind!] : num === 0 ? 'PB' : num}
+                      {num === 0 ? 'PB' : num < 0 ? `SS${-num}` : num}
                     </div>
-                    <div className={`text-[9px] font-medium mt-0.5 whitespace-nowrap ${active ? 'text-white/75' : showStatus && fa.length > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-                      {special ? FLOOR_KIND_LABEL[kind!] : showStatus ? (fa.length ? `${fa.length} libres` : 'Agotado') : ''}
+                    <div className={`text-[9px] font-medium mt-0.5 whitespace-nowrap ${active ? 'text-white/75' : special ? 'text-[#6f604f]' : showStatus && fa.length > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {special
+                        ? (kind === 'parking' ? 'Cocheras' : FLOOR_KIND_LABEL[kind!])
+                        : showStatus ? (fa.length ? `${fa.length} libres` : 'Agotado') : ''}
                     </div>
                   </button>
                 );
@@ -486,15 +568,13 @@ export default function FloorPlanViewer({
                 </div>
               )}
 
-              {selectedUnit.status !== 'sold' && (
-                <button
-                  onClick={handleEnterUnit}
-                  className="mt-4 h-12 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 rounded-[11px] text-white font-semibold text-[13.5px] transition-colors"
-                >
-                  Ingresar a la unidad
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
-                </button>
-              )}
+              <button
+                onClick={handleEnterUnit}
+                className="mt-4 h-12 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 rounded-[11px] text-white font-semibold text-[13.5px] transition-colors"
+              >
+                {selectedUnit.status === 'sold' ? 'Ver la unidad' : 'Ingresar a la unidad'}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
 
               <h4 className="text-[10px] font-semibold tracking-[0.16em] text-gray-500 mt-[22px]">
                 {unitIsLand ? 'DATOS DEL LOTE' : 'INSTALACIONES'}
@@ -523,41 +603,32 @@ export default function FloorPlanViewer({
                 )}
               </div>
 
-              {(amenities.length > 0 || pointsOfInterest.length > 0) && (
-                <div className="grid grid-cols-2 gap-2 mt-5">
-                  {amenities.length > 0 && (
-                    <button
-                      onClick={() => handleEnterUnitTab('amenities')}
-                      className="flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-emerald-700 hover:text-emerald-700 transition-colors"
-                    >
-                      Amenities
-                    </button>
-                  )}
-                  {pointsOfInterest.length > 0 && (
-                    <button
-                      onClick={() => handleEnterUnitTab('ubicacion')}
-                      className="flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-emerald-700 hover:text-emerald-700 transition-colors"
-                    >
-                      Ubicación
-                    </button>
-                  )}
-                </div>
+              {!unitIsLand && (
+                <IncludesBlock
+                  unit={selectedUnit}
+                  canGoSpot={floorId => floorNumberById(floorId) !== undefined}
+                  onGoSpot={i => handleGoUnitSpot(selectedUnit, i)}
+                  amenityCount={buildingAmenityCount}
+                  amenityWhere={amenitiesWhereLabel(placedAmenities, building.floors)}
+                  onGoAmenities={
+                    mainAmenityFloorNumber !== undefined
+                      ? () => goToFloor(mainAmenityFloorNumber)
+                      : buildingAmenityCount > 0 ? () => handleEnterUnitTab('amenities') : undefined
+                  }
+                />
               )}
 
-              {nextAvailableUnit && (
+              {pointsOfInterest.length > 0 && (
                 <button
-                  onClick={handleGoNextAvailable}
-                  className="mt-5 p-[13px] bg-emerald-50 border border-emerald-100 rounded-[11px] flex items-center gap-2.5 text-left hover:bg-emerald-100/70 transition-colors"
+                  onClick={() => handleEnterUnitTab('ubicacion')}
+                  className="mt-5 flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-emerald-700 hover:text-emerald-700 transition-colors"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9.5px] font-semibold tracking-[0.13em] text-emerald-700">SIGUIENTE DISPONIBLE</p>
-                    <p className="text-[12.5px] font-medium text-gray-900 mt-1">
-                      {nextAvailableUnit.name} · Piso {nextAvailableUnit.floor} · {nextAvailableUnit.totalArea} m²
-                      {showPrice && nextAvailableUnit.price ? ` · ${formatPrice(nextAvailableUnit.price, nextAvailableUnit.currency)}` : ''}
-                    </p>
-                  </div>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#047857" strokeWidth={2} strokeLinecap="round" className="shrink-0"><path d="M9 6l6 6-6 6" /></svg>
+                  Ubicación y alrededores
                 </button>
+              )}
+
+              {nextAvailableUnit && nextAvailableLabel && (
+                <NextAvailableCard caption="SIGUIENTE DISPONIBLE" label={nextAvailableLabel} onClick={handleGoNextAvailable} />
               )}
 
               {showLeads && (
@@ -585,6 +656,39 @@ export default function FloorPlanViewer({
               )}
             </div>
           </div>
+        ) : selectedAmenity && floor ? (
+          <AmenityPanel
+            amenity={selectedAmenity}
+            floorLabel={floorName(floor)}
+            tourHref={selectedAmenity.tourNodeId
+              ? selectedAmenity.buildingId
+                ? `${basePath}/edificio/${selectedAmenity.buildingId}/recorrido?focus=${selectedAmenity.tourNodeId}`
+                : `${basePath}/recorrido?focus=${selectedAmenity.tourNodeId}`
+              : null}
+            amenitiesHref={`${basePath}/amenities`}
+            siblings={floorAmenities.length > 1
+              ? floorAmenities.filter(a => a.id !== selectedAmenity.id)
+              : placedAmenities.filter(a => a.id !== selectedAmenity.id)}
+            siblingsTitle={floorAmenities.length > 1 ? 'EN ESTE PISO' : 'OTRAS AMENITIES'}
+            siblingFloorLabel={a => {
+              const f = building.floors.find(fl => fl.id === a.floorId);
+              return f ? floorName(f) : '';
+            }}
+            onSelectSibling={handleSelectAmenity}
+            next={nextAvailableUnit && nextAvailableLabel ? { label: nextAvailableLabel, onClick: handleGoNextAvailable } : null}
+          />
+        ) : selectedSpot && floor ? (
+          <SpotPanel
+            spot={selectedSpot}
+            floorLabel={floorName(floor)}
+            buildingName={building.name}
+            showStatus={showStatus}
+            showPrice={showPrice}
+            onGoOwner={() => {
+              setActiveFloor(selectedSpot.unit.floor);
+              handleSelectUnit(selectedSpot.unit);
+            }}
+          />
         ) : isSpecialFloor && floor ? (
           <div className="flex flex-col">
             <div className="relative h-[200px] bg-gray-900 overflow-hidden">
@@ -805,6 +909,113 @@ export default function FloorPlanViewer({
                       </svg>
                     )}
 
+                    {(floorSpots.length > 0 || floorAmenities.some(a => a.polygon)) && (
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        {floorSpots.map(sp => {
+                          const cur = selectedSpot?.key === sp.key;
+                          const c = showStatus ? getStatusColor(sp.unit.status) : '#4c5f54';
+                          return (
+                            <polygon
+                              key={sp.key}
+                              points={sp.spot.polygon.map(p => `${p.x},${p.y}`).join(' ')}
+                              vectorEffect="non-scaling-stroke"
+                              fill={cur ? c : `${c}2e`}
+                              stroke={cur ? '#1b1e1c' : `${c}a6`}
+                              strokeWidth={cur ? 2 : 1.5}
+                              opacity={passesFilter(sp.unit) ? 1 : 0.3}
+                              className="pointer-events-auto cursor-pointer transition-all"
+                              onClick={() => selectOther('spot', sp.key, activeFloor)}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${spotLabel(sp)} · ${sp.unit.name}`}
+                              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOther('spot', sp.key, activeFloor); } }}
+                            />
+                          );
+                        })}
+                        {floorAmenities.map(a => {
+                          const cur = selectedAmenity?.id === a.id;
+                          if (!a.polygon || (!layers.siluetas && !cur)) return null;
+                          return (
+                            <polygon
+                              key={a.id}
+                              points={a.polygon.map(p => `${p.x},${p.y}`).join(' ')}
+                              vectorEffect="non-scaling-stroke"
+                              fill={cur ? 'rgba(150,134,118,.26)' : 'rgba(150,134,118,.12)'}
+                              stroke={cur ? AMENITY_COLOR : 'rgba(150,134,118,.7)'}
+                              strokeWidth={1.5}
+                              strokeDasharray="5 4"
+                              opacity={onlyAvailable ? 0.55 : 1}
+                              className="pointer-events-auto cursor-pointer"
+                              onClick={() => selectOther('amenity', a.id, activeFloor)}
+                            />
+                          );
+                        })}
+                      </svg>
+                    )}
+
+                    {layers.etiquetas && floorSpots.map(sp => {
+                      const cur = selectedSpot?.key === sp.key;
+                      return (
+                        <span
+                          key={`lbl-${sp.key}`}
+                          className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none text-[9.5px] font-semibold whitespace-nowrap"
+                          style={{
+                            left: `${sp.center.x}%`, top: `${sp.center.y}%`,
+                            color: cur ? '#fff' : '#1b1e1c',
+                            opacity: passesFilter(sp.unit) ? 1 : 0.35,
+                          }}
+                        >
+                          {sp.spot.label || sp.unit.name}
+                        </span>
+                      );
+                    })}
+
+                    {floorAmenities.map(a => {
+                      const cur = selectedAmenity?.id === a.id;
+                      if (!a.pin) return null;
+                      if (layers.fotos && a.images[0]) {
+                        return (
+                          <button
+                            key={`am-foto-${a.id}`}
+                            onClick={() => selectOther('amenity', a.id, activeFloor)}
+                            aria-label={`Ver ${a.name}`}
+                            className="absolute z-10 pointer-events-auto -translate-x-1/2 -translate-y-1/2 w-[126px] bg-white rounded-[10px] overflow-hidden text-left transition-shadow"
+                            style={{ left: `${a.pin.x}%`, top: `${a.pin.y}%`, boxShadow: cur ? `0 0 0 2px ${AMENITY_COLOR}, 0 12px 30px rgba(27,30,28,.24)` : '0 12px 30px rgba(27,30,28,.24)' }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.images[0]} alt="" className="block w-full h-[68px] object-cover" />
+                            <span className="block px-2 pt-1.5 pb-[7px]">
+                              <span className="block text-[10.5px] font-semibold text-gray-900 truncate">{a.name}</span>
+                              <span className="block text-[9.5px] text-[#83978c] mt-0.5 truncate">Amenity{a.specs?.[0] ? ` · ${a.specs[0].value}` : ''}</span>
+                            </span>
+                          </button>
+                        );
+                      }
+                      if (!layers.etiquetas && !cur) return null;
+                      return (
+                        <button
+                          key={`am-${a.id}`}
+                          onClick={() => selectOther('amenity', a.id, activeFloor)}
+                          aria-label={`Ver ${a.name}`}
+                          className="absolute pointer-events-auto -translate-x-1/2 -translate-y-1/2 flex items-center gap-[7px] rounded-lg font-semibold whitespace-nowrap border-[1.5px] transition-all"
+                          style={{
+                            left: `${a.pin.x}%`, top: `${a.pin.y}%`,
+                            zIndex: cur ? 12 : 11,
+                            borderColor: AMENITY_COLOR,
+                            padding: cur ? '6px 13px' : '5px 11px',
+                            fontSize: cur ? 12.5 : 11.5,
+                            background: cur ? AMENITY_COLOR : '#fff',
+                            color: cur ? '#fff' : AMENITY_TEXT,
+                            boxShadow: cur ? '0 5px 16px rgba(27,30,28,.3)' : '0 2px 10px rgba(27,30,28,.16)',
+                            opacity: onlyAvailable ? 0.55 : 1,
+                          }}
+                        >
+                          <AmenityMarkerIcon color={cur ? '#fff' : AMENITY_TEXT} size={8} />
+                          {a.name}
+                        </button>
+                      );
+                    })}
+
                     {hoveredUnit && (() => {
                       const hu = polygonUnits.find(u => u.id === hoveredUnit);
                       const poly = hu?.polygon;
@@ -904,43 +1115,77 @@ export default function FloorPlanViewer({
           )}
         </div>
 
-        {/* Barra inferior — unidades del piso activo */}
-        {!isSpecialFloor && unitsOnFloor.length > 0 && (
+        {/* Barra inferior — unidades y amenities del piso activo; en un piso
+            de cocheras, la leyenda de estados. */}
+        {(unitsOnFloor.length > 0 || floorAmenities.length > 0 || floorSpots.length > 0) && (
           <div className="absolute bottom-0 inset-x-0 z-10 border-t border-gray-100 bg-white/97 backdrop-blur-sm px-3.5 pt-2.5 pb-3">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-[12.5px] font-semibold text-gray-900">{activeFloor === 0 ? 'Planta baja' : `Piso ${activeFloor}`}</span>
-              {showStatus && (
-                <span className="text-[11.5px] text-gray-400">
-                  {unitsOnFloor.filter(u => u.status === 'available').length} de {unitsOnFloor.length} disponibles
-                </span>
-              )}
+              <span className="text-[12.5px] font-semibold text-gray-900">
+                {floor ? floorName(floor) : `Piso ${activeFloor}`}
+                {floor?.floorKind === 'parking' ? ' · Cocheras' : floor?.floorKind === 'amenity' ? ' · Amenities' : ''}
+              </span>
+              <span className="text-[11.5px] text-gray-400">{floorSummary}</span>
             </div>
-            <div className="flex gap-2 overflow-x-auto mt-2 pb-0.5">
-              {unitsOnFloor.map(u => {
-                const cur = selectedUnit?.id === u.id;
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => handleSelectUnit(u)}
-                    style={{ opacity: passesFilter(u) ? 1 : 0.42 }}
-                    className={`shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-[11px] border transition-colors ${cur ? 'bg-emerald-50 border-emerald-700' : 'bg-white border-gray-200'}`}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: getStatusColor(u.status) }} />
-                    <div className="text-left">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[12.5px] font-semibold text-gray-900 whitespace-nowrap">{u.name}</span>
-                        {!unitIsLand && <span className="text-[10.5px] text-gray-400 whitespace-nowrap">{u.bedrooms} dorm · {u.totalArea} m²</span>}
-                      </div>
-                      {showPrice && (
-                        <div className="text-[11.5px] font-semibold text-emerald-700 mt-0.5 whitespace-nowrap">
-                          {u.price ? formatPrice(u.price, u.currency) : 'Consultar precio'}
-                        </div>
-                      )}
+            {unitsOnFloor.length === 0 && floorAmenities.length === 0 ? (
+              showStatus && (
+                <div className="flex gap-4 flex-wrap mt-2.5">
+                  {parkingLegend.map(g => (
+                    <div key={g.label} className="flex items-center gap-[7px]">
+                      <span className="w-3 h-3 rounded-[3px] border-[1.5px]" style={{ background: `${g.color}2e`, borderColor: `${g.color}a6` }} />
+                      <span className="text-[11.5px] font-medium text-gray-700">{g.label}</span>
+                      <span className="text-[11.5px] font-semibold text-gray-900">{g.n}</span>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="flex gap-2 overflow-x-auto mt-2 pb-0.5">
+                {unitsOnFloor.map(u => {
+                  const cur = selectedUnit?.id === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => handleSelectUnit(u)}
+                      style={{ opacity: passesFilter(u) ? 1 : 0.42 }}
+                      className={`shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-[11px] border transition-colors ${cur ? 'bg-emerald-50 border-emerald-700' : 'bg-white border-gray-200'}`}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: getStatusColor(u.status) }} />
+                      <div className="text-left">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[12.5px] font-semibold text-gray-900 whitespace-nowrap">{u.name}</span>
+                          {!unitIsLand && <span className="text-[10.5px] text-gray-400 whitespace-nowrap">{u.bedrooms} dorm · {u.totalArea} m²</span>}
+                        </div>
+                        {showPrice && (
+                          <div className="text-[11.5px] font-semibold text-emerald-700 mt-0.5 whitespace-nowrap">
+                            {u.price ? formatPrice(u.price, u.currency) : 'Consultar precio'}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+                {floorAmenities.map(a => {
+                  const cur = selectedAmenity?.id === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => selectOther('amenity', a.id, activeFloor)}
+                      className="shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-[11px] border transition-colors"
+                      style={{ background: cur ? '#f7f3ee' : '#fff', borderColor: cur ? AMENITY_COLOR : 'rgb(229 231 235)' }}
+                    >
+                      <AmenityMarkerIcon size={9} />
+                      <div className="text-left">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[12.5px] font-semibold text-gray-900 whitespace-nowrap">{a.name}</span>
+                          {a.specs?.[0] && <span className="text-[10.5px] text-gray-400 whitespace-nowrap">{a.specs[0].value}</span>}
+                        </div>
+                        <div className="text-[11.5px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: AMENITY_TEXT }}>Amenity · uso común</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -950,30 +1195,62 @@ export default function FloorPlanViewer({
         <div className="hidden md:flex order-3 w-14 flex-shrink-0 flex-col items-center gap-1.5 py-3.5 bg-white border-l border-gray-100 overflow-y-auto">
           <p className="text-[8.5px] font-semibold tracking-[0.12em] text-gray-300 pb-1">PISO</p>
           {floorNumbers.map(num => {
-            const kind = building.floors.find(f => f.number === num)?.floorKind;
-            const special = kind && kind !== 'units';
+            const fl = building.floors.find(f => f.number === num);
+            const kind = fl?.floorKind;
+            const special = !!kind && kind !== 'units';
             const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
+            const fa = fu.filter(u => u.status === 'available');
+            const fam = placedAmenities.filter(a => a.floorId === fl?.id);
             const active = activeFloor === num;
+            const soldOut = showStatus && !special && fu.length > 0 && fa.length === 0;
+            const title = [
+              fl ? floorName(fl) : `Piso ${num}`,
+              special ? FLOOR_KIND_LABEL[kind!] : showStatus && fu.length ? (fa.length ? `${fa.length} disponibles` : 'agotado') : '',
+              fam.map(a => a.name).join(', '),
+            ].filter(Boolean).join(' · ');
             return (
               <button
                 key={num}
-                onClick={() => { setActiveFloor(num); setSelectedUnit(null); }}
-                title={special ? FLOOR_KIND_LABEL[kind!] : num === 0 ? 'Planta baja' : `Piso ${num}`}
+                onClick={() => goToFloor(num)}
+                title={title}
                 className="w-14 py-1 rounded-xl flex flex-col items-center gap-1 transition-colors hover:bg-gray-50"
-                style={{ background: active ? '#1b1e1c' : 'transparent' }}
+                style={{ background: active ? '#1b1e1c' : 'transparent', opacity: onlyAvailable && soldOut ? 0.4 : 1 }}
               >
-                <span className={`text-sm ${active ? 'font-semibold text-white' : 'font-medium text-gray-700'}`}>
-                  {special ? FLOOR_KIND_ICON[kind!] : num === 0 ? 'PB' : num}
+                <span className={`text-sm ${active ? 'font-semibold text-white' : soldOut ? 'font-medium text-gray-300' : 'font-medium text-gray-700'}`}>
+                  {num === 0 ? 'PB' : num < 0 ? `SS${-num}` : num}
                 </span>
-                {!special && showStatus && (
-                  <span className="flex gap-0.5">
-                    {fu.slice(0, 4).map(u => (
+                {((showStatus && fu.length > 0) || fam.length > 0) && (
+                  <span className="flex gap-0.5 flex-wrap justify-center max-w-[48px]">
+                    {showStatus && fu.slice(0, 4).map(u => (
                       <span
                         key={u.id}
-                        className="w-[7px] h-[7px] rounded-[2px]"
-                        style={{ background: getStatusColor(u.status), opacity: selectedUnit?.id === u.id ? 1 : 0.85 }}
+                        onClick={e => { e.stopPropagation(); setActiveFloor(num); handleSelectUnit(u); }}
+                        title={`${u.name} · ${getStatusLabel(u.status)}`}
+                        className="w-[7px] h-[7px] rounded-[2px] cursor-pointer"
+                        style={{
+                          background: getStatusColor(u.status),
+                          opacity: passesFilter(u) ? 1 : 0.3,
+                          boxShadow: selectedUnit?.id === u.id ? `0 0 0 1.5px ${active ? '#1b1e1c' : '#fff'}, 0 0 0 2.5px ${getStatusColor(u.status)}` : 'none',
+                        }}
                       />
                     ))}
+                    {fam.slice(0, 3).map(a => {
+                      const c = active ? '#d9cdbf' : AMENITY_COLOR;
+                      return (
+                        <span
+                          key={a.id}
+                          onClick={e => { e.stopPropagation(); handleSelectAmenity(a); }}
+                          title={`${a.name} · Amenity`}
+                          className="w-[7px] h-[7px] rounded-[2px] cursor-pointer"
+                          style={{ background: selectedAmenity?.id === a.id ? c : 'transparent', boxShadow: `inset 0 0 0 1.5px ${c}` }}
+                        />
+                      );
+                    })}
+                  </span>
+                )}
+                {special && (
+                  <span className="text-[7.5px] font-semibold tracking-[0.06em] whitespace-nowrap" style={{ color: active ? 'rgba(255,255,255,.75)' : '#b3b3ab' }}>
+                    {kind === 'parking' ? 'COCHERAS' : FLOOR_KIND_LABEL[kind!].toUpperCase()}
                   </span>
                 )}
               </button>
@@ -983,6 +1260,14 @@ export default function FloorPlanViewer({
             <div className="mt-1 pt-2 border-t border-gray-100 w-full flex flex-col items-center gap-0.5">
               <span className="text-sm font-semibold text-emerald-600">{availableInBuilding.length}</span>
               <span className="text-[8px] font-medium tracking-[0.08em] text-gray-400 text-center">LIBRES</span>
+            </div>
+          )}
+          {placedAmenities.length > 0 && (
+            <div className="flex flex-col gap-[5px] mt-2 w-full px-1.5">
+              {showStatus && (
+                <span className="flex items-center gap-[5px]"><span className="w-[7px] h-[7px] rounded-[2px] bg-green-500" /><span className="text-[7.5px] font-medium text-gray-400">Unidad</span></span>
+              )}
+              <span className="flex items-center gap-[5px]"><span className="w-[7px] h-[7px] rounded-[2px]" style={{ boxShadow: `inset 0 0 0 1.5px ${AMENITY_COLOR}` }} /><span className="text-[7.5px] font-medium text-gray-400">Amenity</span></span>
             </div>
           )}
         </div>

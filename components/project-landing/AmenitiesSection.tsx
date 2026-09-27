@@ -41,6 +41,9 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
               />
             </div>
             <div className="w-full md:w-1/2 space-y-4">
+              {a.location && (
+                <p className="text-xs tracking-[.16em] uppercase text-[var(--theme-text-muted)]">{a.location}</p>
+              )}
               <h3 className="font-[family-name:var(--theme-font-heading)] text-2xl sm:text-3xl font-medium text-[var(--theme-text)]">
                 {a.name}
               </h3>

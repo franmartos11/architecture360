@@ -15,7 +15,7 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'amenities_tour'>;
 type AmenityRow = Pick<DbAmenityRow,
-  | 'id' | 'building_id' | 'name' | 'description' | 'images' | 'category' | 'specs'
+  | 'id' | 'building_id' | 'name' | 'description' | 'images' | 'category' | 'specs' | 'location'
   | 'tour_node_id' | 'tour_3d_url' | 'sort_order' | 'visible'
 >;
 type Spec = { key: string; value: string };
@@ -27,7 +27,7 @@ type Filter = 'all' | 'complex' | string;
 type View = 'list' | 'grid';
 
 const EMPTY_FORM = {
-  buildingId: '', name: '', description: '', images: [] as string[], category: '', specs: [] as Spec[],
+  buildingId: '', name: '', description: '', images: [] as string[], category: '', specs: [] as Spec[], location: '',
   tourNodeId: '', tour3dUrl: '', visible: true,
 };
 const DESC_MAX = 2000; // mismo límite que sanitizeMultiline() aplica server-side
@@ -97,6 +97,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       images: a.images ?? [],
       category: a.category ?? '',
       specs: a.specs ?? [],
+      location: a.location ?? '',
       tourNodeId: a.tour_node_id ?? '',
       tour3dUrl: a.tour_3d_url ?? '',
       visible: a.visible,
@@ -123,6 +124,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       images: form.images.filter(Boolean),
       category: form.category.trim() || null,
       specs: form.specs.filter(s => s.key.trim() && s.value.trim()),
+      location: form.location.trim() || null,
       tourNodeId: form.tourNodeId || null,
       tour3dUrl: form.tour3dUrl.trim() || null,
       visible: form.visible,
@@ -170,7 +172,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         buildingId: a.building_id, name: `${a.name} (copia)`, description: a.description,
-        images: a.images, category: a.category, specs: a.specs,
+        images: a.images, category: a.category, specs: a.specs, location: a.location,
         tourNodeId: a.tour_node_id, tour3dUrl: a.tour_3d_url, visible: a.visible,
         sortOrder: amenities.length,
       }),
@@ -183,7 +185,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
       setEditingId(created.id);
       setForm({
         buildingId: created.building_id ?? '', name: created.name, description: created.description ?? '',
-        images: created.images ?? [], category: created.category ?? '', specs: created.specs ?? [],
+        images: created.images ?? [], category: created.category ?? '', specs: created.specs ?? [], location: created.location ?? '',
         tourNodeId: created.tour_node_id ?? '', tour3dUrl: created.tour_3d_url ?? '',
         visible: created.visible,
       });
@@ -353,6 +355,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-gray-900 truncate">{a.name || 'Amenidad sin nombre'}</p>
                           <Pill>{building ? building.name : 'Todo el complejo'}</Pill>
+                          {a.location && <Pill>{a.location}</Pill>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Pill tone={photoCount ? 'default' : 'warn'}>{photoCount ? `${photoCount} foto${photoCount === 1 ? '' : 's'}` : 'sin fotos'}</Pill>
@@ -450,6 +453,17 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
                       <ScopeChip key={b.id} active={form.buildingId === b.id} onClick={() => setForm({ ...form, buildingId: b.id, tourNodeId: '' })}>{b.name}</ScopeChip>
                     ))}
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11.5px] font-medium text-gray-900">
+                    Ubicación <span className="font-normal text-gray-400">— opcional</span>
+                  </label>
+                  <input
+                    value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
+                    placeholder="Piso 9 · rooftop, Planta baja, Subsuelo 1…" maxLength={80}
+                    className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1.5">

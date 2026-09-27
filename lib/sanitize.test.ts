@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeText, sanitizeMultiline, sanitizeOptionalText, escapeHtml } from './sanitize';
+import { sanitizeText, sanitizeMultiline, sanitizeOptionalText, escapeHtml, sanitizePoint, sanitizePolygon } from './sanitize';
 
 describe('sanitizeText', () => {
   it('saca cualquier tag HTML', () => {
@@ -84,5 +84,31 @@ describe('escapeHtml', () => {
   it('valores no-string devuelven string vacío', () => {
     expect(escapeHtml(null)).toBe('');
     expect(escapeHtml(42)).toBe('');
+  });
+});
+
+describe('sanitizePoint', () => {
+  it('acepta un punto válido y lo limita a 0–100', () => {
+    expect(sanitizePoint({ x: 12.345, y: 50 })).toEqual({ x: 12.35, y: 50 });
+    expect(sanitizePoint({ x: -5, y: 140 })).toEqual({ x: 0, y: 100 });
+  });
+
+  it('null para cualquier cosa que no sea un punto numérico', () => {
+    expect(sanitizePoint(null)).toBeNull();
+    expect(sanitizePoint({ x: '10', y: 5 })).toBeNull();
+    expect(sanitizePoint({ x: NaN, y: 5 })).toBeNull();
+    expect(sanitizePoint([1, 2])).toBeNull();
+  });
+});
+
+describe('sanitizePolygon', () => {
+  it('descarta puntos inválidos y conserva los buenos', () => {
+    expect(sanitizePolygon([{ x: 0, y: 0 }, { x: 'a', y: 1 }, { x: 10, y: 0 }, { x: 10, y: 10 }]))
+      .toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+
+  it('menos de 3 puntos válidos o algo que no es lista = sin polígono', () => {
+    expect(sanitizePolygon([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toEqual([]);
+    expect(sanitizePolygon('nope')).toEqual([]);
   });
 });

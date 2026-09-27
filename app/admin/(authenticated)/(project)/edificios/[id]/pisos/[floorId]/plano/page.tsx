@@ -4,6 +4,7 @@ import { useState, useEffect, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import FloorParkingDelimiter from '@/components/admin/FloorParkingDelimiter';
+import FloorAmenitiesDelimiter from '@/components/admin/FloorAmenitiesDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -32,7 +33,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
   const [floorKind, setFloorKind] = useState<FloorKind>('units');
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [view, setView] = useState<'deptos' | 'ambientes' | 'cocheras'>('deptos');
+  const [view, setView] = useState<'deptos' | 'ambientes' | 'cocheras' | 'amenities'>('deptos');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -56,6 +57,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       const kind: FloorKind = floor?.floor_kind ?? 'units';
       setFloorKind(kind);
       if (kind === 'parking') setView('cocheras');
+      if (kind === 'amenity') setView('amenities');
       const list: UnitRow[] = Array.isArray(unitsData) ? unitsData : [];
       setUnits(list);
       if (list.length > 0) setActiveId(prev => prev ?? list[0].id);
@@ -140,6 +142,12 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
             {unitLabel}s{hasFloorStep ? ' en el piso' : ''}
           </button>
           <button
+            onClick={() => setView('amenities')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'amenities' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Amenities
+          </button>
+          <button
             onClick={() => setView('ambientes')}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
           >
@@ -156,6 +164,8 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : view === 'cocheras' ? (
         <FloorParkingDelimiter buildingId={buildingId} floorId={floorId} />
+      ) : view === 'amenities' ? (
+        <FloorAmenitiesDelimiter buildingId={buildingId} floorId={floorId} />
       ) : view === 'deptos' ? (
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (

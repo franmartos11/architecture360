@@ -7,7 +7,8 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import AmenityDetailModal from './AmenityDetailModal';
+import AmenityDetailScreen, { amenityPosition } from './AmenityDetailScreen';
+import { totalCommonArea } from '@/lib/amenities';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import type { Project, Amenity, Building } from '@/types';
 
@@ -58,6 +59,8 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
   }, [project.amenities]);
 
   const hasTours = useMemo(() => project.amenities.some(a => a.tourNodeId), [project.amenities]);
+  const hasLocations = useMemo(() => project.amenities.some(a => a.location), [project.amenities]);
+  const commonArea = useMemo(() => totalCommonArea(project.amenities), [project.amenities]);
 
   const matchesZone = useCallback((a: Amenity) => {
     if (zone === 'all') return true;
@@ -78,12 +81,19 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
   }).length, [project.amenities]);
 
   const clearAll = () => { setZone('all'); setCategory('all'); setOnly360(false); };
+  const closeDetail = useCallback(() => setActiveId(null), []);
 
   const featured = project.amenities[0];
+  const featuredSpecs = featured
+    ? [...(featured.location ? [{ key: 'UBICACIÓN', value: featured.location }] : []), ...(featured.specs ?? [])].slice(0, 3)
+    : [];
   const cur = activeId ? project.amenities.find(a => a.id === activeId) ?? null : null;
-  const curIndex = cur ? filtered.findIndex(a => a.id === cur.id) : -1;
-  const prevAmenity = curIndex >= 0 && filtered.length > 0 ? filtered[(curIndex - 1 + filtered.length) % filtered.length] : null;
-  const nextAmenity = curIndex >= 0 && filtered.length > 0 ? filtered[(curIndex + 1) % filtered.length] : null;
+  // Se navega dentro de lo filtrado; si la abierta quedó fuera del filtro
+  // (ej. el destacado), por todas.
+  const navList = cur && filtered.some(a => a.id === cur.id) ? filtered : project.amenities;
+  const curIndex = cur ? navList.findIndex(a => a.id === cur.id) : -1;
+  const prevAmenity = curIndex >= 0 ? navList[(curIndex - 1 + navList.length) % navList.length] : null;
+  const nextAmenity = curIndex >= 0 ? navList[(curIndex + 1) % navList.length] : null;
 
   if (project.amenities.length === 0) {
     return (
@@ -107,13 +117,15 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
             </div>
             <div className="font-light text-[13.5px] leading-[1.65] text-white/60 mt-[12px] max-w-[480px] text-pretty">
               {project.amenities.length} espacio{project.amenities.length === 1 ? '' : 's'} pensado{project.amenities.length === 1 ? '' : 's'} para el día a día.
-              {hasTours ? ' Recorrelos en 360°, ' : ' Mirá '}mirá en qué torre está cada uno y qué se puede hacer ahí.
+              {hasTours ? ' Recorrelos en 360°, mirá' : ' Mirá'} en qué {hasLocations ? 'piso' : 'torre'} está cada uno y qué se puede hacer ahí.
             </div>
           </div>
           <div className="flex gap-[26px] flex-wrap">
             <Stat value={project.amenities.length} label="ESPACIOS" />
             {hasTours && <Stat value={project.amenities.filter(a => a.tourNodeId).length} label="CON 360°" />}
-            {categoriesPresent.length > 0 && <Stat value={categoriesPresent.length} label="CATEGORÍAS" />}
+            {commonArea !== null
+              ? <Stat value={commonArea.toLocaleString('es-AR')} label="M² COMUNES" />
+              : categoriesPresent.length > 0 && <Stat value={categoriesPresent.length} label="CATEGORÍAS" />}
           </div>
         </div>
       </div>
@@ -147,11 +159,11 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
               {featured.description && (
                 <div className="font-light text-[13px] leading-[1.65] text-white/[.72] max-w-[430px]">{featured.description}</div>
               )}
-              {!!featured.specs?.length && (
+              {featuredSpecs.length > 0 && (
                 <div className="flex gap-[16px] flex-wrap mt-[2px]">
-                  {featured.specs.slice(0, 3).map(s => (
+                  {featuredSpecs.map(s => (
                     <div key={s.key}>
-                      <div className="font-medium text-[9.5px] tracking-[.14em] text-white/45">{s.key}</div>
+                      <div className="font-medium text-[9.5px] tracking-[.14em] uppercase text-white/45">{s.key}</div>
                       <div className="font-normal text-[12.5px] text-white mt-[3px]">{s.value}</div>
                     </div>
                   ))}
@@ -276,6 +288,7 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
                 key={a.id}
                 amenity={a}
                 place={zoneLabel(a, project.buildings)}
+                hasLocations={hasLocations}
                 onClick={() => setActiveId(a.id)}
               />
             ))}
@@ -283,15 +296,15 @@ function AmenitiesViewInner({ project, initialBuildingFilter, typeConfig }: Amen
         )}
       </div>
 
-      <AmenityDetailModal
+      <AmenityDetailScreen
         amenity={cur}
         building={project.buildings.find(b => b.id === cur?.buildingId)}
-        onClose={() => setActiveId(null)}
+        position={curIndex >= 0 ? amenityPosition(curIndex, navList.length) : ''}
+        prev={prevAmenity && prevAmenity.id !== cur?.id ? prevAmenity : null}
+        next={nextAmenity && nextAmenity.id !== cur?.id ? nextAmenity : null}
+        onSelect={setActiveId}
+        onClose={closeDetail}
         onRequestVisit={name => openLead(`Hola, quiero agendar una visita para conocer ${name}.`)}
-        prevName={prevAmenity?.name}
-        nextName={nextAmenity?.name}
-        onPrev={prevAmenity ? () => setActiveId(prevAmenity.id) : undefined}
-        onNext={nextAmenity ? () => setActiveId(nextAmenity.id) : undefined}
       />
 
       {typeConfig.showLeads && (
@@ -353,7 +366,7 @@ function AmenityCard({ amenity, place, onClick }: { amenity: Amenity; place: str
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-[8px]" style={{ background: 'repeating-linear-gradient(120deg, rgba(255,255,255,.035) 0 10px, rgba(255,255,255,.06) 10px 20px)' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 15l4.5-4 4 3.5 3-2.5L21 16" /></svg>
-            <div className="font-normal text-[10.5px] text-white/45">Sin fotos todavía</div>
+            <div className="font-normal text-[10.5px] text-white/45">Render en camino</div>
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/[.78] via-black/0 to-black/10" />
@@ -370,7 +383,7 @@ function AmenityCard({ amenity, place, onClick }: { amenity: Amenity; place: str
         </div>
         <div className="absolute left-0 right-0 bottom-0 p-[14px_15px]">
           <div className="font-medium text-[17px] leading-[1.2] text-white">{amenity.name}</div>
-          <div className="font-normal text-[11px] text-white/[.62] mt-[4px]">{place}</div>
+          <div className="font-normal text-[11px] text-white/[.62] mt-[4px]">{place}{amenity.location && ` · ${amenity.location}`}</div>
         </div>
       </div>
       <div className="p-[13px_15px_14px] flex flex-col gap-[10px] flex-1">
@@ -384,7 +397,7 @@ function AmenityCard({ amenity, place, onClick }: { amenity: Amenity; place: str
   );
 }
 
-function AmenityRow({ amenity, place, onClick }: { amenity: Amenity; place: string; onClick: () => void }) {
+function AmenityRow({ amenity, place, hasLocations, onClick }: { amenity: Amenity; place: string; hasLocations: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -402,7 +415,10 @@ function AmenityRow({ amenity, place, onClick }: { amenity: Amenity; place: stri
         </div>
         <div className="font-light text-[11.5px] leading-[1.5] text-white/55 mt-[3px] overflow-hidden text-ellipsis whitespace-nowrap">{amenity.description}</div>
       </div>
-      <div className="font-normal text-[11.5px] text-white/50 flex-none">{place}</div>
+      <div className="hidden sm:block font-normal text-[11.5px] text-white/50 flex-none">{place}</div>
+      {hasLocations && (
+        <div className="hidden md:block font-normal text-[11.5px] text-white/50 flex-none min-w-[86px] text-right">{amenity.location}</div>
+      )}
       <div className="font-semibold text-[11.5px] text-brand-300 flex-none">Ver →</div>
     </button>
   );

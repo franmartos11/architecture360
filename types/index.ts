@@ -247,6 +247,14 @@ export interface Amenity {
   category?: string;
   /** Datos libres clave/valor (ej. SUPERFICIE → "240 m²") — cada amenity muestra los que cargó el admin. */
   specs?: { key: string; value: string }[];
+  /** Ubicación en texto libre, ej. "Piso 9 · rooftop" o "Subsuelo 1". */
+  location?: string;
+  /** Floor.id del piso en cuyo plano está ubicada — puede ser de cualquier torre. */
+  floorId?: string;
+  /** Pin en % sobre el plano de ese piso — sin pin explícito, el centro del polígono. */
+  pin?: { x: number; y: number };
+  /** Silueta en % sobre el plano de ese piso. */
+  polygon?: { x: number; y: number }[];
   /** undefined = amenity de todo el complejo; con valor, exclusiva de esa torre (Building.id) */
   buildingId?: string;
   /**

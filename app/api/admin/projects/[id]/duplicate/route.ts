@@ -81,6 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 async function copyProjectContent(supabase: SupabaseClient, sourceProjectId: string, newProjectId: string) {
   const { data: buildings } = await supabase.from('buildings').select('*').eq('project_id', sourceProjectId);
   const buildingIdMap = new Map<string, string>();
+  const floorIdMap = new Map<string, string>();
   if (buildings && buildings.length > 0) {
     const { data: newBuildings, error } = await supabase
       .from('buildings')
@@ -99,7 +100,6 @@ async function copyProjectContent(supabase: SupabaseClient, sourceProjectId: str
     buildings.forEach((b, i) => buildingIdMap.set(b.id, newBuildings![i].id));
 
     const { data: floors } = await supabase.from('floors').select('*').in('building_id', buildings.map(b => b.id));
-    const floorIdMap = new Map<string, string>();
     if (floors && floors.length > 0) {
       const { data: newFloors, error: floorsError } = await supabase
         .from('floors')
@@ -135,8 +135,13 @@ async function copyProjectContent(supabase: SupabaseClient, sourceProjectId: str
   if (amenities && amenities.length > 0) {
     const { error } = await supabase.from('amenities').insert(amenities.map(a => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id: _id, project_id, building_id, created_at, ...rest } = a;
-      return { ...rest, project_id: newProjectId, building_id: building_id ? (buildingIdMap.get(building_id) ?? null) : null };
+      const { id: _id, project_id, building_id, floor_id, created_at, ...rest } = a;
+      return {
+        ...rest,
+        project_id: newProjectId,
+        building_id: building_id ? (buildingIdMap.get(building_id) ?? null) : null,
+        floor_id: floor_id ? (floorIdMap.get(floor_id) ?? null) : null,
+      };
     }));
     if (error) throw error;
   }

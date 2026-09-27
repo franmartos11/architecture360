@@ -5,12 +5,14 @@ vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveProjectIdFromAmenity: vi.fn(),
   resolveProjectIdFromBuilding: vi.fn(),
+  resolveProjectIdFromFloor: vi.fn(),
 }));
 
 import {
   requireProjectAccess,
   resolveProjectIdFromAmenity,
   resolveProjectIdFromBuilding,
+  resolveProjectIdFromFloor,
 } from '@/lib/supabase/require-project-access';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { PATCH, DELETE } from './route';
@@ -24,6 +26,7 @@ describe('PATCH /api/admin/amenities/[id]', () => {
     vi.mocked(requireProjectAccess).mockReset();
     vi.mocked(resolveProjectIdFromAmenity).mockReset();
     vi.mocked(resolveProjectIdFromBuilding).mockReset();
+    vi.mocked(resolveProjectIdFromFloor).mockReset();
   });
 
   it('amenity inexistente: 404', async () => {
@@ -43,6 +46,31 @@ describe('PATCH /api/admin/amenities/[id]', () => {
     );
     expect(res.status).toBe(400);
     expect(requireProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('floorId de otro proyecto: 400, no llega a chequear auth', async () => {
+    vi.mocked(resolveProjectIdFromAmenity).mockResolvedValue('project-1');
+    vi.mocked(resolveProjectIdFromFloor).mockResolvedValue('project-2');
+
+    const res = await PATCH(
+      jsonRequest('http://localhost/api/admin/amenities/amenity-1', { floorId: 'floor-1' }),
+      params('amenity-1')
+    );
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('sacar del plano: floorId vacío deja piso, pin y polígono en null', async () => {
+    vi.mocked(resolveProjectIdFromAmenity).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'amenity-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(
+      jsonRequest('http://localhost/api/admin/amenities/amenity-1', { floorId: '', pin: null, polygon: [] }),
+      params('amenity-1')
+    );
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0]).toEqual({ floor_id: null, pin: null, polygon: null });
   });
 
   it('sin acceso al proyecto: 401', async () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { resolveRequestedProjectId, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
-import { sanitizeText, sanitizeMultiline, sanitizeSpecs } from '@/lib/sanitize';
+import { resolveRequestedProjectId, resolveProjectIdFromBuilding, resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -16,6 +16,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ese edificio no pertenece a este proyecto' }, { status: 400 });
     }
   }
+  if (body.floorId) {
+    const floorProjectId = await resolveProjectIdFromFloor(body.floorId);
+    if (floorProjectId !== projectId) {
+      return NextResponse.json({ error: 'Ese piso no pertenece a este proyecto' }, { status: 400 });
+    }
+  }
+
+  const polygon = sanitizePolygon(body.polygon);
 
   const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -31,6 +39,10 @@ export async function POST(request: Request) {
       images: body.images ?? [],
       category: sanitizeText(body.category, 40) || null,
       specs: sanitizeSpecs(body.specs),
+      location: sanitizeText(body.location, 80) || null,
+      floor_id: body.floorId ?? null,
+      pin: sanitizePoint(body.pin),
+      polygon: polygon.length ? polygon : null,
       tour_node_id: body.tourNodeId ?? null,
       tour_3d_url: body.tour3dUrl ?? null,
       sort_order: body.sortOrder ?? 0,

@@ -114,6 +114,7 @@ export default function AmenitiesTab({
                       <p className={`text-sm font-semibold truncate ${isSelected ? 'text-brand-700' : 'text-gray-900'}`}>
                         {a.name}
                       </p>
+                      {a.location && <p className="text-[11px] font-medium text-gray-500 truncate mt-0.5">{a.location}</p>}
                       {a.description && <p className="text-xs text-gray-400 truncate mt-0.5">{a.description}</p>}
                     </div>
                     {isSelected && (
@@ -273,6 +274,9 @@ export default function AmenitiesTab({
                 </div>
               )}
 
+              {activeAmenity.location && (
+                <p className="text-xs font-semibold tracking-[.16em] uppercase text-gray-400 mb-2">{activeAmenity.location}</p>
+              )}
               <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 tracking-tight">{activeAmenity.name}</h2>
               {activeAmenity.description && <p className="text-base lg:text-lg text-gray-600 leading-relaxed mb-8">{activeAmenity.description}</p>}
 

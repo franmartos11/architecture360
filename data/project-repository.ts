@@ -8,6 +8,7 @@ import { flattenBuildingTree, type NestedBuildingRow } from './building-tree';
 import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, ProjectCollaborator, Unit, BimModel } from '@/types';
 import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { polygonCenter } from '@/lib/amenities';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -144,6 +145,10 @@ function mapProject(
       images: a.images ?? [],
       category: a.category ?? undefined,
       specs: a.specs ?? [],
+      location: a.location ?? undefined,
+      floorId: a.floor_id ?? undefined,
+      pin: a.pin ?? (a.polygon?.length ? polygonCenter(a.polygon) : undefined),
+      polygon: a.polygon?.length ? a.polygon : undefined,
       buildingId: a.building_id ? buildingSlugById.get(a.building_id) : undefined,
       tourNodeId: a.tour_node_id ?? undefined,
       tour3dUrl: a.tour_3d_url ?? undefined,

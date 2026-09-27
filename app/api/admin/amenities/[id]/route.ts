@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { resolveProjectIdFromAmenity, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
-import { sanitizeText, sanitizeMultiline, sanitizeSpecs } from '@/lib/sanitize';
+import { resolveProjectIdFromAmenity, resolveProjectIdFromBuilding, resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,6 +12,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const buildingProjectId = await resolveProjectIdFromBuilding(body.buildingId);
     if (buildingProjectId !== projectId) {
       return NextResponse.json({ error: 'Ese edificio no pertenece a este proyecto' }, { status: 400 });
+    }
+  }
+  if (body.floorId) {
+    const floorProjectId = await resolveProjectIdFromFloor(body.floorId);
+    if (floorProjectId !== projectId) {
+      return NextResponse.json({ error: 'Ese piso no pertenece a este proyecto' }, { status: 400 });
     }
   }
 
@@ -26,6 +32,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.images !== undefined) updates.images = body.images;
   if (body.category !== undefined) updates.category = sanitizeText(body.category, 40) || null;
   if (body.specs !== undefined) updates.specs = sanitizeSpecs(body.specs);
+  if (body.location !== undefined) updates.location = sanitizeText(body.location, 80) || null;
+  if (body.floorId !== undefined) updates.floor_id = body.floorId || null;
+  if (body.pin !== undefined) updates.pin = sanitizePoint(body.pin);
+  if (body.polygon !== undefined) {
+    const polygon = sanitizePolygon(body.polygon);
+    updates.polygon = polygon.length ? polygon : null;
+  }
   if (body.tourNodeId !== undefined) updates.tour_node_id = body.tourNodeId;
   if (body.tour3dUrl !== undefined) updates.tour_3d_url = body.tour3dUrl;
   if (body.sortOrder !== undefined) updates.sort_order = body.sortOrder;

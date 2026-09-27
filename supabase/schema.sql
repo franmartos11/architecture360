@@ -626,6 +626,19 @@ alter table amenities add column if not exists category text;
 -- gimnasio tiene equipamiento) — por eso es una lista libre y no columnas
 -- fijas por atributo.
 alter table amenities add column if not exists specs jsonb not null default '[]';
+-- Dónde está dentro del edificio/complejo, en texto libre (ej. "Piso 9 ·
+-- rooftop", "Subsuelo 1") — libre porque las amenities de todo el complejo
+-- no tienen un piso de una torre al cual apuntar.
+alter table amenities add column if not exists location text;
+-- Ubicación en el plano de un piso (explorador de la torre): a qué piso
+-- pertenece, su pin y su silueta, en % sobre el plan_image de ese piso —
+-- mismo sistema de coordenadas que units.polygon / floors.unit_dots. El
+-- piso puede ser de cualquier torre del proyecto, aunque la amenity sea de
+-- todo el complejo (ej. un cowork en el piso 5 de la Torre B).
+alter table amenities add column if not exists floor_id uuid references floors(id) on delete set null;
+alter table amenities add column if not exists pin jsonb;       -- { x, y } — null = centro del polígono
+alter table amenities add column if not exists polygon jsonb;   -- [{ x, y }, ...] — null = sin silueta
+create index if not exists idx_amenities_floor on amenities(floor_id);
 
 -- ─── Puntos de interés (colegios, salud, comercios, etc.) ────────────
 -- Georreferencian el entorno del proyecto para la sección de Ubicación.

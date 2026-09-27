@@ -134,6 +134,20 @@ const floorA2Dots = [
   { unitId: 'A02-03', x: 70, y: 22 },
 ];
 
+// ─── Cocheras de Torre A, dibujadas sobre el subsuelo ──────────────
+// Dos filas de 8 lugares sobre el plano del subsuelo (floor-ss1).
+const spotRect = (i: number) => {
+  const col = i % 8, row = Math.floor(i / 8);
+  const x = 12 + col * 9.5, y = row === 0 ? 18 : 62;
+  return [{ x, y }, { x: x + 8, y }, { x: x + 8, y: y + 20 }, { x, y: y + 20 }];
+};
+units.filter(u => u.buildingId === 'torre-a').forEach((u, i) => {
+  u.parkingSpots = [{
+    floorId: 'floor-ss1', label: `C-${String(i + 1).padStart(2, '0')}`, polygon: spotRect(i),
+    planImage: '/floorplans/floor-1-render.png', floorLabel: 'Subsuelo 1',
+  }];
+});
+
 // ─── Buildings ────────────────────────────────────────────────────
 const buildings: Building[] = [
   {
@@ -151,6 +165,7 @@ const buildings: Building[] = [
       ],
     },
     floors: [
+      { id: 'floor-ss1', number: -1, label: 'Subsuelo 1', planImage: '/floorplans/floor-1-render.png', unitDots: [], floorKind: 'parking' },
       { id: 'floor-0', number: 0, label: 'L', planImage: '/floorplans/floor-1-render.png', unitDots: [] },
       { id: 'floor-1', number: 1, label: 'Planta 1', planImage: '/floorplans/floor-1-render.png', unitDots: floorADots },
       { id: 'floor-2', number: 2, label: 'Planta 2', planImage: '/floorplans/floor-1-render.png', unitDots: floorA2Dots },
@@ -162,6 +177,7 @@ const buildings: Building[] = [
         planImage: '/floorplans/floor-1-render.png',
         unitDots: floorADots.map(d => ({ ...d, unitId: d.unitId.replace('01', String(i + 4).padStart(2, '0')) })),
       })),
+      { id: 'floor-16', number: 16, label: 'Piso 16', planImage: '/floorplans/floor-1-render.png', unitDots: [], floorKind: 'amenity', floorKindDescription: 'Piscina, gimnasio y SUM de uso exclusivo de propietarios.' },
     ],
   },
   {
@@ -275,6 +291,11 @@ export const demoProject: Project = {
       description: 'Deck con reposeras y solárium, vista panorámica.',
       images: ['/aerial/view-1.png', '/aerial/view-2.png'],
       tourNodeId: 'pileta',
+      specs: [{ key: 'SUPERFICIE', value: '140 m²' }, { key: 'CAPACIDAD', value: '30 personas' }, { key: 'HORARIO', value: '8 a 21 h' }],
+      location: 'Piso 16',
+      floorId: 'floor-16',
+      pin: { x: 26, y: 36 },
+      polygon: [{ x: 10, y: 24 }, { x: 42, y: 20 }, { x: 44, y: 48 }, { x: 12, y: 52 }],
     },
     {
       id: 'amenity-gimnasio',
@@ -282,6 +303,11 @@ export const demoProject: Project = {
       description: 'Equipamiento cardio y de musculación.',
       images: ['/aerial/view-3.png'],
       tourNodeId: 'gimnasio',
+      specs: [{ key: 'SUPERFICIE', value: '90 m²' }, { key: 'CAPACIDAD', value: '12 personas' }, { key: 'HORARIO', value: '6 a 23 h' }],
+      location: 'Piso 16',
+      floorId: 'floor-16',
+      pin: { x: 74, y: 34 },
+      polygon: [{ x: 58, y: 20 }, { x: 90, y: 24 }, { x: 88, y: 50 }, { x: 58, y: 46 }],
     },
     {
       id: 'amenity-parrilla',
@@ -302,6 +328,24 @@ export const demoProject: Project = {
       name: 'SUM',
       description: 'Salón de usos múltiples para eventos.',
       images: [],
+      specs: [{ key: 'SUPERFICIE', value: '85 m²' }, { key: 'CAPACIDAD', value: '40 personas' }, { key: 'RESERVA', value: 'Con turno' }],
+      location: 'Piso 16',
+      floorId: 'floor-16',
+      pin: { x: 50, y: 68 },
+      polygon: [{ x: 34, y: 58 }, { x: 66, y: 58 }, { x: 66, y: 80 }, { x: 34, y: 80 }],
+    },
+    {
+      id: 'amenity-cowork',
+      name: 'Cowork',
+      description: 'Sala de trabajo con puestos fijos, dos boxes para llamadas y cafetera.',
+      images: ['/units/interior-1.jpg'],
+      category: 'Trabajo',
+      specs: [{ key: 'SUPERFICIE', value: '72 m²' }, { key: 'CAPACIDAD', value: '14 personas' }, { key: 'HORARIO', value: '7 a 22 h' }],
+      location: 'Piso 2',
+      buildingId: 'torre-a',
+      floorId: 'floor-2',
+      pin: { x: 55, y: 62 },
+      polygon: [{ x: 42, y: 50 }, { x: 68, y: 50 }, { x: 68, y: 74 }, { x: 42, y: 74 }],
     },
     {
       id: 'amenity-seguridad',

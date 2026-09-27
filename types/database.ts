@@ -180,6 +180,10 @@ export interface AmenityRow {
   images: string[];
   category: string | null;
   specs: { key: string; value: string }[];
+  location: string | null;
+  floor_id: string | null;
+  pin: { x: number; y: number } | null;
+  polygon: { x: number; y: number }[] | null;
   tour_node_id: string | null;
   tour_3d_url: string | null;
   sort_order: number;
