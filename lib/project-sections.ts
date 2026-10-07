@@ -175,8 +175,22 @@ export interface SectionConfigEntry {
 // nueva después), esa se agrega al final habilitada por defecto — así
 // una sección nueva del sistema no queda invisible para proyectos ya
 // configurados.
+//
+// Al revés también: una key guardada que el registro ya no conoce
+// (sección renombrada o eliminada) se descarta — si no, la landing busca
+// su componente en SECTION_COMPONENTS, recibe undefined y la página entera
+// rompe con "Element type is invalid". Y como la API guarda section_config
+// sin validar su forma, acá no se asume que sea un array, que cada entrada
+// tenga key, ni que no haya keys repetidas (gana la primera aparición).
+const KNOWN_KEYS = new Set<string>(DEFAULT_ORDER);
+
 function resolveFullOrder(sectionConfig: SectionConfigEntry[] | null | undefined): SectionConfigEntry[] {
-  const saved = sectionConfig ?? [];
+  const seen = new Set<string>();
+  const saved = (Array.isArray(sectionConfig) ? sectionConfig : []).filter(s => {
+    if (!s || typeof s.key !== 'string' || !KNOWN_KEYS.has(s.key) || seen.has(s.key)) return false;
+    seen.add(s.key);
+    return true;
+  });
   const savedKeys = new Set(saved.map(s => s.key));
   const missing = DEFAULT_ORDER.filter(k => !savedKeys.has(k)).map(key => ({ key, enabled: true }));
   return [...saved, ...missing];

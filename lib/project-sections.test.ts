@@ -114,6 +114,33 @@ describe('resolveSectionOrder', () => {
     const order = resolveSectionOrder(config, venta);
     expect(order.indexOf('contact')).toBeLessThan(order.indexOf('about'));
   });
+
+  it('descarta keys guardadas que el registro ya no conoce (no rompe la home)', () => {
+    const config = [
+      { key: 'seccion_vieja', enabled: true },
+      { key: 'about', enabled: true },
+    ];
+    const order = resolveSectionOrder(config, venta);
+    expect(order).not.toContain('seccion_vieja');
+    expect(order[0]).toBe('about');
+  });
+
+  it('si section_config no es un array, usa el orden default', () => {
+    const roto = { about: true } as unknown as Parameters<typeof resolveSectionOrder>[0];
+    expect(resolveSectionOrder(roto, venta)).toEqual(resolveSectionOrder(null, venta));
+  });
+
+  it('ignora entradas sin key y keys duplicadas (gana la primera aparición)', () => {
+    const config = [
+      { key: 'contact', enabled: false },
+      null,
+      { enabled: true },
+      { key: 'contact', enabled: true },
+    ] as unknown as Parameters<typeof resolveSectionOrder>[0];
+    const order = resolveSectionOrder(config, venta);
+    expect(order).not.toContain('contact');
+    expect(new Set(order).size).toBe(order.length);
+  });
 });
 
 describe('resolveSectionList', () => {

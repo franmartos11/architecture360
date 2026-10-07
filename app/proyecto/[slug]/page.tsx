@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { Project } from '@/types';
@@ -11,6 +12,7 @@ import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { formatPrice } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
+import SectionBoundary from '@/components/project-site/SectionBoundary';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -111,9 +113,17 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         </a>
       </section>
 
+      {/* Cada sección aislada: si una falla, desaparece sola en vez de
+          tumbar la home (ver SectionBoundary). */}
       {sectionOrder.map(key => {
         const Section = SECTION_COMPONENTS[key];
-        return <Section key={key} project={project} typeConfig={typeConfig} basePath={basePath} />;
+        return (
+          <Suspense key={key} fallback={null}>
+            <SectionBoundary sectionKey={key}>
+              <Section project={project} typeConfig={typeConfig} basePath={basePath} />
+            </SectionBoundary>
+          </Suspense>
+        );
       })}
 
       {/* Comentarios */}
