@@ -27,3 +27,9 @@ jobs:
       - run: pnpm exec tsc --noEmit
 
       - run: pnpm test
+
+      # El build atrapa lo que lint, tsc y los tests no ven: imports que
+      # solo fallan al empaquetar (server-only en el bundle del cliente),
+      # páginas que rompen al prerenderizar. No necesita variables de
+      # entorno: las rutas que leen Supabase son dinámicas.
+      - run: pnpm build
