@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors } from './units';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, getStatusLabel } from './units';
 import type { ParkingSpot, Room, UnitParkingSpot } from '@/types';
+
+describe('getStatusLabel', () => {
+  it('usa el idioma del comprador, no el del vendedor', () => {
+    expect(getStatusLabel('available')).toBe('Disponible');
+    expect(getStatusLabel('reserved')).toBe('Reservado');
+    expect(getStatusLabel('sold')).toBe('Vendido');
+  });
+});
 
 describe('deriveUnitType', () => {
   it('genera los strings del catálogo para los primeros valores', () => {

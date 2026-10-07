@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { formatPrice } from '@/lib/units';
+
+export interface FinanceableUnit {
+  id: string;
+  label: string;
+  price: number;
+  currency: string;
+}
 
 // Mezcla el valor configurado por el admin en las opciones fijas del
 // select, para que quede seleccionable aunque no coincida con ninguna
@@ -10,8 +18,11 @@ function withValue(options: number[], value: number) {
   return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
 }
 
-export default function Calculator({ projectSlug }: { projectSlug: string }) {
-  const [modelo, setModelo] = useState(195000);
+export default function Calculator({ projectSlug, units }: { projectSlug: string; units: FinanceableUnit[] }) {
+  const [unitId, setUnitId] = useState(units[0]?.id ?? '');
+  const selected = units.find(u => u.id === unitId) ?? units[0];
+  const modelo = selected?.price ?? 0;
+  const currency = selected?.currency ?? 'USD';
   const [prima, setPrima] = useState(15);
   const [tasa, setTasa] = useState(6.5);
   const [plazo, setPlazo] = useState(25);
@@ -56,34 +67,32 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
     return (monto * (r * pow)) / (pow - 1);
   })();
 
-  const formatUSD = (val: number) => {
-    return "$" + val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " USD";
-  };
+  // En la moneda de la unidad elegida (antes todo salía en "USD" fijo).
+  const formatUSD = (val: number) => formatPrice(Math.round(val), currency);
 
   return (
     <div id="cotizador" className="w-full bg-[var(--theme-bg)] py-20 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12 items-center">
         {/* Formulario */}
         <div className="w-full md:w-1/2 space-y-6">
-          <h2 className="font-[family-name:var(--theme-font-heading)] text-2xl md:text-3xl font-light text-[var(--theme-text)] mb-6 md:mb-8 tracking-wide text-center md:text-left">CALCULA TU CUOTA</h2>
+          <h2 className="font-[family-name:var(--theme-font-heading)] text-2xl md:text-3xl font-light text-[var(--theme-text)] mb-6 md:mb-8 tracking-wide text-center md:text-left">Calculá tu cuota</h2>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="calc-modelo" className="text-sm font-semibold text-[var(--theme-text)]">Modelo interesado</label>
+            <label htmlFor="calc-modelo" className="text-sm font-semibold text-[var(--theme-text)]">Unidad</label>
             <select
               id="calc-modelo"
-              value={modelo}
-              onChange={(e) => setModelo(Number(e.target.value))}
+              value={selected?.id ?? ''}
+              onChange={(e) => setUnitId(e.target.value)}
               className="p-3 border border-[var(--theme-border)] rounded-[var(--theme-radius)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
             >
-              <option value="195000">Modelo A desde $195,000 USD</option>
-              <option value="245000">Modelo B desde $245,000 USD</option>
-              <option value="310000">Modelo C desde $310,000 USD</option>
-              <option value="450000">Penthouse desde $450,000 USD</option>
+              {units.map(u => (
+                <option key={u.id} value={u.id}>{u.label} · {formatPrice(u.price, u.currency)}</option>
+              ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="calc-prima" className="text-sm font-semibold text-[var(--theme-text)]">Prima</label>
+            <label htmlFor="calc-prima" className="text-sm font-semibold text-[var(--theme-text)]">Anticipo</label>
             <select
               id="calc-prima"
               value={prima}
@@ -151,7 +160,7 @@ export default function Calculator({ projectSlug }: { projectSlug: string }) {
         onClose={() => setIsLeadModalOpen(false)}
         unit={null}
         projectSlug={projectSlug}
-        initialMessage={`Hola, me interesa recibir información sobre financiación. Cuota mensual estimada: ${formatUSD(resultado)} (monto a financiar: ${formatUSD(monto)}, ${plazo} años, ${tasa}% de interés).`}
+        initialMessage={`Hola, me interesa recibir información sobre financiación${selected ? ` de ${selected.label}` : ''}. Cuota mensual estimada: ${formatUSD(resultado)} (monto a financiar: ${formatUSD(monto)}, ${plazo} años, ${tasa}% de interés).`}
       />
     </div>
   );

@@ -101,9 +101,15 @@ export default function UnitViewer({
   backHref,
   bimModel,
 }: UnitViewerProps) {
-  // No hay display de precio en este visor (solo el CTA "Consultar
-  // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator, hasUnitStep, hasFloorStep, unitIsLand } = typeConfig;
+  const { showStatus, showLeads, showCalculator, showPrice, hasUnitStep, hasFloorStep, unitIsLand } = typeConfig;
+  // El precio solo se muestra si es real: con precio público, cargado (> 0)
+  // y en una unidad que no esté vendida. Antes la ficha nunca lo mostraba
+  // (aunque el listado sí) y la calculadora caía en un precio inventado de
+  // 150.000 cuando la unidad no tenía precio.
+  const publicPrice = showPrice && unit.status !== 'sold' && typeof unit.price === 'number' && unit.price > 0
+    ? unit.price
+    : null;
+  const canFinance = showCalculator && publicPrice !== null;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
@@ -375,28 +381,30 @@ export default function UnitViewer({
           )}
 
           {/* Price & Calculator */}
-          {(showLeads || showCalculator) && (
+          {publicPrice !== null && (
+            <p className="text-xl font-bold text-gray-900 mb-3">{formatPrice(publicPrice, unit.currency)}</p>
+          )}
+          {(showLeads || canFinance) && (
             <div className="flex gap-2 mb-4">
               {showLeads && (
                 <button
                   onClick={() => contactModal.open()}
-                  className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className="flex-1 min-h-11 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                 >
-                  Consultar precio
+                  {publicPrice !== null ? 'Consultar' : 'Consultar precio'}
                 </button>
               )}
-              {showCalculator && (
+              {canFinance && (
                 <button
                   onClick={() => setIsCalculatorOpen(true)}
-                  className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors flex items-center justify-center shadow-sm"
-                  title="Calculadora de Financiación"
-                  aria-label="Calculadora de Financiación"
+                  className="min-h-11 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm2.25-4.5h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm0 2.25h.008v.008H10.5v-.008zm2.25-4.5h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm0 2.25h.008v.008H12.75v-.008zm2.25-4.5h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm0 2.25h.008v.008H15v-.008zm-7.5-7.5h.008v.008H7.5V10.5zm2.25 0h.008v.008H9.75V10.5zm2.25 0h.008v.008H12V10.5zm2.25 0h.008v.008H14.25V10.5z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5h9v3h-9v-3z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
+                  Cuotas
                 </button>
               )}
             </div>
@@ -1013,11 +1021,11 @@ export default function UnitViewer({
         />
       )}
 
-      {showCalculator && (
+      {canFinance && (
         <MortgageCalculatorModal
           isOpen={isCalculatorOpen}
           onClose={() => setIsCalculatorOpen(false)}
-          unitPrice={unit.price || 150000}
+          unitPrice={publicPrice}
           currency={unit.currency}
           projectSlug={projectSlug}
         />

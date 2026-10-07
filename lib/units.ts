@@ -32,8 +32,11 @@ export function formatPrice(price: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
 }
 
+// Etiqueta pública del estado: habla el idioma del comprador. "Disponible
+// para vender" era lenguaje del vendedor y, además, en mobile empujaba el
+// código de la unidad hasta truncarlo ("B…").
 export function getStatusLabel(status: string): string {
-  return { available: 'Disponible para vender', reserved: 'Reservado', sold: 'Vendido' }[status] || status;
+  return { available: 'Disponible', reserved: 'Reservado', sold: 'Vendido' }[status] || status;
 }
 
 // Tipología de una unidad derivada de sus dormitorios — para casas, que no
