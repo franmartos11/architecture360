@@ -8,9 +8,9 @@ import CommentSection from '@/components/CommentSection';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
-import { resolveSectionOrder } from '@/lib/project-sections';
+import { resolveVisibleSections, SECTION_ANCHORS, LEGACY_SECTION_ANCHORS, type SectionKey } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
-import { formatPrice } from '@/lib/units';
+import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import SectionBoundary from '@/components/project-site/SectionBoundary';
 
@@ -48,7 +48,18 @@ export default async function ProjectLandingPage({ params }: PageProps) {
 
   const basePath = await getProjectBasePath(slug);
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
-  const sectionOrder = resolveSectionOrder(project.sectionConfig, typeConfig);
+  // Solo lo que de verdad se ve (habilitado, disponible y con contenido):
+  // así la flecha del hero y el footer nunca apuntan a una sección ausente.
+  const visibleSections = resolveVisibleSections(project, typeConfig);
+  const visible = new Set(visibleSections);
+  const firstSectionHref = visibleSections[0] ? `#${SECTION_ANCHORS[visibleSections[0]]}` : null;
+  const footerLinks: { key: SectionKey; label: string }[] = [
+    { key: 'about', label: 'Sobre el proyecto' },
+    { key: 'typologies', label: pluralize(typeConfig.unitLabel) },
+    { key: 'calculator', label: 'Financiación' },
+    { key: 'location', label: 'Ubicación' },
+    { key: 'contact', label: 'Contacto' },
+  ];
 
   // Postura del hero: venta apunta a conversión (precio desde + CTA a
   // disponibilidad), showcase apunta a credencial académica en vez de
@@ -106,23 +117,32 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           )}
         </div>
 
-        <a href="#next" className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-bounce">
-          <div className="w-10 h-10 rounded-full border border-white/50 flex items-center justify-center text-white backdrop-blur-sm">
-            &darr;
-          </div>
-        </a>
+        {firstSectionHref && (
+          <a href={firstSectionHref} aria-label="Ir al contenido" className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+            <div className="w-10 h-10 rounded-full border border-white/50 flex items-center justify-center text-white backdrop-blur-sm">
+              &darr;
+            </div>
+          </a>
+        )}
       </section>
 
       {/* Cada sección aislada: si una falla, desaparece sola en vez de
-          tumbar la home (ver SectionBoundary). */}
-      {sectionOrder.map(key => {
+          tumbar la home (ver SectionBoundary). Las anclas viven acá y no en
+          cada componente: una sola fuente para el menú, el footer y los
+          links viejos (#next, #modelos, #cotizador…), que se conservan con
+          un marcador aparte. */}
+      {visibleSections.map(key => {
         const Section = SECTION_COMPONENTS[key];
+        const legacyAnchor = LEGACY_SECTION_ANCHORS[key];
         return (
-          <Suspense key={key} fallback={null}>
-            <SectionBoundary sectionKey={key}>
-              <Section project={project} typeConfig={typeConfig} basePath={basePath} />
-            </SectionBoundary>
-          </Suspense>
+          <div key={key} id={SECTION_ANCHORS[key]} className="scroll-mt-16">
+            {legacyAnchor && <span id={legacyAnchor} aria-hidden="true" className="block scroll-mt-16" />}
+            <Suspense fallback={null}>
+              <SectionBoundary sectionKey={key}>
+                <Section project={project} typeConfig={typeConfig} basePath={basePath} />
+              </SectionBoundary>
+            </Suspense>
+          </div>
         );
       })}
 
@@ -142,9 +162,9 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           <div className="font-[family-name:var(--theme-font-heading)] text-2xl font-bold tracking-widest">{project.name.toUpperCase()}</div>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-light text-[var(--theme-text-on-dark-muted)]">
             <a href={basePath || '/'} className="hover:text-[var(--theme-text-on-dark)] transition-colors">Inicio</a>
-            {project.description && <a href="#next" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Sobre el proyecto</a>}
-            {project.units.length > 0 && <a href="#modelos" className="hover:text-[var(--theme-text-on-dark)] transition-colors">{typeConfig.unitLabel}s</a>}
-            {typeConfig.showCalculator && <a href="#cotizador" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Cotizador</a>}
+            {footerLinks.filter(l => visible.has(l.key)).map(l => (
+              <a key={l.key} href={`#${SECTION_ANCHORS[l.key]}`} className="hover:text-[var(--theme-text-on-dark)] transition-colors">{l.label}</a>
+            ))}
           </div>
         </div>
       </footer>

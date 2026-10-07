@@ -71,7 +71,7 @@ export default function Calculator({ projectSlug, units }: { projectSlug: string
   const formatUSD = (val: number) => formatPrice(Math.round(val), currency);
 
   return (
-    <div id="cotizador" className="w-full bg-[var(--theme-bg)] py-20 px-6">
+    <div className="w-full bg-[var(--theme-bg)] py-20 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12 items-center">
         {/* Formulario */}
         <div className="w-full md:w-1/2 space-y-6">

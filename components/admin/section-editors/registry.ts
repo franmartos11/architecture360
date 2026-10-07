@@ -8,6 +8,7 @@ import AmenitiesEditor from './AmenitiesEditor';
 import MasterplanEditor from './MasterplanEditor';
 import LocationEditor from './LocationEditor';
 import CalculatorEditor from './CalculatorEditor';
+import BimEditor from './BimEditor';
 
 export interface SectionEditorProps {
   onSaved: () => void;
@@ -26,4 +27,6 @@ export const SECTION_EDITORS: Partial<Record<SectionKey, ComponentType<SectionEd
   masterplan: MasterplanEditor,
   location: LocationEditor,
   calculator: CalculatorEditor,
+  // Autosuficiente (guarda cada pieza por su cuenta): no usa onSaved.
+  bim: BimEditor,
 };

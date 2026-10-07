@@ -7,7 +7,7 @@ export default function TypologiesSection({ project, typeConfig }: SectionProps)
   if (project.units.length === 0) return null;
 
   return (
-    <section id="modelos" className="py-[var(--theme-spacing)] bg-[var(--theme-bg-accent)]">
+    <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg-accent)]">
       <div className="max-w-6xl mx-auto px-6">
         <Reveal className="mb-16 space-y-4">
           <div className="text-[var(--theme-text-on-dark-muted)] tracking-widest text-sm font-semibold">{pluralize(typeConfig.unitLabel).toUpperCase()} DISPONIBLES</div>

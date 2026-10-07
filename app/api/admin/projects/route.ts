@@ -2,16 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isValidEnum } from '@/lib/validate';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
-import { SECTION_REGISTRY, isSectionAvailable, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
+import { SECTION_REGISTRY, isSectionAvailable, sectionIsPending, OPTIONAL_SECTIONS, type ContentSummary } from '@/lib/project-sections';
 import { resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
-
-// Secciones "de contenido" — las únicas que computeEmptySectionKeys sabe
-// evaluar (calculadora/contacto son toggles de configuración, no algo que
-// se "carga", así que no cuentan para el progreso de una tarjeta).
-const CONTENT_SECTION_KEYS: SectionKey[] = ['about', 'before_after', 'process', 'team', 'amenities', 'masterplan', 'typologies', 'location'];
 
 const PROJECT_TYPE_KEYS = Object.keys(PROJECT_STRUCTURES) as (keyof typeof PROJECT_STRUCTURES)[];
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as (keyof typeof PROJECT_SALE_MODES)[];
@@ -59,7 +54,8 @@ export async function GET() {
       supabase.from('leads').select('project_id').in('project_id', projectIds).eq('status', 'nuevo'),
       supabase.from('project_comments').select('project_id').in('project_id', projectIds),
       supabase.from('buildings').select('id, project_id').in('project_id', projectIds),
-      supabase.from('amenities').select('project_id').in('project_id', projectIds),
+      // Con foto y visibles: lo mismo que cuenta la landing (ver sectionHasContent).
+      supabase.from('amenities').select('project_id, images, visible').in('project_id', projectIds),
       supabase.from('aerial_slides').select('project_id').in('project_id', projectIds),
       supabase.from('points_of_interest').select('project_id, image').in('project_id', projectIds),
       supabase.from('project_collaborators').select('project_id').in('project_id', projectIds).eq('status', 'accepted'),
@@ -72,6 +68,7 @@ export async function GET() {
       commentsByProject.set(c.project_id, (commentsByProject.get(c.project_id) ?? 0) + 1);
     }
     for (const a of (amenities ?? [])) {
+      if (a.visible === false || !Array.isArray(a.images) || a.images.length === 0) continue;
       amenitiesByProject.set(a.project_id, (amenitiesByProject.get(a.project_id) ?? 0) + 1);
     }
     for (const s of (aerialSlides ?? [])) {
@@ -105,21 +102,27 @@ export async function GET() {
 
   const projects = (data ?? []).map(p => {
     const typeConfig = getProjectTypeConfig(p.project_type, p.sale_mode);
-    const availableContentKeys = SECTION_REGISTRY
+    // Mismo criterio que /admin/sitio y la landing, armado directo desde
+    // los conteos en lote. Las secciones opcionales (BIM, calculadora,
+    // contacto) no cuentan para el progreso, así que sus conteos no hacen
+    // falta acá.
+    const summary: ContentSummary = {
+      hasDescription: !!p.description?.trim(),
+      beforeAfterCount: Array.isArray(p.before_after) ? p.before_after.length : 0,
+      processCount: Array.isArray(p.process_gallery) ? p.process_gallery.length : 0,
+      collaboratorCount: collaboratorsByProject.get(p.id) ?? 0,
+      amenityWithImageCount: amenitiesByProject.get(p.id) ?? 0,
+      poiWithImageCount: poiWithImageByProject.get(p.id) ?? 0,
+      unitCount: unitsByProject.get(p.id) ?? 0,
+      financeableUnitCount: 0,
+      aerialSlideCount: aerialByProject.get(p.id) ?? 0,
+      bimCount: 0,
+    };
+    const countedKeys = SECTION_REGISTRY
       .map(s => s.key)
-      .filter(key => CONTENT_SECTION_KEYS.includes(key) && isSectionAvailable(key, typeConfig));
-    const emptyKeys = computeEmptySectionKeys({
-      description: p.description ?? '',
-      beforeAfter: p.before_after ?? [],
-      processGallery: p.process_gallery ?? [],
-      collaborators: collaboratorsByProject.has(p.id) ? [{}] : [],
-      amenities: amenitiesByProject.has(p.id) ? [{}] : [],
-      pointsOfInterest: poiWithImageByProject.has(p.id) ? [{ image: 'x' }] : [],
-      units: unitsByProject.has(p.id) ? [{}] : [],
-      aerialSlides: aerialByProject.has(p.id) ? [{}] : [],
-    });
-    const total = availableContentKeys.length;
-    const done = total - availableContentKeys.filter(key => emptyKeys.has(key)).length;
+      .filter(key => !OPTIONAL_SECTIONS.has(key) && isSectionAvailable(key, typeConfig));
+    const total = countedKeys.length;
+    const done = total - countedKeys.filter(key => sectionIsPending(key, summary, typeConfig)).length;
 
     return {
       ...p,

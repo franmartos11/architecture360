@@ -1,4 +1,5 @@
 import type { ProjectTypeConfig } from './project-types';
+import { pluralize } from './units';
 
 // Fuente única de verdad para qué secciones tiene la landing pública de
 // un proyecto y en qué orden por defecto — usado tanto por la landing
@@ -112,7 +113,7 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
       ? 'Foto aérea con hotspots — se carga en Proyecto → Vistas aéreas.'
       : 'Foto del frente de la casa — se carga en Proyecto → Vista frontal.',
     bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
-    typologies: `${typeConfig.unitLabel}s disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
+    typologies: `${pluralize(typeConfig.unitLabel)} disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
     contact: 'Formulario de contacto — se activa según el modo de venta.',
@@ -120,61 +121,146 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
   return hints[key];
 }
 
-// Shape mínimo que hace falta para calcular vacíos — el mismo Project
-// completo que devuelve GET /api/admin/project/preview (ver
-// data/project-repository.ts), no una copia cruda de la fila de Supabase.
-// Los collaborators de ese endpoint ya vienen filtrados a status='accepted'
-// (mismo query que usa la landing pública), así que acá no hace falta
-// re-filtrar por status.
-interface EmptyCheckProject {
+// ─── Contenido de cada sección ─────────────────────────────────────
+// UN solo criterio de "esta sección tiene algo para mostrar", compartido
+// por la landing pública (qué se renderiza), /admin/sitio (qué se marca
+// vacío), el progreso de "Mis proyectos" y el chequeo de completitud. Antes
+// cada lugar tenía el suyo y se contradecían: el admin daba amenidades por
+// cargadas aunque ninguna tuviera foto (y la landing no mostraba nada), y
+// la landing mostraba el masterplan con una foto de stock aunque el admin
+// lo marcara vacío.
+
+// Conteos mínimos para decidir — se arman desde el Project completo
+// (summarizeProject) o, en el listado de proyectos, directo desde
+// consultas agregadas en lote (ver app/api/admin/projects/route.ts).
+export interface ContentSummary {
+  hasDescription: boolean;
+  beforeAfterCount: number;
+  processCount: number;
+  /** Colaboradores aceptados. */
+  collaboratorCount: number;
+  /** Amenidades visibles CON al menos una foto — sin foto la sección no tiene qué mostrar. */
+  amenityWithImageCount: number;
+  /** Puntos de interés con foto. */
+  poiWithImageCount: number;
+  unitCount: number;
+  /** Unidades disponibles con precio cargado — lo único que la calculadora puede financiar. */
+  financeableUnitCount: number;
+  aerialSlideCount: number;
+  bimCount: number;
+}
+
+// Shape mínimo del Project para resumir. Es el Project completo que arma
+// data/project-repository.ts: amenities ya viene filtrado a visibles y
+// collaborators a aceptados, así que acá no se vuelve a filtrar.
+export interface SummarySource {
   description: string;
   beforeAfter: unknown[];
   processGallery: unknown[];
   collaborators: unknown[];
-  amenities: unknown[];
+  amenities: { images: string[] }[];
   pointsOfInterest: { image?: string }[];
-  units: unknown[];
+  units: { status: string; price?: number }[];
   aerialSlides: unknown[];
+  bimModels?: unknown[];
 }
 
-// Qué secciones DISPONIBLES no tienen nada para mostrar todavía — mismo
-// criterio de contenido que usa cada componente de
-// components/project-landing/ para devolver null. Lo usa /admin/sitio
-// para marcar el estado "vacía" en la lista y en el resumen.
-//
-// 'masterplan' SÍ se marca vacío sin aerialSlides — antes se asumía que
-// "siempre tiene fallback" y se dejaba afuera de este chequeo, pero el
-// fallback real (components/aerial/AerialView.tsx) era una pantalla en
-// blanco sin ningún aviso cuando no había ninguna vista aérea cargada.
-//
-// 'bim' queda AFUERA a propósito, igual que 'calculator'/'contact': es
-// opcional (no todo proyecto necesita un modelo BIM), así que marcarla
-// "vacía" generaría un aviso de "te falta esto" en cualquier proyecto que
-// legítimamente decidió no cargar uno. El componente de la sección igual
-// resuelve solo si tiene o no piezas para mostrar.
-export function computeEmptySectionKeys(project: EmptyCheckProject): Set<SectionKey> {
-  const empty = new Set<SectionKey>();
-  if (!project.description) empty.add('about');
-  if (project.beforeAfter.length === 0) empty.add('before_after');
-  if (project.processGallery.length === 0) empty.add('process');
-  if (project.collaborators.length === 0) empty.add('team');
-  if (project.amenities.length === 0) empty.add('amenities');
-  if (project.units.length === 0) empty.add('typologies');
-  if (!project.pointsOfInterest.some(p => p.image)) empty.add('location');
-  if (project.aerialSlides.length === 0) empty.add('masterplan');
-  return empty;
+export function summarizeProject(project: SummarySource): ContentSummary {
+  return {
+    hasDescription: !!project.description?.trim(),
+    beforeAfterCount: project.beforeAfter.length,
+    processCount: project.processGallery.length,
+    collaboratorCount: project.collaborators.length,
+    amenityWithImageCount: project.amenities.filter(a => a.images.length > 0).length,
+    poiWithImageCount: project.pointsOfInterest.filter(p => p.image).length,
+    unitCount: project.units.length,
+    financeableUnitCount: project.units.filter(u => u.status === 'available' && typeof u.price === 'number' && u.price > 0).length,
+    aerialSlideCount: project.aerialSlides.length,
+    bimCount: project.bimModels?.length ?? 0,
+  };
 }
+
+// Secciones que se ocultan solas si no tienen contenido pero que NO cuentan
+// como "te falta cargar esto": un proyecto puede legítimamente no tener
+// modelo BIM, ni precios (calculadora), y contacto no se "carga".
+export const OPTIONAL_SECTIONS: ReadonlySet<SectionKey> = new Set<SectionKey>(['bim', 'calculator', 'contact']);
+
+export function sectionHasContent(key: SectionKey, summary: ContentSummary): boolean {
+  switch (key) {
+    case 'about': return summary.hasDescription;
+    case 'before_after': return summary.beforeAfterCount > 0;
+    case 'process': return summary.processCount > 0;
+    case 'team': return summary.collaboratorCount > 0;
+    case 'amenities': return summary.amenityWithImageCount > 0;
+    case 'location': return summary.poiWithImageCount > 0;
+    case 'typologies': return summary.unitCount > 0;
+    // Sin vistas aéreas el masterplan es una pantalla en blanco: no hay a
+    // dónde llevar al visitante (antes la landing igual mostraba el CTA con
+    // una foto de stock).
+    case 'masterplan': return summary.aerialSlideCount > 0;
+    case 'bim': return summary.bimCount > 0;
+    case 'calculator': return summary.financeableUnitCount > 0;
+    case 'contact': return true;
+  }
+}
+
+// "Te falta cargar esto": disponible para el tipo/modo, sin contenido y no
+// opcional. Habilitada o no da igual — el admin igual quiere saber que una
+// sección que apagó está vacía.
+export function sectionIsPending(key: SectionKey, summary: ContentSummary, typeConfig: ProjectTypeConfig): boolean {
+  return isSectionAvailable(key, typeConfig) && !OPTIONAL_SECTIONS.has(key) && !sectionHasContent(key, summary);
+}
+
+// Qué secciones no opcionales no tienen nada para mostrar todavía. Lo usan
+// /admin/sitio (estado "vacía" de cada fila) y useProjectCompleteness.
+// No filtra por disponibilidad: cada consumidor ya cruza con su lista.
+export function emptySectionKeysFromSummary(summary: ContentSummary): Set<SectionKey> {
+  return new Set(DEFAULT_ORDER.filter(key => !OPTIONAL_SECTIONS.has(key) && !sectionHasContent(key, summary)));
+}
+
+export function computeEmptySectionKeys(project: SummarySource): Set<SectionKey> {
+  return emptySectionKeysFromSummary(summarizeProject(project));
+}
+
+// ─── Anclas de la home ─────────────────────────────────────────────
+// Id de cada sección en la home, para el menú, el footer y los CTAs. Las
+// anclas viejas (#next, #tour-360, #modelos, #cotizador) siguen andando:
+// la home deja un marcador con ese id además del nuevo, así no se rompen
+// links compartidos ni el link "Cotizador" del Navbar.
+export const SECTION_ANCHORS: Record<SectionKey, string> = {
+  about: 'proyecto',
+  before_after: 'antes-despues',
+  process: 'proceso',
+  team: 'equipo',
+  amenities: 'amenidades',
+  masterplan: 'masterplan',
+  bim: 'modelo-bim',
+  typologies: 'unidades',
+  location: 'ubicacion',
+  calculator: 'financiacion',
+  contact: 'contacto',
+};
+
+export const LEGACY_SECTION_ANCHORS: Partial<Record<SectionKey, string>> = {
+  about: 'next',
+  masterplan: 'tour-360',
+  typologies: 'modelos',
+  calculator: 'cotizador',
+};
 
 export interface SectionConfigEntry {
   key: string;
   enabled: boolean;
 }
 
-// Combina lo guardado en el proyecto con el registro: si el guardado le
-// falta alguna key (proyecto viejo, o el registro sumó una sección
-// nueva después), esa se agrega al final habilitada por defecto — así
-// una sección nueva del sistema no queda invisible para proyectos ya
-// configurados.
+// Combina lo guardado en el proyecto con el registro: si al guardado le
+// falta alguna key (proyecto viejo, o el registro sumó una sección nueva
+// después), esa se agrega habilitada — así una sección nueva del sistema
+// no queda invisible para proyectos ya configurados. Se inserta justo
+// después de la sección que la precede en el orden por defecto (la más
+// cercana que esté presente), y NUNCA después de Contacto: antes se
+// agregaba al final, así que un proyecto viejo veía p. ej. el modelo BIM
+// debajo del formulario de contacto, al pie de la página.
 //
 // Al revés también: una key guardada que el registro ya no conoce
 // (sección renombrada o eliminada) se descarta — si no, la landing busca
@@ -191,9 +277,24 @@ function resolveFullOrder(sectionConfig: SectionConfigEntry[] | null | undefined
     seen.add(s.key);
     return true;
   });
-  const savedKeys = new Set(saved.map(s => s.key));
-  const missing = DEFAULT_ORDER.filter(k => !savedKeys.has(k)).map(key => ({ key, enabled: true }));
-  return [...saved, ...missing];
+  const result: SectionConfigEntry[] = saved.map(s => ({ key: s.key, enabled: !!s.enabled }));
+  for (const key of DEFAULT_ORDER) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const defaultIdx = DEFAULT_ORDER.indexOf(key);
+    // Ancla: la sección presente más cercana que la precede por defecto.
+    let insertAt = 0;
+    for (let i = defaultIdx - 1; i >= 0; i--) {
+      const anchorIdx = result.findIndex(s => s.key === DEFAULT_ORDER[i]);
+      if (anchorIdx >= 0) { insertAt = anchorIdx + 1; break; }
+    }
+    if (key !== 'contact') {
+      const contactIdx = result.findIndex(s => s.key === 'contact');
+      if (contactIdx >= 0 && insertAt > contactIdx) insertAt = contactIdx;
+    }
+    result.splice(insertAt, 0, { key, enabled: true });
+  }
+  return result;
 }
 
 // Para la landing pública: solo las keys habilitadas Y disponibles para
@@ -208,6 +309,18 @@ export function resolveSectionOrder(sectionConfig: SectionConfigEntry[] | null |
   return resolveFullOrder(sectionConfig)
     .filter(s => s.enabled && isSectionAvailable(s.key as SectionKey, typeConfig))
     .map(s => s.key as SectionKey);
+}
+
+// Lo que efectivamente se ve en la home: habilitadas, disponibles y CON
+// contenido. Es la fuente para renderizar la home y para todo lo que linkea
+// a una sección (footer, flecha del hero), así nunca hay un link a una
+// sección que no está en la página.
+export function resolveVisibleSections(
+  project: SummarySource & { sectionConfig?: SectionConfigEntry[] | null },
+  typeConfig: ProjectTypeConfig,
+): SectionKey[] {
+  const summary = summarizeProject(project);
+  return resolveSectionOrder(project.sectionConfig, typeConfig).filter(key => sectionHasContent(key, summary));
 }
 
 // Para el panel de admin: la lista completa (habilitadas, apagadas, y no

@@ -12,7 +12,7 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { getProjectHref } from '@/lib/project-url';
-import { resolveSectionList, sectionEditHref, sectionHint, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
+import { resolveSectionList, sectionEditHref, sectionHint, summarizeProject, sectionHasContent, OPTIONAL_SECTIONS, type ContentSummary, type SectionKey } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { SECTION_EDITORS } from '@/components/admin/section-editors/registry';
 import PortadaEditor from '@/components/admin/section-editors/PortadaEditor';
@@ -28,16 +28,20 @@ interface SectionRow {
   unavailableReason?: string;
 }
 
-type Status = 'ok' | 'empty' | 'hidden' | 'locked';
+// 'empty': le falta contenido y cuenta como pendiente. 'idle': opcional
+// (BIM, calculadora sin precios…) sin contenido — tampoco se muestra en el
+// sitio, pero no es algo que "falte cargar".
+type Status = 'ok' | 'empty' | 'idle' | 'hidden' | 'locked';
 type Filter = 'all' | 'pending' | 'hidden' | 'locked';
 type Selected = 'portada' | SectionKey;
 
 const STATUS_DOT: Record<Status, string> = {
-  ok: 'bg-brand-500', empty: 'bg-amber-400', hidden: 'bg-gray-300', locked: 'bg-gray-200',
+  ok: 'bg-brand-500', empty: 'bg-amber-400', idle: 'bg-gray-300', hidden: 'bg-gray-300', locked: 'bg-gray-200',
 };
 
 const STATUS_PILL: Partial<Record<Status, [string, string]>> = {
   empty: ['vacía — no se muestra', 'bg-amber-50 border-amber-200 text-amber-700'],
+  idle: ['sin contenido — no se muestra', 'bg-gray-50 border-gray-200 text-gray-500'],
   hidden: ['oculta', 'bg-gray-100 border-gray-200 text-gray-600'],
   locked: ['no disponible', 'bg-gray-50 border-gray-200 text-gray-400'],
 };
@@ -53,7 +57,7 @@ export default function AdminSitioPage() {
   const typeConfig = useProjectTypeConfig();
   const [project, setProject] = useState<Project | null>(null);
   const [sections, setSections] = useState<SectionRow[] | null>(null);
-  const [emptyKeys, setEmptyKeys] = useState<Set<SectionKey>>(new Set());
+  const [summary, setSummary] = useState<ContentSummary | null>(null);
   const [ownerFonts, setOwnerFonts] = useState<CustomFont[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -63,6 +67,7 @@ export default function AdminSitioPage() {
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
   const sectionsRef = useRef<SectionRow[] | null>(null);
+  const savedSectionsRef = useRef<SectionRow[] | null>(null);
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
 
   const load = () => {
@@ -74,8 +79,10 @@ export default function AdminSitioPage() {
       .then(([data, fontsData]) => {
         if (!data.project) throw new Error('sin proyecto');
         setProject(data.project);
-        setSections(resolveSectionList(data.project.sectionConfig, typeConfig));
-        setEmptyKeys(computeEmptySectionKeys(data.project));
+        const list = resolveSectionList(data.project.sectionConfig, typeConfig);
+        savedSectionsRef.current = list;
+        setSections(list);
+        setSummary(summarizeProject(data.project));
         setOwnerFonts((fontsData.fonts ?? []).map((f: { id: string; name: string; file_url: string; format: string }) => ({
           id: f.id, name: f.name, fileUrl: f.file_url, format: f.format,
         })));
@@ -90,16 +97,29 @@ export default function AdminSitioPage() {
 
   useEffect(load, [activeProjectId, typeConfig]);
 
+  // Si el PATCH falla, la lista vuelve a lo último que quedó guardado en vez
+  // de seguir mostrando un orden que en realidad no se guardó.
   const persist = async (next: SectionRow[]) => {
     setSections(next);
     setSaving(true);
-    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sectionConfig: next.map(({ key, enabled }) => ({ key, enabled })) }),
-    });
+    let ok = false;
+    try {
+      const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionConfig: next.map(({ key, enabled }) => ({ key, enabled })) }),
+      });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
     setSaving(false);
-    if (!res.ok) toast('No se pudo guardar el cambio.', 'error');
+    if (ok) {
+      savedSectionsRef.current = next;
+    } else {
+      if (savedSectionsRef.current) setSections(savedSectionsRef.current);
+      toast('No se pudo guardar el cambio.', 'error');
+    }
   };
 
   const toggleSection = (key: SectionKey) => {
@@ -107,12 +127,17 @@ export default function AdminSitioPage() {
     persist(sections.map(s => (s.key === key ? { ...s, enabled: !s.enabled } : s)));
   };
 
+  // Saltea las secciones no disponibles: no se ven en el sitio, así que
+  // "intercambiarse" con una no movía nada visible y parecía que el botón
+  // no andaba.
   const moveSection = (index: number, direction: -1 | 1) => {
     if (!sections) return;
-    const target = index + direction;
+    let target = index + direction;
+    while (target >= 0 && target < sections.length && !sections[target].available) target += direction;
     if (target < 0 || target >= sections.length) return;
     const next = [...sections];
-    [next[index], next[target]] = [next[target], next[index]];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
     persist(next);
   };
 
@@ -129,7 +154,7 @@ export default function AdminSitioPage() {
   const statusOf = (s: SectionRow): Status => {
     if (!s.available) return 'locked';
     if (!s.enabled) return 'hidden';
-    if (emptyKeys.has(s.key)) return 'empty';
+    if (summary && !sectionHasContent(s.key, summary)) return OPTIONAL_SECTIONS.has(s.key) ? 'idle' : 'empty';
     return 'ok';
   };
   const statuses = new Map(sections.map(s => [s.key, statusOf(s)]));
@@ -355,7 +380,7 @@ export default function AdminSitioPage() {
 // hay que darles el padding nosotros — sin tocar el componente compartido
 // y arriesgar duplicar el padding en su página propia.
 const EDITOR_NEEDS_PADDING: Partial<Record<SectionKey, true>> = {
-  before_after: true, team: true, amenities: true, location: true,
+  before_after: true, team: true, amenities: true, location: true, bim: true,
 };
 
 function SectionPanelBody({
@@ -419,6 +444,10 @@ function SectionPanelBody({
       <div className="mt-2 px-6 py-6 bg-gray-50">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">Cómo se ve</p>
         <SectionPreviewFrame>
+          {/* Las fuentes propias del proyecto (subidas por el usuario) se
+              declaran con @font-face: sin esto la vista previa caía en la
+              fuente por defecto aunque el sitio publicado las mostrara. */}
+          {theme.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: theme.fontFaceCss }} />}
           <div className={ALL_FONT_CLASSNAMES} style={theme.cssVars as React.CSSProperties}>
             <SectionComponent project={project} typeConfig={typeConfig} basePath={`/proyecto/${project.slug}`} />
           </div>

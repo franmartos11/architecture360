@@ -25,7 +25,12 @@ const projectPatchSchema = z.object({
   // no rechazar ese null — el handler lo sanea a '' igual.
   description: z.string().max(5000).nullable().optional(),
   tagline: z.string().max(300).nullable().optional(),
-  sectionConfig: z.unknown().optional(),
+  // Orden y visibilidad de las secciones de la home. Se valida la FORMA
+  // (antes cualquier JSON pasaba y un objeto o un null guardado rompía la
+  // landing); una key que el registro no conozca se acepta igual y la
+  // descarta lib/project-sections.ts al leer — así un admin abierto con una
+  // versión vieja del registro no recibe un 400 por una sección renombrada.
+  sectionConfig: z.array(z.object({ key: z.string().min(1).max(40), enabled: z.boolean() })).max(40).optional(),
   themeConfig: z.unknown().optional(),
   location: z.string().max(300).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),

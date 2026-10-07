@@ -196,6 +196,29 @@ describe('PATCH /api/admin/project', () => {
     expect(await res.json()).toEqual({ id: 'project-1', sale_mode: 'showcase' });
   });
 
+  it('sectionConfig con forma inválida: 400 antes de tocar la base', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    for (const sectionConfig of [{ about: true }, null, [{ key: 'about' }], [{ key: 'about', enabled: 'si' }]]) {
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { sectionConfig }));
+      expect(res.status).toBe(400);
+    }
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('sectionConfig válido (aunque traiga una key que el registro ya no conoce): se guarda', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      sectionConfig: [{ key: 'about', enabled: true }, { key: 'seccion_vieja', enabled: false }],
+    }));
+    expect(res.status).toBe(200);
+  });
+
   it('error de la base al actualizar: 500 con el mensaje', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ error: { message: 'update failed' } }] });

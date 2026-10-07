@@ -7,7 +7,13 @@ import {
   resolveSectionList,
   sectionEditHref,
   sectionHint,
+  sectionHasContent,
+  sectionIsPending,
+  summarizeProject,
+  resolveVisibleSections,
   SECTION_REGISTRY,
+  SECTION_ANCHORS,
+  LEGACY_SECTION_ANCHORS,
 } from './project-sections';
 
 const venta = getProjectTypeConfig('edificio', 'venta'); // showCalculator, showPrice, showLeads todos true
@@ -44,9 +50,9 @@ describe('computeEmptySectionKeys', () => {
     beforeAfter: [{}],
     processGallery: [{}],
     collaborators: [{}],
-    amenities: [{}],
+    amenities: [{ images: ['a.png'] }],
     pointsOfInterest: [{ image: 'x.png' }],
-    units: [{}],
+    units: [{ status: 'available', price: 100000 }],
     aerialSlides: [{}],
   };
 
@@ -84,6 +90,84 @@ describe('computeEmptySectionKeys', () => {
     };
     expect(computeEmptySectionKeys(project).has('bim')).toBe(false);
   });
+
+  it('amenidades sin ninguna foto cuentan como vacías (la landing no tiene qué mostrar)', () => {
+    expect(computeEmptySectionKeys({ ...full, amenities: [{ images: [] }] }).has('amenities')).toBe(true);
+    expect(computeEmptySectionKeys({ ...full, amenities: [{ images: [] }, { images: ['b.png'] }] }).has('amenities')).toBe(false);
+  });
+
+  it('una descripción de solo espacios es vacía', () => {
+    expect(computeEmptySectionKeys({ ...full, description: '   ' }).has('about')).toBe(true);
+  });
+});
+
+describe('sectionHasContent / sectionIsPending', () => {
+  const base = {
+    description: 'x', beforeAfter: [], processGallery: [], collaborators: [],
+    amenities: [], pointsOfInterest: [], units: [] as { status: string; price?: number }[], aerialSlides: [],
+  };
+
+  it('masterplan necesita al menos una vista aérea', () => {
+    expect(sectionHasContent('masterplan', summarizeProject(base))).toBe(false);
+    expect(sectionHasContent('masterplan', summarizeProject({ ...base, aerialSlides: [{}] }))).toBe(true);
+  });
+
+  it('calculadora solo con unidades disponibles y con precio', () => {
+    const sinPrecio = summarizeProject({ ...base, units: [{ status: 'available' }, { status: 'available', price: 0 }] });
+    const vendida = summarizeProject({ ...base, units: [{ status: 'sold', price: 90000 }] });
+    const ok = summarizeProject({ ...base, units: [{ status: 'available', price: 90000 }] });
+    expect(sectionHasContent('calculator', sinPrecio)).toBe(false);
+    expect(sectionHasContent('calculator', vendida)).toBe(false);
+    expect(sectionHasContent('calculator', ok)).toBe(true);
+  });
+
+  it('las opcionales (bim, calculator, contact) nunca quedan pendientes', () => {
+    const vacio = summarizeProject(base);
+    for (const key of ['bim', 'calculator', 'contact'] as const) {
+      expect(sectionIsPending(key, vacio, venta)).toBe(false);
+    }
+  });
+
+  it('una sección no disponible para el tipo/modo no queda pendiente', () => {
+    expect(sectionIsPending('before_after', summarizeProject(base), venta)).toBe(false);
+    expect(sectionIsPending('before_after', summarizeProject(base), showcase)).toBe(true);
+  });
+});
+
+describe('resolveVisibleSections', () => {
+  const project = {
+    description: 'Un proyecto', beforeAfter: [], processGallery: [], collaborators: [],
+    amenities: [{ images: [] }], pointsOfInterest: [], units: [{ status: 'available', price: 120000 }],
+    aerialSlides: [], sectionConfig: null,
+  };
+
+  it('solo deja las secciones habilitadas, disponibles y con contenido', () => {
+    expect(resolveVisibleSections(project, venta)).toEqual(['about', 'typologies', 'calculator', 'contact']);
+  });
+
+  it('respeta el orden guardado y las secciones apagadas', () => {
+    const conConfig = {
+      ...project,
+      sectionConfig: [
+        { key: 'typologies', enabled: true },
+        { key: 'about', enabled: true },
+        { key: 'calculator', enabled: false },
+      ],
+    };
+    expect(resolveVisibleSections(conConfig, venta)).toEqual(['typologies', 'about', 'contact']);
+  });
+});
+
+describe('anclas', () => {
+  it('cada sección tiene un ancla única', () => {
+    const anchors = SECTION_REGISTRY.map(s => SECTION_ANCHORS[s.key]);
+    expect(new Set(anchors).size).toBe(anchors.length);
+  });
+
+  it('las anclas viejas no chocan con las nuevas', () => {
+    const nuevas = new Set(Object.values(SECTION_ANCHORS));
+    for (const vieja of Object.values(LEGACY_SECTION_ANCHORS)) expect(nuevas.has(vieja!)).toBe(false);
+  });
 });
 
 describe('resolveSectionOrder', () => {
@@ -100,10 +184,28 @@ describe('resolveSectionOrder', () => {
     expect(resolveSectionOrder(config, venta)).not.toContain('amenities');
   });
 
-  it('una key nueva del registro que falta en el guardado se agrega al final, habilitada', () => {
+  it('una key que falta en el guardado se inserta después de su vecina por defecto, habilitada', () => {
     const config = SECTION_REGISTRY.filter(s => s.key !== 'typologies').map(s => ({ key: s.key, enabled: true }));
     const order = resolveSectionOrder(config, venta);
-    expect(order[order.length - 1]).toBe('typologies');
+    expect(order.indexOf('typologies')).toBe(order.indexOf('bim') + 1);
+  });
+
+  it('una key que falta nunca queda después de Contacto (proyecto viejo sin "bim")', () => {
+    const config = SECTION_REGISTRY.filter(s => s.key !== 'bim').map(s => ({ key: s.key, enabled: true }));
+    const order = resolveSectionOrder(config, venta);
+    expect(order.indexOf('bim')).toBeLessThan(order.indexOf('contact'));
+    expect(order.indexOf('bim')).toBe(order.indexOf('masterplan') + 1);
+  });
+
+  it('con el masterplan movido al final por el admin, la key nueva igual queda antes de Contacto', () => {
+    const config = [
+      { key: 'about', enabled: true },
+      { key: 'contact', enabled: true },
+      { key: 'masterplan', enabled: true },
+    ];
+    const order = resolveSectionOrder(config, venta);
+    expect(order.indexOf('bim')).toBeLessThan(order.indexOf('contact'));
+    expect(order[order.length - 1]).toBe('masterplan');
   });
 
   it('respeta el orden guardado, no el default', () => {
