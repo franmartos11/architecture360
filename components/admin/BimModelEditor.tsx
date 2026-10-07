@@ -6,7 +6,13 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { MAX_GALLERY_IMAGES, MAX_GEOMETRY_BYTES, GEOMETRY_WARN_BYTES, bimModelHref, canPublishBimModel } from '@/lib/bim';
-import type { BimModel, Floor, Unit } from '@/types';
+import type { BimModel, Floor } from '@/types';
+import type { UnitRow } from '@/types/database';
+
+// /api/admin/units devuelve filas crudas de la tabla (floor_id, code), no el
+// Unit ya mapeado — tiparlo como Unit obligaba a un `as any` para leer
+// floor_id y escondía que `name` no existe en la fila.
+export type BimUnitOption = Pick<UnitRow, 'id' | 'floor_id' | 'code'>;
 
 const labelStyle = 'block text-xs font-medium text-gray-500 mb-1.5';
 const inputStyle =
@@ -21,7 +27,7 @@ export default function BimModelEditor({
 }: {
   model: BimModel;
   floors: Floor[];
-  units: Unit[];
+  units: BimUnitOption[];
   onSaved: (updated: BimModel) => void;
   onDeleted: (id: string) => void;
 }) {
@@ -222,7 +228,7 @@ export default function BimModelEditor({
             <label className="block text-[11px] font-medium text-gray-500 mb-1">Unidades asignadas</label>
             <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-lg bg-white p-3 flex flex-col gap-4 shadow-inner">
               {floors.map(f => {
-                const floorUnits = (units as any[]).filter(u => u.floor_id === f.id);
+                const floorUnits = units.filter(u => u.floor_id === f.id);
                 if (floorUnits.length === 0) return null;
                 return (
                   <div key={f.id} className="flex flex-col gap-1.5">
@@ -239,7 +245,7 @@ export default function BimModelEditor({
                               else setSelectedUnitIds(selectedUnitIds.filter(id => id !== u.id));
                             }}
                           />
-                          <span className="truncate">Unidad {u.name || u.code}</span>
+                          <span className="truncate">Unidad {u.code}</span>
                         </label>
                       ))}
                     </div>

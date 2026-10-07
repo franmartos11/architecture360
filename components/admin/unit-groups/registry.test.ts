@@ -72,7 +72,7 @@ describe('UNIT_GROUP_NAV.status', () => {
       tour_data: {
         initialNodeId: '',
         nodes: [
-          { id: 'n1', name: 'Living', imageUrl: 'x', linkHotspots: [{ id: 'h1', targetNodeId: 'n2', yaw: 0, pitch: 0 }] as any },
+          { id: 'n1', name: 'Living', imageUrl: 'x', linkHotspots: [{ targetNodeId: 'n2', yaw: 0, pitch: 0 }] },
           { id: 'n2', name: 'Cocina', imageUrl: 'y', linkHotspots: [] },
           { id: 'n3', name: 'Baño', imageUrl: 'z', linkHotspots: [] },
         ],
@@ -83,14 +83,15 @@ describe('UNIT_GROUP_NAV.status', () => {
   it('ambientes: depende de rooms', () => {
     const item = find('ambientes');
     expect(item.status(makeRow({ rooms: null }), dwelling)).toBe('empty');
-    expect(item.status(makeRow({ rooms: [{ id: 'r1', kind: 'bedroom', name: 'Dorm 1' } as any] }), dwelling)).toBe('complete');
+    expect(item.status(makeRow({ rooms: [{ id: 'r1', kind: 'bedroom', name: 'Dorm 1' }] }), dwelling)).toBe('complete');
   });
 
   it('datos: lote depende de total_area; vivienda de orientacion+dormitorios', () => {
     const item = find('datos');
     expect(item.status(makeRow({ total_area: null }), land)).toBe('empty');
     expect(item.status(makeRow({ total_area: 100 }), land)).toBe('complete');
-    expect(item.status(makeRow({ model_name: null, type: '' as any }), dwelling)).toBe('empty');
+    // '' no es un UnitType válido: modela una fila vieja o mal cargada.
+    expect(item.status(makeRow({ model_name: null, type: '' as unknown as DbUnitRow['type'] }), dwelling)).toBe('empty');
     expect(item.status(makeRow({ model_name: 'X', orientation: null, bedrooms: 0 }), dwelling)).toBe('partial');
     expect(item.status(makeRow({ model_name: 'X', orientation: 'NE', bedrooms: 2 }), dwelling)).toBe('complete');
   });

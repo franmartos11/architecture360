@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useScrollLock } from '@/hooks/useScrollLock';
 
@@ -21,11 +21,15 @@ interface ModalPortalProps {
  * ancestro que pueda hacerlo.
  *
  * Monta recién en el cliente: en el server no hay document y el markup del
- * modal no tiene por qué estar en el HTML inicial.
+ * modal no tiene por qué estar en el HTML inicial. "¿Estamos en el
+ * cliente?" se lee con useSyncExternalStore (false en el server y en la
+ * hidratación, true después) en vez de un setState dentro de un efecto, que
+ * forzaba un render extra en cada modal.
  */
+const subscribeNoop = () => () => {};
+
 export default function ModalPortal({ open, children }: ModalPortalProps) {
-  const [montado, setMontado] = useState(false);
-  useEffect(() => setMontado(true), []);
+  const montado = useSyncExternalStore(subscribeNoop, () => true, () => false);
   useScrollLock(open);
 
   if (!montado) return null;

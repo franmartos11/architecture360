@@ -7,8 +7,8 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import BimModelList from '@/components/admin/BimModelList';
-import BimModelEditor from '@/components/admin/BimModelEditor';
-import type { BimModel, Floor, Unit } from '@/types';
+import BimModelEditor, { type BimUnitOption } from '@/components/admin/BimModelEditor';
+import type { BimModel, Floor } from '@/types';
 
 // Editor de BIM autosuficiente — resuelve el proyecto por el id fijado al
 // entrar (useActiveProjectId, ver lib/active-project-context.tsx), no
@@ -22,7 +22,7 @@ export default function BimEditor() {
   const activeProjectId = useActiveProjectId();
   const [models, setModels] = useState<BimModel[] | null>(null);
   const [floors, setFloors] = useState<Floor[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [units, setUnits] = useState<BimUnitOption[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -40,7 +40,7 @@ export default function BimEditor() {
         setModels(bimData.models as BimModel[]);
         setSelectedId((bimData.models as BimModel[])[0]?.id ?? null);
         setFloors((floorsData as Floor[]) ?? []);
-        setUnits((unitsData as Unit[]) ?? []);
+        setUnits((unitsData as BimUnitOption[]) ?? []);
       })
       .catch(() => { if (!cancelled) setModels([]); });
     return () => { cancelled = true; };

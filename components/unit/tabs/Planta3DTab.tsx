@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -25,18 +25,15 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
   const hasBimGallery = (bimModel?.galleryImages?.length ?? 0) > 0;
   const hasBim = hasBim3D || hasBimGallery;
 
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    hasRender ? 'render' : (hasBim3D ? 'bim-3d' : 'bim-gallery')
-  );
+  const fallbackMode: ViewMode = hasBim3D ? 'bim-3d' : 'bim-gallery';
+  const [selectedMode, setViewMode] = useState<ViewMode>(hasRender ? 'render' : fallbackMode);
   const [activeIdx, setActiveIdx] = useState(0);
   const active = levels[activeIdx] ?? levels[0];
 
-  // Si el estado queda inválido
-  useEffect(() => {
-    if (viewMode === 'render' && !hasRender) {
-      setViewMode(hasBim3D ? 'bim-3d' : 'bim-gallery');
-    }
-  }, [hasRender, hasBim3D, viewMode]);
+  // Si la unidad deja de tener render (cambió el dato), el modo elegido
+  // queda inválido: se deriva el válido en el render en vez de corregir el
+  // estado con un efecto, que mostraba un frame vacío antes de saltar.
+  const viewMode: ViewMode = selectedMode === 'render' && !hasRender ? fallbackMode : selectedMode;
 
   return (
     <motion.div

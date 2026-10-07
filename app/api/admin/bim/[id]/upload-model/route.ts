@@ -72,7 +72,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ error: 'Acción inválida' }, { status: 400 });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: `Server error: ${error.message || String(error)}` }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `Server error: ${message}` }, { status: 500 });
   }
 }

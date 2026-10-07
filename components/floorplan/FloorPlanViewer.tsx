@@ -161,7 +161,11 @@ export default function FloorPlanViewer({
   // contenedor termina con la MISMA forma que la imagen (sin franjas
   // vacías), los overlays en % (zonas de hover, pines) quedan alineados.
   const planAreaRef = useRef<HTMLDivElement>(null);
-  const planImageRef = useRef<string | undefined>(undefined);
+  // Plano y piso con los que se midió/abrió por última vez — en estado y no
+  // en un ref: leer o escribir un ref durante el render rompe el compilador
+  // de React (y ver más abajo el bug que escondía).
+  const [measuredPlanImage, setMeasuredPlanImage] = useState<string | undefined>(undefined);
+  const [bimFloorId, setBimFloorId] = useState<string | undefined>(undefined);
   const [planRatio, setPlanRatio] = useState<number | null>(null);
   const [planFitSize, setPlanFitSize] = useState<{ w: number; h: number } | null>(null);
 
@@ -206,10 +210,20 @@ export default function FloorPlanViewer({
   // con proporciones distintas. Ajuste de estado durante el render (no en
   // un efecto) siguiendo el patrón recomendado para "resetear estado
   // cuando cambia una prop" — ver react-hooks/set-state-in-effect.
-  if (planImageRef.current !== floor?.planImage) {
-    planImageRef.current = floor?.planImage;
+  if (measuredPlanImage !== floor?.planImage) {
+    setMeasuredPlanImage(floor?.planImage);
     if (planRatio !== null) setPlanRatio(null);
     if (planFitSize !== null) setPlanFitSize(null);
+  }
+
+  // Cerrar el BIM al cambiar de planta. Antes se comparaba contra el ref del
+  // plano, que ya se había actualizado tres líneas arriba: la condición no
+  // daba nunca verdadera y el visor BIM quedaba abierto mostrando el modelo
+  // del piso anterior. Se compara por piso (no por imagen: varios pisos
+  // tipo comparten el mismo plano).
+  if (bimFloorId !== floor?.id) {
+    setBimFloorId(floor?.id);
+    if (showBim) setShowBim(false);
   }
 
   const unitsOnFloor = useMemo(
@@ -217,16 +231,14 @@ export default function FloorPlanViewer({
     [allUnits, building.id, activeFloor]
   );
 
+  // Se memoiza por el id (no por el objeto floor) para que el compilador de
+  // React pueda respetar las dependencias declaradas.
+  const floorId = floor?.id;
   const activeBimModel = useMemo(() => {
-    if (!floor?.id) return undefined;
-    return bimModels.find(m => m.floorIds.includes(floor.id)) ??
+    if (!floorId) return undefined;
+    return bimModels.find(m => m.floorIds.includes(floorId)) ??
            bimModels.find(m => m.floorIds.length === 0 && m.unitIds.length === 0);
-  }, [bimModels, floor?.id]);
-
-  // Cerrar BIM al cambiar de planta
-  if (showBim && planImageRef.current !== floor?.planImage) {
-    setShowBim(false);
-  }
+  }, [bimModels, floorId]);
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.
