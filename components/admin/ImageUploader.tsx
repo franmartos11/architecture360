@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { fixStereoPanorama } from '@/lib/panorama';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 interface ImageUploaderProps {
   value: string;
@@ -36,22 +37,10 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
     setError('');
     setUploadingState(true);
     const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
-    const formData = new FormData();
-    formData.append('file', toUpload);
-    formData.append('folder', folder);
-    try {
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (res.ok) {
-        onChange(data.url);
-      } else {
-        setError(data.error ?? 'Error al subir el archivo');
-      }
-    } catch {
-      setError('Error de conexión al subir el archivo');
-    } finally {
-      setUploadingState(false);
-    }
+    const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
+    if (result.ok) onChange(result.data.url);
+    else setError(result.error);
+    setUploadingState(false);
   };
 
   return (

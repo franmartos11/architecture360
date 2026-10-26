@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 interface VideoUploaderProps {
   value: string;
@@ -28,22 +29,10 @@ export default function VideoUploader({ value, onChange, folder, label, onUpload
   const handleFile = async (file: File) => {
     setError('');
     setUploadingState(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', folder);
-    try {
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (res.ok) {
-        onChange(data.url);
-      } else {
-        setError(data.error ?? 'Error al subir el archivo');
-      }
-    } catch {
-      setError('Error de conexión al subir el archivo');
-    } finally {
-      setUploadingState(false);
-    }
+    const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', file, { folder });
+    if (result.ok) onChange(result.data.url);
+    else setError(result.error);
+    setUploadingState(false);
   };
 
   return (

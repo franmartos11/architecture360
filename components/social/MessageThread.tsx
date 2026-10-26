@@ -7,6 +7,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatRelativeTime } from '@/lib/relativeTime';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 import { useConversationMessages, type ApiMessage } from '@/hooks/useConversationMessages';
 import EmbeddedPostCard from '@/components/social/EmbeddedPostCard';
 import EmojiPicker from '@/components/ui/EmojiPicker';
@@ -286,16 +287,13 @@ export default function MessageThread({ conversationId, other }: { conversationI
       return;
     }
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    const uploadRes = await fetch(`/api/conversations/${conversationId}/attachments`, { method: 'POST', body: formData });
-    if (!uploadRes.ok) {
+    const upload = await uploadViaSignedUrl<{ path: string }>(`/api/conversations/${conversationId}/attachments`, file);
+    if (!upload.ok) {
       setUploading(false);
-      const data = await uploadRes.json().catch(() => ({}));
-      toast(data.error ?? 'No se pudo subir el archivo.', 'error');
+      toast(upload.error, 'error');
       return;
     }
-    const { path } = await uploadRes.json();
+    const { path } = upload.data;
     const res = await sendMessage('', { path, type });
     setUploading(false);
     if (!res.ok) {

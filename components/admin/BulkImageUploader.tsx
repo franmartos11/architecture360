@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { fixStereoPanorama } from '@/lib/panorama';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 export interface BulkUploadResult {
   fileName: string;
@@ -34,19 +35,11 @@ export default function BulkImageUploader({ folder, onComplete, hint }: BulkImag
 
     for (const file of files) {
       const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
-      const formData = new FormData();
-      formData.append('file', toUpload);
-      formData.append('folder', folder);
-      try {
-        const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (res.ok) {
-          results.push({ fileName: file.name, url: data.url });
-        } else {
-          failures.push(`${file.name}: ${data.error ?? 'error desconocido'}`);
-        }
-      } catch {
-        failures.push(`${file.name}: error de conexión`);
+      const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
+      if (result.ok) {
+        results.push({ fileName: file.name, url: result.data.url });
+      } else {
+        failures.push(`${file.name}: ${result.error}`);
       }
       setProgress(p => ({ ...p, done: p.done + 1 }));
     }

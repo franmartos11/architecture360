@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import ImageUploader from './ImageUploader';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 interface MultiImageUploaderProps {
   values: string[];
@@ -62,18 +63,9 @@ export default function MultiImageUploader({ values, onChange, folder, label }: 
   // galería en el orden en que se eligieron — así una carga de 20 fotos no
   // obliga a repetir "+ Agregar imagen" veinte veces.
   const uploadOne = async (file: File): Promise<string | null> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', folder);
-    try {
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      return res.ok ? data.url : null;
-    } catch {
-      return null;
-    } finally {
-      setProgress(p => ({ ...p, done: p.done + 1 }));
-    }
+    const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', file, { folder });
+    setProgress(p => ({ ...p, done: p.done + 1 }));
+    return result.ok ? result.data.url : null;
   };
 
   const handleFiles = async (fileList: FileList | File[]) => {
