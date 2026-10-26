@@ -1,12 +1,25 @@
 'use client';
 
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import type { UnitGroupProps } from '@/lib/unit-fields';
+import { countInputChange, type UnitGroupProps } from '@/lib/unit-fields';
 
 // Lote: sin tipología (es terreno). Depto/dúplex/único: lista curada fija
 // (a diferencia de casa, que deriva el tipo de la cantidad de dormitorios
 // — ver FloorUnitsEditor, fase 2).
 const UNIT_TYPES = ['monoambiente', '1 dormitorio', '2 dormitorios', '3 dormitorios', 'penthouse'] as const;
+
+// Aplica el resultado de countInputChange: en 'restore' deja en el campo el
+// valor guardado (el DOM se escribe acá, la función pura no lo toca).
+function applyCountChange(
+  el: HTMLInputElement,
+  stored: number,
+  integer: boolean,
+  save: (v: number) => void,
+) {
+  const r = countInputChange({ value: el.value, badInput: el.validity.badInput }, stored, { integer });
+  if (r.action === 'restore') el.value = String(stored);
+  else if (r.action === 'save') save(r.value);
+}
 
 export default function DatosGroup({ values, onChange }: UnitGroupProps) {
   const { unitIsLand } = useProjectTypeConfig();
@@ -71,16 +84,16 @@ export default function DatosGroup({ values, onChange }: UnitGroupProps) {
         <div className="flex-1 flex flex-col gap-1.5">
           <label className="text-[11.5px] font-medium text-gray-900">Dormitorios</label>
           <input
-            type="number" defaultValue={values.bedrooms ?? ''} key={`bed-${values.code}`}
-            onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== values.bedrooms) onChange({ bedrooms: v }); }}
+            type="number" min={0} defaultValue={values.bedrooms ?? 0} key={`bed-${values.code}`}
+            onBlur={e => applyCountChange(e.target, values.bedrooms ?? 0, true, v => onChange({ bedrooms: v }))}
             className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex-1 flex flex-col gap-1.5">
           <label className="text-[11.5px] font-medium text-gray-900">Baños</label>
           <input
-            type="number" defaultValue={values.bathrooms ?? ''} key={`bath-${values.code}`}
-            onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== values.bathrooms) onChange({ bathrooms: v }); }}
+            type="number" min={0} step={0.5} defaultValue={values.bathrooms ?? 0} key={`bath-${values.code}`}
+            onBlur={e => applyCountChange(e.target, values.bathrooms ?? 0, false, v => onChange({ bathrooms: v }))}
             className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>

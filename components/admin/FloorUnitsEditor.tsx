@@ -27,7 +27,8 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS } from '@/lib/units';
+import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, areaMismatch, fmtM2, UNIT_CURRENCIES, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS } from '@/lib/units';
+import { UNIT_PLAN_FIELDS } from '@/lib/unit-fields';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
@@ -76,11 +77,6 @@ const ROOM_KIND_OPTIONS: { value: RoomKind; label: string }[] = [
   { value: 'other', label: 'Otro' },
 ];
 const newRoomId = () => `r-${Math.random().toString(36).slice(2, 9)}`;
-
-// Mismas monedas que reconoce formatPrice() en lib/units.ts — agregar acá
-// una moneda sin agregarla ahí la deja guardable pero sin formato local
-// específico al mostrarla (cae al genérico).
-const CURRENCIES = ['USD', 'ARS', 'EUR', 'UYU', 'BRL', 'CLP', 'MXN', 'COP', 'PEN'] as const;
 
 const CSV_COLUMNS = [
   'code', 'modelName', 'type', 'totalArea', 'innerArea', 'balconyArea', 'externalArea',
@@ -446,7 +442,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const areaInnerNum = Number(form.innerArea || 0);
   const areaExternalNum = Number(form.externalArea || 0);
   const areaSum = areaInnerNum + areaExternalNum;
-  const areaMismatch = areaTotalNum > 0 && areaSum > 0 && Math.abs(areaSum - areaTotalNum) > 0.5;
+  // Form del wizard (edificio): mismo aviso que SuperficiesGroup, con balcón.
+  const wizardAreaParts = [areaInnerNum, Number(form.balconyArea || 0), areaExternalNum];
+  const wizardAreaSum = wizardAreaParts.reduce((a, b) => a + b, 0);
+  const wizardAreaMismatch = areaMismatch(areaTotalNum, wizardAreaParts);
+  const hasAreaMismatch = areaMismatch(areaTotalNum, [areaInnerNum, areaExternalNum]);
 
   // Editor de casa: qué tan lista está la ficha para publicar — maneja el
   // checklist del sidebar, el progreso y los badges de cada tab.
@@ -862,6 +862,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               </>
             )}
           </div>
+          {!unitIsLand && wizardAreaMismatch && (
+            <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+              Interior + balcón + exterior suman {fmtM2(wizardAreaSum)} m², pero el total es {fmtM2(areaTotalNum)} m².
+            </p>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Dormitorios/baños: no aplican a un lote. */}
@@ -878,7 +883,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                 </div>
                 <div className="w-24 shrink-0">
                   <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
-                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {UNIT_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </div>
               </div>
@@ -908,9 +913,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             {/* Planos 3D/técnicos: solo para una vivienda. Un lote no tiene. */}
             {!unitIsLand && (
               <>
-                <ImageUploader label="Render / planta 3D" value={form.floorPlan3dUrl} onChange={url => setForm({ ...form, floorPlan3dUrl: url })} folder="floorplans" />
-                <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
-                <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
+                {UNIT_PLAN_FIELDS.map(f => (
+                  <ImageUploader key={f.key} label={f.label} value={form[f.key]} onChange={url => setForm({ ...form, [f.key]: url })} folder="floorplans" />
+                ))}
               </>
             )}
           </div>
@@ -1061,13 +1066,13 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       <input
                         id="totalArea" type="number" step="0.01" value={form.totalArea}
                         onChange={e => setForm({ ...form, totalArea: e.target.value })}
-                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${areaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
+                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${hasAreaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
                       />
                     </div>
                     <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
                     <Input label="Área externa (m²)" id="externalArea" type="number" step="0.01" value={form.externalArea} onChange={e => setForm({ ...form, externalArea: e.target.value })} />
                   </div>
-                  {areaMismatch && (
+                  {hasAreaMismatch && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
                       <p className="flex-1 min-w-[220px] text-xs text-amber-800">
                         Interna ({areaInnerNum}) + externa ({areaExternalNum}) dan {areaSum} m², y el total dice {areaTotalNum} m².
@@ -1093,7 +1098,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       <>
                         <Input label="Precio" id="price" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Consultar precio" />
                         <Select label="Moneda" id="currency" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
-                          {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          {UNIT_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </Select>
                         <Input label="Expensas / mes" id="hoaFee" type="number" step="0.01" value={form.hoaFee} onChange={e => setForm({ ...form, hoaFee: e.target.value })} placeholder="Sin expensas" />
                       </>
@@ -1358,8 +1363,9 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                         <p className="text-xs text-gray-400">Estás editando la planta 3D de {plantas[plantaIdx].label.toLowerCase()}.</p>
                       )}
                     </div>
-                    <ImageUploader label="Plano 3D técnico" value={form.plan3dUrl} onChange={url => setForm({ ...form, plan3dUrl: url })} folder="floorplans" />
-                    <ImageUploader label="Plano 2D técnico" value={form.technicalPlanUrl} onChange={url => setForm({ ...form, technicalPlanUrl: url })} folder="floorplans" />
+                    {UNIT_PLAN_FIELDS.filter(f => f.key !== 'floorPlan3dUrl').map(f => (
+                      <ImageUploader key={f.key} label={f.label} value={form[f.key]} onChange={url => setForm({ ...form, [f.key]: url })} folder="floorplans" />
+                    ))}
                   </div>
                 </div>
               </Card>

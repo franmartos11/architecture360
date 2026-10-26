@@ -138,6 +138,21 @@ describe('POST /api/admin/units', () => {
     expect(await res.json()).toEqual({ id: 'unit-1', code: 'A1' });
   });
 
+  it('código duplicado en el piso (23505): 409 con mensaje claro, no 500', async () => {
+    vi.mocked(resolveProjectIdFromFloor).mockResolvedValue('project-1');
+    const supabase = mockSupabase({
+      results: [
+        { data: { project_type: 'edificio', sale_mode: 'venta' } },
+        { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }, // insert
+      ],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await POST(jsonRequest('http://localhost/api/admin/units', { floorId: 'floor-1', code: 'A1', type: 'monoambiente' }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Ya existe una unidad con el código "A1" en este piso.');
+  });
+
   // parking_spots tiene default '[]' en la base: un alta normal no manda la
   // columna (así sigue andando en bases sin la migración aplicada), y solo
   // la manda si el body la trae.

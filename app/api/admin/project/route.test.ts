@@ -66,6 +66,8 @@ describe('GET /api/admin/project', () => {
         { data: [{ id: 'poi-1' }] }, // .from('points_of_interest')
         { data: [{ id: 'collab-1' }] }, // .from('project_collaborators')
         { data: [] }, // .from('project_comments')
+        { count: 2 }, // .from('units') total (conteo head)
+        { count: 1 }, // .from('units') con precio
       ],
     });
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
@@ -81,6 +83,7 @@ describe('GET /api/admin/project', () => {
       pointsOfInterest: [{ id: 'poi-1' }],
       collaborators: [{ id: 'collab-1' }],
       comments: [],
+      unitPrices: { total: 2, priced: 1 },
     });
   });
 
@@ -95,6 +98,8 @@ describe('GET /api/admin/project', () => {
         { data: [] }, // points_of_interest
         { data: [] }, // project_collaborators
         { data: [] }, // project_comments (vacío, sin autores que buscar)
+        { count: 0 }, // units total
+        { count: 0 }, // units con precio (ambos .from() son síncronos dentro del Promise.all: van antes que los hotspots)
         { data: [{ id: 'hotspot-1', slide_id: 'slide-1' }] }, // aerial_hotspots
       ],
     });
@@ -117,6 +122,8 @@ describe('GET /api/admin/project', () => {
         { data: [] }, // points_of_interest
         { data: [] }, // project_collaborators
         { data: [{ id: 'comment-1', author_id: 'user-2', body: 'Hola' }] }, // project_comments
+        { count: 0 }, // units total
+        { count: 0 }, // units con precio (antes que profiles: los .from() son síncronos dentro del Promise.all)
         { data: [{ id: 'user-2', handle: 'ana', display_name: 'Ana' }] }, // profiles
       ],
     });
@@ -127,6 +134,33 @@ describe('GET /api/admin/project', () => {
     expect(body.comments).toEqual([
       { id: 'comment-1', author_id: 'user-2', body: 'Hola', author: { id: 'user-2', handle: 'ana', display_name: 'Ana' } },
     ]);
+  });
+});
+
+describe('GET /api/admin/project: conteo de precios con error', () => {
+  it('si falla un conteo de unidades: 200 igual, con unitPrices en cero', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = mockSupabase({
+      results: [
+        { data: { id: 'project-1', slug: 'torre-del-mar' } },
+        { data: [] }, // buildings
+        { data: [] }, // aerial_slides
+        { data: [] }, // amenities
+        { data: [] }, // points_of_interest
+        { data: [] }, // project_collaborators
+        { data: [] }, // project_comments
+        { count: 5 }, // units total
+        { error: { message: 'boom' } }, // units con precio
+      ],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await GET(get('http://localhost/api/admin/project'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).unitPrices).toEqual({ total: 0, priced: 0 });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

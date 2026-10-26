@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { Scene, RectilinearView, Hotspot } from 'marzipano';
+import type { TourView } from '@/types';
 
 interface HotspotMarker {
   yaw: number;
@@ -19,6 +20,10 @@ interface TourNodeViewerProps {
   onDeleteInfo?: (index: number) => void;
   onMoveLink?: (index: number, yaw: number, pitch: number) => void;
   onMoveInfo?: (index: number, yaw: number, pitch: number) => void;
+  /** Vista con la que abre la escena. Solo se aplica al (re)crear la escena. */
+  initialView?: TourView;
+  /** Si viene, se muestra el botón para fijar la vista actual como inicio. */
+  onCaptureView?: (view: TourView) => void;
 }
 
 // "create" ubica un hotspot que todavía no existe — no hay nada real que
@@ -53,7 +58,7 @@ const MAX_PITCH_SPEED = 0.9; // rad/s
 // público), son clickeables para borrarlos ahí mismo, y se pueden agarrar
 // del ícono y arrastrar a un nuevo lugar para corregir la posición sin
 // borrar y recrear.
-export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, placing, onPlace, onDeleteLink, onDeleteInfo, onMoveLink, onMoveInfo }: TourNodeViewerProps) {
+export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, placing, onPlace, onDeleteLink, onDeleteInfo, onMoveLink, onMoveInfo, initialView, onCaptureView }: TourNodeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
@@ -64,6 +69,10 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
   const onDeleteInfoRef = useRef(onDeleteInfo);
   const onMoveLinkRef = useRef(onMoveLink);
   const onMoveInfoRef = useRef(onMoveInfo);
+  // initialView va por ref: al guardar la vista inicial el padre re-renderiza
+  // con un initialView nuevo, y eso NO debe recrear la escena ni mover la
+  // cámara. Solo se lee cuando se crea la escena (cambia imageUrl).
+  const initialViewRef = useRef(initialView);
   const placingRef = useRef(placing);
   const dragRef = useRef<{ active: boolean; x: number; y: number; mode: DragMode } | null>(null);
   const rafIdRef = useRef<number | null>(null);
@@ -74,6 +83,7 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
     onDeleteInfoRef.current = onDeleteInfo;
     onMoveLinkRef.current = onMoveLink;
     onMoveInfoRef.current = onMoveInfo;
+    initialViewRef.current = initialView;
   });
 
   useEffect(() => {
@@ -336,7 +346,7 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
       const source = Marzipano.ImageUrlSource.fromString(imageUrl);
       const geometry = new Marzipano.EquirectGeometry([{ width: 4096 }]);
       const limiter = Marzipano.RectilinearView.limit.traditional(4096, (130 * Math.PI) / 180);
-      const view = new Marzipano.RectilinearView({ yaw: 0, pitch: 0, fov: Math.PI / 2 }, limiter);
+      const view = new Marzipano.RectilinearView(initialViewRef.current ?? { yaw: 0, pitch: 0, fov: Math.PI / 2 }, limiter);
       const scene = viewer.createScene({ source, geometry, view, pinFirstLevel: true });
       scene.switchTo({ transitionDuration: 0 });
 
@@ -397,6 +407,18 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
         style={{ cursor: placing ? 'crosshair' : 'grab', touchAction: 'none' }}
       />
       <div ref={ghostRef} className="admin-tour-ghost-pin" style={{ display: 'none' }} />
+      {onCaptureView && placing === null && (
+        <button
+          type="button"
+          onClick={() => {
+            const view = viewRef.current;
+            if (view) onCaptureView({ yaw: view.yaw(), pitch: view.pitch(), fov: view.fov() });
+          }}
+          className="absolute top-2 right-2 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-black/60 text-white hover:bg-black/75 transition-colors"
+        >
+          Usar esta vista como inicio
+        </button>
+      )}
     </div>
   );
 }

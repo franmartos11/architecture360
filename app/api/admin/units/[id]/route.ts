@@ -60,6 +60,26 @@ const FIELD_MAP: Record<string, string> = {
   tourData: 'tour_data',
 };
 
+// Claves del FIELD_MAP cuya columna es NOT NULL en supabase/schema.sql (CREATE
+// TABLE units + los `alter table units add column ... not null`). Tiene que
+// reflejar esas columnas: mandarlas en null revienta en Postgres con un 500
+// crudo; se corta antes con un 400 legible. Las nullables (price, polygon,
+// rooms, levels, tourData, urls, etc.) NO van acá.
+const NOT_NULL_FIELDS = [
+  'code', 'type', 'balconyArea', 'externalArea', 'bedrooms', 'bathrooms', 'hasServiceRoom',
+  'garageSpaces', 'livingRooms', 'kitchens', 'otherRoomsCount', 'floorsCount',
+  'currency', 'status', 'galleryImages', 'garageCovered', 'garageUncovered', 'features', 'parkingSpots',
+];
+
+const NOT_NULL_LABELS: Record<string, string> = {
+  code: 'Código', type: 'Tipología', bedrooms: 'Dormitorios', bathrooms: 'Baños',
+  hasServiceRoom: 'Cuarto de servicio', balconyArea: 'Superficie de balcón', externalArea: 'Superficie exterior',
+  currency: 'Moneda', status: 'Estado', galleryImages: 'Galería', garageSpaces: 'Cocheras',
+  garageCovered: 'Cocheras cubiertas', garageUncovered: 'Cocheras descubiertas', livingRooms: 'Livings',
+  kitchens: 'Cocinas', otherRoomsCount: 'Otros ambientes', floorsCount: 'Cantidad de plantas',
+  features: 'Características', parkingSpots: 'Cocheras asignadas',
+};
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const projectId = await resolveProjectIdFromUnit(id);
@@ -85,6 +105,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { supabase } = access;
 
   const body = await request.json();
+  const nullField = NOT_NULL_FIELDS.find(campo => body[campo] === null);
+  if (nullField) {
+    return NextResponse.json({ error: `${NOT_NULL_LABELS[nullField] ?? nullField} no puede quedar vacío.` }, { status: 400 });
+  }
+
   if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
@@ -97,6 +122,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const { data, error } = await supabase.from('units').update(updates).eq('id', id).select().single();
+  // 23505 = unique_violation: otra unidad del mismo piso ya usa ese código.
+  if (error?.code === '23505') {
+    return NextResponse.json({ error: `Ya existe una unidad con el código "${body.code ?? 'ese código'}" en este piso.` }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }

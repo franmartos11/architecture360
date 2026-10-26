@@ -1,8 +1,13 @@
 'use client';
 
 import type { UnitGroupProps } from '@/lib/unit-fields';
+import { areaMismatch, fmtM2 } from '@/lib/units';
 
 export default function SuperficiesGroup({ values, onChange }: UnitGroupProps) {
+  // Lee de `values` (lo guardado): se actualiza después de cada blur.
+  const parts = [values.innerArea, values.balconyArea, values.externalArea];
+  const mismatch = areaMismatch(values.totalArea, parts);
+  const partsSum = parts.reduce<number>((acc, p) => acc + (p ?? 0), 0);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
@@ -39,6 +44,11 @@ export default function SuperficiesGroup({ values, onChange }: UnitGroupProps) {
           />
         </div>
       </div>
+      {mismatch && (
+        <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+          Interior + balcón + exterior suman {fmtM2(partsSum)} m², pero el total es {fmtM2(values.totalArea ?? 0)} m².
+        </p>
+      )}
     </div>
   );
 }

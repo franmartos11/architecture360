@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { fixStereoPanorama } from '@/lib/panorama';
+import { preparePanorama } from '@/lib/panorama';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 export interface BulkUploadResult {
@@ -22,19 +22,27 @@ export default function BulkImageUploader({ folder, onComplete, hint }: BulkImag
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState('');
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setError('');
+    setWarnings([]);
     setUploading(true);
     setProgress({ done: 0, total: files.length });
     const results: BulkUploadResult[] = [];
     const failures: string[] = [];
+    const fileWarnings: string[] = [];
 
     for (const file of files) {
-      const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
+      let toUpload = file;
+      if (folder === 'tours') {
+        const prepared = await preparePanorama(file);
+        toUpload = prepared.file;
+        if (prepared.warning) fileWarnings.push(`${file.name}: ${prepared.warning}`);
+      }
       const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
       if (result.ok) {
         results.push({ fileName: file.name, url: result.data.url });
@@ -45,6 +53,7 @@ export default function BulkImageUploader({ folder, onComplete, hint }: BulkImag
     }
 
     setUploading(false);
+    setWarnings(fileWarnings);
     if (failures.length > 0) setError(`No se pudieron subir ${failures.length}: ${failures.join('; ')}`);
     if (results.length > 0) onComplete(results);
   };
@@ -93,6 +102,7 @@ export default function BulkImageUploader({ folder, onComplete, hint }: BulkImag
         />
       </div>
       {hint && !error && <p className="text-xs text-gray-400 mt-1.5">{hint}</p>}
+      {warnings.map(w => <p key={w} className="text-xs text-amber-600 mt-1.5">{w}</p>)}
       {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
     </div>
   );

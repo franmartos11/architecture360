@@ -77,6 +77,8 @@ export default function AdminProjectPage() {
   const [hotspots, setHotspots] = useState<HotspotRow[]>([]);
   const [collaborators, setCollaborators] = useState<CollaboratorRow[]>([]);
   const [comments, setComments] = useState<CommentRow[]>([]);
+  // Cuántas unidades tienen precio — alimenta el ítem "Precios cargados" del checklist.
+  const [unitPrices, setUnitPrices] = useState({ total: 0, priced: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -113,6 +115,7 @@ export default function AdminProjectPage() {
         setHotspots(data.hotspots);
         setCollaborators(data.collaborators ?? []);
         setComments(data.comments ?? []);
+        setUnitPrices(data.unitPrices ?? { total: 0, priced: 0 });
         setLoading(false);
       })
       .catch((err) => {
@@ -330,7 +333,13 @@ export default function AdminProjectPage() {
       ? [{ label: 'Hotspots', ok: hotspots.length > 0 }]
       : []),
     { label: 'Ubicación', ok: project.latitude != null && project.longitude != null },
-    ...(saleMode === 'venta' ? [{ label: 'Precios cargados', ok: false }] : []),
+    ...(saleMode === 'venta' ? [{
+      // Con unidades cargadas pero sin precio en todas, se muestra cuántas faltan.
+      label: unitPrices.total > 0 && unitPrices.priced < unitPrices.total
+        ? `Precios cargados (${unitPrices.priced}/${unitPrices.total})`
+        : 'Precios cargados',
+      ok: unitPrices.total > 0 && unitPrices.priced === unitPrices.total,
+    }] : []),
   ] : [];
   const checklistOk = checklistItems.filter(i => i.ok).length;
   const checklistPct = checklistItems.length ? Math.round((checklistOk / checklistItems.length) * 100) : 0;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { fixStereoPanorama } from '@/lib/panorama';
+import { preparePanorama } from '@/lib/panorama';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
 
 interface ImageUploaderProps {
@@ -24,6 +24,7 @@ interface ImageUploaderProps {
 export default function ImageUploader({ value, onChange, folder, label, onUploadingChange }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,8 +36,15 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
 
   const handleFile = async (file: File) => {
     setError('');
+    setWarning('');
     setUploadingState(true);
-    const toUpload = folder === 'tours' ? await fixStereoPanorama(file) : file;
+    let toUpload = file;
+    if (folder === 'tours') {
+      // El aviso no bloquea: una panorámica parcial se sube igual.
+      const prepared = await preparePanorama(file);
+      toUpload = prepared.file;
+      if (prepared.warning) setWarning(prepared.warning);
+    }
     const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
     if (result.ok) onChange(result.data.url);
     else setError(result.error);
@@ -118,6 +126,7 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
           {folder === 'tours' && !error && (
             <p className="text-[11px] text-gray-400">Si viene en formato estéreo (dos mitades apiladas, una por ojo), la recortamos sola al subir.</p>
           )}
+          {warning && <p className="text-xs text-amber-600">{warning}</p>}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       </div>

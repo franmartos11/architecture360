@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toFormValues, toDbShape } from './unit-fields';
+import { toFormValues, toDbShape, countInputChange, UNIT_PLAN_FIELDS } from './unit-fields';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 function makeRow(overrides: Partial<DbUnitRow> = {}): DbUnitRow {
@@ -60,5 +60,42 @@ describe('toFormValues / toDbShape', () => {
     const values = toFormValues(makeRow({ tour_data: tourData }));
     expect(values.tourData).toEqual(tourData);
     expect(toDbShape({ tourData })).toEqual({ tour_data: tourData });
+  });
+});
+
+describe('countInputChange', () => {
+  const int = { integer: true };
+  const dec = { integer: false };
+  it('badInput: restore', () => {
+    expect(countInputChange({ value: '', badInput: true }, 2, int)).toEqual({ action: 'restore' });
+  });
+  it('vacío: guarda 0, o skip si ya era 0', () => {
+    expect(countInputChange({ value: '', badInput: false }, 2, int)).toEqual({ action: 'save', value: 0 });
+    expect(countInputChange({ value: '', badInput: false }, 0, int)).toEqual({ action: 'skip' });
+  });
+  it('negativo o no finito: restore', () => {
+    expect(countInputChange({ value: '-1', badInput: false }, 2, dec)).toEqual({ action: 'restore' });
+    expect(countInputChange({ value: 'Infinity', badInput: false }, 2, dec)).toEqual({ action: 'restore' });
+  });
+  it('entero requerido con decimal: restore; sin exigir entero: guarda', () => {
+    expect(countInputChange({ value: '2.5', badInput: false }, 2, int)).toEqual({ action: 'restore' });
+    expect(countInputChange({ value: '1.5', badInput: false }, 1, dec)).toEqual({ action: 'save', value: 1.5 });
+  });
+  it('sin cambios: skip', () => {
+    expect(countInputChange({ value: '3', badInput: false }, 3, int)).toEqual({ action: 'skip' });
+  });
+  it('valor nuevo: save', () => {
+    expect(countInputChange({ value: '3', badInput: false }, 2, int)).toEqual({ action: 'save', value: 3 });
+  });
+});
+
+describe('UNIT_PLAN_FIELDS', () => {
+  it('tiene las 3 keys de plano en orden', () => {
+    expect(UNIT_PLAN_FIELDS.map(f => f.key)).toEqual(['floorPlan3dUrl', 'plan3dUrl', 'technicalPlanUrl']);
+  });
+  it('ningún label se repite y todos tienen hint', () => {
+    const labels = UNIT_PLAN_FIELDS.map(f => f.label);
+    expect(new Set(labels).size).toBe(labels.length);
+    UNIT_PLAN_FIELDS.forEach(f => expect(f.hint.length).toBeGreaterThan(0));
   });
 });

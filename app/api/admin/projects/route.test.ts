@@ -179,6 +179,23 @@ describe('POST /api/admin/projects', () => {
     expect(provisionSingleUnitStructure).toHaveBeenCalledWith(supabase, { projectId: 'project-1', name: 'Mi Casa' });
   });
 
+  it('alta: el proyecto nuevo arranca como borrador (published: false)', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [] }, // ensureUniqueSlug
+        { data: { id: 'project-1', slug: 'torre-del-mar', name: 'Torre del Mar', project_type: 'edificio', sale_mode: 'venta', published: false }, error: null },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(jsonRequest('http://localhost/api/admin/projects', { name: 'Torre del Mar' }));
+    expect(res.status).toBe(201);
+    // from.mock.results[1] es la llamada a .from('projects') para el insert
+    const insertSpy = (supabase.from.mock.results[1].value as { insert: ReturnType<typeof vi.fn> }).insert;
+    expect(insertSpy.mock.calls[0][0]).toMatchObject({ published: false });
+  });
+
   it('si la auto-provisión de la casa falla, el proyecto igual queda creado (red de seguridad del wizard)', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },

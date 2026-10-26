@@ -6,6 +6,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { downloadCsv } from '@/lib/csv';
+import { priceChangeFromInput } from '@/lib/units';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -386,13 +387,14 @@ export default function AdminInventory() {
                         <span className="absolute left-[11px] top-1/2 -translate-y-1/2 text-[11.5px] font-medium" style={{ color: 'rgba(16,24,40,.4)' }}>$</span>
                         <input
                           type="number"
-                          defaultValue={unit.price || 0}
+                          defaultValue={unit.price ?? ''}
+                          placeholder="Consultar"
                           disabled={savingId === unit.id}
                           onBlur={(e) => {
-                            const newPrice = Number(e.target.value);
-                            if (newPrice !== unit.price) {
-                              handleUpdateUnit(unit.id, { price: newPrice });
-                            }
+                            // Vacío = null ("Consultar"); un 0 tipeado a propósito se guarda como 0;
+                            // texto inválido no pisa el precio existente (restaura el campo).
+                            const change = priceChangeFromInput(e.target, unit.price);
+                            if (change) handleUpdateUnit(unit.id, change);
                           }}
                           className="w-full h-[33px] pl-6 pr-[42px] rounded-lg text-[12px] font-medium outline-none transition-all"
                           style={{ border: '1px solid rgba(16,24,40,.13)', background: '#fff', color: '#101828' }}

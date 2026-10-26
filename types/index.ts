@@ -41,11 +41,18 @@ export interface TourInfoHotspot {
   description?: string;
 }
 
+// Cámara de una escena 360° (radianes). Es la forma de TourNode.initialView.
+export interface TourView {
+  yaw: number;
+  pitch: number;
+  fov: number;
+}
+
 export interface TourNode {
   id: string;
   name: string;
   imageUrl: string;
-  initialView?: { yaw: number; pitch: number; fov: number };
+  initialView?: TourView;
   linkHotspots?: TourLinkHotspot[];
   infoHotspots?: TourInfoHotspot[];
   /** Cartel corto opcional que aparece en el visor público al entrar a este ambiente. */

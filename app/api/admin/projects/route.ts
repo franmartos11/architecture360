@@ -167,8 +167,11 @@ export async function POST(request: Request) {
       owner_id: user.id,
       project_type: projectType,
       sale_mode: saleMode,
+      // Un proyecto vacío no debe quedar visible hasta que el admin lo publique.
+      // La columna sigue con default true para no tocar los proyectos viejos.
+      published: false,
     })
-    .select('id, slug, name, project_type, sale_mode')
+    .select('id, slug, name, project_type, sale_mode, published')
     .single();
 
   if (error) {

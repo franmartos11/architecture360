@@ -2,7 +2,7 @@
 
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { UNIT_STATUSES } from '@/lib/validate';
-import { getStatusLabel, formatPrice } from '@/lib/units';
+import { getStatusLabel, formatPrice, priceChangeFromInput, UNIT_CURRENCIES } from '@/lib/units';
 import type { UnitStatus } from '@/types';
 import type { UnitGroupProps } from '@/lib/unit-fields';
 
@@ -22,10 +22,17 @@ export default function ComercialGroup({ values, onChange }: UnitGroupProps) {
           <label className="text-[11.5px] font-medium text-gray-900">Precio</label>
           <input
             type="number" defaultValue={values.price ?? ''} key={`price-${values.code}`}
-            onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== values.price) onChange({ price: v }); }}
+            onBlur={e => { const change = priceChangeFromInput(e.target, values.price); if (change) onChange(change); }}
             placeholder='Sin precio — se muestra "Consultar"'
             className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
           />
+          <label className="text-[11.5px] font-medium text-gray-900">Moneda</label>
+          <select
+            value={values.currency} onChange={e => onChange({ currency: e.target.value })}
+            className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            {UNIT_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
           {values.price != null && <p className="text-[10.5px] text-gray-400">{formatPrice(values.price, values.currency)}</p>}
         </div>
       )}

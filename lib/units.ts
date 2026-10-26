@@ -27,9 +27,50 @@ const CURRENCY_LOCALE: Record<string, string> = {
   PEN: 'es-PE',
 };
 
+// Monedas que ofrece el admin para una unidad; todas tienen locale en
+// CURRENCY_LOCALE, así formatPrice las muestra con formato local.
+export const UNIT_CURRENCIES = ['USD', 'ARS', 'EUR', 'UYU', 'BRL', 'CLP', 'MXN', 'COP', 'PEN'] as const;
+
+// m² sin colas de float (80.00000001) y sin ceros de más.
+export const fmtM2 = (n: number) => String(Math.round(n * 100) / 100);
+
 export function formatPrice(price: number, currency: string = 'USD'): string {
   const locale = CURRENCY_LOCALE[currency] ?? 'en-US';
   return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
+}
+
+/**
+ * Parsea el texto de un input de precio. Tres resultados distintos:
+ * - `null`: vacío o solo espacios → sin precio, el sitio muestra "Consultar".
+ * - `number`: precio válido (>= 0). Un "0" tipeado a propósito es 0.
+ * - `undefined`: texto inválido (negativo, no numérico, no finito). NO es
+ *   lo mismo que vacío: el que llama no debe guardar nada, si no se borraría
+ *   un precio existente por un error de tipeo.
+ */
+export function parsePriceInput(raw: string): number | null | undefined {
+  const t = raw.trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/**
+ * Para el onBlur de un input de precio. Devuelve `{ price }` si hay que
+ * guardar, o `null` si no (sin cambios o texto inválido). Si es inválido
+ * deja el campo con el valor guardado. Ojo: en `type="number"` el browser
+ * reporta value === '' para texto imposible ("1e", "12-"); se detecta con
+ * `validity.badInput` para no confundirlo con "vacío = Consultar".
+ */
+export function priceChangeFromInput(
+  el: { value: string; validity: { badInput: boolean } },
+  stored: number | null | undefined,
+): { price: number | null } | null {
+  const parsed = el.validity.badInput ? undefined : parsePriceInput(el.value);
+  if (parsed === undefined) {
+    el.value = String(stored ?? '');
+    return null;
+  }
+  return parsed !== (stored ?? null) ? { price: parsed } : null;
 }
 
 export function getStatusLabel(status: string): string {
@@ -278,4 +319,13 @@ export function similarityScore(a: Unit, b: Unit): number {
 
   const total = areaScore * 0.5 + bedroomsScore * 0.2 + bathroomsScore * 0.15 + typeScore * 0.15;
   return Math.round(total * 100);
+}
+
+// ¿Las partes de la superficie (interior, balcón, exterior…) no suman el
+// total declarado? Solo un aviso: si falta el total o no hay ninguna parte
+// cargada no hay nada que comparar. La tolerancia absorbe redondeos.
+export function areaMismatch(total: number | null, parts: (number | null)[], tolerance = 0.5): boolean {
+  if (total == null || !(total > 0)) return false;
+  const sum = parts.reduce<number>((acc, p) => acc + (p ?? 0), 0);
+  return sum > 0 && Math.abs(sum - total) > tolerance;
 }

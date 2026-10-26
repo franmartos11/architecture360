@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors } from './units';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, parsePriceInput, priceChangeFromInput, areaMismatch, UNIT_CURRENCIES, fmtM2, formatPrice } from './units';
 import type { ParkingSpot, Room, UnitParkingSpot } from '@/types';
 
 describe('deriveUnitType', () => {
@@ -152,5 +152,92 @@ describe('cocheras marcadas en el plano', () => {
       expect(remapParkingSpotFloors(null, new Map())).toEqual([]);
       expect(remapParkingSpotFloors(undefined, new Map())).toEqual([]);
     });
+  });
+});
+
+// Precio vacío = "Consultar" (null). Un 0 tipeado a propósito sí se guarda como 0.
+describe('parsePriceInput', () => {
+  it('vacío o solo espacios → null (Consultar)', () => {
+    expect(parsePriceInput('')).toBeNull();
+    expect(parsePriceInput('   ')).toBeNull();
+  });
+
+  it('"0" tipeado a propósito → 0, no null', () => {
+    expect(parsePriceInput('0')).toBe(0);
+  });
+
+  it('números válidos', () => {
+    expect(parsePriceInput('125000')).toBe(125000);
+    expect(parsePriceInput('1500.5')).toBe(1500.5);
+  });
+
+  it('negativos y basura → undefined (inválido: NO es lo mismo que vacío)', () => {
+    expect(parsePriceInput('-3')).toBeUndefined();
+    expect(parsePriceInput('abc')).toBeUndefined();
+    expect(parsePriceInput('Infinity')).toBeUndefined();
+  });
+});
+
+describe('priceChangeFromInput', () => {
+  const input = (value: string, badInput = false) => ({ value, validity: { badInput } });
+
+  it('vacío sobre un precio cargado → pasa a null (Consultar)', () => {
+    expect(priceChangeFromInput(input(''), 120000)).toEqual({ price: null });
+  });
+
+  it('sin cambios → null (no hay PATCH)', () => {
+    expect(priceChangeFromInput(input('120000'), 120000)).toBeNull();
+    expect(priceChangeFromInput(input(''), null)).toBeNull();
+  });
+
+  it('"0" tipeado a propósito → guarda 0', () => {
+    expect(priceChangeFromInput(input('0'), null)).toEqual({ price: 0 });
+  });
+
+  it('negativo no pisa el precio existente y restaura el campo', () => {
+    const el = input('-5');
+    expect(priceChangeFromInput(el, 120000)).toBeNull();
+    expect(el.value).toBe('120000');
+  });
+
+  it('badInput (el browser reporta value "" para "1e") no borra el precio y restaura el campo', () => {
+    const el = input('', true);
+    expect(priceChangeFromInput(el, 120000)).toBeNull();
+    expect(el.value).toBe('120000');
+  });
+
+});
+
+describe('areaMismatch', () => {
+  it('partes que suman el total → false', () => {
+    expect(areaMismatch(80, [70, 6, 4])).toBe(false);
+  });
+
+  it('diferencia dentro de la tolerancia (0.5) → false', () => {
+    expect(areaMismatch(80, [70, 6, 4.4])).toBe(false);
+  });
+
+  it('partes que no suman → true', () => {
+    expect(areaMismatch(80, [60, 6, 0])).toBe(true);
+  });
+
+  it('sin total o sin partes cargadas → false', () => {
+    expect(areaMismatch(null, [60])).toBe(false);
+    expect(areaMismatch(80, [null, 0, 0])).toBe(false);
+  });
+});
+
+describe('UNIT_CURRENCIES', () => {
+  it.each([...UNIT_CURRENCIES])('%s tiene formato válido en formatPrice', (c) => {
+    expect(() => formatPrice(1000, c)).not.toThrow();
+    expect(formatPrice(1000, c)).toMatch(/1.?000/);
+  });
+});
+
+describe('fmtM2', () => {
+  it('quita colas de float y ceros de más', () => {
+    expect(fmtM2(80.00000001)).toBe('80');
+    expect(fmtM2(65.5)).toBe('65.5');
+    expect(fmtM2(10.456)).toBe('10.46');
   });
 });

@@ -103,6 +103,35 @@ describe('PATCH /api/admin/units/[id]', () => {
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
+  // Espejo de NOT_NULL_FIELDS (route.ts) = columnas NOT NULL de units en schema.sql.
+  const NOT_NULL_LABELS: Record<string, string> = {
+    code: 'Código', type: 'Tipología', bedrooms: 'Dormitorios', bathrooms: 'Baños',
+    hasServiceRoom: 'Cuarto de servicio', balconyArea: 'Superficie de balcón', externalArea: 'Superficie exterior',
+    currency: 'Moneda', status: 'Estado', galleryImages: 'Galería', garageSpaces: 'Cocheras',
+    garageCovered: 'Cocheras cubiertas', garageUncovered: 'Cocheras descubiertas', livingRooms: 'Livings',
+    kitchens: 'Cocinas', otherRoomsCount: 'Otros ambientes', floorsCount: 'Cantidad de plantas',
+    features: 'Características', parkingSpots: 'Cocheras asignadas',
+  };
+  const NOT_NULL = [
+    'code', 'type', 'balconyArea', 'externalArea', 'bedrooms', 'bathrooms', 'hasServiceRoom',
+    'garageSpaces', 'livingRooms', 'kitchens', 'otherRoomsCount', 'floorsCount',
+    'currency', 'status', 'galleryImages', 'garageCovered', 'garageUncovered', 'features', 'parkingSpots',
+  ];
+  it.each(NOT_NULL)('null en una columna NOT NULL (%s): 400 legible, no actualiza', async (campo) => {
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    const updateSpy = vi.fn();
+    const supabase = { from: vi.fn(() => ({ update: updateSpy })) };
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(
+      jsonRequest('http://localhost/api/admin/units/unit-1', { [campo]: null }, { method: 'PATCH' }),
+      ctx('unit-1')
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(`${NOT_NULL_LABELS[campo]} no puede quedar vacío.`);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
   it('ignora claves del body no presentes en el FIELD_MAP, y sanitiza los campos de texto mapeados', async () => {
     vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
     const updateSpy = vi.fn((_payload: Record<string, unknown>) => ({
@@ -161,6 +190,21 @@ describe('PATCH /api/admin/units/[id]', () => {
       ctx('unit-1')
     );
     expect(updateSpy.mock.calls[0][0].parking_spots).toEqual([]);
+  });
+
+  it('código duplicado en el piso (23505): 409 con mensaje claro, no 500', async () => {
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    const supabase = mockSupabase({
+      results: [{ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(
+      jsonRequest('http://localhost/api/admin/units/unit-1', { code: 'A1' }, { method: 'PATCH' }),
+      ctx('unit-1')
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Ya existe una unidad con el código "A1" en este piso.');
   });
 
   it('error de la base al actualizar: 500 con el mensaje', async () => {

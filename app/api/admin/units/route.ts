@@ -100,11 +100,12 @@ export async function POST(request: Request) {
     }
   }
 
+  const code = sanitizeText(body.code, 60);
   const { data, error } = await sessionClient
     .from('units')
     .insert({
       floor_id: body.floorId,
-      code: sanitizeText(body.code, 60),
+      code,
       model_name: sanitizeText(body.modelName, 150) || null,
       type: body.type,
       total_area: body.totalArea ?? null,
@@ -154,6 +155,11 @@ export async function POST(request: Request) {
     .select()
     .single();
 
+  // 23505 = unique_violation: ya hay una unidad con ese código en el piso.
+  // Es un error del usuario, no del servidor — se devuelve legible (409).
+  if (error?.code === '23505') {
+    return NextResponse.json({ error: `Ya existe una unidad con el código "${code}" en este piso.` }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
 }

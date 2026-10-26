@@ -109,7 +109,12 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     });
     setSaving(false);
     if (res.ok) setSavedLabel('Guardado hace un instante');
-    else { toast(`No se pudo guardar ${unitLabelLower}.`, 'error'); load(); }
+    else {
+      // Mostrar el motivo del server (400 campo vacío, 409 código duplicado…).
+      const data = await res.json().catch(() => null);
+      toast(data?.error ?? `No se pudo guardar ${unitLabelLower}.`, 'error');
+      load();
+    }
     return res.ok;
   };
 
@@ -224,6 +229,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     const byCode = new Map(units.map(u => [u.code, u.id]));
 
     let created = 0, updated = 0, skipped = 0;
+    let firstError = ''; // mensaje de la API de la primera fila fallida (ej. código repetido)
     for (const row of dataRows) {
       const get = (name: string) => { const i = colIndex(name); return i >= 0 ? (row[i] ?? '').trim() : ''; };
       const code = get('code');
@@ -261,9 +267,13 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
       const res = existingId
         ? await fetch(`/api/admin/units/${existingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : await fetch('/api/admin/units', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, floorId, ...(unitIsLand ? { type: 'lote' } : {}) }) });
-      if (res.ok) { if (existingId) updated++; else created++; } else skipped++;
+      if (res.ok) { if (existingId) updated++; else created++; }
+      else {
+        skipped++;
+        if (!firstError) { const data = await res.json().catch(() => null); firstError = `${code}: ${data?.error ?? 'error al guardar'}`; }
+      }
     }
-    toast(`${created} creado${created === 1 ? '' : 's'}, ${updated} actualizado${updated === 1 ? '' : 's'}${skipped ? `, ${skipped} con error` : ''}.`, skipped > 0 && created + updated === 0 ? 'error' : undefined);
+    toast(`${created} creado${created === 1 ? '' : 's'}, ${updated} actualizado${updated === 1 ? '' : 's'}${skipped ? `, ${skipped} con error${firstError ? ` (${firstError})` : ''}` : ''}.`, skipped > 0 && created + updated === 0 ? 'error' : undefined);
     load();
   };
 

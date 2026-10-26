@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const [{ data: buildings }, { slides, hotspots }, { data: amenities }, { data: pointsOfInterest }, { data: collaborators }, comments] = await Promise.all([
+  const [{ data: buildings }, { slides, hotspots }, { data: amenities }, { data: pointsOfInterest }, { data: collaborators }, comments, unitsTotal, unitsPriced] = await Promise.all([
     supabase.from('buildings').select('*').eq('project_id', project.id).order('slug'),
     (async () => {
       const { data: slides } = await supabase
@@ -93,7 +93,27 @@ export async function GET(request: Request) {
       const profileById = new Map((profiles ?? []).map(p => [p.id, p]));
       return rows.map(c => ({ ...c, author: profileById.get(c.author_id) ?? null }));
     })(),
+    // Conteos (head, sin traer filas) para la checklist de publicación: un
+    // select de filas toparía con el límite de 1000 de PostgREST y daría
+    // totales parciales en proyectos grandes.
+    supabase
+      .from('units')
+      .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
+      .eq('floors.buildings.project_id', project.id),
+    supabase
+      .from('units')
+      .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
+      .eq('floors.buildings.project_id', project.id)
+      .not('price', 'is', null),
   ]);
+
+  // Si falla algún conteo no tiramos el GET entero: la checklist degrada a
+  // "sin precios cargados" y queda el error en el log.
+  let unitPrices = { total: unitsTotal.count ?? 0, priced: unitsPriced.count ?? 0 };
+  if (unitsTotal.error || unitsPriced.error) {
+    console.error('[project GET] no se pudieron contar los precios de las unidades', unitsTotal.error ?? unitsPriced.error);
+    unitPrices = { total: 0, priced: 0 };
+  }
 
   return NextResponse.json({
     project,
@@ -104,6 +124,7 @@ export async function GET(request: Request) {
     pointsOfInterest: pointsOfInterest ?? [],
     collaborators: collaborators ?? [],
     comments,
+    unitPrices,
   });
 }
 

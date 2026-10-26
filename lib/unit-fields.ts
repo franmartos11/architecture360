@@ -4,16 +4,15 @@ import type { UnitStatus, UnitType, TourData } from '@/types';
 // Forma canónica en camelCase de los campos editables de una unidad —
 // puente entre la fila snake_case que devuelve Supabase y los componentes
 // de grupo (components/admin/unit-groups/*), que no conocen la forma de
-// la tabla. bedrooms/bathrooms quedan `number | null` (no `number`, aunque
-// así está tipada la columna) porque el form permite vaciar el input y
-// mandar null en el PATCH — comportamiento preexistente, no un campo nuevo.
+// la tabla. bedrooms/bathrooms son `number` (columnas NOT NULL): el form
+// guarda 0 al vaciar el input, nunca null (ver DatosGroup).
 export interface UnitFormValues {
   code: string;
   totalArea: number | null;
   modelName: string | null;
   type: UnitType;
-  bedrooms: number | null;
-  bathrooms: number | null;
+  bedrooms: number;
+  bathrooms: number;
   hasServiceRoom: boolean;
   orientation: string | null;
   innerArea: number | null;
@@ -97,3 +96,38 @@ export interface UnitGroupProps {
   values: UnitFormValues;
   onChange: (patch: Partial<UnitFormValues>) => void;
 }
+
+export type CountInputChange =
+  | { action: 'skip' }
+  | { action: 'restore' }
+  | { action: 'save'; value: number };
+
+// Para el onBlur de Dormitorios/Baños (columnas NOT NULL): vacío guarda 0.
+// En type="number" el browser reporta value === '' para texto imposible
+// ("2e"); con badInput no se confunde con "vacío": se restaura el valor
+// guardado. Pura: el que llama escribe el DOM en 'restore'.
+export function countInputChange(
+  input: { value: string; badInput: boolean },
+  stored: number,
+  opts: { integer: boolean },
+): CountInputChange {
+  if (input.badInput) return { action: 'restore' };
+  if (input.value.trim() === '') return stored === 0 ? { action: 'skip' } : { action: 'save', value: 0 };
+  const v = Number(input.value);
+  if (!Number.isFinite(v) || v < 0) return { action: 'restore' };
+  if (opts.integer && !Number.isInteger(v)) return { action: 'restore' };
+  return v === stored ? { action: 'skip' } : { action: 'save', value: v };
+}
+
+// Nombres de los 3 planos de una unidad, tal como los usa el sitio público
+// (Planta3DTab, PlanoTab, ComparePaneContent). Una sola fuente para que la
+// solapa "Planos" y el editor del wizard no los llamen distinto.
+export const UNIT_PLAN_FIELDS: readonly {
+  key: 'floorPlan3dUrl' | 'plan3dUrl' | 'technicalPlanUrl';
+  label: string;
+  hint: string;
+}[] = [
+  { key: 'floorPlan3dUrl', label: 'Planta 3D (render)', hint: 'Se muestra en la solapa "Planta 3D" de la unidad.' },
+  { key: 'plan3dUrl', label: 'Plano técnico 3D', hint: 'Esquema 3D de la planta; se usa si no hay plano 2D.' },
+  { key: 'technicalPlanUrl', label: 'Plano técnico 2D', hint: 'Plano con cotas y rótulos. Si no cargás plano de ambientes, es la base de la solapa "Plano".' },
+];

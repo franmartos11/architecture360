@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import type { TourData, TourNode } from '@/types';
+import type { TourData, TourNode, TourView } from '@/types';
 import ImageUploader from './ImageUploader';
 import BulkImageUploader, { type BulkUploadResult } from './BulkImageUploader';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { slugify } from '@/lib/slug';
+import { setNodeInitialView } from '@/lib/tour-data';
 
 const TourNodeViewer = dynamic(() => import('./TourNodeViewer'), { ssr: false });
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
@@ -253,6 +254,11 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
   const handleSetNote = async (id: string, note: string) => {
     const nextNodes = tour.nodes.map(n => (n.id === id ? { ...n, note: note || undefined } : n));
     await persist({ ...tour, nodes: nextNodes });
+  };
+
+  const handleSetInitialView = async (id: string, view: TourView) => {
+    const ok = await persist(setNodeInitialView(tour, id, view));
+    if (ok) flash('Vista inicial guardada');
   };
 
   const handleReplaceImage = async (id: string, url: string) => {
@@ -502,6 +508,8 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
                   onDeleteInfo={handleDeleteInfoHotspot}
                   onMoveLink={handleMoveLinkHotspot}
                   onMoveInfo={handleMoveInfoHotspot}
+                  initialView={activeNode.initialView}
+                  onCaptureView={v => handleSetInitialView(activeNode.id, v)}
                 />
 
                 {pendingPoint && placing === 'link' && (

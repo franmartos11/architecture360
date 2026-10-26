@@ -98,7 +98,12 @@ export default function UnitShellLayout({
     });
     setSaving(false);
     if (res.ok) setSavedLabel('Guardado hace un instante');
-    else { toast(`No se pudo guardar ${unitLabelLower}.`, 'error'); load(); }
+    else {
+      // Mostrar el motivo del server (400 campo vacío, 409 código duplicado…).
+      const data = await res.json().catch(() => null);
+      toast(data?.error ?? `No se pudo guardar ${unitLabelLower}.`, 'error');
+      load();
+    }
     return res.ok;
   }, [unitId, unitLabelLower, toast, load]);
 
