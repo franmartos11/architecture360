@@ -25,6 +25,7 @@ import type {
 } from '@/types/database';
 import type { BeforeAfterPair } from '@/types';
 
+import { pluralize } from '@/lib/units';
 type ProjectRow = Pick<DbProjectRow,
   | 'id' | 'slug' | 'name' | 'description' | 'tagline' | 'location' | 'latitude' | 'longitude' | 'masterplan_image'
   | 'academic_institution' | 'academic_career' | 'academic_tutor' | 'academic_year' | 'academic_team'
@@ -814,7 +815,7 @@ export default function AdminProjectPage() {
             const slideHotspots = hotspots.filter(h => h.slide_id === slide.id);
             const isExpanded = expandedSlideId === slide.id;
             const delimitLabel = hasUnitStep
-              ? `Delimitar ${buildingLabelLower}s →`
+              ? `Delimitar ${pluralize(buildingLabelLower)} →`
               : `Marcar ${agree.el} ${buildingLabelLower} →`;
             return (
               <div key={slide.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col">
@@ -863,7 +864,7 @@ export default function AdminProjectPage() {
                       );
                     }) : (
                       <span className="h-5.5 px-2 flex items-center rounded-md bg-gray-100 text-[11px] text-gray-500">
-                        Todavía sin {buildingLabelLower}s marcados
+                        Todavía sin {pluralize(buildingLabelLower)} marcados
                       </span>
                     )}
                   </div>

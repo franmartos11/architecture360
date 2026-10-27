@@ -16,6 +16,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/types/database';
 
+import { pluralize } from '@/lib/units';
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
 type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
 
@@ -165,7 +166,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {buildingLabel}s</Link>
+          <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {pluralize(buildingLabel)}</Link>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{building.name}</h2>
           <p className="text-sm text-gray-500 mt-1 font-mono">{building.slug}</p>
         </div>
@@ -324,7 +325,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                 href={`/admin/edificios/${id}/pisos/${floors[0].id}`}
                 className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0"
               >
-                {unitLabel}s →
+                {pluralize(unitLabel)} →
               </Link>
             )}
           </CardHeader>
@@ -338,7 +339,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                 />
                 {(() => {
                   const c = completeness(floors[0].id);
-                  if (c.total === 0) return <p className="text-sm text-gray-400">Todavía no hay {unitLabelLower}s {uAgree.cargado}s.</p>;
+                  if (c.total === 0) return <p className="text-sm text-gray-400">Todavía no hay {pluralize(unitLabelLower)} {uAgree.cargado}s.</p>;
                   return (
                     <p className="text-sm text-gray-600">
                       {c.total} {unitLabelLower}{c.total === 1 ? '' : 's'}

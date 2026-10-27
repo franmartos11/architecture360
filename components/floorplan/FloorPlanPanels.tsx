@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusColor } from '@/lib/units';
+import { formatPrice, getStatusColor, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import type { FloorParkingSpot } from '@/lib/floor-explorer';
 import type { Amenity, Unit } from '@/types';
 
@@ -234,7 +234,7 @@ export function SpotPanel({
               <span className="text-[13px] font-semibold text-gray-900 truncate">{own.name}</span>
             </span>
             <span className="block text-[11px] text-[#83978c] mt-[3px] truncate">
-              {own.floor === 0 ? 'Planta baja' : `Piso ${own.floor}`} · {own.bedrooms} dorm · {own.totalArea} m²
+              {own.floor === 0 ? 'Planta baja' : `Piso ${own.floor}`} · {unitIsDwelling(own) ? `${own.bedrooms} dorm` : UNIT_CATEGORY_LABEL[unitCategory(own)]} · {own.totalArea} m²
             </span>
             {showPrice && own.price ? (
               <span className="block text-xs font-semibold text-emerald-700 mt-[3px]">{formatPrice(own.price, own.currency)}</span>

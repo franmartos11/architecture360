@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, parsePriceInput, priceChangeFromInput, areaMismatch, UNIT_CURRENCIES, fmtM2, formatPrice } from './units';
-import type { ParkingSpot, Room, UnitParkingSpot } from '@/types';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, parsePriceInput, priceChangeFromInput, areaMismatch, UNIT_CURRENCIES, fmtM2, formatPrice, unitCategory, unitIsDwelling, typeForCategory, similarityScore } from './units';
+import type { ParkingSpot, Room, Unit, UnitParkingSpot } from '@/types';
 
 describe('deriveUnitType', () => {
   it('genera los strings del catálogo para los primeros valores', () => {
@@ -239,5 +239,29 @@ describe('fmtM2', () => {
     expect(fmtM2(80.00000001)).toBe('80');
     expect(fmtM2(65.5)).toBe('65.5');
     expect(fmtM2(10.456)).toBe('10.46');
+  });
+});
+
+describe('categoría de unidad', () => {
+  it('sin categoría (filas viejas / base sin la columna) es vivienda', () => {
+    expect(unitCategory({})).toBe('vivienda');
+    expect(unitIsDwelling({ category: undefined })).toBe(true);
+  });
+
+  it('local y cochera no son vivienda', () => {
+    expect(unitIsDwelling({ category: 'comercial' })).toBe(false);
+    expect(unitIsDwelling({ category: 'cochera' })).toBe(false);
+  });
+
+  it('la tipología es fija para no-viviendas y la elegida para viviendas', () => {
+    expect(typeForCategory('comercial', '2 dormitorios')).toBe('local comercial');
+    expect(typeForCategory('cochera', '2 dormitorios')).toBe('cochera');
+    expect(typeForCategory('vivienda', '2 dormitorios')).toBe('2 dormitorios');
+  });
+
+  it('una cochera no es "similar" a un depto aunque tengan los mismos m²', () => {
+    const base = { totalArea: 12, bedrooms: 0, bathrooms: 1, type: 'x' } as Unit;
+    expect(similarityScore({ ...base, category: 'cochera' }, { ...base, category: 'vivienda' })).toBe(0);
+    expect(similarityScore({ ...base, category: 'cochera' }, { ...base, category: 'cochera' })).toBeGreaterThan(0);
   });
 });

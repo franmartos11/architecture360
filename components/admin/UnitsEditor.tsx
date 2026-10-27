@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { getStatusLabel } from '@/lib/units';
+import { getStatusLabel, pluralize } from '@/lib/units';
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { UNIT_STATUSES } from '@/lib/validate';
 import type { UnitStatus, UnitType } from '@/types';
@@ -177,14 +177,14 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     }
     if (created.length) {
       setUnits(prev => [...prev, ...created]);
-      setSavedLabel(`${created.length} ${unitLabelLower}${created.length === 1 ? '' : 's'} duplicad${created.length === 1 ? 'o' : 'os'}`);
+      setSavedLabel(`${created.length} ${created.length === 1 ? unitLabelLower : pluralize(unitLabelLower)} duplicad${uAgree.el === 'la' ? 'a' : 'o'}${created.length === 1 ? '' : 's'}`);
     }
     setSelectedIds(new Set());
   };
 
   const removeUnits = async (ids: string[]) => {
     const ok = await confirmDialog({
-      message: ids.length === 1 ? `¿Borrar este ${unitLabelLower}? No se puede deshacer.` : `¿Borrar ${ids.length} ${unitLabelLower}s? No se puede deshacer.`,
+      message: ids.length === 1 ? `¿Borrar ${uAgree.esta} ${unitLabelLower}? No se puede deshacer.` : `¿Borrar ${ids.length} ${pluralize(unitLabelLower)}? No se puede deshacer.`,
       confirmLabel: 'Borrar', danger: true,
     });
     if (!ok) return;
@@ -193,7 +193,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
     setUnits(prev => prev.filter(u => !removedIds.includes(u.id)));
     setSelectedIds(new Set());
     const failed = ids.length - removedIds.length;
-    setSavedLabel(`${removedIds.length} ${unitLabelLower}${removedIds.length === 1 ? '' : 's'} borrad${removedIds.length === 1 ? 'o' : 'os'}`);
+    setSavedLabel(`${removedIds.length} ${removedIds.length === 1 ? unitLabelLower : pluralize(unitLabelLower)} ${uAgree.borrado}${removedIds.length === 1 ? '' : 's'}`);
     if (failed > 0) toast(`${failed} no se pudo${failed === 1 ? '' : 'ieron'} borrar.`, 'error');
   };
 
@@ -205,7 +205,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
 
   const csvColumns = unitIsLand ? LAND_CSV_COLUMNS : DWELLING_CSV_COLUMNS;
 
-  const handleDownloadTemplate = () => downloadCsv(`plantilla-${unitLabelLower}s.csv`, [[...csvColumns], unitIsLand ? LAND_CSV_TEMPLATE_ROW : DWELLING_CSV_TEMPLATE_ROW]);
+  const handleDownloadTemplate = () => downloadCsv(`plantilla-${pluralize(unitLabelLower)}.csv`, [[...csvColumns], unitIsLand ? LAND_CSV_TEMPLATE_ROW : DWELLING_CSV_TEMPLATE_ROW]);
 
   const handleExportCsv = () => {
     const rows = units.map(u => unitIsLand ? [
@@ -216,7 +216,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
       u.has_service_room ? 'si' : 'no', u.price != null ? String(u.price) : '', u.currency || 'USD', u.status, u.orientation ?? '',
       u.interior_image_url ?? '', u.floor_plan_3d_url ?? '', u.plan_3d_url ?? '', u.technical_plan_url ?? '',
     ]);
-    downloadCsv(`${unitLabelLower}s.csv`, [[...csvColumns], ...rows]);
+    downloadCsv(`${pluralize(unitLabelLower)}.csv`, [[...csvColumns], ...rows]);
   };
 
   const handleImportCsv = async (file: File) => {
@@ -309,8 +309,8 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
 
   const planoHref = `/admin/edificios/${buildingId}/pisos/${floorId}/plano`;
 
-  if (loading) return <LoadingSpinner text={`Cargando ${unitLabelLower}s...`} tone="light" />;
-  if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${unitLabelLower}s.`} onRetry={load} />;
+  if (loading) return <LoadingSpinner text={`Cargando ${pluralize(unitLabelLower)}...`} tone="light" />;
+  if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${pluralize(unitLabelLower)}.`} onRetry={load} />;
 
   return (
     <div className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
@@ -319,7 +319,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <Link href={`/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName}</Link>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{unitLabel}s de {buildingName}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{pluralize(unitLabel)} de {buildingName}</h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <p className="text-xs text-gray-400">{saving ? 'Guardando...' : savedLabel}</p>
@@ -342,7 +342,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
         {csvOpen && (
           <div className="shrink-0 bg-white border border-gray-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="flex-1 text-xs text-gray-600 leading-relaxed">
-              Para cargar muchos {unitLabelLower}s de una: bajá la plantilla, completala en Excel y volvé a subirla. Los códigos repetidos se actualizan en vez de duplicarse.
+              Para cargar muchos {pluralize(unitLabelLower)} de una: bajá la plantilla, completala en Excel y volvé a subirla. Los códigos repetidos se actualizan en vez de duplicarse.
             </p>
             <div className="flex gap-2 shrink-0">
               <button type="button" onClick={handleDownloadTemplate} className="h-8 px-3 border border-gray-200 rounded-lg text-xs font-medium text-gray-900 hover:border-gray-300 transition-colors">Plantilla</button>
@@ -356,7 +356,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
         )}
 
         <div className="shrink-0 flex gap-2.5 flex-wrap">
-          <FilterStat value={counts.all} label={`${unitLabelLower}s cargados`} active={filter === 'all'} onClick={() => setFilter('all')} />
+          <FilterStat value={counts.all} label={`${pluralize(unitLabelLower)} ${uAgree.cargado}s`} active={filter === 'all'} onClick={() => setFilter('all')} />
           {showStatus && <FilterStat value={counts.available} label="disponibles" color="#3f5a3c" active={filter === 'available'} onClick={() => setFilter('available')} />}
           <FilterStat value={counts.noPhoto} label="sin foto" color={counts.noPhoto ? '#8a6118' : undefined} active={filter === 'noPhoto'} onClick={() => setFilter('noPhoto')} />
           <FilterStat value={counts.noPlano} label="sin marcar en el plano" color={counts.noPlano ? '#8a6118' : undefined} active={filter === 'noPlano'} onClick={() => setFilter('noPlano')} />
@@ -505,7 +505,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
               {visible.length === 0 && (
                 <div className="py-11 flex flex-col items-center gap-1.5 text-center px-6">
                   <p className="text-sm font-medium text-gray-900">Ningún {unitLabelLower} coincide con este filtro</p>
-                  <button type="button" onClick={() => { setFilter('all'); setQuery(''); }} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver todos {losLas} {unitLabelLower}s</button>
+                  <button type="button" onClick={() => { setFilter('all'); setQuery(''); }} className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver {losLas === 'las' ? 'todas' : 'todos'} {losLas} {pluralize(unitLabelLower)}</button>
                 </div>
               )}
             </div>
@@ -531,7 +531,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
               </button>
               <span className="text-[11px] text-gray-400 hidden sm:inline">Enter agrega y deja el foco listo para el siguiente</span>
               <span className="flex-1" />
-              <span className="text-[11px] text-gray-500 whitespace-nowrap">{counts.all} {unitLabelLower}s · {totalM2.toLocaleString('es-AR')} m² en total</span>
+              <span className="text-[11px] text-gray-500 whitespace-nowrap">{counts.all} {pluralize(unitLabelLower)} · {totalM2.toLocaleString('es-AR')} m² en total</span>
             </div>
           </Card>
         ) : (

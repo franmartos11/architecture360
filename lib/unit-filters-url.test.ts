@@ -71,3 +71,15 @@ describe('filtersFromQuery', () => {
     expect(filtersFromQuery(new URLSearchParams(filtersToQuery(original)))).toEqual(original);
   });
 });
+
+describe('filtro de categoría', () => {
+  it('viaja en la URL y vuelve igual', () => {
+    const q = filtersToQuery({ ...DEFAULT_UNIT_FILTERS, categoria: 'comercial' });
+    expect(q).toBe('categoria=comercial');
+    expect(filtersFromQuery(new URLSearchParams(q)).categoria).toBe('comercial');
+  });
+
+  it('una categoría desconocida se ignora', () => {
+    expect(filtersFromQuery(new URLSearchParams('categoria=oficina')).categoria).toBe('all');
+  });
+});

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Unit } from '@/types';
+import { unitIsDwelling } from '@/lib/units';
 
 interface CompareMetricsBarProps {
   unitA: Unit;
@@ -26,8 +27,11 @@ export default function CompareMetricsBar({ unitA, unitB }: CompareMetricsBarPro
       suffix: 'm²',
       decimals: 1,
     },
-    { label: 'Ambientes', a: unitA.bedrooms, b: unitB.bedrooms, suffix: '', decimals: 0 },
-    { label: 'Baños', a: unitA.bathrooms, b: unitB.bathrooms, suffix: '', decimals: 0 },
+    // Dormitorios/baños solo entre viviendas — un local o una cochera no los tiene.
+    ...(unitIsDwelling(unitA) && unitIsDwelling(unitB) ? [
+      { label: 'Ambientes', a: unitA.bedrooms, b: unitB.bedrooms, suffix: '', decimals: 0 },
+      { label: 'Baños', a: unitA.bathrooms, b: unitB.bathrooms, suffix: '', decimals: 0 },
+    ] : []),
   ];
 
   return (

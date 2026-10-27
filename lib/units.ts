@@ -1,4 +1,4 @@
-import type { Unit, Room, RoomKind, ParkingSpot, UnitParkingSpot } from '@/types';
+import type { Unit, Room, RoomKind, ParkingSpot, UnitParkingSpot, UnitCategory } from '@/types';
 
 // Utilidades de unidades usadas en todo el sitio (producción y admin) —
 // antes vivían en data/mockData.ts, que en realidad es solo datos de
@@ -86,6 +86,36 @@ export function deriveUnitType(bedrooms: number): string {
   if (n === 0) return 'monoambiente';
   if (n === 1) return '1 dormitorio';
   return `${n} dormitorios`;
+}
+
+// ─── Categoría (vivienda / local comercial / cochera) ──────────────
+// Una unidad que no es vivienda no tiene dormitorios, baños ni programa de
+// ambientes: la ficha, la lista, el comparador y el SEO esconden esos datos
+// con unitIsDwelling(). Su tipología es fija (TYPE_BY_CATEGORY), así los
+// filtros y "unidades similares" la agrupan sin código especial.
+
+export const UNIT_CATEGORY_LABEL: Record<UnitCategory, string> = {
+  vivienda: 'Vivienda',
+  comercial: 'Local comercial',
+  cochera: 'Cochera',
+};
+
+const TYPE_BY_CATEGORY: Partial<Record<UnitCategory, string>> = {
+  comercial: 'local comercial',
+  cochera: 'cochera',
+};
+
+export function unitCategory(u: { category?: UnitCategory | null }): UnitCategory {
+  return u.category ?? 'vivienda';
+}
+
+export function unitIsDwelling(u: { category?: UnitCategory | null }): boolean {
+  return unitCategory(u) === 'vivienda';
+}
+
+// Tipología a guardar: la fija de la categoría, o la elegida si es vivienda.
+export function typeForCategory(category: UnitCategory, dwellingType: string): string {
+  return TYPE_BY_CATEGORY[category] ?? dwellingType;
 }
 
 // ─── Orientación ───────────────────────────────────────────────────
@@ -310,6 +340,8 @@ export function getStatusColor(status: string): string {
 // m² total (lo que más pesa a la hora de comparar dos deptos), dormitorios,
 // baños y tipología — nada de esto requiere datos que no tengamos ya.
 export function similarityScore(a: Unit, b: Unit): number {
+  // Un local o una cochera no se compara con un depto.
+  if (unitCategory(a) !== unitCategory(b)) return 0;
   const areaScore = a.totalArea > 0 && b.totalArea > 0
     ? Math.max(0, 1 - Math.abs(a.totalArea - b.totalArea) / Math.max(a.totalArea, b.totalArea))
     : 0;

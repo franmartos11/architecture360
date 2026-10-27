@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
-import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
+import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
 import { sanitizeText } from '@/lib/sanitize';
 
@@ -72,6 +72,9 @@ export async function POST(request: Request) {
   if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
+  if (body.category !== undefined && !isValidEnum(body.category, UNIT_CATEGORIES)) {
+    return NextResponse.json({ error: `category debe ser uno de: ${UNIT_CATEGORIES.join(', ')}` }, { status: 400 });
+  }
 
   const projectId = await resolveProjectIdFromFloor(body.floorId);
   if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
@@ -108,6 +111,9 @@ export async function POST(request: Request) {
       code,
       model_name: sanitizeText(body.modelName, 150) || null,
       type: body.type,
+      // Igual que parking_spots: solo si viene, así el alta sigue andando en
+      // bases donde todavía no se aplicó la columna `category`.
+      ...(body.category !== undefined ? { category: body.category } : {}),
       total_area: body.totalArea ?? null,
       inner_area: body.innerArea ?? null,
       balcony_area: body.balconyArea ?? 0,

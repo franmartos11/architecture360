@@ -1,6 +1,8 @@
 'use client';
 
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
+import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { UnitParkingSpot } from '@/types';
 
 // Plano del piso de cocheras con el/los espacio(s) de ESTE depto resaltados.
@@ -19,17 +21,19 @@ export default function ParkingPlanViewer({
 
   return (
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
-      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={{ step: 0.1 }} doubleClick={{ step: 1 }}>
+      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={PLAN_WHEEL} doubleClick={PLAN_DOUBLE_CLICK}>
+        {(utils) => (
+        <>
         <TransformComponent
           wrapperStyle={{ width: '100%', height: '100%' }}
-          contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          contentStyle={PLAN_CONTENT_STYLE}
         >
-          <div className="relative max-w-full max-h-[85vh]">
+          <div className="relative max-w-[100cqw] max-h-[100cqh]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={planImage}
               alt="Plano de cocheras"
-              className="block max-w-full max-h-[85vh] w-auto h-auto select-none"
+              className="block max-w-[100cqw] max-h-[100cqh] w-auto h-auto select-none"
               draggable={false}
             />
             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -63,6 +67,11 @@ export default function ParkingPlanViewer({
             })}
           </div>
         </TransformComponent>
+        <div className="absolute bottom-3.5 right-3.5 z-20">
+          <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
+        </div>
+        </>
+        )}
       </TransformWrapper>
     </div>
   );

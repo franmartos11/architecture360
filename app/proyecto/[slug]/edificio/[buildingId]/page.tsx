@@ -5,6 +5,7 @@ import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
+import { pluralize } from '@/lib/units';
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
   searchParams: Promise<{ piso?: string }>;
@@ -24,10 +25,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   const title = typeConfig.hasFloorStep
     ? `${building.name} | Plano de Pisos`
-    : `${building.name} | Plano de ${typeConfig.unitLabel}s`;
+    : `${building.name} | Plano de ${pluralize(typeConfig.unitLabel)}`;
   const description = typeConfig.hasFloorStep
     ? `Explorá el plano de pisos de ${building.name} en ${project.name}, con disponibilidad de unidades en tiempo real.`
-    : `Explorá el plano de ${unitLabelLower}s de ${building.name} en ${project.name}, con disponibilidad de ${unitLabelLower}s en tiempo real.`;
+    : `Explorá el plano de ${pluralize(unitLabelLower)} de ${building.name} en ${project.name}, con disponibilidad de ${pluralize(unitLabelLower)} en tiempo real.`;
   const image = project.masterplanImage || undefined;
 
   return {

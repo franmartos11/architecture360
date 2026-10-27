@@ -13,6 +13,7 @@ import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { FloorKind } from '@/types';
 
+import { pluralize } from '@/lib/units';
 type UnitRow = Pick<DbUnitRow, 'id' | 'code'>;
 
 const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
@@ -110,12 +111,12 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
           <>
             <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Marcar cocheras en el plano</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Tocá <strong>Agregar cochera</strong>, marcá el espacio sobre el plano y elegí de qué {unitLabelLower} es — podés cargar todas las de este subsuelo de una sentada. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. El desplegable incluye {unitLabelLower}s de todos los pisos del edificio, porque la cochera del subsuelo es de un depto de arriba.
+              Tocá <strong>Agregar cochera</strong>, marcá el espacio sobre el plano y elegí de qué {unitLabelLower} es — podés cargar todas las de este subsuelo de una sentada. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. El desplegable incluye {pluralize(unitLabelLower)} de todos los pisos del edificio, porque la cochera del subsuelo es de un depto de arriba.
             </p>
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {unitLabelLower}s en el plano</h2>
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {pluralize(unitLabelLower)} en el plano</h2>
             <p className="text-sm text-gray-500 mt-1">
               Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno; cuando terminaste tocá <strong>Listo</strong> (o Escape) y queda guardado. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
             </p>
@@ -139,7 +140,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
             onClick={() => setView('deptos')}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'deptos' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            {unitLabel}s{hasFloorStep ? ' en el piso' : ''}
+            {pluralize(unitLabel)}{hasFloorStep ? ' en el piso' : ''}
           </button>
           <button
             onClick={() => setView('amenities')}
@@ -170,7 +171,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-          Este piso todavía no tiene {unitLabelLower}s — cargalas primero en la pestaña de {unitLabel}s.
+          Este piso todavía no tiene {pluralize(unitLabelLower)} — cargalas primero en la pestaña de {pluralize(unitLabel)}.
         </div>
       ) : (
         <div className="space-y-5">

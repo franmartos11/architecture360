@@ -13,9 +13,10 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import { buildingAgreement } from '@/lib/project-types';
+import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import type { BuildingRow as DbBuildingRow } from '@/types/database';
 
+import { pluralize } from '@/lib/units';
 // floors_loaded/floors_with_plan/units_count/has_silhouette/first_floor_id
 // no son columnas reales — las agrega /api/admin/buildings enriqueciendo
 // cada fila con queries en lotes (ver ese archivo).
@@ -36,6 +37,7 @@ export default function AdminBuildingsPage() {
   // la casa / lotes de la etapa).
   const isSingleBuilding = typeConfig.singleBuilding;
   const agree = buildingAgreement(typeConfig);
+  const uAgree = unitAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
   const aerialLower = aerialLabel.toLowerCase();
@@ -116,7 +118,7 @@ export default function AdminBuildingsPage() {
       title: `¿Borrar "${b.name}"?`,
       message: hasFloorStep
         ? `Se van a borrar también sus pisos, unidades y la silueta/pin que tenga en la ${aerialLower}. Esta acción no se puede deshacer.`
-        : `Se van a borrar también sus ${unitLabelLower}s y la silueta/pin que tenga en la ${aerialLower}. Esta acción no se puede deshacer.`,
+        : `Se van a borrar también sus ${pluralize(unitLabelLower)} y la silueta/pin que tenga en la ${aerialLower}. Esta acción no se puede deshacer.`,
       confirmLabel: `Borrar ${buildingLabelLower}`,
       danger: true,
     });
@@ -147,21 +149,21 @@ export default function AdminBuildingsPage() {
   };
 
   if (loading || redirecting || (isSingleBuilding && buildings.length > 0 && !redirectFailed)) {
-    return <LoadingSpinner text={isSingleBuilding ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />;
+    return <LoadingSpinner text={isSingleBuilding ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${pluralize(buildingLabel.toLowerCase())}...`} tone="light" />;
   }
-  if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${buildingLabelLower}s`}.`} onRetry={load} />;
+  if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${pluralize(buildingLabelLower)}`}.`} onRetry={load} />;
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{buildingLabel}s</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{pluralize(buildingLabel)}</h2>
           <p className="text-sm text-gray-500 mt-1">
             {hasFloorStep
               ? 'Cada torre con sus pisos, unidades y su silueta en la foto aérea.'
               : hasUnitStep
-              ? `${buildingLabel}s del proyecto. Entrá a cada ${agree.uno} para gestionar sus ${unitLabelLower}s.`
-              : `${buildingLabel}s del proyecto. Entrá a cada ${agree.uno} para completar sus datos.`}
+              ? `${pluralize(buildingLabel)} del proyecto. Entrá a cada ${agree.uno} para gestionar sus ${pluralize(unitLabelLower)}.`
+              : `${pluralize(buildingLabel)} del proyecto. Entrá a cada ${agree.uno} para completar sus datos.`}
           </p>
           {!firstSlideId && (
             <p className="text-sm text-amber-600 mt-2">
@@ -224,7 +226,7 @@ export default function AdminBuildingsPage() {
                 )}
                 <BuildingCheck
                   ok={unitsReady}
-                  label={unitsReady ? `${b.units_count} ${unitLabelLower}${b.units_count === 1 ? '' : 's'} cargad${b.units_count === 1 ? 'a' : 'as'}` : `Todavía sin ${unitLabelLower}s`}
+                  label={unitsReady ? `${b.units_count} ${b.units_count === 1 ? unitLabelLower : pluralize(unitLabelLower)} ${uAgree.cargado}${b.units_count === 1 ? '' : 's'}` : `Todavía sin ${pluralize(unitLabelLower)}`}
                   action={unitsReady ? 'Ver' : 'Cargar →'}
                   href={hasFloorStep ? `/admin/edificios/${b.id}` : `/admin/edificios/${b.id}/pisos/${b.first_floor_id ?? ''}`}
                 />
@@ -243,7 +245,7 @@ export default function AdminBuildingsPage() {
                   href={`/admin/edificios/${b.id}`}
                   className="h-8 px-3 flex items-center bg-gray-900 text-white rounded-lg text-[11.5px] font-medium hover:bg-gray-800 transition-colors"
                 >
-                  {hasFloorStep ? 'Gestionar pisos →' : hasUnitStep ? `${unitLabel}s →` : 'Editar →'}
+                  {hasFloorStep ? 'Gestionar pisos →' : hasUnitStep ? `${pluralize(unitLabel)} →` : 'Editar →'}
                 </Link>
                 <div className="flex-1" />
                 <button
@@ -278,7 +280,7 @@ export default function AdminBuildingsPage() {
       </div>
 
       {buildings.length === 0 && (
-        <p className="text-sm text-gray-400">Todavía no hay {buildingLabel.toLowerCase()}s.</p>
+        <p className="text-sm text-gray-400">Todavía no hay {pluralize(buildingLabel.toLowerCase())}.</p>
       )}
 
       {typeConfig.singleBuilding && buildings.length > 0 && (
@@ -304,7 +306,7 @@ export default function AdminBuildingsPage() {
             {hasFloorStep
               ? 'Este formulario solo crea el edificio. Para cargar pisos, unidades, delimitación y tour de una — paso a paso — usá el asistente.'
               : hasUnitStep
-              ? `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el plano, ${unitLabelLower}s, delimitación y tour de una — paso a paso — usá el asistente.`
+              ? `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el plano, ${pluralize(unitLabelLower)}, delimitación y tour de una — paso a paso — usá el asistente.`
               : `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el resto de los datos, fotos, ambientes y tour — paso a paso — usá el asistente.`}
           </p>
           <form onSubmit={handleCreate} className="p-6 space-y-3">

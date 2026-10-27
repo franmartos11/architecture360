@@ -1,5 +1,6 @@
 import type { ProjectTypeConfig } from './project-types';
 
+import { pluralize } from '@/lib/units';
 // Fuente única de verdad para qué secciones tiene la landing pública de
 // un proyecto y en qué orden por defecto — usado tanto por la landing
 // (app/proyecto/[slug]/page.tsx) como por el panel de admin (/admin/sitio).
@@ -112,7 +113,7 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
       ? 'Foto aérea con hotspots — se carga en Proyecto → Vistas aéreas.'
       : 'Foto del frente de la casa — se carga en Proyecto → Vista frontal.',
     bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
-    typologies: `${typeConfig.unitLabel}s disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
+    typologies: `${pluralize(typeConfig.unitLabel)} disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
     contact: 'Formulario de contacto — se activa según el modo de venta.',

@@ -7,14 +7,14 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel, pluralize } from '@/lib/units';
+import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel, pluralize, unitCategory, unitIsDwelling, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { filtersFromQuery, filtersToQuery, DEFAULT_UNIT_FILTERS, type UnitFilters } from '@/lib/unit-filters-url';
 import { findSimilarUnits } from '@/lib/similar-units';
-import type { Project, Unit, UnitStatus, UnitType } from '@/types';
+import type { Project, Unit, UnitCategory, UnitStatus, UnitType } from '@/types';
 
 interface UnitsListViewProps {
   project: Project;
@@ -28,6 +28,15 @@ type FeatKey = 'plano' | 'tour' | 'balcon' | (string & {});
 
 const STATUS_ORDER: UnitStatus[] = ['available', 'reserved', 'sold'];
 
+// Chips de categoría (solo si el proyecto mezcla viviendas con locales /
+// cocheras) — en plural, como filtro.
+const CATEGORY_ORDER: UnitCategory[] = ['vivienda', 'comercial', 'cochera'];
+const CATEGORY_CHIP_LABEL: Record<UnitCategory, string> = {
+  vivienda: 'Viviendas',
+  comercial: 'Locales',
+  cochera: 'Cocheras',
+};
+
 function placeLabel(unit: Unit, buildingName: string | undefined, hasFloorStep: boolean): string {
   return (hasFloorStep
     ? [buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`]
@@ -40,6 +49,12 @@ function unitHasFeat(u: Unit, key: FeatKey): boolean {
   if (key === 'tour') return !!(u.tourImageUrl || u.tourData);
   if (key === 'balcon') return (u.balconyArea ?? 0) > 0;
   return (u.features ?? []).includes(key);
+}
+
+// Orden "Más dormitorios": una unidad que no es vivienda rankea por debajo
+// de cualquier vivienda (incluso un monoambiente).
+function dormRank(u: Unit): number {
+  return unitIsDwelling(u) ? u.bedrooms : -1;
 }
 
 function unitTags(u: Unit): string[] {
@@ -78,6 +93,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
 
   const [buildingFilter, setBuildingFilter] = useState<string>(initialFilters.edificio);
   const [typeFilter, setTypeFilter] = useState<UnitType | 'all'>(initialFilters.tipo as UnitType | 'all');
+  const [categoryFilter, setCategoryFilter] = useState<UnitCategory | 'all'>(initialFilters.categoria as UnitCategory | 'all');
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>(initialFilters.estado as UnitStatus | 'all');
   const [selectedFeats, setSelectedFeats] = useState<FeatKey[]>(initialFilters.feats as FeatKey[]);
   const [maxPrice, setMaxPrice] = useState(initialFilters.precioMax);
@@ -100,13 +116,14 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
   const currentFilters: UnitFilters = useMemo(() => ({
     edificio: buildingFilter,
     tipo: typeFilter,
+    categoria: categoryFilter,
     estado: statusFilter,
     precioMax: maxPrice,
     m2Min: minArea,
     favs: onlyFavs,
     feats: selectedFeats,
     orden,
-  }), [buildingFilter, typeFilter, statusFilter, maxPrice, minArea, onlyFavs, selectedFeats, orden]);
+  }), [buildingFilter, typeFilter, categoryFilter, statusFilter, maxPrice, minArea, onlyFavs, selectedFeats, orden]);
 
   const filtersQuery = filtersToQuery(currentFilters);
 
@@ -144,6 +161,17 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
     return Array.from(set);
   }, [project.units]);
   const hasTypeFilterRow = typesPresent.length > 0 && !unitIsLand;
+  const categoriesPresent = useMemo(
+    () => CATEGORY_ORDER.filter(c => project.units.some(u => unitCategory(u) === c)),
+    [project.units],
+  );
+  const hasCategoryFilterRow = categoriesPresent.length > 1;
+  // Con chips de categoría, las tipologías fijas de locales/cocheras ya
+  // están cubiertas: los chips de tipología quedan solo para viviendas.
+  const typeChips = hasCategoryFilterRow
+    ? typesPresent.filter(t => project.units.some(u => u.type === t && unitIsDwelling(u)))
+    : typesPresent;
+  const hasDwellings = project.units.some(u => unitIsDwelling(u));
 
   const pricedUnits = useMemo(() => project.units.filter(u => u.price != null), [project.units]);
   const priceBounds = useMemo(() => {
@@ -184,6 +212,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
     return project.units.filter(u => {
       if (buildingFilter !== 'all' && u.buildingId !== buildingFilter) return false;
       if (typeFilter !== 'all' && u.type !== typeFilter) return false;
+      if (categoryFilter !== 'all' && unitCategory(u) !== categoryFilter) return false;
       if (statusFilter !== 'all' && u.status !== statusFilter) return false;
       if (onlyFavs && !favorites.includes(u.id)) return false;
       if (showPrice && effectiveMaxPrice && u.price != null && u.price > effectiveMaxPrice) return false;
@@ -194,28 +223,31 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
       if (orden === 'precio-asc') return (a.price ?? Infinity) - (b.price ?? Infinity);
       if (orden === 'precio-desc') return (b.price ?? -Infinity) - (a.price ?? -Infinity);
       if (orden === 'm2-desc') return b.totalArea - a.totalArea;
-      if (orden === 'dorm-desc') return b.bedrooms - a.bedrooms || b.totalArea - a.totalArea;
+      // Locales/cocheras no tienen dormitorios: van al final, no mezclados
+      // con los monoambientes.
+      if (orden === 'dorm-desc') return dormRank(b) - dormRank(a) || b.totalArea - a.totalArea;
       return a.buildingId.localeCompare(b.buildingId) || a.floor - b.floor || a.name.localeCompare(b.name);
     });
-  }, [project.units, buildingFilter, typeFilter, statusFilter, onlyFavs, favorites, showPrice, effectiveMaxPrice, effectiveMinArea, selectedFeats, orden]);
+  }, [project.units, buildingFilter, typeFilter, categoryFilter, statusFilter, onlyFavs, favorites, showPrice, effectiveMaxPrice, effectiveMinArea, selectedFeats, orden]);
 
   const availableCount = useMemo(() => project.units.filter(u => u.status === 'available').length, [project.units]);
   const minPrice = pricedUnits.length > 0 ? Math.min(...pricedUnits.map(u => u.price!)) : null;
   const minPriceCurrency = pricedUnits.find(u => u.price === minPrice)?.currency;
   const heroImage = project.aerialSlides[0]?.imageUrl;
 
-  const hasFilters = typeFilter !== 'all' || statusFilter !== 'all' || buildingFilter !== 'all' || onlyFavs ||
+  const hasFilters = typeFilter !== 'all' || categoryFilter !== 'all' || statusFilter !== 'all' || buildingFilter !== 'all' || onlyFavs ||
     selectedFeats.length > 0 ||
     (!!priceBounds && maxPrice > 0 && maxPrice < priceBounds.max) ||
     (!!areaBounds && minArea > 0 && minArea > areaBounds.min);
 
   const clearAll = () => {
-    setTypeFilter('all'); setStatusFilter('all'); setBuildingFilter('all');
+    setTypeFilter('all'); setCategoryFilter('all'); setStatusFilter('all'); setBuildingFilter('all');
     setOnlyFavs(false); setSelectedFeats([]); setMaxPrice(0); setMinArea(0);
   };
 
   const filterSummary = () => {
     const parts: string[] = [];
+    if (categoryFilter !== 'all') parts.push(UNIT_CATEGORY_LABEL[categoryFilter].toLowerCase());
     parts.push(typeFilter === 'all' ? `todas las tipologías` : unitTypeLabel(typeFilter));
     if (showPrice && priceBounds) parts.push(`hasta ${formatPrice(effectiveMaxPrice)}`);
     return parts.join(' · ');
@@ -225,7 +257,8 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
 
   const cmpUnits = cmp.map(id => project.units.find(u => u.id === id)).filter((u): u is Unit => !!u);
   const bestArea = cmpUnits.length ? Math.max(...cmpUnits.map(u => u.totalArea)) : 0;
-  const bestBedrooms = cmpUnits.length ? Math.max(...cmpUnits.map(u => u.bedrooms)) : 0;
+  const cmpDwellings = cmpUnits.filter(u => unitIsDwelling(u));
+  const bestBedrooms = cmpDwellings.length ? Math.max(...cmpDwellings.map(u => u.bedrooms)) : 0;
   const cmpPriced = cmpUnits.filter(u => u.price != null);
   const bestPrice = cmpPriced.length ? Math.min(...cmpPriced.map(u => u.price!)) : null;
 
@@ -233,7 +266,9 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
   if (!unitIsLand) cmpRows.push({ label: 'TIPOLOGÍA', vals: cmpUnits.map(u => ({ text: unitTypeLabel(u.type), hi: false })) });
   cmpRows.push({ label: 'UBICACIÓN', vals: cmpUnits.map(u => ({ text: placeLabel(u, buildingName(u.buildingId), hasFloorStep) || '—', hi: false })) });
   cmpRows.push({ label: 'SUPERFICIE', vals: cmpUnits.map(u => ({ text: `${u.totalArea} m²`, hi: u.totalArea === bestArea })) });
-  if (!unitIsLand) cmpRows.push({ label: 'AMBIENTES', vals: cmpUnits.map(u => ({ text: `${u.bedrooms} dorm · ${u.bathrooms} baños`, hi: u.bedrooms === bestBedrooms })) });
+  if (!unitIsLand && cmpDwellings.length > 0) cmpRows.push({ label: 'AMBIENTES', vals: cmpUnits.map(u => unitIsDwelling(u)
+    ? { text: `${u.bedrooms} dorm · ${u.bathrooms} baños`, hi: u.bedrooms === bestBedrooms }
+    : { text: '—', hi: false }) });
   if (cmpUnits.some(u => u.orientation)) cmpRows.push({ label: 'ORIENTACIÓN', vals: cmpUnits.map(u => ({ text: u.orientation || '—', hi: false })) });
   if (showPrice) {
     cmpRows.push({ label: 'PRECIO', vals: cmpUnits.map(u => ({ text: u.price != null ? formatPrice(u.price, u.currency) : 'Consultar', hi: u.price != null && u.price === bestPrice })) });
@@ -247,7 +282,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
     { key: 'ubicacion', label: 'Ubicación', width: '1fr' },
     ...(!unitIsLand ? [{ key: 'tipologia' as const, label: 'Tipología', width: '1.2fr' }] : []),
     { key: 'm2', label: 'm²', width: '.7fr' },
-    ...(!unitIsLand ? [
+    ...(!unitIsLand && hasDwellings ? [
       { key: 'dorm' as const, label: 'Dorm', width: '.6fr' },
       { key: 'banos' as const, label: 'Baños', width: '.6fr' },
     ] : []),
@@ -323,10 +358,15 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
 
           <div className="flex items-center gap-[14px] flex-wrap">
             <div className="flex items-center gap-[9px] flex-wrap">
-              <Chip active={typeFilter === 'all' && statusFilter === 'all' && !onlyFavs} onClick={() => { setTypeFilter('all'); setStatusFilter('all'); setOnlyFavs(false); }}>
+              <Chip active={typeFilter === 'all' && categoryFilter === 'all' && statusFilter === 'all' && !onlyFavs} onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); setStatusFilter('all'); setOnlyFavs(false); }}>
                 Todas · {project.units.length}
               </Chip>
-              {hasTypeFilterRow && typesPresent.map(t => (
+              {hasCategoryFilterRow && categoriesPresent.map(c => (
+                <Chip key={c} active={categoryFilter === c} onClick={() => setCategoryFilter(categoryFilter === c ? 'all' : c)}>
+                  {CATEGORY_CHIP_LABEL[c]} · {project.units.filter(u => unitCategory(u) === c).length}
+                </Chip>
+              ))}
+              {hasTypeFilterRow && typeChips.map(t => (
                 <Chip key={t} active={typeFilter === t} onClick={() => setTypeFilter(typeFilter === t ? 'all' : t)}>
                   {unitTypeLabel(t)} · {project.units.filter(u => u.type === t).length}
                 </Chip>
@@ -368,7 +408,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   {showPrice && <option value="precio-asc">Precio: menor a mayor</option>}
                   {showPrice && <option value="precio-desc">Precio: mayor a menor</option>}
                   <option value="m2-desc">Superficie: mayor a menor</option>
-                  {!unitIsLand && <option value="dorm-desc">Más dormitorios</option>}
+                  {!unitIsLand && hasDwellings && <option value="dorm-desc">Más dormitorios</option>}
                 </select>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="absolute right-[12px] top-1/2 -translate-y-1/2 pointer-events-none text-trevo-dark/50"><path d="M6 9l6 6 6-6" /></svg>
               </div>
@@ -828,7 +868,7 @@ function UnitCard({
           <div className="min-w-0">
             <p className="text-[13.5px] font-medium text-trevo-dark">{unitIsLand ? unitLabelLower : unitTypeLabel(unit.type)}</p>
             <p className="text-[11.5px] font-light text-trevo-dark/[.58] mt-[3px]">
-              {unitIsLand
+              {unitIsLand || !unitIsDwelling(unit)
                 ? `${unit.totalArea} m²`
                 : `${unit.totalArea} m² · ${unit.bedrooms} dorm · ${unit.bathrooms} baños`}
             </p>
@@ -923,9 +963,9 @@ function UnitRow({
       case 'm2':
         return <div className="text-[12px] font-medium text-trevo-dark">{unit.totalArea} m²</div>;
       case 'dorm':
-        return <div className="text-[12px] font-normal text-trevo-dark/70">{unit.bedrooms}</div>;
+        return <div className="text-[12px] font-normal text-trevo-dark/70">{unitIsDwelling(unit) ? unit.bedrooms : '—'}</div>;
       case 'banos':
-        return <div className="text-[12px] font-normal text-trevo-dark/70">{unit.bathrooms}</div>;
+        return <div className="text-[12px] font-normal text-trevo-dark/70">{unitIsDwelling(unit) ? unit.bathrooms : '—'}</div>;
       case 'estado':
         return (
           <div className="flex items-center gap-[6px]">

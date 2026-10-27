@@ -9,7 +9,7 @@ import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
-import { formatPrice } from '@/lib/units';
+import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
 interface PageProps {
@@ -133,7 +133,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-light text-[var(--theme-text-on-dark-muted)]">
             <a href={basePath || '/'} className="hover:text-[var(--theme-text-on-dark)] transition-colors">Inicio</a>
             {project.description && <a href="#next" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Sobre el proyecto</a>}
-            {project.units.length > 0 && <a href="#modelos" className="hover:text-[var(--theme-text-on-dark)] transition-colors">{typeConfig.unitLabel}s</a>}
+            {project.units.length > 0 && <a href="#modelos" className="hover:text-[var(--theme-text-on-dark)] transition-colors">{pluralize(typeConfig.unitLabel)}</a>}
             {typeConfig.showCalculator && <a href="#cotizador" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Cotizador</a>}
           </div>
         </div>

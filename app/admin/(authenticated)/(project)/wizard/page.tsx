@@ -22,6 +22,7 @@ import { buildingAgreement } from '@/lib/project-types';
 import { FLOOR_KIND_OPTIONS, FLOOR_KIND_ICON } from '@/lib/floorKinds';
 import type { FloorKind } from '@/types';
 
+import { pluralize } from '@/lib/units';
 type Step = 'edificio' | 'piso' | 'unidades' | 'delimitacion' | 'ambientes' | 'ubicacion' | 'amenities' | 'bim';
 
 const STORAGE_KEY = 'admin-wizard-state';
@@ -79,14 +80,14 @@ function AdminWizardPageInner() {
     ? [
         { id: 'edificio', label: buildingLabel },
         { id: 'piso', label: 'Piso' },
-        { id: 'unidades', label: `${unitLabel}s` },
+        { id: 'unidades', label: `${pluralize(unitLabel)}` },
         { id: 'delimitacion', label: 'Delimitación' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
       ]
     : hasUnitStep
     ? [
         { id: 'edificio', label: buildingLabel },
-        { id: 'unidades', label: `${unitLabel}s` },
+        { id: 'unidades', label: `${pluralize(unitLabel)}` },
         { id: 'delimitacion', label: 'Delimitación' },
         { id: 'ambientes', label: 'Ambientes y Tour' },
       ]
@@ -561,7 +562,7 @@ function AdminWizardPageInner() {
           </Link>
           {hasUnitStep && !typeConfig.singleBuilding ? (
             <Link href="/admin/edificios" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
-              <p className="font-medium text-gray-900">Seguir cargando {buildingLabel.toLowerCase()}s</p>
+              <p className="font-medium text-gray-900">Seguir cargando {pluralize(buildingLabel.toLowerCase())}</p>
               <p className="text-sm text-gray-500">Volvés a la lista — desde ahí podés reabrir la carga guiada cuando quieras.</p>
             </Link>
           ) : hasUnitStep ? (
@@ -589,7 +590,7 @@ function AdminWizardPageInner() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
-        <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {buildingLabel}s</Link>
+        <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {pluralize(buildingLabel)}</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Carga guiada</h2>
         <p className="text-sm text-gray-500 mt-1">
           Cargá {hasFloorStep ? 'un edificio completo' : `${agree.un} ${buildingLabelLower} ${agree.el === 'la' ? 'completa' : 'completo'}`} paso a paso — datos e imágenes juntos, en el orden en que se necesitan.
@@ -640,7 +641,7 @@ function AdminWizardPageInner() {
         {step === 'edificio' && (
           <div className="space-y-4">
             {loadingBuildings ? (
-              <LoadingSpinner text={`Cargando ${buildingLabel.toLowerCase()}s...`} tone="light" />
+              <LoadingSpinner text={`Cargando ${pluralize(buildingLabel.toLowerCase())}...`} tone="light" />
             ) : buildings.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {buildings.map(b => (
@@ -656,7 +657,7 @@ function AdminWizardPageInner() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Todavía no hay {buildingLabel.toLowerCase()}s — creá el primero abajo.</p>
+              <p className="text-sm text-gray-400">Todavía no hay {pluralize(buildingLabel.toLowerCase())} — creá el primero abajo.</p>
             )}
 
             <Card>
@@ -754,7 +755,7 @@ function AdminWizardPageInner() {
                     />
                   )}
                   <ImageUploader value={selectedFloor.plan_image ?? ''} onChange={handleUpdateFloorPlan} folder="floorplans" />
-                  <p className="text-xs text-gray-400">Este es el plano sobre el que vas a delimitar {unitLabel.toLowerCase()}s en el paso &quot;Delimitación&quot;.</p>
+                  <p className="text-xs text-gray-400">Este es el plano sobre el que vas a delimitar {pluralize(unitLabel.toLowerCase())} en el paso &quot;Delimitación&quot;.</p>
                 </div>
               </Card>
             )}
@@ -834,10 +835,10 @@ function AdminWizardPageInner() {
           units.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
               {selectedFloor && selectedFloor.floor_kind !== 'units'
-                ? `Este piso es de tipo "${FLOOR_KIND_OPTIONS.find(o => o.value === selectedFloor.floor_kind)?.label}" y no tiene ${unitLabel.toLowerCase()}s — nada que hacer acá, podés terminar el piso.`
+                ? `Este piso es de tipo "${FLOOR_KIND_OPTIONS.find(o => o.value === selectedFloor.floor_kind)?.label}" y no tiene ${pluralize(unitLabel.toLowerCase())} — nada que hacer acá, podés terminar el piso.`
                 : !hasUnitStep
                 ? `Todavía no cargaste los datos de ${agree.esta} ${buildingLabelLower} — volvé al paso "Datos" para completarlos.`
-                : `Este piso todavía no tiene ${unitLabel.toLowerCase()}s — volvé al paso "${unitLabel}s" para crear alguna.`}
+                : `Este piso todavía no tiene ${pluralize(unitLabel.toLowerCase())} — volvé al paso "${pluralize(unitLabel)}" para crear alguna.`}
             </div>
           ) : (
             <div className="space-y-5">

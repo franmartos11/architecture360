@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromUnit } from '@/lib/supabase/require-project-access';
-import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
+import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
 
 // Longitud máxima de los campos de texto libre del FIELD_MAP de abajo —
@@ -17,6 +17,7 @@ const FIELD_MAP: Record<string, string> = {
   code: 'code',
   modelName: 'model_name',
   type: 'type',
+  category: 'category',
   totalArea: 'total_area',
   innerArea: 'inner_area',
   balconyArea: 'balcony_area',
@@ -66,13 +67,13 @@ const FIELD_MAP: Record<string, string> = {
 // crudo; se corta antes con un 400 legible. Las nullables (price, polygon,
 // rooms, levels, tourData, urls, etc.) NO van acá.
 const NOT_NULL_FIELDS = [
-  'code', 'type', 'balconyArea', 'externalArea', 'bedrooms', 'bathrooms', 'hasServiceRoom',
+  'code', 'type', 'category', 'balconyArea', 'externalArea', 'bedrooms', 'bathrooms', 'hasServiceRoom',
   'garageSpaces', 'livingRooms', 'kitchens', 'otherRoomsCount', 'floorsCount',
   'currency', 'status', 'galleryImages', 'garageCovered', 'garageUncovered', 'features', 'parkingSpots',
 ];
 
 const NOT_NULL_LABELS: Record<string, string> = {
-  code: 'Código', type: 'Tipología', bedrooms: 'Dormitorios', bathrooms: 'Baños',
+  code: 'Código', type: 'Tipología', category: 'Categoría', bedrooms: 'Dormitorios', bathrooms: 'Baños',
   hasServiceRoom: 'Cuarto de servicio', balconyArea: 'Superficie de balcón', externalArea: 'Superficie exterior',
   currency: 'Moneda', status: 'Estado', galleryImages: 'Galería', garageSpaces: 'Cocheras',
   garageCovered: 'Cocheras cubiertas', garageUncovered: 'Cocheras descubiertas', livingRooms: 'Livings',
@@ -112,6 +113,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
+  }
+  if (body.category !== undefined && !isValidEnum(body.category, UNIT_CATEGORIES)) {
+    return NextResponse.json({ error: `category debe ser uno de: ${UNIT_CATEGORIES.join(', ')}` }, { status: 400 });
   }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

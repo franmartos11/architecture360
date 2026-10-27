@@ -8,13 +8,14 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import { buildingAgreement } from '@/lib/project-types';
+import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { poppins, ACCENT, CHART_COLOR, LEAD_BADGE, money } from '@/lib/panel-comercial-style';
 
+import { pluralize } from '@/lib/units';
 interface ProjectSummary {
   slug: string;
   buildingCount: number;
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
+  const uAgree = unitAgreement(typeConfig);
   const shareLink = useShareLink();
   const activeProjectId = useActiveProjectId();
   const { missing: missingSections } = useProjectCompleteness(typeConfig);
@@ -92,11 +94,11 @@ export default function AdminDashboard() {
         </div>
         <EmptyState
           title={hasUnitStep
-            ? `Todavía no hay ${typeConfig.unitLabel.toLowerCase()}s cargados.`
-            : `Todavía no hay ${typeConfig.buildingLabel.toLowerCase()}s ${agree.cargado}s.`}
+            ? `Todavía no hay ${pluralize(typeConfig.unitLabel.toLowerCase())} ${uAgree.cargado}s.`
+            : `Todavía no hay ${pluralize(typeConfig.buildingLabel.toLowerCase())} ${agree.cargado}s.`}
           description={hasUnitStep
-            ? `Cargá ${typeConfig.buildingLabel.toLowerCase()}s y ${typeConfig.unitLabel.toLowerCase()}s para ver las métricas acá.`
-            : `Cargá ${typeConfig.buildingLabel.toLowerCase()}s para ver las métricas acá.`}
+            ? `Cargá ${pluralize(typeConfig.buildingLabel.toLowerCase())} y ${pluralize(typeConfig.unitLabel.toLowerCase())} para ver las métricas acá.`
+            : `Cargá ${pluralize(typeConfig.buildingLabel.toLowerCase())} para ver las métricas acá.`}
           action={
             <Link
               href="/admin/wizard"
@@ -123,11 +125,11 @@ export default function AdminDashboard() {
         {hasUnitStep && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.buildingLabel}s {agree.cargado}s</div>
+              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{pluralize(typeConfig.buildingLabel)} {agree.cargado}s</div>
               <div className="text-3xl font-bold text-gray-900">{project.buildingCount}</div>
             </div>
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{typeConfig.unitLabel}s cargados</div>
+              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">{pluralize(typeConfig.unitLabel)} {uAgree.cargado}s</div>
               <div className="text-3xl font-bold text-gray-900">{totalUnits}</div>
             </div>
           </div>
@@ -184,7 +186,7 @@ export default function AdminDashboard() {
   const unitsWithoutPrice = units.filter(u => !u.price);
   const newLeadsCount = leads.filter(l => (l.status || 'nuevo') === 'nuevo').length;
   const buildingNames = Array.from(new Set(units.map(u => u.building_name).filter((n): n is string => !!n)));
-  const unitWord = (count: number) => count === 1 ? typeConfig.unitLabel.toLowerCase() : `${typeConfig.unitLabel.toLowerCase()}s`;
+  const unitWord = (count: number) => count === 1 ? typeConfig.unitLabel.toLowerCase() : `${pluralize(typeConfig.unitLabel.toLowerCase())}`;
 
   const segs = [
     { label: 'Disponibles', count: available, pct: availablePercent, color: CHART_COLOR.available },

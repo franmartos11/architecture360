@@ -11,7 +11,9 @@ export interface FloorStatusInput {
 }
 
 export function floorStatus(input: FloorStatusInput): FloorStatus {
-  if (input.floorKind !== 'units') {
+  // Un piso especial con unidades (cocheras que se venden solas) se evalúa
+  // como un piso de unidades.
+  if (input.floorKind !== 'units' && input.totalUnits === 0) {
     return input.hasPlan ? 'complete' : 'empty';
   }
   if (input.totalUnits === 0) {
@@ -22,7 +24,7 @@ export function floorStatus(input: FloorStatusInput): FloorStatus {
 }
 
 export function floorStatusLabel(input: FloorStatusInput): string {
-  if (input.floorKind !== 'units') {
+  if (input.floorKind !== 'units' && input.totalUnits === 0) {
     return input.hasPlan ? 'Completo' : 'Falta el plano';
   }
   if (input.totalUnits === 0) {

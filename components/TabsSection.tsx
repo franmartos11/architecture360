@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice } from '@/lib/units';
+import { formatPrice, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { Unit } from '@/types';
 
@@ -11,6 +11,8 @@ interface TypologyGroup {
   id: string;
   label: string;
   bedrooms: number;
+  // null = vivienda; si no, la etiqueta de la categoría (local / cochera).
+  categoryLabel: string | null;
   minArea: number;
   maxArea: number;
   minPrice: number | null;
@@ -34,6 +36,7 @@ function buildTypologies(units: Unit[]): TypologyGroup[] {
       id: key,
       label: key,
       bedrooms: sampleUnit.bedrooms,
+      categoryLabel: unitIsDwelling(sampleUnit) ? null : UNIT_CATEGORY_LABEL[unitCategory(sampleUnit)],
       minArea: areas.length ? Math.min(...areas) : 0,
       maxArea: areas.length ? Math.max(...areas) : 0,
       minPrice: prices.length ? Math.min(...prices) : null,
@@ -90,10 +93,11 @@ export function TabsSection({ units, showPrice, unitIsLand = false }: { units: U
         <div className="space-y-6">
           <div>
             <h2 className="font-[family-name:var(--theme-font-heading)] text-4xl font-light text-[var(--theme-text)] mb-2">{activeData.label}</h2>
-            {/* Un lote es terreno — no tiene dormitorios que anunciar. */}
+            {/* Un lote es terreno — no tiene dormitorios que anunciar. Un
+                local / cochera tampoco: se anuncia su categoría. */}
             {!unitIsLand && (
               <div className="text-[var(--theme-accent)] tracking-wide">
-                {activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios'}
+                {activeData.categoryLabel ?? (activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios')}
               </div>
             )}
           </div>

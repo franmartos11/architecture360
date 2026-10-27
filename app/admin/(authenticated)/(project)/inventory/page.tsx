@@ -6,7 +6,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { downloadCsv } from '@/lib/csv';
-import { priceChangeFromInput } from '@/lib/units';
+import { priceChangeFromInput, pluralize } from '@/lib/units';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -155,7 +155,7 @@ export default function AdminInventory() {
     const { updated, skipped } = await res.json() as { updated: string[]; skipped: { id: string; reason: string }[] };
     setUnits(prev => prev.map(u => (updated.includes(u.id) ? { ...u, status: bulkStatus } : u)));
     toast(
-      `Estado actualizado en ${updated.length} ${unitLabelLower}${updated.length === 1 ? '' : 's'}.${skipped.length > 0 ? ` ${skipped.length} sin poder actualizar.` : ''}`,
+      `Estado actualizado en ${updated.length} ${updated.length === 1 ? unitLabelLower : pluralize(unitLabelLower)}.${skipped.length > 0 ? ` ${skipped.length} sin poder actualizar.` : ''}`,
       skipped.length > 0 ? 'error' : undefined
     );
   };
@@ -182,7 +182,7 @@ export default function AdminInventory() {
     const priceById = new Map(updated.map(u => [u.id, u.price]));
     setUnits(prev => prev.map(u => (priceById.has(u.id) ? { ...u, price: priceById.get(u.id)! } : u)));
     const skippedNoPrice = skipped.filter(s => s.reason === 'Sin precio cargado').length;
-    toast(`Precio actualizado en ${updated.length} ${unitLabelLower}${updated.length === 1 ? '' : 's'}.${skippedNoPrice > 0 ? ` ${skippedNoPrice} sin precio cargado, omitida${skippedNoPrice === 1 ? '' : 's'}.` : ''}`);
+    toast(`Precio actualizado en ${updated.length} ${updated.length === 1 ? unitLabelLower : pluralize(unitLabelLower)}.${skippedNoPrice > 0 ? ` ${skippedNoPrice} sin precio cargado, omitida${skippedNoPrice === 1 ? '' : 's'}.` : ''}`);
   };
 
   const handleExportCsv = () => {
@@ -191,22 +191,22 @@ export default function AdminInventory() {
       u.code, u.model_name ?? '', u.type, String(u.total_area ?? ''),
       u.building_name ?? '', String(u.floor_number ?? ''), u.status, u.price != null ? String(u.price) : '', u.currency || 'USD',
     ]);
-    downloadCsv(`${hasFloorStep ? 'inventario' : `${unitLabelLower}s`}.csv`, [header, ...rows]);
+    downloadCsv(`${hasFloorStep ? 'inventario' : `${pluralize(unitLabelLower)}`}.csv`, [header, ...rows]);
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${hasFloorStep ? 'inventario' : `${unitLabelLower}s`}...`} tone="light" />;
-  if (error) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el inventario' : `los ${unitLabelLower}s`}.`} onRetry={fetchUnits} />;
+  if (loading) return <LoadingSpinner text={`Cargando ${hasFloorStep ? 'inventario' : `${pluralize(unitLabelLower)}`}...`} tone="light" />;
+  if (error) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el inventario' : `${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}`}.`} onRetry={fetchUnits} />;
 
   return (
     <div className={`${poppins.className} flex flex-col gap-3.5`}>
       <div>
-        <div className="text-[22px] font-semibold leading-tight text-[#101828]">{hasFloorStep ? 'Inventario' : `${unitLabel}s`}</div>
+        <div className="text-[22px] font-semibold leading-tight text-[#101828]">{hasFloorStep ? 'Inventario' : `${pluralize(unitLabel)}`}</div>
         <p className="text-xs leading-relaxed mt-[5px]" style={{ color: 'rgba(16,24,40,.55)' }}>
           {hasFloorStep
             ? 'Estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.'
             : hasUnitStep
-            ? `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${unitLabelLower}s. Para cargar ${unitLabelLower}s ${uAgree.nuevo}s, entrá por ${buildingLabel}s → la delimitación.`
-            : `Actualizá estados y precios rápido, en lote. Para cargar el resto de los datos de ${bAgree.un} ${buildingLabelLower} ${bAgree.nuevo}, entrá por ${buildingLabel}s.`}
+            ? `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}. Para cargar ${pluralize(unitLabelLower)} ${uAgree.nuevo}s, entrá por ${pluralize(buildingLabel)} → la delimitación.`
+            : `Actualizá estados y precios rápido, en lote. Para cargar el resto de los datos de ${bAgree.un} ${buildingLabelLower} ${bAgree.nuevo}, entrá por ${pluralize(buildingLabel)}.`}
         </p>
       </div>
 
@@ -226,7 +226,7 @@ export default function AdminInventory() {
               className={`${CHIP_CLASS} appearance-none pr-7`}
               style={chipStyle(buildingFilter !== 'all')}
             >
-              <option value="all">{hasFloorStep ? 'Todos los edificios' : `Todas las ${buildingLabelLower}s`}</option>
+              <option value="all">{hasFloorStep ? 'Todos los edificios' : `Todas las ${pluralize(buildingLabelLower)}`}</option>
               {buildingNames.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
             <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px]" style={{ color: 'rgba(16,24,40,.4)' }}>▾</span>
@@ -413,7 +413,7 @@ export default function AdminInventory() {
               {filteredUnits.length === 0 && (
                 <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-[12px]" style={{ color: 'rgba(16,24,40,.4)' }}>
                   {units.length === 0
-                    ? (hasFloorStep ? 'Todavía no hay unidades cargadas.' : `Todavía no hay ${unitLabelLower}s ${uAgree.cargado}s.`)
+                    ? (hasFloorStep ? 'Todavía no hay unidades cargadas.' : `Todavía no hay ${pluralize(unitLabelLower)} ${uAgree.cargado}s.`)
                     : (hasFloorStep ? 'Ninguna unidad coincide con el filtro.' : `${uAgree.ningun === 'ninguna' ? 'Ninguna' : 'Ningún'} ${unitLabelLower} coincide con el filtro.`)}
                 </td></tr>
               )}
@@ -422,7 +422,7 @@ export default function AdminInventory() {
               <tfoot>
                 <tr style={{ background: '#fbfcfd', borderTop: '1px solid rgba(16,24,40,.08)' }}>
                   <td className="px-4 py-3" />
-                  <td className="px-4 py-3 text-[11.5px] font-medium" style={{ color: 'rgba(16,24,40,.6)' }}>{filteredUnits.length} {hasFloorStep ? 'unidades' : `${unitLabelLower}s`} filtrada{filteredUnits.length === 1 ? '' : 's'}</td>
+                  <td className="px-4 py-3 text-[11.5px] font-medium" style={{ color: 'rgba(16,24,40,.6)' }}>{filteredUnits.length} {hasFloorStep ? 'unidades' : `${pluralize(unitLabelLower)}`} filtrada{filteredUnits.length === 1 ? '' : 's'}</td>
                   <td colSpan={typeConfig.showStatus ? 2 : 1} className="px-4 py-3 text-[11.5px]" style={{ color: 'rgba(16,24,40,.5)' }}>
                     {typeConfig.showStatus && (
                       <>

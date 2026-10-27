@@ -7,6 +7,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 
+import { pluralize } from '@/lib/units';
 interface LayoutProps {
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
@@ -52,7 +53,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           singleUnit={!typeConfig.hasUnitStep && project.units[0]
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
             : undefined}
-          unitsLabel={`${typeConfig.unitLabel}s`}
+          unitsLabel={`${pluralize(typeConfig.unitLabel)}`}
         >
           {children}
         </ProjectChrome>

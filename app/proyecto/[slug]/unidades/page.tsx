@@ -4,6 +4,7 @@ import { getPublicProjectBySlug } from '@/data/project-repository';
 import UnitsListView from '@/components/units/UnitsListView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
+import { pluralize } from '@/lib/units';
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -16,8 +17,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   return {
-    title: `${project.name} | ${typeConfig.unitLabel}s`,
-    description: `Buscá y filtrá todas las ${unitLabelLower}s disponibles de ${project.name}.`,
+    title: `${project.name} | ${pluralize(typeConfig.unitLabel)}`,
+    description: `Buscá y filtrá todas las ${pluralize(unitLabelLower)} disponibles de ${project.name}.`,
   };
 }
 

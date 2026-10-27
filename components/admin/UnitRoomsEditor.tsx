@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
+import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -247,6 +248,15 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     await persistLevel({ rooms: next });
   };
 
+  // Fotos del ambiente (las que se ven en la ficha pública al desplegarlo) —
+  // mismo `Room.imageUrl`/`images` que carga el editor de programa de casa;
+  // acá se guardan al toque, como el resto de este editor.
+  const handleRoomPhotos = async (id: string, updates: Partial<Pick<Room, 'imageUrl' | 'images'>>) => {
+    const next = rooms.map(r => (r.id === id ? { ...r, ...updates } : r));
+    const ok = await persistLevel({ rooms: next });
+    if (ok) toast('Foto guardada.');
+  };
+
   // Subir una panorámica directo desde el ambiente crea (o actualiza) su
   // nodo en el recorrido 360° y lo vincula solo, sin pasar por la pantalla
   // separada de Recorrido ni por el <select> de sincronización manual. El
@@ -333,7 +343,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás. Subí la panorámica de cada ambiente ahí mismo, abajo, para crear su nodo del recorrido 360° automáticamente.
+            Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás. Abajo, en cada ambiente, subí sus fotos (se ven en la ficha pública) y su panorámica, que crea el nodo del recorrido 360° automáticamente.
           </p>
         </div>
         <Link
@@ -397,12 +407,15 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         </div>
       </div>
 
-      {!roomPlanImage ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-          Cargá primero la URL del plano de ambientes de arriba para poder delimitarlos.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+      {/* La lista de ambientes (nombre, fotos, panorámica) no depende del
+          plano: solo la delimitación lo necesita. Sin plano se ve el aviso en
+          lugar del lienzo, pero se pueden crear ambientes y subirles fotos. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+        {!roomPlanImage ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+            Cargá el plano de ambientes de arriba para poder delimitarlos. Mientras tanto, podés crear los ambientes y subirles fotos acá al lado.
+          </div>
+        ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
               <button
@@ -420,6 +433,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             </div>
             <PolygonCanvas imageUrl={roomPlanImage} shapes={shapes} activeId={activeId} mode={mode} onPointsChange={handlePointsChange} onComplete={handleSaveShape} />
           </div>
+        )}
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -449,6 +463,16 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
                         placeholder="Nombre"
                       />
                       <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-gray-500">Foto del ambiente</p>
+                        <ImageUploader value={r.imageUrl ?? ''} onChange={url => handleRoomPhotos(r.id, { imageUrl: url || undefined })} folder="units" />
+                      </div>
+                      <MultiImageUploader
+                        label="Más fotos de este ambiente"
+                        values={r.images ?? []}
+                        onChange={urls => handleRoomPhotos(r.id, { images: urls.length ? urls : undefined })}
+                        folder="units"
+                      />
+                      <div className="space-y-1">
                         <p className="text-[11px] font-medium text-gray-500">Panorámica 360°</p>
                         <ImageUploader value={linkedNode?.imageUrl ?? ''} onChange={url => handleRoomPanoramaUpload(r, url)} folder="tours" />
                       </div>
@@ -464,9 +488,9 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
                           ))}
                         </select>
                       )}
-                      <p className="text-xs text-gray-400">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</p>
+                      {roomPlanImage && <p className="text-xs text-gray-400">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</p>}
 
-                      {isActive && (
+                      {isActive && roomPlanImage && (
                         <div className="flex items-center gap-2">
                           <button onClick={() => handleClear(r.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
                             Vaciar
@@ -498,8 +522,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

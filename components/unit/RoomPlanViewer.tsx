@@ -2,6 +2,8 @@
 
 import { useState, useCallback, memo } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
+import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Room } from '@/types';
 
 interface RoomPlanViewerProps {
@@ -34,19 +36,21 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
 
   return (
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
-      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={{ step: 0.1 }} doubleClick={{ step: 1 }}>
-        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={PLAN_WHEEL} doubleClick={PLAN_DOUBLE_CLICK}>
+        {(utils) => (
+        <>
+        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={PLAN_CONTENT_STYLE}>
           {/* El overlay de polígonos tiene que coincidir EXACTO con la caja
               de la imagen renderizada. Los puntos se guardan como % del plano
               real (ver PolygonCanvas), así que la imagen se muestra a su
               proporción natural (nada de forzarla a un cuadrado con
               object-contain) y el <svg> la cubre 1:1. */}
-          <div className="relative max-w-full max-h-[85vh]">
+          <div className="relative max-w-[100cqw] max-h-[100cqh]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={planImage}
               alt="Plano de ambientes"
-              className="block max-w-full max-h-[85vh] w-auto h-auto select-none"
+              className="block max-w-[100cqw] max-h-[100cqh] w-auto h-auto select-none"
               draggable={false}
             />
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -73,6 +77,11 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
             )}
           </div>
         </TransformComponent>
+        <div className="absolute bottom-3.5 right-3.5 z-20">
+          <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
+        </div>
+        </>
+        )}
       </TransformWrapper>
     </div>
   );

@@ -22,6 +22,8 @@ export const UNIT_GROUP_NAV: UnitGroupNavItem[] = [
     applies: () => true,
     status: (u, tc) => {
       if (tc.unitIsLand) return u.total_area != null ? 'complete' : 'empty';
+      // Local / cochera: no hay dormitorios que pedir — con la categoría alcanza.
+      if (u.category && u.category !== 'vivienda') return 'complete';
       if (!u.model_name && !u.type) return 'empty';
       return (u.orientation && u.bedrooms > 0) ? 'complete' : 'partial';
     },

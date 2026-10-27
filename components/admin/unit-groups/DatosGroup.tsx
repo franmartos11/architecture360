@@ -2,6 +2,8 @@
 
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { countInputChange, type UnitGroupProps } from '@/lib/unit-fields';
+import { UNIT_CATEGORY_LABEL, typeForCategory, deriveUnitType } from '@/lib/units';
+import type { UnitCategory } from '@/types';
 
 // Lote: sin tipología (es terreno). Depto/dúplex/único: lista curada fija
 // (a diferencia de casa, que deriva el tipo de la cantidad de dormitorios
@@ -23,6 +25,7 @@ function applyCountChange(
 
 export default function DatosGroup({ values, onChange }: UnitGroupProps) {
   const { unitIsLand } = useProjectTypeConfig();
+  const isDwelling = values.category === 'vivienda';
 
   if (unitIsLand) {
     return (
@@ -58,6 +61,26 @@ export default function DatosGroup({ values, onChange }: UnitGroupProps) {
         />
       </div>
 
+      {/* Vivienda / local / cochera vendida por separado. Un local o una
+          cochera tiene tipología fija y no tiene dormitorios ni baños; al
+          volver a vivienda, la tipología se rearma desde los dormitorios. */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11.5px] font-medium text-gray-900">Categoría</label>
+        <select
+          value={values.category}
+          onChange={e => {
+            const category = e.target.value as UnitCategory;
+            onChange({ category, type: typeForCategory(category, deriveUnitType(values.bedrooms ?? 0)) });
+          }}
+          className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          {(Object.keys(UNIT_CATEGORY_LABEL) as UnitCategory[]).map(c => <option key={c} value={c}>{UNIT_CATEGORY_LABEL[c]}</option>)}
+        </select>
+        {values.category === 'cochera' && (
+          <p className="text-[11px] text-gray-500">Para una cochera que se vende sola. Si viene incluida con un depto, no la cargues como unidad: marcala en el plano del subsuelo y asignásela al depto.</p>
+        )}
+      </div>
+
       <div className="flex gap-2.5">
         <div className="flex-1 flex flex-col gap-1.5">
           <label className="text-[11.5px] font-medium text-gray-900">Modelo</label>
@@ -68,6 +91,7 @@ export default function DatosGroup({ values, onChange }: UnitGroupProps) {
             className="h-9 w-full px-2.5 rounded-lg border border-gray-300 text-xs outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
+        {isDwelling && (
         <div className="flex-1 flex flex-col gap-1.5">
           <label className="text-[11.5px] font-medium text-gray-900">Tipología</label>
           <select
@@ -78,8 +102,10 @@ export default function DatosGroup({ values, onChange }: UnitGroupProps) {
             {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        )}
       </div>
 
+      {isDwelling && (
       <div className="flex gap-2.5 items-end">
         <div className="flex-1 flex flex-col gap-1.5">
           <label className="text-[11.5px] font-medium text-gray-900">Dormitorios</label>
@@ -106,6 +132,7 @@ export default function DatosGroup({ values, onChange }: UnitGroupProps) {
           Serv.
         </label>
       </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-[11.5px] font-medium text-gray-900">Orientación</label>

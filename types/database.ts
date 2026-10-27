@@ -4,7 +4,7 @@
 // propia copia a mano de estas mismas interfaces — un rename de columna
 // obligaba a cazar N archivos. Las páginas que solo necesitan un
 // subconjunto de columnas usan `Pick<...>` sobre estos tipos completos.
-import type { UnitType, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ParkingSpot, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig, BimModelStatus, BimSourceFormat, BimModelStats } from './index';
+import type { UnitType, UnitCategory, UnitStatus, PoiCategory, TourData, Room, UnitLevel, ParkingSpot, ProjectType, ProjectSaleMode, BeforeAfterPair, ProfileExperience, ProfileEducation, ProfileCertification, ProfileAward, ProfileSkill, ProfileAvailability, ThemeConfig, BimModelStatus, BimSourceFormat, BimModelStats } from './index';
 
 export interface ProjectRow {
   id: string;
@@ -110,6 +110,8 @@ export interface UnitRow {
   code: string;
   model_name: string | null;
   type: UnitType;
+  // Opcional: no existe hasta aplicar la columna en schema.sql — leer con ?? 'vivienda'.
+  category?: UnitCategory;
   total_area: number | null;
   inner_area: number | null;
   balcony_area: number;

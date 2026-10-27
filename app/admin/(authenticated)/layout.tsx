@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getRequestUser } from '@/lib/supabase/auth';
 import AppShell from '@/components/app/AppShell';
+import NumberPasteFix from '@/components/admin/NumberPasteFix';
 
 // Todo lo que cuelga de este grupo (Mis proyectos, el portfolio propio, y
 // cada pantalla dentro de un proyecto vía (project)/layout.tsx) ya requiere
@@ -24,6 +25,7 @@ export default async function AuthenticatedAdminLayout({ children }: { children:
   return (
     <>
       <AppShell userEmail={user?.email ?? null} profileHandle={profileHandle} avatarImage={avatarImage} />
+      <NumberPasteFix />
       <div className="pb-14 sm:pb-0">{children}</div>
     </>
   );

@@ -12,7 +12,7 @@ import TourOrientationControl from '@/components/admin/TourOrientationControl';
 const TourEditor = dynamic(() => import('@/components/admin/TourEditor'), {
   loading: () => <div className="h-40 rounded-xl bg-gray-100 animate-pulse" />,
 });
-import type { UnitType, UnitStatus, TourData, Room, RoomKind, UnitLevel } from '@/types';
+import type { UnitType, UnitStatus, UnitCategory, TourData, Room, RoomKind, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -27,11 +27,12 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import { parseCsv, downloadCsv } from '@/lib/csv';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, areaMismatch, fmtM2, UNIT_CURRENCIES, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS } from '@/lib/units';
+import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, areaMismatch, fmtM2, UNIT_CURRENCIES, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS, pluralize, UNIT_CATEGORY_LABEL, typeForCategory } from '@/lib/units';
+import { fillMissing } from '@/lib/unit-copy';
 import { UNIT_PLAN_FIELDS } from '@/lib/unit-fields';
 
 type UnitRow = Pick<DbUnitRow,
-  | 'id' | 'code' | 'model_name' | 'type' | 'total_area' | 'inner_area' | 'balcony_area'
+  | 'id' | 'code' | 'model_name' | 'type' | 'category' | 'total_area' | 'inner_area' | 'balcony_area'
   | 'external_area' | 'bedrooms' | 'bathrooms' | 'has_service_room' | 'lot_size' | 'ceiling_height'
   | 'garage_spaces' | 'garage_type' | 'garage_covered' | 'garage_uncovered' | 'condition' | 'features'
   | 'living_rooms' | 'kitchens' | 'other_rooms_count' | 'other_rooms_description'
@@ -90,7 +91,7 @@ const CSV_TEMPLATE_ROW = [
 ];
 
 const EMPTY_FORM = {
-  code: '', modelName: '', type: '2 dormitorios' as UnitType,
+  code: '', modelName: '', type: '2 dormitorios' as UnitType, category: 'vivienda' as UnitCategory,
   totalArea: '', innerArea: '', balconyArea: '0', externalArea: '0',
   bedrooms: '2', bathrooms: '2', hasServiceRoom: false,
   lotSize: '', ceilingHeight: '', hoaFee: '', floorsCount: '1',
@@ -105,7 +106,7 @@ const EMPTY_FORM = {
 };
 
 type SourceUnitLike = {
-  model_name: string | null; type: UnitType; total_area: number | null; inner_area: number | null;
+  model_name: string | null; type: UnitType; category?: UnitCategory; total_area: number | null; inner_area: number | null;
   balcony_area: number | null; external_area: number | null; bedrooms: number | null; bathrooms: number | null;
   has_service_room: boolean; lot_size: number | null; ceiling_height: number | null;
   garage_spaces: number; garage_type: 'cubierta' | 'descubierta' | null;
@@ -125,6 +126,7 @@ function formFieldsFromUnit(u: SourceUnitLike) {
   return {
     modelName: u.model_name ?? '',
     type: u.type,
+    category: u.category ?? 'vivienda',
     totalArea: String(u.total_area ?? ''),
     innerArea: String(u.inner_area ?? ''),
     balconyArea: String(u.balcony_area ?? 0),
@@ -157,6 +159,18 @@ function formFieldsFromUnit(u: SourceUnitLike) {
     technicalPlanUrl: u.technical_plan_url ?? '',
   };
 }
+
+// Cómo se ve en el form una unidad recién dada de alta por el server (los
+// defaults de la tabla `units`) — "vacío" a la hora de copiar datos sobre
+// una unidad que ya existe.
+const FRESH_UNIT_FORM: Record<string, unknown> = formFieldsFromUnit({
+  model_name: null, type: '2 dormitorios', total_area: null, inner_area: null, balcony_area: 0, external_area: 0,
+  bedrooms: 0, bathrooms: 1, has_service_room: false, lot_size: null, ceiling_height: null,
+  garage_spaces: 0, garage_type: null, garage_covered: 0, garage_uncovered: 0, condition: null, features: [],
+  living_rooms: 1, kitchens: 1, other_rooms_count: 0, other_rooms_description: null, hoa_fee: null, floors_count: 1,
+  price: null, currency: 'USD', status: 'available', orientation: null, interior_image_url: null, gallery_images: [],
+  floor_plan_3d_url: null, plan_3d_url: null, technical_plan_url: null,
+});
 
 // Editor de unidades de un piso (tabla + alta/edición) — se usa tanto en su
 // pantalla standalone (pisos/[floorId]/page.tsx) como embebido dentro del
@@ -387,20 +401,39 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     document.getElementById('code')?.focus();
   };
 
-  // Trae los datos de una unidad de OTRO piso/edificio y precarga el
-  // formulario — igual que "Duplicar" pero cruzando pisos. No copia
-  // polígono/ambientes/tour porque esos dependen del plano de este piso
-  // en particular, no del modelo del depto.
+  // Trae los datos de una unidad de OTRO piso/edificio y COMPLETA el
+  // formulario con lo que le falta — sin pisar lo ya cargado, sin tocar el
+  // código ni el estado, y sin salir del modo edición (antes ponía
+  // editingId=null: en casa, "Guardar" después de copiar creaba otra
+  // unidad). No copia polígono/ambientes/tour: dependen del plano de este
+  // piso, no del modelo del depto.
   const handleCopyFromUnit = async () => {
     if (!copySourceId) return;
     setCopying(true);
-    const u = await fetch(`/api/admin/units/${copySourceId}`).then(res => res.json());
+    const res = await fetch(`/api/admin/units/${copySourceId}`);
     setCopying(false);
-    setEditingId(null);
-    setForm({ code: '', ...formFieldsFromUnit(u) });
+    if (!res.ok) {
+      toast(`No se pudo cargar ${uAgree.el} ${unitLabelLower} de referencia.`, 'error');
+      return;
+    }
+    const u = await res.json();
+    const sourceFields = formFieldsFromUnit(u);
+    const keys = (Object.keys(sourceFields) as (keyof typeof form)[]).filter(k => k !== 'status');
+    // Unidad ya guardada: "vacío" = default de la tabla. Alta nueva:
+    // "vacío" = lo que trae el form en blanco.
+    const blank: Record<string, unknown> = editingId ? FRESH_UNIT_FORM : EMPTY_FORM;
+    const isBlank = (k: keyof typeof form, v: unknown, f: typeof form): boolean => {
+      if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) return true;
+      if (k === 'type') return v === blank.type && isBlank('bedrooms', f.bedrooms, f);
+      return JSON.stringify(blank[k]) === JSON.stringify(v);
+    };
+    const { next, filled, kept } = fillMissing(form, sourceFields, isBlank, keys);
+    setForm(next);
     setError('');
     setCopySourceId('');
-    document.getElementById('code')?.focus();
+    toast(filled.length === 0
+      ? `No había nada para completar con "${u.code}".`
+      : `Se ${filled.length === 1 ? 'completó 1 campo' : `completaron ${filled.length} campos`} con "${u.code}"${kept.length ? ` — se mantuvieron ${kept.length} que ya estaban cargados` : ''}. Revisá y guardá.`);
   };
 
   // Cuando la casa tiene un programa de ambientes cargado (rooms con
@@ -429,7 +462,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   // Lote: no tiene tipología de vivienda — se guarda un valor fijo.
   // Departamento: la elige el usuario del dropdown. Casa: se deriva de los
   // dormitorios (no hay lista fija — puede tener 4, 5, 6+).
-  const resolvedType = unitIsLand ? 'lote' : hasUnitStep ? form.type : deriveUnitType(effectiveBedrooms);
+  const resolvedType = unitIsLand ? 'lote' : hasUnitStep ? typeForCategory(form.category, form.type) : deriveUnitType(effectiveBedrooms);
+  const isDwellingForm = form.category === 'vivienda';
+  // La categoría solo viaja si cambió respecto de lo guardado (o, en un alta,
+  // si no es vivienda): así guardar sigue andando en una base donde todavía
+  // no se aplicó la columna `category`.
+  const savedCategory: UnitCategory = (editingId && units.find(u => u.id === editingId)?.category) || 'vivienda';
 
   // Cardinal hacia donde mira la casa, derivado de los grados de la brújula.
   const orientationCardinal = form.orientation !== '' && Number.isFinite(Number(form.orientation))
@@ -494,6 +532,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     code: form.code,
     modelName: form.modelName || null,
     type: resolvedType,
+    ...(form.category !== savedCategory ? { category: form.category } : {}),
     totalArea: form.totalArea === '' ? null : Number(form.totalArea),
     innerArea: form.innerArea === '' ? null : Number(form.innerArea),
     balconyArea: Number(form.balconyArea || 0),
@@ -695,19 +734,19 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
       if (res.ok) created++; else skipped++;
     }
 
-    toast(`${created} ${unitLabelLower}${created === 1 ? '' : 's'} importada${created === 1 ? '' : 's'}${skipped > 0 ? `, ${skipped} con error/omitida${skipped === 1 ? '' : 's'}` : ''}.`, skipped > 0 && created === 0 ? 'error' : undefined);
+    toast(`${created} ${created === 1 ? unitLabelLower : pluralize(unitLabelLower)} importada${created === 1 ? '' : 's'}${skipped > 0 ? `, ${skipped} con error/omitida${skipped === 1 ? '' : 's'}` : ''}.`, skipped > 0 && created === 0 ? 'error' : undefined);
     load();
   };
 
-  if (loading) return <LoadingSpinner text={hasUnitStep ? `Cargando ${unitLabelLower}s...` : `Cargando datos ${uAgree.del} ${unitLabelLower}...`} tone="light" />;
-  if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${unitLabelLower}s.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
+  if (loading) return <LoadingSpinner text={hasUnitStep ? `Cargando ${pluralize(unitLabelLower)}...` : `Cargando datos ${uAgree.del} ${unitLabelLower}...`} tone="light" />;
+  if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
 
   return (
     <div className="space-y-6">
       {hasUnitStep && (
         <Card>
           <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900">{unitLabel}s</h3>
+            <h3 className="text-sm font-semibold text-gray-900">{pluralize(unitLabel)}</h3>
             <div className="flex items-center gap-3">
               <button type="button" onClick={handleDownloadTemplate} className="text-xs font-medium text-gray-500 hover:text-gray-700">Plantilla CSV</button>
               <button type="button" onClick={handleExportCsv} disabled={units.length === 0} className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40">Exportar CSV</button>
@@ -775,7 +814,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                   </tr>
                 ))}
                 {units.length === 0 && (
-                  <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-gray-400">Todavía no hay {unitLabelLower}s en {uAgree.esta} {buildingLabelLower}.</td></tr>
+                  <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-gray-400">Todavía no hay {pluralize(unitLabelLower)} en {uAgree.esta} {buildingLabelLower}.</td></tr>
                 )}
               </tbody>
             </table>
@@ -788,7 +827,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="text-sm text-gray-600 flex-1">
               {hasUnitStep
-                ? '¿Este depto ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.'
+                ? `¿${uAgree.Esta} ${unitLabelLower} ya existe en otro piso o edificio? Completá lo que le falta con sus datos — no se pisa nada de lo ya cargado.`
                 : `¿Ya cargaste ${uAgree.un} ${unitLabelLower} con los mismos datos (ej: la misma planta tipo)? Copiá sus datos en vez de retipearlos.`}
             </p>
             <div className="flex gap-2 w-full sm:w-auto">
@@ -833,7 +872,12 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             {!unitIsLand && (
               <Input label="Modelo" id="modelName" value={form.modelName} onChange={e => setForm({ ...form, modelName: e.target.value })} placeholder="SUITE GARDEN" />
             )}
-            {!unitIsLand && (
+            {!unitIsLand && hasUnitStep && (
+              <Select label="Categoría" id="category" value={form.category} onChange={e => setForm({ ...form, category: e.target.value as UnitCategory })}>
+                {(Object.keys(UNIT_CATEGORY_LABEL) as UnitCategory[]).map(c => <option key={c} value={c}>{UNIT_CATEGORY_LABEL[c]}</option>)}
+              </Select>
+            )}
+            {!unitIsLand && isDwellingForm && (
               <Select label="Tipología" id="type" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as UnitType })}>
                 {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
@@ -869,8 +913,8 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Dormitorios/baños: no aplican a un lote. */}
-            {!unitIsLand && (
+            {/* Dormitorios/baños: no aplican a un lote, un local ni una cochera. */}
+            {!unitIsLand && isDwellingForm && (
               <>
                 <Input label="Dormitorios" id="bedrooms" type="number" min={0} value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} />
                 <Input label="Baños" id="bathrooms" type="number" min={0} step="0.5" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} />

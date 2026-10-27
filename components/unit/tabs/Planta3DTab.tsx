@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { m as motion } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
+import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Unit, BimModel } from '@/types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 
@@ -124,13 +126,15 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
               maxScale={4}
               centerOnInit={true}
               centerZoomedOut={true}
-              wheel={{ step: 0.1 }}
-              doubleClick={{ step: 1 }}
+              wheel={PLAN_WHEEL}
+              doubleClick={PLAN_DOUBLE_CLICK}
               panning={{ disabled: false }}
             >
+              {(utils) => (
+              <>
               <TransformComponent
                 wrapperStyle={{ width: '100%', height: '100%' }}
-                contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                contentStyle={PLAN_CONTENT_STYLE}
               >
                 <Image
                   src={active.image}
@@ -138,10 +142,15 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
                   width={1200}
                   height={1200}
                   priority
-                  className="max-w-full max-h-[85vh] object-contain drop-shadow-xl"
+                  className="max-w-[100cqw] max-h-[100cqh] object-contain drop-shadow-xl"
                   draggable={false}
                 />
               </TransformComponent>
+              <div className="absolute bottom-3.5 right-3.5 z-20">
+                <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
+              </div>
+              </>
+              )}
             </TransformWrapper>
           </div>
         )}

@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
+import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Unit, Room } from '@/types';
 import RoomPlanViewer from '../RoomPlanViewer';
 import ParkingPlanViewer from '../ParkingPlanViewer';
@@ -139,9 +141,10 @@ export default function PlanoTab({
       {/* Plan image with zoom */}
       <div className="flex-1 relative overflow-hidden">
         {planView === 'cochera' && activeParking ? (
-          <ParkingPlanViewer planImage={activeParking.planImage} spots={activeParking.spots} />
+          <ParkingPlanViewer key={activeParking.planImage} planImage={activeParking.planImage} spots={activeParking.spots} />
         ) : planView === 'ambientes' && hasRooms && activeLevel.planImage ? (
           <RoomPlanViewer
+            key={activeLevel.planImage}
             planImage={activeLevel.planImage}
             rooms={activeLevel.rooms}
             onSelectRoom={onSelectRoom}
@@ -169,13 +172,15 @@ export default function PlanoTab({
                 maxScale={4}
                 centerOnInit={true}
                 centerZoomedOut={true}
-                wheel={{ step: 0.1 }}
-                doubleClick={{ step: 1 }}
+                wheel={PLAN_WHEEL}
+                doubleClick={PLAN_DOUBLE_CLICK}
                 panning={{ disabled: false }}
               >
+                {(utils) => (
+                <>
                 <TransformComponent
                   wrapperStyle={{ width: '100%', height: '100%' }}
-                  contentStyle={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                  contentStyle={PLAN_CONTENT_STYLE}
                 >
                   <Image
                     src={planView === '3d' ? (unit.plan3dUrl || unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.plan3dUrl || '')}
@@ -183,10 +188,15 @@ export default function PlanoTab({
                     width={1200}
                     height={1200}
                     unoptimized={(planView === '2d' ? unit.technicalPlanUrl : unit.plan3dUrl)?.endsWith('.svg')}
-                    className="max-w-full max-h-[80vh] object-contain"
+                    className="max-w-[100cqw] max-h-[100cqh] object-contain"
                     draggable={false}
                   />
                 </TransformComponent>
+                <div className="absolute bottom-3.5 right-3.5 z-20">
+                  <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
+                </div>
+                </>
+                )}
               </TransformWrapper>
             )}
           </motion.div>

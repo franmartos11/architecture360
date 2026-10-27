@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Unit } from '@/types';
-import { similarityScore } from '@/lib/units';
+import { similarityScore, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 
 interface ComparePickerProps {
   baseUnit: Unit;
@@ -26,7 +26,8 @@ export default function ComparePicker({ baseUnit, candidates, onSelect, onClose 
   }, [onClose]);
 
   const bedroomOptions = useMemo(
-    () => Array.from(new Set(candidates.map(u => u.bedrooms))).sort((a, b) => a - b),
+    // Solo viviendas: un local / cochera no tiene dormitorios por los que filtrar.
+    () => Array.from(new Set(candidates.filter(u => unitIsDwelling(u)).map(u => u.bedrooms))).sort((a, b) => a - b),
     [candidates]
   );
 
@@ -34,7 +35,7 @@ export default function ComparePicker({ baseUnit, candidates, onSelect, onClose 
     const q = search.trim().toLowerCase();
     return candidates
       .filter(u => !q || u.name.toLowerCase().includes(q) || u.type.toLowerCase().includes(q) || String(u.floor).includes(q))
-      .filter(u => bedroomFilter === null || u.bedrooms === bedroomFilter)
+      .filter(u => bedroomFilter === null || (unitIsDwelling(u) && u.bedrooms === bedroomFilter))
       .map(u => ({ unit: u, score: similarityScore(baseUnit, u) }))
       .sort((a, b) => b.score - a.score);
   }, [candidates, search, bedroomFilter, baseUnit]);
@@ -106,7 +107,9 @@ export default function ComparePicker({ baseUnit, candidates, onSelect, onClose 
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 text-sm truncate">{u.name}</p>
                 <p className="text-xs text-gray-500 truncate">
-                  Piso {u.floor} · {u.bedrooms} amb. · {u.bathrooms} baño{u.bathrooms === 1 ? '' : 's'} · {u.totalArea} m²
+                  Piso {u.floor} · {unitIsDwelling(u)
+                    ? `${u.bedrooms} amb. · ${u.bathrooms} baño${u.bathrooms === 1 ? '' : 's'}`
+                    : UNIT_CATEGORY_LABEL[unitCategory(u)]} · {u.totalArea} m²
                 </p>
               </div>
               <span

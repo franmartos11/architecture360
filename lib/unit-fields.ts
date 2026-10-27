@@ -1,5 +1,5 @@
 import type { UnitRow as DbUnitRow } from '@/types/database';
-import type { UnitStatus, UnitType, TourData } from '@/types';
+import type { UnitStatus, UnitType, UnitCategory, TourData } from '@/types';
 
 // Forma canónica en camelCase de los campos editables de una unidad —
 // puente entre la fila snake_case que devuelve Supabase y los componentes
@@ -11,6 +11,7 @@ export interface UnitFormValues {
   totalArea: number | null;
   modelName: string | null;
   type: UnitType;
+  category: UnitCategory;
   bedrooms: number;
   bathrooms: number;
   hasServiceRoom: boolean;
@@ -35,6 +36,9 @@ export function toFormValues(row: DbUnitRow): UnitFormValues {
     totalArea: row.total_area,
     modelName: row.model_name,
     type: row.type,
+    // Base sin la columna todavía → vivienda (y como solo viaja en el
+    // PATCH cuando se cambia, no rompe el guardado del resto).
+    category: row.category ?? 'vivienda',
     bedrooms: row.bedrooms,
     bathrooms: row.bathrooms,
     hasServiceRoom: row.has_service_room,
@@ -59,6 +63,7 @@ const FIELD_TO_COLUMN: Record<keyof UnitFormValues, keyof DbUnitRow> = {
   totalArea: 'total_area',
   modelName: 'model_name',
   type: 'type',
+  category: 'category',
   bedrooms: 'bedrooms',
   bathrooms: 'bathrooms',
   hasServiceRoom: 'has_service_room',

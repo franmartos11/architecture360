@@ -8,6 +8,8 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { PLAN_WHEEL } from '@/lib/plan-zoom';
+import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
@@ -200,7 +202,6 @@ export default function FloorPlanViewer({
   };
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
-  const isSpecialFloor = !!floor?.floorKind && floor.floorKind !== 'units';
 
   // Se remide en cada cambio de piso — cada planta puede tener un plano
   // con proporciones distintas. Ajuste de estado durante el render (no en
@@ -216,6 +217,11 @@ export default function FloorPlanViewer({
     () => getUnitsByBuildingAndFloor(allUnits, building.id, activeFloor),
     [allUnits, building.id, activeFloor]
   );
+  // Piso de uso especial (cocheras, amenities…) SIN unidades propias: se
+  // muestra la tarjeta "no tiene unidades a la venta". Si tiene unidades
+  // (ej. cocheras que se venden por separado, categoría `cochera`), se
+  // navega como cualquier piso.
+  const isSpecialFloor = !!floor?.floorKind && floor.floorKind !== 'units' && unitsOnFloor.length === 0;
 
   const activeBimModel = useMemo(() => {
     if (!floor?.id) return undefined;
@@ -860,7 +866,8 @@ export default function FloorPlanViewer({
               minScale={0.5}
               maxScale={4}
               centerOnInit
-              wheel={{ step: 0.1 }}
+              centerZoomedOut
+              wheel={PLAN_WHEEL}
               doubleClick={{ disabled: false, step: 0.5 }}
               pinch={{ step: 5 }}
             >
@@ -1097,15 +1104,7 @@ export default function FloorPlanViewer({
                   {/* Compás + zoom — flotan sobre el plano, fuera del contenido transformado. */}
                   <div className="absolute bottom-3.5 right-3.5 z-20 flex flex-col items-center gap-2">
                     <CompassBadge />
-                    <div className="flex flex-col bg-white/95 rounded-[10px] overflow-hidden shadow-lg">
-                      <button onClick={() => utils.zoomIn()} aria-label="Acercar" className="w-8 h-8 flex items-center justify-center text-gray-900 hover:bg-gray-50 transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      </button>
-                      <div className="h-px bg-gray-200" />
-                      <button onClick={() => utils.zoomOut()} aria-label="Alejar" className="w-8 h-8 flex items-center justify-center text-gray-900 hover:bg-gray-50 transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14" /></svg>
-                      </button>
-                    </div>
+                    <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
                   </div>
                 </>
               )}

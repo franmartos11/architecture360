@@ -545,6 +545,13 @@ alter table units add column if not exists condition text
   check (condition is null or condition in ('a_estrenar', 'en_construccion', 'en_pozo', 'usada'));
 alter table units add column if not exists features text[] not null default '{}';
 
+-- Categoría de la unidad: vivienda (default — todas las existentes), local
+-- comercial, o cochera que se vende por separado (con precio/estado/código
+-- propios y su silueta en el plano del subsuelo). La cochera INCLUIDA con
+-- un depto no es una unidad: sigue siendo un parking_spots de ese depto.
+alter table units add column if not exists category text not null default 'vivienda'
+  check (category in ('vivienda', 'comercial', 'cochera'));
+
 -- Backfill: la cantidad vieja va toda al tipo que tenía marcado (o a
 -- cubierta por defecto si no había tipo).
 update units set garage_covered = garage_spaces

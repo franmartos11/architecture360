@@ -67,6 +67,7 @@ function mapProject(
       floorId: u.floor_id,
       floor: floor.number,
       type: u.type,
+      category: u.category ?? 'vivienda',
       totalArea: Number(u.total_area ?? 0),
       innerArea: Number(u.inner_area ?? 0),
       balconyArea: Number(u.balcony_area ?? 0),

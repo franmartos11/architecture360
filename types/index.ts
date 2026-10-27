@@ -24,6 +24,12 @@ export type KnownUnitType = 'monoambiente' | '1 dormitorio' | '2 dormitorios' | 
 // autocompletado de las categorías conocidas sin cerrar la puerta al resto.
 export type UnitType = KnownUnitType | (string & {});
 
+// Qué ES la unidad, independiente de la tipología: una vivienda (tiene
+// dormitorios, baños, ambientes), un local comercial, o una cochera que se
+// vende por separado (la cochera INCLUIDA con un depto sigue siendo un
+// parking_spot de ese depto, no una unidad). undefined = vivienda.
+export type UnitCategory = 'vivienda' | 'comercial' | 'cochera';
+
 // ─── Tour 360 Types ────────────────────────────────────────────────
 export interface TourLinkHotspot {
   yaw: number;
@@ -187,6 +193,7 @@ export interface Unit {
   floorId: string;
   floor: number;
   type: UnitType;
+  category?: UnitCategory;
   totalArea: number;    // m²
   innerArea: number;    // m²
   balconyArea: number;  // m²

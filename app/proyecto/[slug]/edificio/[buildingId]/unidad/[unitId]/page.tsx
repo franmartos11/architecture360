@@ -5,6 +5,7 @@ import { getPublicProjectBySlug, getUnitById } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
+import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 
 const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'amenities', 'ubicacion'];
 
@@ -19,7 +20,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!unit) return { title: 'Unidad no encontrada' };
 
   const title = `Unidad ${unit.name} | Interior`;
-  const description = `${unit.modelName || unit.type} · ${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`;
+  // Un local / cochera no tiene dormitorios: se describe por su categoría.
+  const description = unitIsDwelling(unit)
+    ? `${unit.modelName || unit.type} · ${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`
+    : `${UNIT_CATEGORY_LABEL[unitCategory(unit)]} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`;
   const image = unit.interiorImageUrl || unit.galleryImages?.[0] || undefined;
 
   return {

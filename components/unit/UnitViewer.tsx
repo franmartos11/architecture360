@@ -10,7 +10,7 @@ import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, cocheraLabel, unitConditionLabel, drawnParkingSpots } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL, cocheraLabel, unitConditionLabel, drawnParkingSpots } from '@/lib/units';
 import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -110,7 +110,9 @@ export default function UnitViewer({
   const initialCompareUnitId = searchParams.get('compare');
 
   const hasTour = !!(unit.tourImageUrl || unit.tourData);
-  const hasRooms = (!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0);
+  // Un local / cochera no tiene programa de ambientes: sin esto, el plano
+  // abría en "Ambientes" y tocar uno llevaba a una ficha lateral que no existe.
+  const hasRooms = unitIsDwelling(unit) && ((!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0));
   // Cochera marcada sobre el plano del piso de cocheras — se ve como una
   // vista más adentro del tab "Planos".
   const hasParking = drawnParkingSpots(unit.parkingSpots).length > 0;
@@ -156,18 +158,25 @@ export default function UnitViewer({
   // Programa de ambientes con detalle (tipo, m², características, foto) —
   // cuando está cargado, reemplaza a la lista plana "N Dormitorios / N
   // Baños". Agrupado por planta (planta baja + niveles extra).
-  const showRoomProgram = hasRoomProgram(allProgramRooms(unit.rooms, unit.levels));
+  // Un local comercial / cochera no tiene dormitorios, baños ni programa de
+  // ambientes — como el lote, se esconden esos datos.
+  const isDwelling = unitIsDwelling(unit);
+  const showDwellingData = !unitIsLand && isDwelling;
+  const showRoomProgram = isDwelling && hasRoomProgram(allProgramRooms(unit.rooms, unit.levels));
   // Ambientes delimitados con polígono pero sin "Tipo" asignado (los que
   // vienen del delimitador viejo — ver lib/units.ts) igual se listan acá:
   // sin esto, un ambiente dibujado y nombrado en el plano pero nunca
   // tipificado en el admin desaparecía de la sidebar sin dejar rastro,
   // aunque siga siendo clickeable en el plano.
+  // Idem un ambiente con fotos pero sin dibujar (edificio sin plano de
+  // ambientes todavía): las fotos se cargaron para verse.
   const isRoomDrawn = (r: Room) => !!r.polygon && r.polygon.length >= 3;
+  const isRoomListed = (r: Room) => !!r.kind || isRoomDrawn(r) || !!r.imageUrl || !!r.images?.length;
   const roomFloors = [
-    { label: 'Planta baja', rooms: (unit.rooms ?? []).filter(r => r.kind || isRoomDrawn(r)) },
-    ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(r => r.kind || isRoomDrawn(r)) })),
+    { label: 'Planta baja', rooms: (unit.rooms ?? []).filter(isRoomListed) },
+    ...(unit.levels ?? []).map(l => ({ label: l.label, rooms: (l.rooms ?? []).filter(isRoomListed) })),
   ].filter(g => g.rooms.length > 0);
-  const showRoomList = showRoomProgram || roomFloors.length > 0;
+  const showRoomList = isDwelling && (showRoomProgram || roomFloors.length > 0);
   // Vista con la que arranca el tab "Planos": ambientes si los hay; si no
   // hay ambientes ni planos 3D/técnico pero sí cochera marcada, la cochera
   // (si no, el selector abriría en una vista vacía).
@@ -180,6 +189,9 @@ export default function UnitViewer({
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Programa de ambientes de la sidebar — fila expandible + lightbox de fotos.
   const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);
+  // La sidebar separa "Datos" (instalaciones + comodidades) de "Ambientes"
+  // en vez de apilar todo en una sola columna larga.
+  const [sidebarSection, setSidebarSection] = useState<'datos' | 'ambientes'>('datos');
   const [planFocusRoomId, setPlanFocusRoomId] = useState<string | undefined>(undefined);
   const [roomLightboxOpen, setRoomLightboxOpen] = useState(false);
   const [roomLightboxIndex, setRoomLightboxIndex] = useState(0);
@@ -290,6 +302,7 @@ export default function UnitViewer({
   //  - desktop: despliega su ficha en la sidebar, resaltada y a la vista.
   //  - mobile: abre un modal con su info (la sidebar no existe en mobile).
   const openRoomFichaFromPlan = useCallback((room: Room) => {
+    setSidebarSection('ambientes');
     setExpandedRoomId(room.id);
     setPlanFocusRoomId(room.id);
     setSidebarCollapsed(false);
@@ -371,7 +384,7 @@ export default function UnitViewer({
             )}
           </div>
           {!unitIsLand && (
-            <p className="text-sm text-gray-400 uppercase tracking-wide mb-4">{unit.modelName}</p>
+            <p className="text-sm text-gray-400 uppercase tracking-wide mb-4">{isDwelling ? unit.modelName : UNIT_CATEGORY_LABEL[unitCategory(unit)]}</p>
           )}
 
           {/* Price & Calculator */}
@@ -420,6 +433,29 @@ export default function UnitViewer({
             ))}
           </div>
 
+          {/* Datos | Ambientes — solo si hay ambientes para mostrar; si no,
+              los datos van directo como siempre. */}
+          {showRoomList && (
+            <div role="tablist" aria-label="Información de la unidad" className="flex border-b border-gray-100 mb-4">
+              {([
+                { id: 'datos', label: 'Datos' },
+                { id: 'ambientes', label: `Ambientes (${roomFloors.reduce((n, g) => n + g.rooms.length, 0)})` },
+              ] as const).map(s => (
+                <button
+                  key={s.id}
+                  role="tab"
+                  aria-selected={sidebarSection === s.id}
+                  onClick={() => setSidebarSection(s.id)}
+                  className={`flex-1 pb-2 -mb-px text-[13px] font-semibold border-b-2 transition-colors ${sidebarSection === s.id ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {(!showRoomList || sidebarSection === 'datos') && (
+          <>
           {/* Specs */}
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">{unitIsLand ? 'Datos del lote' : 'Instalaciones'}</h4>
           <motion.div
@@ -437,16 +473,16 @@ export default function UnitViewer({
             {!unitIsLand && unit.externalArea > 0 && <SpecRow label={`Área externa ${unit.externalArea} m²`} />}
             {!unitIsLand && !!unit.lotSize && <SpecRow label={`Terreno ${unit.lotSize} m²`} />}
             {!unitIsLand && !!unit.ceilingHeight && <SpecRow label={`Altura de techo ${unit.ceilingHeight} m`} />}
-            {!unitIsLand && !showRoomProgram && <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />}
-            {!unitIsLand && !showRoomProgram && <SpecRow label={`${unit.bathrooms} Baños`} />}
-            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
-            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
-            {!unitIsLand && !showRoomProgram && !hasUnitStep && !!unit.otherRoomsCount && (
+            {showDwellingData && !showRoomProgram && <SpecRow label={`${unit.bedrooms} Dormitorio${unit.bedrooms !== 1 ? 's' : ''}`} />}
+            {showDwellingData && !showRoomProgram && <SpecRow label={`${unit.bathrooms} Baños`} />}
+            {showDwellingData && !showRoomProgram && !hasUnitStep && !!unit.livingRooms && <SpecRow label={`${unit.livingRooms} Living${unit.livingRooms !== 1 ? 's' : ''}`} />}
+            {showDwellingData && !showRoomProgram && !hasUnitStep && !!unit.kitchens && <SpecRow label={`${unit.kitchens} Cocina${unit.kitchens !== 1 ? 's' : ''}`} />}
+            {showDwellingData && !showRoomProgram && !hasUnitStep && !!unit.otherRoomsCount && (
               <SpecRow label={`${unit.otherRoomsCount} ambiente${unit.otherRoomsCount !== 1 ? 's' : ''} más${unit.otherRoomsDescription ? ` (${unit.otherRoomsDescription})` : ''}`} />
             )}
             {!unitIsLand && !!unit.floorsCount && unit.floorsCount > 1 && <SpecRow label={`${unit.floorsCount} Plantas`} />}
             {!unitIsLand && !!unit.orientation && <SpecRow label={`Orientación ${unit.orientation}`} />}
-            {!unitIsLand && unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
+            {showDwellingData && unit.hasServiceRoom && <SpecRow label="Cuarto de Servicio" />}
             {!unitIsLand && !!unit.garageSpaces && (
               <SpecRow label={cocheraLabel(unit)} />
             )}
@@ -465,12 +501,13 @@ export default function UnitViewer({
               </div>
             </>
           )}
+          </>
+          )}
 
           {/* Programa de ambientes — fila expandible: se despliega la foto
               grande, características y (si hay) accesos a 360° y al plano. */}
-          {showRoomList && (
+          {showRoomList && sidebarSection === 'ambientes' && (
             <>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-6 mb-3">Ambientes</h4>
               <div className="space-y-4">
                 {roomFloors.map((group, gi) => (
                   <div key={gi}>
@@ -664,7 +701,7 @@ export default function UnitViewer({
             )}
           </div>
           <p className="text-xs text-gray-400 truncate">
-            {!unitIsLand && unit.modelName ? `${unit.modelName} · ` : ''}{unit.totalArea}m²{hasFloorStep ? ` · P${floorNumber}` : ''}
+            {!unitIsLand ? (isDwelling ? (unit.modelName ? `${unit.modelName} · ` : '') : `${UNIT_CATEGORY_LABEL[unitCategory(unit)]} · `) : ''}{unit.totalArea}m²{hasFloorStep ? ` · P${floorNumber}` : ''}
           </p>
         </div>
         {canCompare && !comparing && (

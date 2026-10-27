@@ -87,3 +87,16 @@ describe('floorStatus / floorStatusLabel — piso que no es de unidades', () => 
     expect(floorStatusLabel(input)).toBe('Completo');
   });
 });
+
+describe('floorStatus / floorStatusLabel — piso de cocheras con cocheras que se venden solas', () => {
+  it('con unidades (categoría cochera) se evalúa como un piso de unidades', () => {
+    const input = make({ floorKind: 'parking', hasPlan: true, totalUnits: 4, missingPrice: 2 });
+    expect(floorStatus(input)).toBe('partial');
+    expect(floorStatusLabel(input)).toBe('2 sin precio');
+  });
+
+  it('sin unidades sigue siendo un piso especial', () => {
+    const input = make({ floorKind: 'parking', hasPlan: true, totalUnits: 0 });
+    expect(floorStatus(input)).toBe('complete');
+  });
+});

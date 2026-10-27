@@ -5,7 +5,7 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
-import { getStatusColor } from '@/lib/units';
+import { getStatusColor, pluralize } from '@/lib/units';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
@@ -180,7 +180,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     setCopyingDelimitation(false);
     if (res.ok) {
       const data = await res.json();
-      toast(data.unitsUpdated > 0 ? `Delimitación copiada a ${data.unitsUpdated} ${unitLabelLower}${data.unitsUpdated === 1 ? '' : 's'}.` : `No se encontraron ${unitLabelLower}s con código equivalente en ese piso.`);
+      toast(data.unitsUpdated > 0 ? `Delimitación copiada a ${data.unitsUpdated} ${data.unitsUpdated === 1 ? unitLabelLower : pluralize(unitLabelLower)}.` : `No se encontraron ${pluralize(unitLabelLower)} con código equivalente en ese piso.`);
       setCopySourceFloorId('');
       load();
     } else {
@@ -203,7 +203,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   if (units.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-        {container[0].toUpperCase()}{container.slice(1)} todavía no tiene {unitLabelLower}s — cargalas primero en la pestaña de {unitLabel}s.
+        {container[0].toUpperCase()}{container.slice(1)} todavía no tiene {pluralize(unitLabelLower)} — cargalas primero en la pestaña de {pluralize(unitLabel)}.
       </div>
     );
   }
@@ -270,7 +270,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">{unitLabel}s</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">{pluralize(unitLabel)}</h3>
         </div>
         <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
           {units.map((u, i) => {

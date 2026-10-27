@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
+import { pluralize } from '@/lib/units';
 import type {
   BuildingRow as DbBuildingRow, AerialSlideRow, AerialHotspotRow,
 } from '@/types/database';
@@ -355,7 +356,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
           <button type="button" onClick={() => guardedNavigate('/admin/proyecto')} className="text-sm text-gray-500 hover:text-gray-700">
             ← Proyecto
           </button>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{typeConfig.hasUnitStep ? `Delimitar ${buildingLabelLower}s` : `Marcar la ${buildingLabelLower}`} — {activeSlide.label}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{typeConfig.hasUnitStep ? `Delimitar ${pluralize(buildingLabelLower)}` : `Marcar la ${buildingLabelLower}`} — {activeSlide.label}</h2>
           <p className="text-sm text-gray-500 mt-1 max-w-3xl">
             Elegí {un} {buildingLabelLower} de la lista y marcá su silueta en la foto. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá el primer punto para cerrarlo — cualquier punto se puede arrastrar para ajustarlo, doble click lo borra. El pin (📍) se ubica solo en el centro de la silueta — usá <strong>Pin</strong> para arrastrarlo a mano, o doble click sobre el pin para volver al automático. Si te equivocás, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás. Saltá de una {aerialLower} a otra con la tira de abajo: el {buildingLabelLower} elegido y lo que vayas dibujando se mantienen.
           </p>
@@ -379,7 +380,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
 
       {buildings.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-          Todavía no hay {buildingLabelLower}s cargados — creá alguno primero en &quot;{typeConfig.buildingLabel}s&quot;.
+          Todavía no hay {pluralize(buildingLabelLower)} cargados — creá alguno primero en &quot;{pluralize(typeConfig.buildingLabel)}&quot;.
         </div>
       ) : (
         <>
@@ -467,7 +468,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">{typeConfig.buildingLabel}s</h3>
+                <h3 className="font-semibold text-gray-900 text-sm">{pluralize(typeConfig.buildingLabel)}</h3>
               </div>
               <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
                 {buildings.map((b, i) => {

@@ -7,10 +7,12 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { unitCopyPatch } from '@/lib/unit-copy';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
-import { getStatusLabel } from '@/lib/units';
+import { getStatusLabel, pluralize } from '@/lib/units';
 import { toFormValues, toDbShape, type UnitFormValues } from '@/lib/unit-fields';
 import { UNIT_GROUP_NAV, type UnitGroupStatus } from '@/components/admin/unit-groups/registry';
 import { UnitShellContext } from './unit-shell-context';
@@ -46,6 +48,7 @@ export default function UnitShellLayout({
   const unitLabelLower = unitLabel.toLowerCase();
   const uAgree = unitAgreement(typeConfig);
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const activeProjectId = useActiveProjectId();
 
   const [unit, setUnit] = useState<DbUnitRow | null>(null);
@@ -135,23 +138,33 @@ export default function UnitShellLayout({
   };
 
   const handleCopyFromUnit = async () => {
-    if (!copySourceId) return;
+    if (!copySourceId || !unit) return;
     setCopying(true);
     const res = await fetch(`/api/admin/units/${copySourceId}`);
     if (!res.ok) {
       setCopying(false);
-      toast(`No se pudo cargar el ${unitLabelLower} de referencia.`, 'error');
+      toast(`No se pudo cargar ${uAgree.el} ${unitLabelLower} de referencia.`, 'error');
       return;
     }
     const source: DbUnitRow = await res.json();
     setCopying(false);
-    const ok = await patch({
-      modelName: source.model_name, type: source.type, totalArea: source.total_area, innerArea: source.inner_area,
-      balconyArea: source.balcony_area, externalArea: source.external_area, bedrooms: source.bedrooms, bathrooms: source.bathrooms,
-      hasServiceRoom: source.has_service_room, price: source.price, currency: source.currency, status: source.status,
-      orientation: source.orientation, floorPlan3dUrl: source.floor_plan_3d_url, plan3dUrl: source.plan_3d_url, technicalPlanUrl: source.technical_plan_url,
+    // Completa lo vacío, no pisa lo cargado a mano (ni el estado: copiar de
+    // una vendida no marca esta como vendida) — ver lib/unit-copy.ts.
+    const { patch: body, filledLabels, keptLabels } = unitCopyPatch({ ...unit }, { ...source });
+    if (filledLabels.length === 0) {
+      toast(`No hay nada para completar: ${uAgree.esta} ${unitLabelLower} ya tiene cargado todo lo que tiene "${source.code}".`);
+      return;
+    }
+    const ok = await confirmDialog({
+      message: `Se van a completar ${filledLabels.length} ${filledLabels.length === 1 ? 'campo vacío' : 'campos vacíos'} con los datos de "${source.code}": ${filledLabels.join(', ')}.`
+        + (keptLabels.length ? ` Se mantienen como están: ${keptLabels.join(', ')}.` : ''),
+      confirmLabel: 'Completar',
     });
-    if (ok) setFormVersion(v => v + 1);
+    if (!ok) return;
+    if (await patch(body)) {
+      setFormVersion(v => v + 1);
+      toast(`${filledLabels.length} ${filledLabels.length === 1 ? 'campo completado' : 'campos completados'}.`);
+    }
     setCopySourceId('');
     setCopyOpen(false);
   };
@@ -161,7 +174,7 @@ export default function UnitShellLayout({
     return (
       <div className="flex flex-col gap-4">
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">
-          ← Volver a {unitLabelLower}s
+          ← Volver a {pluralize(unitLabelLower)}
         </Link>
         <ErrorState message={`No se pudo cargar ${uAgree.el} ${unitLabelLower}.`} onRetry={load} />
       </div>
@@ -176,7 +189,7 @@ export default function UnitShellLayout({
     <UnitShellContext.Provider value={{ unit, values, patch }}>
       <div className="flex flex-col gap-4">
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">
-          ← Volver a {unitLabelLower}s
+          ← Volver a {pluralize(unitLabelLower)}
         </Link>
 
         <Card className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
@@ -193,7 +206,7 @@ export default function UnitShellLayout({
                 type="button" onClick={() => setCopyOpen(o => !o)}
                 className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${copyOpen ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
               >
-                Copiar de otro {unitLabelLower}…
+                Copiar de {uAgree.otro} {unitLabelLower}…
               </button>
             )}
             <button
@@ -214,7 +227,7 @@ export default function UnitShellLayout({
 
         {copyOpen && (
           <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-gray-200 bg-gray-50">
-            <p className="text-[11px] text-gray-600 leading-relaxed">¿Este {unitLabelLower} ya existe en otro piso o edificio? Copiá sus datos en vez de retipearlos.</p>
+            <p className="text-[11px] text-gray-600 leading-relaxed">¿{uAgree.Esta} {unitLabelLower} ya existe en otro piso o edificio? Completá lo que le falta con sus datos — no se pisa nada de lo ya cargado.</p>
             <div className="flex gap-1.5">
               <select
                 value={copySourceId}

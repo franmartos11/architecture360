@@ -10,6 +10,7 @@ import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
+import { pluralize } from '@/lib/units';
 interface ActiveProject {
   id: string;
   slug: string;
@@ -72,8 +73,8 @@ export default function ProjectAdminShell({
   //  - casa (1 building = 1 unidad): "Casa" → directo a sus datos
   //  - edificio/dúplex/único (varios): "Edificios" / "Dúplexs" / … → la lista
   const structureItemLabel = singleBuildingHref
-    ? (unitIsLand ? `${unitLabel}s` : buildingLabel)
-    : hasFloorStep ? 'Edificios' : hasUnitStep ? `${buildingLabel}s` : buildingLabel;
+    ? (unitIsLand ? `${pluralize(unitLabel)}` : buildingLabel)
+    : hasFloorStep ? 'Edificios' : hasUnitStep ? `${pluralize(buildingLabel)}` : buildingLabel;
   const projectSubItems = [
     { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
     { label: 'Amenidades', href: '/admin/proyecto/amenities' },
@@ -104,7 +105,7 @@ export default function ProjectAdminShell({
   // con varias unidades — una casa es UNA sola, su precio y estado se
   // editan en su propia ficha (paso "Datos"), así que acá no aparece.
   const operacionItems = [
-    ...(hasUnitStep ? [{ label: hasFloorStep ? 'Inventario' : `${unitLabel}s`, href: '/admin/inventory' }] : []),
+    ...(hasUnitStep ? [{ label: hasFloorStep ? 'Inventario' : `${pluralize(unitLabel)}`, href: '/admin/inventory' }] : []),
     ...(showLeads ? [{ label: 'Leads', href: '/admin/leads' }] : []),
   ];
 

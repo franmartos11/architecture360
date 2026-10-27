@@ -3,9 +3,13 @@
 // se puede compartir). Sólo se serializa lo que cambia el conjunto de
 // resultados — el estado puramente visual (vista grid/tabla, panel avanzado
 // abierto, selección del comparador) se queda en memoria a propósito.
+import { UNIT_CATEGORIES } from '@/lib/validate';
+
 export interface UnitFilters {
   edificio: string;
   tipo: string;
+  /** vivienda / comercial / cochera, o 'all'. */
+  categoria: string;
   estado: string;
   precioMax: number;
   m2Min: number;
@@ -17,6 +21,7 @@ export interface UnitFilters {
 export const DEFAULT_UNIT_FILTERS: UnitFilters = {
   edificio: 'all',
   tipo: 'all',
+  categoria: 'all',
   estado: 'all',
   precioMax: 0,
   m2Min: 0,
@@ -29,6 +34,7 @@ export function filtersToQuery(filters: UnitFilters): string {
   const params = new URLSearchParams();
   if (filters.edificio !== DEFAULT_UNIT_FILTERS.edificio) params.set('edificio', filters.edificio);
   if (filters.tipo !== DEFAULT_UNIT_FILTERS.tipo) params.set('tipo', filters.tipo);
+  if (filters.categoria !== DEFAULT_UNIT_FILTERS.categoria) params.set('categoria', filters.categoria);
   if (filters.estado !== DEFAULT_UNIT_FILTERS.estado) params.set('estado', filters.estado);
   if (filters.precioMax > 0) params.set('precioMax', String(filters.precioMax));
   if (filters.m2Min > 0) params.set('m2Min', String(filters.m2Min));
@@ -44,9 +50,13 @@ export function filtersFromQuery(params: URLSearchParams): UnitFilters {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   };
   const feats = params.get('feats');
+  // Una categoría desconocida (link editado a mano) se ignora en vez de
+  // dejar la lista vacía.
+  const categoria = params.get('categoria');
   return {
     edificio: params.get('edificio') || DEFAULT_UNIT_FILTERS.edificio,
     tipo: params.get('tipo') || DEFAULT_UNIT_FILTERS.tipo,
+    categoria: categoria && (UNIT_CATEGORIES as readonly string[]).includes(categoria) ? categoria : DEFAULT_UNIT_FILTERS.categoria,
     estado: params.get('estado') || DEFAULT_UNIT_FILTERS.estado,
     precioMax: num('precioMax'),
     m2Min: num('m2Min'),

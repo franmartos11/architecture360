@@ -10,6 +10,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { ParkingSpot } from '@/types';
 
+import { pluralize } from '@/lib/units';
 type Point = { x: number; y: number };
 
 // Fila de unidad tal como la devuelve el listado global de /api/admin/units
@@ -337,7 +338,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
   if (units.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
-        Este edificio todavía no tiene {unitLabelLower}s cargadas — sin ellas no hay a quién asignarle una cochera.
+        Este edificio todavía no tiene {pluralize(unitLabelLower)} cargadas — sin ellas no hay a quién asignarle una cochera.
       </div>
     );
   }

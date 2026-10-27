@@ -10,6 +10,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
+import { pluralize } from '@/lib/units';
 interface AerialViewProps {
   project: Project;
 }
@@ -445,13 +446,13 @@ export default function AerialView({ project }: AerialViewProps) {
           {(singleUnit || project.units.length > 0) && (
             <Link
               href={singleUnit ? singleUnit.href : `${basePath}/unidades`}
-              aria-label={singleUnit ? singleUnit.label : `${typeConfig.unitLabel}s`}
+              aria-label={singleUnit ? singleUnit.label : `${pluralize(typeConfig.unitLabel)}`}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
               </svg>
-              <span className="hidden sm:inline">{singleUnit ? singleUnit.label : `${typeConfig.unitLabel}s`}</span>
+              <span className="hidden sm:inline">{singleUnit ? singleUnit.label : `${pluralize(typeConfig.unitLabel)}`}</span>
             </Link>
           )}
           {project.amenities.length > 0 && (
