@@ -5,27 +5,19 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ExploreSwitcher, { navItemClass } from '@/components/ui/ExploreSwitcher';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import { ProjectMenuButton, ChatIcon, exploreCardsFor } from '@/components/ui/ProjectMenu';
+import { ProjectMenuButton, ChatIcon } from '@/components/ui/ProjectMenu';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
 
-// Barra única del sitio público de un proyecto — la misma en la web y en
-// Explorar 3D (rediseño C/D). Según el ancho:
+// Barra única del sitio público de un proyecto — la misma en la web, en
+// Explorar 3D y en la ficha de unidad (rediseño C/D). Según el ancho:
 // - ≥1200px: las seis secciones a la vista + Contactar, sin botón Menú.
 // - <1200px: barra mínima — marca, dónde estás, Contactar y Menú (el menú
 //   único de ProjectMenu). En mobile Contactar y Menú quedan solo con ícono.
-// En Explorar 3D, desde 768px, suma la fila de contexto (contextRow):
-// sección › vista › lugar dentro de la vista. Ese último tramo lo pinta el
-// visor por portal en el hueco que expone crumbRef (ver SceneCrumb).
-//
 // Mismo orden en la barra, el menú y la hoja: Proyecto, Explorar 3D,
 // Unidades, Amenities, Ubicación, Cotizador → Contactar.
-export default function Navbar({ info, contextRow = false, crumbRef }: {
-  info: ProjectNavInfo;
-  contextRow?: boolean;
-  crumbRef?: (el: HTMLElement | null) => void;
-}) {
+export default function Navbar({ info }: { info: ProjectNavInfo }) {
   const pathname = usePathname();
   const basePath = useProjectBasePath();
   const contactModal = useContactModal();
@@ -104,8 +96,7 @@ export default function Navbar({ info, contextRow = false, crumbRef }: {
           </div>
 
           {/* Barra mínima (<1200px): dónde estás. En Explorar 3D, mobile
-              apila "Explorar 3D" sobre la vista; en tablet la vista y el
-              resto de las migas van en la fila de contexto. */}
+              apila "Explorar 3D" sobre la vista; desde sm van en una línea. */}
           <div className="min-[1200px]:hidden flex-1 min-w-0 flex items-center text-[var(--theme-text-on-dark)]">
             {section?.group ? (
               <>
@@ -113,7 +104,12 @@ export default function Navbar({ info, contextRow = false, crumbRef }: {
                   <span className="text-[11px] text-[var(--theme-text-on-dark-muted)]">{section.group}</span>
                   <span className="text-[15px] font-semibold truncate">{section.label}</span>
                 </span>
-                <span className="hidden md:inline text-[15px] font-semibold">{section.group}</span>
+                <span className="hidden md:flex items-baseline gap-2.5 min-w-0 text-[15px]">
+                  <span className="text-[var(--theme-text-on-dark-muted)] whitespace-nowrap">{section.group}</span>
+                  <span aria-hidden="true" className="text-[var(--theme-text-on-dark)]/35">/</span>
+                  <span className="font-semibold truncate">{section.label}</span>
+                  {section.detail && <span className="text-sm text-[var(--theme-text-on-dark-muted)] truncate">{section.detail}</span>}
+                </span>
               </>
             ) : section && (
               <span className="min-w-0 flex items-baseline gap-2 sm:gap-3 text-sm sm:text-[15px]">
@@ -144,8 +140,6 @@ export default function Navbar({ info, contextRow = false, crumbRef }: {
         </div>
       </div>
 
-      {contextRow && section?.group && <ContextRow info={info} section={section} crumbRef={crumbRef} />}
-
       {info.showLeads && (
         <LeadCaptureModal
           isOpen={contactModal.isOpen}
@@ -156,57 +150,5 @@ export default function Navbar({ info, contextRow = false, crumbRef }: {
         />
       )}
     </nav>
-  );
-}
-
-// Fila de contexto de Explorar 3D (≥768px): "Explorar 3D / [Fachada |
-// Plantas | Recorrido 360] / Vista Esquina". 3rem — ProjectChrome suma ese
-// alto a --project-nav-h en estas rutas. El último tramo (ángulo, piso,
-// espacio) lo pinta el visor en el hueco de crumbRef; vacío, se oculta.
-function ContextRow({ info, section, crumbRef }: {
-  info: ProjectNavInfo;
-  section: { group?: string; label: string; detail?: string };
-  crumbRef?: (el: HTMLElement | null) => void;
-}) {
-  const basePath = useProjectBasePath();
-  const cards = exploreCardsFor(info, basePath);
-  const sep = <span aria-hidden="true" className="text-[var(--theme-text-on-dark)]/35">/</span>;
-
-  return (
-    <div className="hidden md:block border-t border-[var(--theme-text-on-dark)]/[.07]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 flex items-center gap-2.5 text-sm text-[var(--theme-text-on-dark)]">
-        <span className="hidden min-[1200px]:inline text-[var(--theme-text-on-dark-muted)]">{section.group}</span>
-        <span className="hidden min-[1200px]:inline">{sep}</span>
-        <nav aria-label="Vistas 3D" className="flex gap-0.5 p-[3px] rounded-[9px] bg-[var(--theme-text-on-dark)]/[.07]">
-          {cards.map(card => {
-            const active = card.label === section.label;
-            return (
-              <Link
-                key={card.href}
-                href={card.href}
-                aria-current={active ? 'page' : undefined}
-                className={`px-3 py-1.5 rounded-[7px] text-[13px] whitespace-nowrap transition-colors ${
-                  active
-                    ? 'bg-white text-gray-900 font-semibold'
-                    : 'font-medium text-[var(--theme-text-on-dark)]/85 hover:text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)]/[.06]'
-                }`}
-              >
-                {card.label}
-              </Link>
-            );
-          })}
-        </nav>
-        {section.detail && (
-          <>
-            {sep}
-            <span className="font-semibold truncate">{section.detail}</span>
-          </>
-        )}
-        <div
-          ref={crumbRef}
-          className="min-w-0 flex items-center gap-2.5 empty:hidden before:content-['/'] before:text-[var(--theme-text-on-dark)]/35"
-        />
-      </div>
-    </div>
   );
 }

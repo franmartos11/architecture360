@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { SceneCrumb } from '@/lib/project-nav-context';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL } from '@/lib/plan-zoom';
 import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '@/types';
@@ -393,7 +392,7 @@ export default function FloorPlanViewer({
   ).filter(([, , available]) => available);
 
   return (
-    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-var(--project-nav-h,4rem))] md:overflow-hidden bg-white">
+    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-4rem)] md:overflow-hidden bg-white">
 
       {/* ── Franja superior (solo pantallas angostas) — acá viven los
           controles que en desktop flotan sobre el plano: torre, filtro,
@@ -473,7 +472,7 @@ export default function FloorPlanViewer({
       {/* ── Panel de la unidad ───────────────────────────────────── */}
       <aside
         ref={asideRef}
-        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-var(--project-nav-h,4rem))]"
+        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-4rem)]"
       >
         {selectedUnit ? (
           <div className="flex flex-col">
@@ -733,40 +732,6 @@ export default function FloorPlanViewer({
 
       {/* ── Área principal del plano ─────────────────────────────── */}
       <div className="order-2 md:flex-1 relative min-h-[60vh] md:min-h-0 md:min-w-0 overflow-hidden">
-
-        {/* Último tramo de las migas de la barra: el piso, con selector, y
-            cuántas unidades quedan en él. */}
-        <SceneCrumb>
-          {hasFloorStep && floorNumbers.length > 1 ? (
-            <label className="relative flex items-center">
-              <span className="sr-only">Piso</span>
-              <select
-                value={activeFloor}
-                onChange={e => goToFloor(Number(e.target.value))}
-                className="appearance-none pl-2.5 pr-7 py-1.5 rounded-[7px] border border-[var(--theme-text-on-dark)]/[.18] bg-transparent text-[13px] font-semibold text-[var(--theme-text-on-dark)] cursor-pointer"
-              >
-                {floorNumbers.map(num => {
-                  const f = building.floors.find(fl => fl.number === num);
-                  return (
-                    <option key={num} value={num} className="text-gray-900">
-                      {f ? floorName(f) : `Piso ${num}`}
-                    </option>
-                  );
-                })}
-              </select>
-              <svg className="absolute right-2 w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </label>
-          ) : floor && hasFloorStep ? (
-            <span className="font-semibold whitespace-nowrap">{floorName(floor)}</span>
-          ) : null}
-          {showStatus && unitsOnFloor.length > 0 && (
-            <span className="text-[var(--theme-text-on-dark-muted)] whitespace-nowrap">
-              {unitsOnFloor.filter(u => u.status === 'available').length} de {unitsOnFloor.length} disponibles
-            </span>
-          )}
-        </SceneCrumb>
 
         {/* Overlay superior — solo desktop, en mobile los mismos controles
             viven en la franja de arriba. */}

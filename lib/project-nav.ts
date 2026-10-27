@@ -1,7 +1,6 @@
 // Navegación del sitio público de un proyecto — una sola fuente para los
 // links de la barra global (components/ui/Navbar.tsx) y del menú único
-// (components/ui/ProjectMenu.tsx), que se abre igual desde la web y desde
-// las vistas inmersivas.
+// (components/ui/ProjectMenu.tsx).
 
 export interface ProjectNavInfo {
   projectName: string;
@@ -88,41 +87,8 @@ export function projectSectionFor(
   return null;
 }
 
-// Vista a pantalla completa (ficha de unidad): la barra global duplicaba la
-// barra propia de la vista. Ahí se oculta y la barra de la vista suma el
-// botón "Menú" (ProjectWebLink). Las vistas de Explorar 3D (fachada,
-// recorrido) ya no son inmersivas: usan la misma barra que el resto del
-// sitio, con su fila de contexto (ver isExploreProjectPath). Se evalúa
-// sobre la ruta relativa al proyecto, así anda igual en subdominio ('' de
-// basePath) y en /proyecto/slug.
-const IMMERSIVE_ROUTES = [
-  /^\/edificio\/[^/]+\/unidad\/[^/]+$/,
-];
-
-export function isImmersiveProjectPath(pathname: string, basePath: string): boolean {
-  const rel = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname;
-  const clean = rel.replace(/\/+$/, '');
-  return IMMERSIVE_ROUTES.some(re => re.test(clean));
-}
-
 // Con una sola torre su nombre suele ser el del proyecto: repetirlo en las
 // migas no dice nada.
 function buildingDetail(info: ProjectNavInfo, buildingId: string): string | undefined {
   return Object.keys(info.buildingNames).length > 1 ? info.buildingNames[buildingId] : undefined;
-}
-
-// Vistas de "Explorar 3D" (fachada, plantas, recorridos): desde 768px la
-// barra suma ahí una fila de contexto — sección › vista › lugar dentro de
-// la vista (ángulo, piso o espacio). Ver Navbar y SceneCrumb.
-const EXPLORE_ROUTES = [
-  /^\/masterplan$/,
-  /^\/recorrido$/,
-  /^\/edificio\/[^/]+$/,
-  /^\/edificio\/[^/]+\/recorrido$/,
-];
-
-export function isExploreProjectPath(pathname: string, basePath: string): boolean {
-  const rel = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname;
-  const clean = rel.replace(/\/+$/, '');
-  return EXPLORE_ROUTES.some(re => re.test(clean));
 }

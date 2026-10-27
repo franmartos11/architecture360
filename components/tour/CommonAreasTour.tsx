@@ -38,8 +38,8 @@ export default function CommonAreasTour({
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
-  // Dentro del sitio del proyecto la barra global (con su fila de contexto)
-  // reemplaza a la barra propia del recorrido, que solo queda fuera de él.
+  // Dentro del sitio del proyecto la barra global reemplaza a la barra
+  // propia del recorrido, que solo queda fuera de él.
   const inSite = !!useProjectNav();
   const resolvedBackHref = backHref ?? `${basePath}/masterplan`;
 
@@ -60,7 +60,7 @@ export default function CommonAreasTour({
   return (
     <div
       className={`relative w-full bg-black overflow-hidden ${
-        embed ? 'h-[100dvh]' : inSite ? 'h-[calc(100dvh-var(--project-nav-h,4rem))]' : 'h-[calc(100dvh-4rem)]'
+        embed ? 'h-[100dvh]' : 'h-[calc(100dvh-4rem)]'
       }`}
     >
       <VirtualTour tourData={tourData} focusNodeId={focusNodeId} orientationDegrees={orientationDegrees} sunAzimuths={sunAzimuths} />

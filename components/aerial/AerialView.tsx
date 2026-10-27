@@ -11,15 +11,15 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
-import { SceneCrumb, useProjectNav } from '@/lib/project-nav-context';
+import { useProjectNav } from '@/lib/project-nav-context';
 interface AerialViewProps {
   project: Project;
 }
 
 export default function AerialView({ project }: AerialViewProps) {
   const basePath = useProjectBasePath();
-  // Dentro del sitio del proyecto la barra global (con su fila de contexto)
-  // reemplaza a la barra propia de la vista, que solo queda fuera de él.
+  // Dentro del sitio del proyecto la barra global reemplaza a la barra
+  // propia de la vista, que solo queda fuera de él.
   const inSite = !!useProjectNav();
   const router = useRouter();
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
@@ -217,7 +217,7 @@ export default function AerialView({ project }: AerialViewProps) {
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-[calc(100dvh-var(--project-nav-h,4rem))] overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
+      className={`relative w-full h-[calc(100dvh-4rem)] overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
       onClick={handleBackgroundClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -526,11 +526,6 @@ export default function AerialView({ project }: AerialViewProps) {
           </svg>
         </button>
       </div>
-
-      {/* Último tramo de las migas de la barra: el ángulo actual. */}
-      <SceneCrumb>
-        <span className="font-semibold whitespace-nowrap">{slide.label}</span>
-      </SceneCrumb>
 
     </div>
   );
