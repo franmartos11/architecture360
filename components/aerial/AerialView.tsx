@@ -11,12 +11,16 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
+import { SceneCrumb, useProjectNav } from '@/lib/project-nav-context';
 interface AerialViewProps {
   project: Project;
 }
 
 export default function AerialView({ project }: AerialViewProps) {
   const basePath = useProjectBasePath();
+  // Dentro del sitio del proyecto la barra global (con su fila de contexto)
+  // reemplaza a la barra propia de la vista, que solo queda fuera de él.
+  const inSite = !!useProjectNav();
   const router = useRouter();
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   // "casa": es UNA sola, así que el chip de arriba lleva directo a ella y
@@ -213,7 +217,7 @@ export default function AerialView({ project }: AerialViewProps) {
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-[calc(100vh-4rem)] overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
+      className={`relative w-full h-[calc(100dvh-var(--project-nav-h,4rem))] overflow-hidden bg-black transition-all duration-500 ${isTransitioning ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}
       onClick={handleBackgroundClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -410,7 +414,8 @@ export default function AerialView({ project }: AerialViewProps) {
         })()}
       </AnimatePresence>
 
-      {/* ── Top bar ────────────────────────────────────────────── */}
+      {/* ── Top bar — solo fuera del sitio del proyecto ──────────── */}
+      {!inSite && (
       <motion.div
         initial="hidden"
         animate="visible"
@@ -425,16 +430,12 @@ export default function AerialView({ project }: AerialViewProps) {
       >
         {/* Left: Branding & Controls */}
         <motion.div variants={{ hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } }} className="min-w-0 flex-1 flex items-center gap-6">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Logo placeholder */}
-            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-bold text-base sm:text-xl shadow-lg">
-              R
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-white font-bold text-sm sm:text-lg leading-tight tracking-wide drop-shadow-md truncate">{project.name}</h1>
-              <p className="text-white/80 text-[10px] sm:text-xs font-medium tracking-widest uppercase drop-shadow-md truncate">{project.location}</p>
-            </div>
-          </div>
+          {/* Nombre del proyecto → inicio del sitio (sin la nav global, es el
+              camino de vuelta más obvio). */}
+          <Link href={basePath || '/'} className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-white" title={`Ir al inicio de ${project.name}`}>
+            <h1 className="text-white font-bold text-sm sm:text-lg leading-tight tracking-wide drop-shadow-md truncate">{project.name}</h1>
+            <p className="text-white/80 text-[10px] sm:text-xs font-medium tracking-widest uppercase drop-shadow-md truncate">{project.location}</p>
+          </Link>
         </motion.div>
 
         {/* Right: Unidades / Amenities / Ubicación */}
@@ -482,46 +483,54 @@ export default function AerialView({ project }: AerialViewProps) {
           )}
         </motion.div>
       </motion.div>
+      )}
 
-      {/* ── Slide navigation arrows ────────────────────────────── */}
-      <button
-        onClick={e => { e.stopPropagation(); goPrev(); }}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-40 w-11 h-11 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-gray-800 transition-all hover:scale-110"
-        aria-label="Vista anterior"
+      {/* ── Controles de la escena: un solo grupo abajo al centro —
+          flechas, nombre del ángulo y puntos. ───────────────────── */}
+      <div
+        onClick={e => e.stopPropagation()}
+        className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 p-1.5 rounded-2xl bg-[#121312]/[.76] backdrop-blur-md border border-white/[.14]"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-        </svg>
-      </button>
-      <button
-        onClick={e => { e.stopPropagation(); goNext(); }}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-40 w-11 h-11 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-gray-800 transition-all hover:scale-110"
-        aria-label="Vista siguiente"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-      </button>
-
-      {/* ── Bottom: slide label + dots + "Giro 360" hint ─────── */}
-      <div className="absolute bottom-5 right-5 z-40 flex flex-col items-end gap-3">
-        {/* Slide label */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium text-gray-600">
-          {slide.label}
+        <button
+          onClick={goPrev}
+          className="w-11 h-11 rounded-[10px] flex items-center justify-center text-white bg-white/[.08] hover:bg-white/15 transition-colors"
+          aria-label="Ángulo anterior"
+        >
+          <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+        </button>
+        <div className="flex flex-col items-center gap-1.5 px-3 sm:px-[18px] min-w-[120px] sm:min-w-[150px]">
+          <span className="text-[13px] sm:text-sm font-semibold text-white whitespace-nowrap" aria-live="polite">{slide.label}</span>
+          {slides.length > 1 && (
+            <span className="flex items-center gap-[5px]">
+              {slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setCurrentSlide(i); setActiveHotspot(null); }}
+                  className={`h-1 rounded-sm transition-all duration-200 ${i === currentSlide ? 'w-4 bg-white' : 'w-1 bg-white/40 hover:bg-white/70'}`}
+                  aria-label={`${s.label} (${i + 1} de ${slides.length})`}
+                  aria-current={i === currentSlide ? 'true' : undefined}
+                />
+              ))}
+            </span>
+          )}
         </div>
-
-        {/* Slide dots */}
-        <div className="flex items-center gap-1.5">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={e => { e.stopPropagation(); setCurrentSlide(i); setActiveHotspot(null); }}
-              className={`rounded-full transition-all duration-200 ${i === currentSlide ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/50 hover:bg-white/80'}`}
-              aria-label={`Vista ${i + 1}`}
-            />
-          ))}
-        </div>
+        <button
+          onClick={goNext}
+          className="w-11 h-11 rounded-[10px] flex items-center justify-center text-white bg-white/[.08] hover:bg-white/15 transition-colors"
+          aria-label="Ángulo siguiente"
+        >
+          <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
       </div>
+
+      {/* Último tramo de las migas de la barra: el ángulo actual. */}
+      <SceneCrumb>
+        <span className="font-semibold whitespace-nowrap">{slide.label}</span>
+      </SceneCrumb>
 
     </div>
   );

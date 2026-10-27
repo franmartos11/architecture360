@@ -6,6 +6,7 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { TourData } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
+import { useProjectNav } from '@/lib/project-nav-context';
 
 const VirtualTour = dynamic(() => import('./VirtualTour'), { ssr: false });
 
@@ -37,6 +38,9 @@ export default function CommonAreasTour({
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
+  // Dentro del sitio del proyecto la barra global (con su fila de contexto)
+  // reemplaza a la barra propia del recorrido, que solo queda fuera de él.
+  const inSite = !!useProjectNav();
   const resolvedBackHref = backHref ?? `${basePath}/masterplan`;
 
   // Sin esto, la única forma de salir del recorrido era el botón "Volver" —
@@ -54,10 +58,14 @@ export default function CommonAreasTour({
   }, [embed, resolvedBackHref, router]);
 
   return (
-    <div className={`relative w-full bg-black overflow-hidden ${embed ? 'h-[100dvh]' : 'h-[calc(100dvh-4rem)]'}`}>
+    <div
+      className={`relative w-full bg-black overflow-hidden ${
+        embed ? 'h-[100dvh]' : inSite ? 'h-[calc(100dvh-var(--project-nav-h,4rem))]' : 'h-[calc(100dvh-4rem)]'
+      }`}
+    >
       <VirtualTour tourData={tourData} focusNodeId={focusNodeId} orientationDegrees={orientationDegrees} sunAzimuths={sunAzimuths} />
 
-      {!embed && (
+      {!embed && !inSite && (
         <div className="absolute top-0 left-0 right-0 z-20 p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
           <button
             onClick={() => router.push(resolvedBackHref)}
@@ -70,10 +78,12 @@ export default function CommonAreasTour({
             <span className="hidden sm:inline">{backLabel}</span>
           </button>
 
-          <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto min-w-0 max-w-[75vw] sm:max-w-none">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="text-sm font-medium text-white/90 truncate">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto min-w-0 max-w-[60vw] sm:max-w-none">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="text-sm font-medium text-white/90 truncate">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+              </div>
             </div>
           </div>
         </div>

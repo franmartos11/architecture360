@@ -6,10 +6,9 @@ import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import { SceneCrumb } from '@/lib/project-nav-context';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL } from '@/lib/plan-zoom';
-import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
@@ -92,7 +91,6 @@ interface FloorPlanViewerProps {
   building: Building;
   units: Unit[];
   projectSlug: string;
-  projectName: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   initialFloor?: number;
@@ -107,7 +105,6 @@ export default function FloorPlanViewer({
   building,
   units: allUnits,
   projectSlug,
-  projectName,
   amenities = [],
   pointsOfInterest = [],
   initialFloor = 1,
@@ -396,16 +393,15 @@ export default function FloorPlanViewer({
   ).filter(([, , available]) => available);
 
   return (
-    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-4rem)] md:overflow-hidden bg-white">
+    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-var(--project-nav-h,4rem))] md:overflow-hidden bg-white">
 
       {/* ── Franja superior (solo pantallas angostas) — acá viven los
           controles que en desktop flotan sobre el plano: torre, filtro,
           contacto y el selector de piso. ─────────────────────────── */}
       <div className="order-1 md:hidden w-full border-b border-gray-100 bg-white px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <Breadcrumbs crumbs={[{ label: projectName, href: basePath || '/' }, { label: building.name }]} />
-          </div>
+          {/* Las migas viven en la barra global ("Explorar 3D / Plantas"). */}
+          <div className="min-w-0 flex-1" />
           {buildings.length > 1 && (
             <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-full shrink-0">
               {buildings.map(b => (
@@ -420,14 +416,6 @@ export default function FloorPlanViewer({
                 </button>
               ))}
             </div>
-          )}
-          {showLeads && (
-            <button
-              onClick={() => contactModal.open()}
-              className="shrink-0 h-8 px-3.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors"
-            >
-              Contactar
-            </button>
           )}
         </div>
 
@@ -485,7 +473,7 @@ export default function FloorPlanViewer({
       {/* ── Panel de la unidad ───────────────────────────────────── */}
       <aside
         ref={asideRef}
-        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-4rem)]"
+        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-var(--project-nav-h,4rem))]"
       >
         {selectedUnit ? (
           <div className="flex flex-col">
@@ -576,7 +564,7 @@ export default function FloorPlanViewer({
 
               <button
                 onClick={handleEnterUnit}
-                className="mt-4 h-12 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 rounded-[11px] text-white font-semibold text-[13.5px] transition-colors"
+                className="mt-4 h-12 flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[13.5px] transition-colors"
               >
                 {selectedUnit.status === 'sold' ? 'Ver la unidad' : 'Ingresar a la unidad'}
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
@@ -627,7 +615,7 @@ export default function FloorPlanViewer({
               {pointsOfInterest.length > 0 && (
                 <button
                   onClick={() => handleEnterUnitTab('ubicacion')}
-                  className="mt-5 flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-emerald-700 hover:text-emerald-700 transition-colors"
+                  className="mt-5 flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-[var(--theme-accent)] hover:text-gray-900 transition-colors"
                 >
                   Ubicación y alrededores
                 </button>
@@ -725,7 +713,7 @@ export default function FloorPlanViewer({
               {nextAvailableUnit && (
                 <button
                   onClick={handleGoNextAvailable}
-                  className="mt-4 h-11 w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 rounded-[11px] text-white font-semibold text-[12.5px] transition-colors"
+                  className="mt-4 h-11 w-full flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[12.5px] transition-colors"
                 >
                   Ver unidades disponibles
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
@@ -746,11 +734,44 @@ export default function FloorPlanViewer({
       {/* ── Área principal del plano ─────────────────────────────── */}
       <div className="order-2 md:flex-1 relative min-h-[60vh] md:min-h-0 md:min-w-0 overflow-hidden">
 
+        {/* Último tramo de las migas de la barra: el piso, con selector, y
+            cuántas unidades quedan en él. */}
+        <SceneCrumb>
+          {hasFloorStep && floorNumbers.length > 1 ? (
+            <label className="relative flex items-center">
+              <span className="sr-only">Piso</span>
+              <select
+                value={activeFloor}
+                onChange={e => goToFloor(Number(e.target.value))}
+                className="appearance-none pl-2.5 pr-7 py-1.5 rounded-[7px] border border-[var(--theme-text-on-dark)]/[.18] bg-transparent text-[13px] font-semibold text-[var(--theme-text-on-dark)] cursor-pointer"
+              >
+                {floorNumbers.map(num => {
+                  const f = building.floors.find(fl => fl.number === num);
+                  return (
+                    <option key={num} value={num} className="text-gray-900">
+                      {f ? floorName(f) : `Piso ${num}`}
+                    </option>
+                  );
+                })}
+              </select>
+              <svg className="absolute right-2 w-3.5 h-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </label>
+          ) : floor && hasFloorStep ? (
+            <span className="font-semibold whitespace-nowrap">{floorName(floor)}</span>
+          ) : null}
+          {showStatus && unitsOnFloor.length > 0 && (
+            <span className="text-[var(--theme-text-on-dark-muted)] whitespace-nowrap">
+              {unitsOnFloor.filter(u => u.status === 'available').length} de {unitsOnFloor.length} disponibles
+            </span>
+          )}
+        </SceneCrumb>
+
         {/* Overlay superior — solo desktop, en mobile los mismos controles
             viven en la franja de arriba. */}
         <div className="hidden md:flex absolute top-3.5 left-3.5 right-3.5 z-20 items-start justify-between gap-3 pointer-events-none">
           <div className="flex flex-col items-start gap-2 pointer-events-auto min-w-0">
-            <Breadcrumbs crumbs={[{ label: projectName, href: basePath || '/' }, { label: building.name }]} />
             {showStatus && (
               <button
                 onClick={() => setOnlyAvailable(v => !v)}
@@ -772,6 +793,7 @@ export default function FloorPlanViewer({
                 Modelo BIM 3D
               </button>
             )}
+            <CompassBadge />
           </div>
 
           <div className="flex items-center gap-2 pointer-events-auto shrink-0">
@@ -800,15 +822,12 @@ export default function FloorPlanViewer({
                 panelRef={layersRef}
               />
             )}
-            {showLeads && (
-              <button
-                onClick={() => contactModal.open()}
-                className="h-9 px-4 flex items-center bg-emerald-700 hover:bg-emerald-800 rounded-full text-white text-xs font-semibold transition-colors whitespace-nowrap"
-              >
-                Contactar
-              </button>
-            )}
           </div>
+        </div>
+
+        {/* Compás — variante mobile; en desktop va en el overlay superior. */}
+        <div className="md:hidden absolute top-3.5 left-3.5 z-20 pointer-events-none">
+          <CompassBadge />
         </div>
 
         {/* Botón de capas — variante mobile. En desktop el overlay superior
@@ -871,7 +890,7 @@ export default function FloorPlanViewer({
               doubleClick={{ disabled: false, step: 0.5 }}
               pinch={{ step: 5 }}
             >
-              {(utils) => (
+              {() => (
                 <>
                   <TransformComponent
                     wrapperClass="!w-full !h-full"
@@ -1101,11 +1120,6 @@ export default function FloorPlanViewer({
                     )}
                   </TransformComponent>
 
-                  {/* Compás + zoom — flotan sobre el plano, fuera del contenido transformado. */}
-                  <div className="absolute bottom-3.5 right-3.5 z-20 flex flex-col items-center gap-2">
-                    <CompassBadge />
-                    <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
-                  </div>
                 </>
               )}
             </TransformWrapper>

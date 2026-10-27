@@ -23,6 +23,17 @@ interface LayoutProps {
 // El fetch del proyecto no agrega un query: getPublicProjectBySlug está
 // memoizado con cache() de React, así que esta llamada y la que hace cada
 // página en la misma request se deduplican.
+// "Exterior y terraza" — bajada de Recorrido 360 en el desplegable de
+// Explorar 3D. Con más de tres espacios, solo la cantidad.
+function tourSpacesLabel(names: string[]): string | undefined {
+  if (names.length === 0) return undefined;
+  if (names.length > 3) return `${names.length} espacios`;
+  const [first, ...rest] = names.map((n, i) => (i === 0 ? n : n.toLowerCase()));
+  if (rest.length === 0) return first;
+  const last = rest.pop();
+  return `${[first, ...rest].join(', ')} y ${last}`;
+}
+
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   const { slug } = await params;
   const [basePath, project] = await Promise.all([
@@ -33,10 +44,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
+  // "Plantas" del menú: el primer edificio con plano cargado. Una casa no
+  // tiene plano propio (su edificio redirige a la ficha), así que no va.
+  const plansBuilding = typeConfig.hasUnitStep
+    ? project.buildings.find(b => b.floors.some(f => f.planImage))
+    : undefined;
 
   return (
     <ProjectBasePathProvider basePath={basePath}>
       <div
+        data-project-theme
         className={`${ALL_FONT_CLASSNAMES} theme-bg-image theme-bg-image--fixed bg-[var(--theme-bg)] min-h-screen`}
         style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
       >
@@ -54,6 +71,27 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
             : undefined}
           unitsLabel={`${pluralize(typeConfig.unitLabel)}`}
+          projectSlug={project.slug}
+          projectLocation={project.location?.split(',')[0]?.trim() || undefined}
+          showLeads={typeConfig.showLeads}
+          unitsAvailable={typeConfig.showStatus ? project.units.filter(u => u.status === 'available').length : undefined}
+          amenitiesCount={project.amenities.length}
+          buildingNames={Object.fromEntries(project.buildings.map(b => [b.id, b.name]))}
+          explore={{
+            facadeImage: project.aerialSlides[0]?.imageUrl || project.masterplanImage || undefined,
+            facadeDetail: project.aerialSlides.length > 1 ? `${project.aerialSlides.length} ángulos` : 'Vista aérea',
+            plans: plansBuilding && {
+              buildingId: plansBuilding.id,
+              image: plansBuilding.floors.find(f => f.planImage)?.planImage || plansBuilding.coverImage,
+              label: typeConfig.hasFloorStep ? 'Plantas' : `Plano de ${pluralize(typeConfig.unitLabel)}`,
+              detail: typeConfig.hasFloorStep && plansBuilding.floors.length > 1
+                ? `${plansBuilding.floors.length} pisos · elegí tu unidad`
+                : 'Elegí tu unidad',
+            },
+            tourImage: project.commonAreasTour?.nodes.find(n => n.id === project.commonAreasTour?.initialNodeId)?.imageUrl
+              ?? project.commonAreasTour?.nodes[0]?.imageUrl,
+            tourDetail: project.commonAreasTour ? tourSpacesLabel(project.commonAreasTour.nodes.map(n => n.name)) : undefined,
+          }}
         >
           {children}
         </ProjectChrome>

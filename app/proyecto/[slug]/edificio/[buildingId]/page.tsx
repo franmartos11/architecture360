@@ -67,7 +67,6 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
       building={building}
       units={project.units}
       projectSlug={slug}
-      projectName={project.name}
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
       initialFloor={initialFloor}

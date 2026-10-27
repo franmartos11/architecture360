@@ -314,19 +314,10 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
         <div className="absolute inset-0 bg-gradient-to-b from-trevo-dark/[.72] via-trevo-dark/[.55] to-trevo-dark/[.94]" />
 
         <div className="relative max-w-[1220px] mx-auto px-[16px] sm:px-[28px] pt-[26px] pb-[30px]">
-          <div className="flex items-center justify-end">
-            {/* Masterplan y Amenities salieron de acá: el Navbar global del
-                layout ya los ofrece. "Contactar" se queda porque el nav no
-                tiene ninguna acción de contacto — su CTA va al masterplan. */}
-            <button
-              onClick={() => openLead()}
-              className="h-[34px] px-[14px] flex items-center gap-[7px] bg-white rounded-full text-[11.5px] font-semibold text-trevo-dark"
-            >
-              Contactar
-            </button>
-          </div>
-
-          <div className="flex items-end justify-between gap-[32px] flex-wrap mt-[34px]">
+          {/* Sin "Contactar" acá: la barra global ya lo tiene, siempre en el
+              mismo lugar — dos botones iguales en la misma pantalla
+              competían. */}
+          <div className="flex items-end justify-between gap-[32px] flex-wrap mt-[16px]">
             <div className="min-w-[260px] flex-1">
               <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">
                 {unitLabelPlural.toUpperCase()} DISPONIBLES

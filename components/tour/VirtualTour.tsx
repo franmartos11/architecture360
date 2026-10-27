@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TourData } from '@/types';
 import type { Scene, Viewer } from 'marzipano';
 import type { SunAzimuths } from '@/lib/sun-position';
+import { SceneCrumb, useHasSceneCrumb } from '@/lib/project-nav-context';
 
 interface VirtualTourProps {
   imageUrl?: string;
@@ -287,6 +288,16 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
     return () => cancelAnimationFrame(rafId);
   }, [sunAzimuths, orientationDegrees]);
 
+  const showNodeNav = !hideNodeNav && !!tourData && tourData.nodes.length > 1 && !isLoading && !error;
+  const crumbNodeNav = useHasSceneCrumb();
+  const goToNode = (nodeId: string) => {
+    const targetScene = scenesRef.current[nodeId];
+    if (targetScene && nodeId !== currentNodeId) {
+      targetScene.switchTo({ transitionDuration: 1000 });
+      setCurrentNodeId(nodeId);
+    }
+  };
+
   const zoomBy = (delta: number) => {
     const view = viewerRef.current?.view?.();
     if (!view) return;
@@ -301,19 +312,38 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
       {/* Marzipano container */}
       <div ref={containerRef} className="pano-container w-full h-full absolute inset-0" />
 
-      {/* Floating navigation menu (only if multi-node) */}
-      {!hideNodeNav && tourData && tourData.nodes.length > 1 && !isLoading && !error && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-wrap justify-center gap-2 p-1.5 bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-lg border border-white/10 max-w-[90vw]">
+      {/* Selector de espacios en las migas de la barra (Explorar 3D, desde
+          768px): "Recorrido 360 / [Exterior | Terraza]". */}
+      {showNodeNav && crumbNodeNav && (
+        <SceneCrumb>
+          <nav aria-label="Espacios" className="flex gap-0.5 p-[3px] rounded-[9px] border border-[var(--theme-text-on-dark)]/[.14]">
+            {tourData.nodes.map(node => (
+              <button
+                key={node.id}
+                type="button"
+                onClick={() => goToNode(node.id)}
+                aria-current={currentNodeId === node.id ? 'true' : undefined}
+                className={`px-3 py-[5px] rounded-md text-[13px] whitespace-nowrap transition-colors ${
+                  currentNodeId === node.id
+                    ? 'bg-[var(--theme-accent)]/30 text-[var(--theme-text-on-dark)] font-semibold'
+                    : 'text-[var(--theme-text-on-dark)]/85 hover:bg-[var(--theme-text-on-dark)]/[.06]'
+                }`}
+              >
+                {node.name}
+              </button>
+            ))}
+          </nav>
+        </SceneCrumb>
+      )}
+
+      {/* Selector flotante — sin migas, o en mobile (donde la fila de
+          contexto de la barra no se muestra). */}
+      {showNodeNav && (
+        <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-wrap justify-center gap-2 p-1.5 bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-lg border border-white/10 max-w-[90vw] ${crumbNodeNav ? 'md:hidden' : ''}`}>
           {tourData.nodes.map(node => (
             <button
               key={node.id}
-              onClick={() => {
-                const targetScene = scenesRef.current[node.id];
-                if (targetScene && node.id !== currentNodeId) {
-                  targetScene.switchTo({ transitionDuration: 1000 });
-                  setCurrentNodeId(node.id);
-                }
-              }}
+              onClick={() => goToNode(node.id)}
               aria-current={currentNodeId === node.id ? 'true' : undefined}
               className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${
                 currentNodeId === node.id
@@ -331,7 +361,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
       {!isLoading && !error && currentNote && (
         <div
           className={`absolute left-1/2 -translate-x-1/2 z-10 max-w-[min(90vw,420px)] px-4 py-2.5 rounded-xl bg-gray-900/70 backdrop-blur-sm border border-white/10 shadow-lg text-center text-sm text-white/90 transition-opacity duration-500 pointer-events-none ${
-            !hideNodeNav && tourData && tourData.nodes.length > 1 ? 'top-24' : 'top-6'
+            !showNodeNav ? 'top-6' : crumbNodeNav ? 'top-24 md:top-6' : 'top-24'
           } ${noteVisible ? 'opacity-100' : 'opacity-0'}`}
         >
           {currentNote}
@@ -392,8 +422,8 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
             aria-label="Acercar"
             className="w-10 h-10 rounded-full bg-gray-900/50 hover:bg-gray-900/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM21 21l-5.197-5.197M7.5 10.5h6" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM21 21l-5.197-5.197M10.5 7.5v6m-3-3h6" />
             </svg>
           </button>
           <button

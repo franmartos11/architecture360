@@ -10,7 +10,6 @@ export default function FloorPlanWrapper({
   building,
   units,
   projectSlug,
-  projectName,
   amenities,
   pointsOfInterest,
   initialFloor,
@@ -21,7 +20,6 @@ export default function FloorPlanWrapper({
   building: Building;
   units: Unit[];
   projectSlug: string;
-  projectName: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   initialFloor?: number;
@@ -34,7 +32,6 @@ export default function FloorPlanWrapper({
       building={building}
       units={units}
       projectSlug={projectSlug}
-      projectName={projectName}
       amenities={amenities}
       pointsOfInterest={pointsOfInterest}
       initialFloor={initialFloor}

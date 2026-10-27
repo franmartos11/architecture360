@@ -15,6 +15,8 @@ import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { useContactModal } from '@/hooks/useContactModal';
+import ProjectWebLink from '@/components/ui/ProjectWebLink';
+import { useProjectNav } from '@/lib/project-nav-context';
 import ShareMenu from '@/components/ui/ShareMenu';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import ImageLightbox from './ImageLightbox';
@@ -209,6 +211,8 @@ export default function UnitViewer({
   const [amenityLightboxOpen, setAmenityLightboxOpen] = useState(false);
 
   const contactModal = useContactModal();
+  // Sin nav global (vista inmersiva) la ficha usa todo el alto.
+  const immersive = !!useProjectNav()?.immersive;
 
   // Amenities relevant to this building
   const relevantAmenities = useMemo(
@@ -323,7 +327,7 @@ export default function UnitViewer({
   const prevImgUrl = unit.galleryImages?.[currentImg - 1];
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-gray-50 overflow-hidden relative">
+    <div className={`flex ${immersive ? 'h-[100dvh]' : 'h-[calc(100vh-4rem)]'} bg-gray-50 overflow-hidden relative`}>
       {/* Preload hints for adjacent images to make transitions instant */}
       {nextImgUrl && <link rel="preload" as="image" href={nextImgUrl} />}
       {prevImgUrl && <link rel="preload" as="image" href={prevImgUrl} />}
@@ -683,7 +687,7 @@ export default function UnitViewer({
       </aside>
 
       {/* ── Mobile: fixed top bar ──────────────────────────── */}
-      <div className="md:hidden fixed top-16 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center gap-3 px-4 py-3 shadow-sm">
+      <div className={`md:hidden fixed ${immersive ? 'top-0' : 'top-16'} left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center gap-3 px-4 py-3 shadow-sm`}>
         <button
           onClick={() => router.push(backHref ?? `${basePath}/edificio/${buildingId}`)}
           aria-label={backHref ? 'Volver a resultados' : 'Volver al plano'}
@@ -695,9 +699,10 @@ export default function UnitViewer({
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-[15px] font-bold text-gray-900 truncate">{unit.name}</h1>
+            {/* El código de la unidad no se achica: si falta lugar se corta el estado. */}
+            <h1 className="text-[15px] font-bold text-gray-900 shrink-0">{unit.name}</h1>
             {showStatus && (
-              <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: statusColor }}>{statusLabel.toUpperCase()}</span>
+              <span className="text-[11px] font-semibold min-w-0 truncate" style={{ color: statusColor }}>{statusLabel.toUpperCase()}</span>
             )}
           </div>
           <p className="text-xs text-gray-400 truncate">
@@ -721,6 +726,7 @@ export default function UnitViewer({
             </button>
           )}
         </ShareMenu>
+        <ProjectWebLink variant="light" />
       </div>
 
       {/* ── Main viewer ───────────────────────────────────── */}
@@ -782,6 +788,7 @@ export default function UnitViewer({
                 </button>
               </>
             )}
+            <ProjectWebLink variant="light" />
           </div>
         </div>        {/* Right tab selector (hidden below md — redundant with the sidebar's own
              tab row while the sidebar renders as a full overlay drawer; from md up
