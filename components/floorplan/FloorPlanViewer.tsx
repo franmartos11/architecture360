@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef, startTransition } from 'react';
 import type { RefObject } from 'react';
-import Image from 'next/image';
-import { m as motion, AnimatePresence } from 'framer-motion';
+import Image, { getImageProps } from 'next/image';
+import { m as motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -14,6 +14,7 @@ import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
 import { FLOOR_KIND_LABEL } from '@/lib/floorKinds';
 import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor, floorName } from '@/lib/floor-explorer';
+import { ELEVATOR_EASE, floorDirection, floorSteps, floorTransitionMs, type FloorDirection } from '@/lib/floor-transition';
 import { AmenityPanel, SpotPanel, IncludesBlock, NextAvailableCard, AmenityMarkerIcon, AMENITY_COLOR, AMENITY_TEXT } from './FloorPlanPanels';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -24,6 +25,41 @@ import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 interface BuildingTab {
   id: string;
   name: string;
+}
+
+// ── Cambio de piso ───────────────────────────────────────────────
+// Mismo sizes en el <Image> del plano y en su precarga: si difieren, el
+// navegador elige otra variante del srcSet y vuelve a descargar.
+const PLAN_SIZES = '(max-width: 768px) 100vw, 1400px';
+// Padding del área del plano — lo comparten el área (que se mide) y cada
+// capa de piso (que es absolute y no lo hereda).
+const PLAN_PADDING = 'p-2 sm:p-8 sm:pt-16';
+
+/** Dirección y duración del viaje entre pisos. */
+interface FloorTrip { dir: FloorDirection; ms: number }
+
+// Profundidad: el plano es una vista desde arriba, así que subir acerca el
+// piso nuevo a la cámara (llega más grande y se asienta) y el que dejás se
+// aleja (se achica); bajar, al revés. No se desliza: deslizar en una vista
+// cenital se lee como moverse al norte o al sur. Comparado con otras tres
+// variantes en app/prototipos/cambio-de-piso.
+// La duración viaja en `custom` y no en `transition`: la capa que sale
+// conserva las props de su último render y saldría con la duración del
+// viaje anterior (0 ms en el primer cambio — desaparecía de golpe).
+function floorLayerVariants(reduced: boolean): Variants {
+  const t = (c: FloorTrip) => ({ duration: c.ms / 1000, ease: ELEVATOR_EASE });
+  if (reduced) {
+    return {
+      enter: { opacity: 0 },
+      center: (c: FloorTrip) => ({ opacity: 1, transition: t(c) }),
+      exit: (c: FloorTrip) => ({ opacity: 0, transition: t(c) }),
+    };
+  }
+  return {
+    enter: (c: FloorTrip) => ({ scale: c.dir >= 0 ? 1.12 : 0.88, opacity: 0 }),
+    center: (c: FloorTrip) => ({ scale: 1, opacity: 1, transition: t(c) }),
+    exit: (c: FloorTrip) => ({ scale: c.dir >= 0 ? 0.88 : 1.12, opacity: 0, transition: t(c) }),
+  };
 }
 
 type LayerKey = 'siluetas' | 'etiquetas' | 'fotos';
@@ -114,7 +150,13 @@ export default function FloorPlanViewer({
   const { showPrice, showStatus, showLeads, unitIsLand, hasFloorStep } = typeConfig;
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
+  // activeFloor es el piso que se MUESTRA; requestedFloor, el que se pidió.
+  // Se separan para que el plano viejo quede en pantalla hasta que el nuevo
+  // esté decodificado (nunca un hueco en blanco) — ver el ajuste de abajo.
   const [activeFloor, setActiveFloor] = useState(initialFloor);
+  const [requestedFloor, setRequestedFloor] = useState(initialFloor);
+  const reducedMotion = !!useReducedMotion();
+  const [trip, setTrip] = useState<FloorTrip>({ dir: 0, ms: 0 });
   // Capas del plano que el visitante puede prender/apagar. Para un loteo las
   // siluetas arrancan visibles (así se ven los límites de cada lote); en un
   // edificio no, para no cambiar el plano de siempre.
@@ -126,6 +168,13 @@ export default function FloorPlanViewer({
   const [selOther, setSelOther] = useState<{ kind: 'amenity' | 'spot'; id: string } | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   const [showBim, setShowBim] = useState(false);
+  // Escape sale del modelo BIM, además del botón "Volver al plano".
+  useEffect(() => {
+    if (!showBim) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowBim(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showBim]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
   const asideRef = useRef<HTMLElement>(null);
@@ -159,33 +208,47 @@ export default function FloorPlanViewer({
   // contenedor termina con la MISMA forma que la imagen (sin franjas
   // vacías), los overlays en % (zonas de hover, pines) quedan alineados.
   const planAreaRef = useRef<HTMLDivElement>(null);
-  const planImageRef = useRef<string | undefined>(undefined);
-  const [planRatio, setPlanRatio] = useState<number | null>(null);
-  const [planFitSize, setPlanFitSize] = useState<{ w: number; h: number } | null>(null);
+  // Relación de aspecto de cada plano, medida al precargarlo (0 = no se
+  // pudo medir: se usa el ancho completo). Que exista = el plano está
+  // descargado y decodificado, listo para mostrarse sin espera.
+  const [planRatios, setPlanRatios] = useState<Record<string, number>>({});
+  const [planArea, setPlanArea] = useState<{ w: number; h: number } | null>(null);
 
+  // Precarga de todos los planos del edificio, con el mismo srcSet/sizes que
+  // el <Image> del plano: el cambio de piso no espera ninguna descarga.
+  useEffect(() => {
+    let alive = true;
+    for (const f of building.floors) {
+      if (!f.planImage) continue;
+      const src = f.planImage;
+      const p = getImageProps({ src, alt: '', fill: true, sizes: PLAN_SIZES, unoptimized: src.endsWith('.svg') }).props;
+      const img = new window.Image();
+      if (p.sizes) img.sizes = p.sizes;
+      if (p.srcSet) img.srcset = p.srcSet;
+      img.src = p.src;
+      img.decode()
+        .then(() => img.naturalHeight ? img.naturalWidth / img.naturalHeight : 0, () => 0)
+        .then(ratio => { if (alive) setPlanRatios(prev => (src in prev ? prev : { ...prev, [src]: ratio })); });
+    }
+    return () => { alive = false; };
+  }, [building.floors]);
+
+  // Área disponible para el plano (sin el padding), para calcular el ajuste
+  // en el render — así cada piso entra con su tamaño desde el primer cuadro.
   useEffect(() => {
     const el = planAreaRef.current;
-    if (!el || planRatio == null) return;
-    const compute = () => {
+    if (!el) return;
+    const measure = () => {
       const cs = getComputedStyle(el);
-      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-      const availW = Math.min(el.clientWidth - padX, 1400);
-      const availH = el.clientHeight - padY;
-      if (availW <= 0 || availH <= 0) return;
-      let w = availW;
-      let h = w / planRatio;
-      if (h > availH) {
-        h = availH;
-        w = h * planRatio;
-      }
-      setPlanFitSize({ w, h });
+      const w = Math.min(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), 1400);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (w > 0 && h > 0) setPlanArea(prev => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
     };
-    compute();
-    const ro = new ResizeObserver(compute);
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [planRatio]);
+  }, []);
 
   const contactModal = useContactModal();
   const shareLink = useShareLink();
@@ -199,14 +262,33 @@ export default function FloorPlanViewer({
 
   const floor: Floor | undefined = building.floors.find(f => f.number === activeFloor);
 
-  // Se remide en cada cambio de piso — cada planta puede tener un plano
-  // con proporciones distintas. Ajuste de estado durante el render (no en
-  // un efecto) siguiendo el patrón recomendado para "resetear estado
-  // cuando cambia una prop" — ver react-hooks/set-state-in-effect.
-  if (planImageRef.current !== floor?.planImage) {
-    planImageRef.current = floor?.planImage;
-    if (planRatio !== null) setPlanRatio(null);
-    if (planFitSize !== null) setPlanFitSize(null);
+  // El piso pedido se muestra recién cuando su plano está listo; hasta
+  // entonces queda el anterior. Al pasar, se calcula el viaje (dirección y
+  // duración) y se cierra el BIM. Ajuste de estado durante el render, no en
+  // un efecto — ver react-hooks/set-state-in-effect.
+  const requested = building.floors.find(f => f.number === requestedFloor);
+  if (requestedFloor !== activeFloor && (!requested?.planImage || requested.planImage in planRatios)) {
+    const order = building.floors.map(f => f.number).sort((a, b) => a - b);
+    setActiveFloor(requestedFloor);
+    setTrip({
+      dir: floorDirection(activeFloor, requestedFloor),
+      ms: floorTransitionMs(floorSteps(order, activeFloor, requestedFloor), reducedMotion),
+    });
+    if (showBim) setShowBim(false);
+  }
+  const waitingPlan = requestedFloor !== activeFloor;
+
+  // El mayor rectángulo con la forma del plano que entra completo en el área.
+  const planRatio = floor?.planImage ? planRatios[floor.planImage] : undefined;
+  let planFitSize: { w: number; h: number } | null = null;
+  if (planRatio && planArea) {
+    let w = planArea.w;
+    let h = w / planRatio;
+    if (h > planArea.h) {
+      h = planArea.h;
+      w = h * planRatio;
+    }
+    planFitSize = { w, h };
   }
 
   const unitsOnFloor = useMemo(
@@ -224,11 +306,6 @@ export default function FloorPlanViewer({
     return bimModels.find(m => m.floorIds.includes(floor.id)) ??
            bimModels.find(m => m.floorIds.length === 0 && m.unitIds.length === 0);
   }, [bimModels, floor?.id]);
-
-  // Cerrar BIM al cambiar de planta
-  if (showBim && planImageRef.current !== floor?.planImage) {
-    setShowBim(false);
-  }
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.
@@ -304,14 +381,14 @@ export default function FloorPlanViewer({
   }, [revealAside]);
 
   const goToFloor = useCallback((num: number) => {
-    setActiveFloor(num);
+    setRequestedFloor(num);
     setSelectedUnit(null);
     setSelOther(null);
   }, []);
 
   // Elegir una amenity o cochera, cambiando de piso si hace falta.
   const selectOther = useCallback((kind: 'amenity' | 'spot', id: string, floorNumber: number) => {
-    setActiveFloor(floorNumber);
+    setRequestedFloor(floorNumber);
     setSelectedUnit(null);
     setSelOther({ kind, id });
     revealAside();
@@ -331,7 +408,7 @@ export default function FloorPlanViewer({
 
   const handleGoNextAvailable = useCallback(() => {
     if (!nextAvailableUnit) return;
-    setActiveFloor(nextAvailableUnit.floor);
+    setRequestedFloor(nextAvailableUnit.floor);
     handleSelectUnit(nextAvailableUnit);
   }, [nextAvailableUnit, handleSelectUnit]);
 
@@ -444,7 +521,7 @@ export default function FloorPlanViewer({
                 const special = kind && kind !== 'units';
                 const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
                 const fa = fu.filter(u => u.status === 'available');
-                const active = activeFloor === num;
+                const active = requestedFloor === num;
                 return (
                   <button
                     key={num}
@@ -678,7 +755,7 @@ export default function FloorPlanViewer({
             showStatus={showStatus}
             showPrice={showPrice}
             onGoOwner={() => {
-              setActiveFloor(selectedSpot.unit.floor);
+              setRequestedFloor(selectedSpot.unit.floor);
               handleSelectUnit(selectedSpot.unit);
             }}
           />
@@ -824,17 +901,20 @@ export default function FloorPlanViewer({
         </div>
 
         {/* Plano + pines de unidad */}
-        <div ref={planAreaRef} className="absolute inset-0 flex items-center justify-center p-2 sm:p-8 sm:pt-16 cursor-grab active:cursor-grabbing">
+        <div ref={planAreaRef} className={`absolute inset-0 flex items-center justify-center ${PLAN_PADDING} cursor-grab active:cursor-grabbing`}>
           {showBim && activeBimModel ? (
             <div className="absolute inset-0 z-30 bg-gray-900 pointer-events-auto">
+              {/* Oscuro y con texto: el visor BIM (y su pantalla de carga) es
+                  blanco — una X blanca translúcida no se veía. A la
+                  izquierda, lejos del selector Modelo 3D / Imágenes del centro. */}
               <button
                 onClick={() => setShowBim(false)}
-                className="absolute top-4 right-4 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur transition-colors"
-                aria-label="Cerrar vista 3D"
+                className="absolute top-3.5 left-3.5 z-40 h-10 px-4 flex items-center gap-2 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-lg transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
+                Volver al plano
               </button>
               <BimUnifiedViewer
                 geometryUrl={activeBimModel.geometryUrl}
@@ -844,6 +924,19 @@ export default function FloorPlanViewer({
               />
             </div>
           ) : floor && floor.planImage ? (
+            // Cada piso es una capa propia: al cambiar, la que sale y la que
+            // entra se cruzan con la animación de profundidad (ver
+            // floorLayerVariants) y cada piso arranca con su zoom de fábrica.
+            <AnimatePresence initial={false} custom={trip}>
+            <motion.div
+              key={floor.number}
+              custom={trip}
+              variants={floorLayerVariants(reducedMotion)}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className={`absolute inset-0 flex items-center justify-center ${PLAN_PADDING}`}
+            >
             <TransformWrapper
               key={`${floor.planImage}-${planFitSize ? 'fit' : 'pending'}`}
               initialScale={1}
@@ -866,14 +959,19 @@ export default function FloorPlanViewer({
                       src={floor.planImage}
                       alt={floor.label}
                       fill
-                      sizes="(max-width: 768px) 100vw, 1400px"
+                      sizes={PLAN_SIZES}
                       priority
                       unoptimized={floor.planImage.endsWith('.svg')}
                       className="object-contain select-none pointer-events-none"
                       draggable={false}
                       onLoad={e => {
+                        // Por si el <Image> carga antes que la precarga.
                         const img = e.currentTarget;
-                        if (img.naturalWidth && img.naturalHeight) setPlanRatio(img.naturalWidth / img.naturalHeight);
+                        const src = floor.planImage;
+                        if (img.naturalWidth && img.naturalHeight) {
+                          const ratio = img.naturalWidth / img.naturalHeight;
+                          setPlanRatios(prev => (prev[src] ? prev : { ...prev, [src]: ratio }));
+                        }
                       }}
                     />
 
@@ -1088,8 +1186,15 @@ export default function FloorPlanViewer({
                 </>
               )}
             </TransformWrapper>
+            </motion.div>
+            </AnimatePresence>
           ) : (
             <div className="text-gray-400 text-sm">Plano no disponible</div>
+          )}
+          {waitingPlan && (
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-white/95 shadow-sm text-[11px] font-medium text-gray-500">
+              Cargando plano…
+            </span>
           )}
         </div>
 
@@ -1179,7 +1284,7 @@ export default function FloorPlanViewer({
             const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
             const fa = fu.filter(u => u.status === 'available');
             const fam = placedAmenities.filter(a => a.floorId === fl?.id);
-            const active = activeFloor === num;
+            const active = requestedFloor === num;
             const soldOut = showStatus && !special && fu.length > 0 && fa.length === 0;
             const title = [
               fl ? floorName(fl) : `Piso ${num}`,
@@ -1202,7 +1307,7 @@ export default function FloorPlanViewer({
                     {showStatus && fu.slice(0, 4).map(u => (
                       <span
                         key={u.id}
-                        onClick={e => { e.stopPropagation(); setActiveFloor(num); handleSelectUnit(u); }}
+                        onClick={e => { e.stopPropagation(); setRequestedFloor(num); handleSelectUnit(u); }}
                         title={`${u.name} · ${getStatusLabel(u.status)}`}
                         className="w-[7px] h-[7px] rounded-[2px] cursor-pointer"
                         style={{
