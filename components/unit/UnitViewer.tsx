@@ -900,6 +900,9 @@ export default function UnitViewer({
               initialContentType={activeTab}
               initialCompareUnitId={initialCompareUnitId}
               onClose={() => setComparing(false)}
+              showPrice={typeConfig.showPrice}
+              showLeads={showLeads}
+              projectSlug={projectSlug}
             />
           )}
         </AnimatePresence>

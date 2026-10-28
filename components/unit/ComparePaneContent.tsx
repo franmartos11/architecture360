@@ -16,8 +16,16 @@ function EmptyPane({ text }: { text: string }) {
   );
 }
 
-function ImagePane({ url, emptyText }: { url: string | undefined | null; emptyText: string }) {
+function ImagePane({ url, emptyText, bare }: { url: string | undefined | null; emptyText: string; bare?: boolean }) {
   if (!url) return <EmptyPane text={emptyText} />;
+  if (bare) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-white">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="" className="max-w-full max-h-full object-contain" />
+      </div>
+    );
+  }
   return (
     <div className="w-full h-full flex items-center justify-center bg-gray-100 p-4 sm:p-8 overflow-hidden">
       <div className="w-full h-full flex items-center justify-center bg-white rounded-xl shadow-md border border-gray-200 p-3">
@@ -31,7 +39,7 @@ function ImagePane({ url, emptyText }: { url: string | undefined | null; emptyTe
 // Igual patrón que GaleriaTab.tsx (visor normal de una unidad): foto
 // principal arriba + tira de miniaturas clickeables abajo, en vez de solo
 // flechas — más chica porque acá el panel mide la mitad de la pantalla.
-function GalleryPane({ images }: { images: string[] }) {
+function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
   const [index, setIndex] = useState(0);
   if (images.length === 0) return <EmptyPane text="Esta unidad no tiene galería cargada." />;
   const safeIndex = Math.min(index, images.length - 1);
@@ -65,7 +73,13 @@ function GalleryPane({ images }: { images: string[] }) {
         )}
       </div>
 
-      {images.length > 1 && (
+      {bare && images.length > 1 && (
+        <span className="absolute right-2.5 bottom-2.5 rounded-lg bg-gray-900/75 px-2 py-1 text-xs font-semibold text-white tabular-nums pointer-events-none">
+          {safeIndex + 1} / {images.length}
+        </span>
+      )}
+
+      {!bare && images.length > 1 && (
         <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-3">
           <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {images.map((img, i) => (
@@ -93,17 +107,19 @@ function GalleryPane({ images }: { images: string[] }) {
 // reutiliza los tabs completos del visor normal (Planta3DTab, PlanoTab,
 // etc.) porque esos asumen un solo estado compartido a nivel UnitViewer;
 // acá necesitamos dos instancias independientes, una por unidad.
-export default function ComparePaneContent({ unit, contentType }: { unit: Unit; contentType: CompareContentType }) {
+// `bare`: para las tarjetas chicas del comparador mobile — sin marco ni
+// tira de miniaturas.
+export default function ComparePaneContent({ unit, contentType, bare = false }: { unit: Unit; contentType: CompareContentType; bare?: boolean }) {
   switch (contentType) {
     case 'tour360':
       return unit.tourImageUrl || unit.tourData
         ? <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} hideNodeNav />
         : <EmptyPane text="Esta unidad todavía no tiene recorrido 360° cargado." />;
     case 'planta3d':
-      return <ImagePane url={unit.floorPlan3dUrl} emptyText="Esta unidad no tiene planta 3D cargada." />;
+      return <ImagePane url={unit.floorPlan3dUrl} emptyText="Esta unidad no tiene planta 3D cargada." bare={bare} />;
     case 'plano':
-      return <ImagePane url={unit.technicalPlanUrl || unit.plan3dUrl} emptyText="Esta unidad no tiene plano técnico cargado." />;
+      return <ImagePane url={unit.technicalPlanUrl || unit.plan3dUrl} emptyText="Esta unidad no tiene plano técnico cargado." bare={bare} />;
     case 'galeria':
-      return <GalleryPane key={unit.id} images={unit.galleryImages ?? []} />;
+      return <GalleryPane key={unit.id} images={unit.galleryImages ?? []} bare={bare} />;
   }
 }

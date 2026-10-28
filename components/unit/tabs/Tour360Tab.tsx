@@ -53,9 +53,10 @@ export default function Tour360Tab({
           </button>
         ) : (
           // En mobile, 34 px a la vista dentro de un área de toque de 44.
+          // z-30: arriba del visor, pero debajo del comparador (z-100).
           <button
             onClick={() => onFullscreenChange(true)}
-            className="group absolute top-1.5 left-1.5 md:top-6 md:left-6 w-11 h-11 md:w-12 md:h-12 flex items-center justify-center z-[110]"
+            className="group absolute top-1.5 left-1.5 md:top-6 md:left-6 w-11 h-11 md:w-12 md:h-12 flex items-center justify-center z-30"
             title="Pantalla completa"
             aria-label="Pantalla completa"
           >

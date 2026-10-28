@@ -15,6 +15,8 @@ interface LeadCaptureModalProps {
   defaultMethod?: 'email' | 'whatsapp' | 'phone';
   /** Sobreescribe el mensaje pre-cargado (ej. desde la calculadora, con la cuota estimada) */
   initialMessage?: string;
+  /** Por encima de capas de pantalla completa (comparador, z-100). */
+  elevated?: boolean;
 }
 
 export default function LeadCaptureModal({
@@ -24,6 +26,7 @@ export default function LeadCaptureModal({
   projectSlug,
   defaultMethod = 'email',
   initialMessage,
+  elevated = false,
 }: LeadCaptureModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -122,11 +125,11 @@ export default function LeadCaptureModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${elevated ? 'z-[120]' : 'z-[60]'} bg-black/60 backdrop-blur-sm`}
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+          <div className={`fixed inset-0 ${elevated ? 'z-[120]' : 'z-[60]'} flex items-center justify-center p-4 pointer-events-none`}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

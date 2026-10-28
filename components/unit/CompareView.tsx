@@ -3,10 +3,12 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab } from '@/types';
-import { useShareLink } from '@/hooks/useShareLink';
 import ComparePicker from './ComparePicker';
 import CompareMetricsBar from './CompareMetricsBar';
 import ComparePaneContent, { type CompareContentType } from './ComparePaneContent';
+import CompareMobile from './CompareMobile';
+import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { useContactModal } from '@/hooks/useContactModal';
 
 const CONTENT_TYPES: { id: CompareContentType; label: string }[] = [
   { id: 'planta3d', label: 'Planta 3D' },
@@ -22,18 +24,25 @@ interface CompareViewProps {
   initialContentType?: UnitViewTab;
   initialCompareUnitId?: string | null;
   onClose: () => void;
+  showPrice?: boolean;
+  /** Con formulario de contacto: "Consultar" por unidad (mobile). */
+  showLeads?: boolean;
+  projectSlug?: string;
 }
 
-export default function CompareView({ unit, allUnits, initialContentType, initialCompareUnitId, onClose }: CompareViewProps) {
+export default function CompareView({ unit, allUnits, initialContentType, initialCompareUnitId, onClose, showPrice = false, showLeads = false, projectSlug }: CompareViewProps) {
   const [compareUnitId, setCompareUnitId] = useState<string | null>(initialCompareUnitId ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [contentType, setContentType] = useState<CompareContentType>(() =>
     SUPPORTED_TYPES.includes(initialContentType as CompareContentType) ? (initialContentType as CompareContentType) : 'planta3d'
   );
   const [metricsVisible, setMetricsVisible] = useState(true);
-  const shareLink = useShareLink();
+  const contactModal = useContactModal();
+  const [contactUnit, setContactUnit] = useState<Unit | null>(null);
   const [splitPercent, setSplitPercent] = useState(50);
-  const [isDesktop, setIsDesktop] = useState(false);
+  // null hasta medir: mobile y escritorio montan visores distintos, y
+  // arrancar con uno para cambiar al otro rompía la inicialización del 360.
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -98,6 +107,21 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
       transition={{ duration: 0.3 }}
       className="fixed inset-0 z-[100] flex flex-col bg-white"
     >
+      {isDesktop === null ? null : !isDesktop ? (
+        <CompareMobile
+          unit={unit}
+          compareUnit={compareUnit}
+          contentTypes={CONTENT_TYPES}
+          contentType={contentType}
+          onContentTypeChange={setContentType}
+          onClose={onClose}
+          onPick={() => setPickerOpen(true)}
+          onClearCompare={() => setCompareUnitId(null)}
+          showPrice={showPrice}
+          onContact={showLeads && projectSlug ? u => { setContactUnit(u); contactModal.open(); } : undefined}
+        />
+      ) : (
+      <>
       <div className="absolute top-5 right-5 z-30 flex items-center gap-2">
         {compareUnit && (
           <button
@@ -108,21 +132,6 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
             <span className="hidden lg:inline">Cambiar Unidad</span>
             <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-            </svg>
-          </button>
-        )}
-        {compareUnit && (
-          <button
-            onClick={() => shareLink(
-              window.location.href,
-              `${unit.name} vs ${compareUnit.name}`,
-              `Mirá esta comparación: ${unit.name} vs ${compareUnit.name}`
-            )}
-            aria-label="Compartir comparación"
-            className="w-10 h-10 rounded-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700 transition-all shadow-lg shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
             </svg>
           </button>
         )}
@@ -263,6 +272,9 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         </div>
       )}
 
+      </>
+      )}
+
       {pickerOpen && (
         <div className="absolute inset-0 z-40 bg-black/40 flex justify-end" onClick={() => setPickerOpen(false)}>
           <ComparePicker
@@ -272,6 +284,17 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
             onClose={() => setPickerOpen(false)}
           />
         </div>
+      )}
+
+      {showLeads && projectSlug && (
+        <LeadCaptureModal
+          isOpen={contactModal.isOpen}
+          onClose={contactModal.close}
+          unit={contactUnit}
+          projectSlug={projectSlug}
+          defaultMethod={contactModal.method}
+          elevated
+        />
       )}
     </motion.div>
   );
