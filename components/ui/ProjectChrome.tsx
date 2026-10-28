@@ -1,6 +1,7 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { ViewTransition } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import type { ProjectNavInfo } from '@/lib/project-nav';
 import { ProjectNavProvider } from '@/lib/project-nav-context';
@@ -17,6 +18,7 @@ import { ProjectNavProvider } from '@/lib/project-nav-context';
 // y ficha de unidad.
 export default function ProjectChrome({ children, ...info }: ProjectNavInfo & { children: React.ReactNode }) {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   if (searchParams.get('embed') === 'true') {
     return <>{children}</>;
   }
@@ -24,7 +26,14 @@ export default function ProjectChrome({ children, ...info }: ProjectNavInfo & { 
   return (
     <ProjectNavProvider value={info}>
       <Navbar info={info} />
-      <div className="pt-16">{children}</div>
+      {/* Cada página es una entrada distinta (key = ruta): al navegar, la
+          nueva entra encima de la vieja con .page-swap (ver globals.css).
+          Las demás transiciones de la página no la animan. El fondo del
+          tema hace opaca la captura de cada página: sin él, la vieja se
+          veía por las zonas que la nueva no pinta. */}
+      <ViewTransition key={pathname} enter="page-swap" exit="page-swap" default="none">
+        <div className="pt-16 bg-[var(--theme-bg)]">{children}</div>
+      </ViewTransition>
     </ProjectNavProvider>
   );
 }

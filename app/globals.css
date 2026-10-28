@@ -97,6 +97,87 @@ body {
   animation: fade-in-up 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* ─── Apariciones al scrollear (components/ui/Reveal.tsx) ─────────
+   Solo se oculta bajo html.js: sin JS se ve todo. El estado lo pone
+   lib/reveal-script.ts — "instant" (ya en pantalla o pasado: sin
+   animación) o "anim" (entró desde abajo al scrollear). */
+html.js [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  transform: translateY(var(--reveal-y, 24px));
+}
+html.js [data-reveal][data-revealed='anim'] {
+  transition:
+    opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0s),
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0s);
+}
+
+/* ─── Transiciones entre páginas del sitio de un proyecto ─────────
+   React (<ViewTransition> en ProjectChrome, experimental.viewTransition)
+   arranca la transición recién cuando la página nueva está lista.
+   La vieja queda quieta debajo y la nueva entra encima, subiendo apenas y
+   opaca enseguida. Medido contra las alternativas: el fundido cruzado
+   superponía dos títulos (doble exposición) y el relevo (una sale, otra
+   entra) dejaba ver el fondo del tema en el medio — en Torre I, claro
+   entre dos páginas oscuras: un fogonazo gris. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+/* La barra es la misma en todas las páginas: cambia al instante (el ítem
+   activo) en vez de fundirse consigo misma. Al frente: las capturas se
+   apilan en orden de DOM y la de la página (opaca) la tapaba. */
+::view-transition-group(site-nav) {
+  animation: none;
+  z-index: 1;
+}
+::view-transition-new(site-nav) {
+  animation: none;
+}
+::view-transition-old(site-nav) {
+  display: none;
+}
+::view-transition-old(.page-swap) {
+  animation: none;
+}
+::view-transition-new(.page-swap) {
+  animation: 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both page-in;
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(14px); }
+  40% { opacity: 1; }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Navegación lenta: si la página nueva tarda, una línea corre bajo la
+   barra (aparece a los 150 ms, para no parpadear en las rápidas). La
+   activa html[data-nav-pending] — ver TransitionLink. */
+html[data-nav-pending] [data-site-nav]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  background: var(--theme-accent, #bba98e);
+  animation: nav-pending 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
+}
+@keyframes nav-pending {
+  from { transform: scaleX(0); opacity: 1; }
+  80% { transform: scaleX(0.85); opacity: 1; }
+  to { transform: scaleX(0.92); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal]:not([data-revealed]) { transform: none; }
+  html.js [data-reveal][data-revealed='anim'] { transition-duration: 0.2s; transition-delay: 0s; }
+  .animate-fade-in-up { animation-duration: 0.2s; animation-name: fade-in; }
+  ::view-transition-new(.page-swap) { animation-duration: 150ms; animation-name: fade-in; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
 /* ─── Buttons ──────────────────────────────────────────────────── */
 .btn-outline {
   @apply px-6 py-3 border border-trevo-dark text-trevo-dark hover:bg-trevo-dark hover:text-white transition-colors duration-300 tracking-wider text-sm;

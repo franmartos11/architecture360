@@ -4,6 +4,7 @@ import { CURATED_FONTS } from "@/lib/fonts";
 import "./globals.css";
 import MotionProvider from '@/components/ui/MotionProvider';
 import ToastProvider from '@/components/ui/ToastProvider';
+import { REVEAL_BOOT, REVEAL_SCRIPT } from '@/lib/reveal-script';
 
 const inter = Inter({
   variable: "--font-inter",
@@ -59,7 +60,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${inter.variable} ${archivo.variable} ${CURATED_FONTS.montserrat.className} h-full antialiased`}>
+    // suppressHydrationWarning: REVEAL_BOOT le agrega la clase `js` antes de
+    // que React hidrate (ver lib/reveal-script.ts).
+    // data-scroll-behavior: el scroll suave de globals.css es para las anclas;
+    // así Next lo apaga al cambiar de página (si no, el salto arriba se
+    // animaba encima de la transición).
+    <html lang="es" className={`${inter.variable} ${archivo.variable} ${CURATED_FONTS.montserrat.className} h-full antialiased`} data-scroll-behavior="smooth" suppressHydrationWarning>
       {/* Todas las imágenes del sitio salen de Supabase Storage y se piden
           recién cuando el HTML ya se parseó — abrir la conexión (DNS + TLS)
           de entrada le saca ese costo al camino crítico.
@@ -73,11 +79,15 @@ export default function RootLayout({
         </>
       )}
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+        {/* Apariciones al scrollear: la marca de "hay JS" va antes de pintar
+            nada, el observador al final — ver lib/reveal-script.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOT }} />
         <MotionProvider>
           <ToastProvider>
             {children}
           </ToastProvider>
         </MotionProvider>
+        <script dangerouslySetInnerHTML={{ __html: REVEAL_SCRIPT }} />
       </body>
     </html>
   );

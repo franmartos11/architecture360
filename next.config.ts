@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ['framer-motion', 'lucide-react', 'swiper'],
+    // Transiciones entre páginas con <ViewTransition> de React: arrancan
+    // cuando la página nueva está lista (ver ProjectChrome).
+    viewTransition: true,
   },
 };
 

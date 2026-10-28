@@ -40,8 +40,12 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
   const glass = onHome && !scrolled;
 
   return (
+    // site-nav: queda quieta durante la transición entre páginas;
+    // data-site-nav: ahí corre la línea de navegación lenta (globals.css).
     <nav
       aria-label="Principal"
+      data-site-nav=""
+      style={{ viewTransitionName: 'site-nav' }}
       className={`fixed top-0 left-0 right-0 z-50 border-b transition-[background-color,box-shadow] duration-300 ${
         glass
           ? 'bg-[var(--theme-bg-alt)]/70 backdrop-blur-xl border-[var(--theme-border-on-dark)]'

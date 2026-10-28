@@ -1,12 +1,11 @@
-'use client';
-
-import { m as motion, useReducedMotion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 interface RevealProps {
   children: ReactNode;
   className?: string;
+  /** Segundos — para escalonar bloques hermanos. */
   delay?: number;
+  /** Desplazamiento inicial en px. */
   y?: number;
   /** Para anclas de navegación (`#seccion`) — sin esto, quien necesitaba un
    * id terminaba envolviendo el Reveal en un <div id="..."> extra, que
@@ -15,20 +14,23 @@ interface RevealProps {
 }
 
 // Hace aparecer su contenido con un fade+slide suave la primera vez que
-// entra en el viewport al scrollear (no se repite al salir/volver a entrar).
+// entra desde abajo al scrollear. Lo que ya está en pantalla al cargar, o
+// que se pasó de largo, aparece sin animación; sin JS se ve todo. La lógica
+// vive en lib/reveal-script.ts (corre antes de hidratar) y el estilo en
+// globals.css ([data-reveal]) — este componente solo marca el bloque.
+//
+// suppressHydrationWarning: el script le agrega data-revealed antes de que
+// React hidrate.
 export default function Reveal({ children, className, delay = 0, y = 24, id }: RevealProps) {
-  const reduceMotion = useReducedMotion();
-
   return (
-    <motion.div
+    <div
       id={id}
-      initial={reduceMotion ? false : { opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.6, delay, ease: [0.2, 0.8, 0.2, 1] }}
+      data-reveal=""
       className={className}
+      style={{ '--reveal-delay': `${delay}s`, '--reveal-y': `${y}px` } as CSSProperties}
+      suppressHydrationWarning
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
