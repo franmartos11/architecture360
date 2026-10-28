@@ -386,9 +386,10 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
         </div>
       )}
 
-      {/* Zoom controls */}
+      {/* Zoom controls — solo escritorio: en el celular se pellizca y los
+          botones tapaban la imagen. */}
       {!isLoading && !error && (
-        <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-1.5">
+        <div className="hidden md:flex absolute bottom-6 right-6 z-20 flex-col gap-1.5">
           <button
             onClick={() => zoomBy(-0.15)}
             title="Acercar"
@@ -412,9 +413,10 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
         </div>
       )}
 
-      {/* Drag hint */}
+      {/* Drag hint — solo escritorio: en el celular arrastrar es lo natural
+          y el cartel tapaba la imagen. */}
       {!isLoading && !error && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-in fade-in zoom-in duration-700 delay-1000">
+        <div className="hidden md:block absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-in fade-in zoom-in duration-700 delay-1000">
           <div className="bg-gray-900/40 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2 border border-white/10 shadow-lg">
             <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />

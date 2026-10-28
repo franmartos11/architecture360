@@ -54,7 +54,7 @@ export default function AmenitiesTab({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
+      className="absolute inset-0 md:pt-16 flex flex-col lg:flex-row bg-white overflow-y-auto lg:overflow-hidden no-scrollbar"
     >
       {/* ── Left Sidebar: Amenities Grid ── */}
       <div

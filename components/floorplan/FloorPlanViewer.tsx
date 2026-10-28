@@ -524,17 +524,13 @@ export default function FloorPlanViewer({
           }
         : null;
   const isSold = selectedUnit?.status === 'sold';
-  // Con formulario de contacto: "Consultar" es la acción principal y entrar
-  // a la unidad (que arranca en su planta 3D) la secundaria. Sin él, entrar
+  // Con formulario de contacto: "Consultar" es la acción principal y "Ver
+  // ficha" (entrar a la página de la unidad) la secundaria. Sin él, entrar
   // es la única.
   const mobileActions: MobileActions = selectedUnit
     ? {
         favorite: { on: favorites.includes(selectedUnit.id), onToggle: () => toggleFavorite(selectedUnit.id) },
-        secondary: showLeads
-          ? selectedUnit.floorPlan3dUrl
-            ? { label: 'Ver en 3D', icon: 'cube', onClick: handleEnterUnit }
-            : { label: 'Ver unidad', onClick: handleEnterUnit }
-          : undefined,
+        secondary: showLeads ? { label: 'Ver ficha', onClick: handleEnterUnit } : undefined,
         primary: !showLeads
           ? { label: isSold ? 'Ver la unidad' : 'Ingresar a la unidad', icon: 'arrow', onClick: handleEnterUnit }
           : isSold && nextAvailableUnit

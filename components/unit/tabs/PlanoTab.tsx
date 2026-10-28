@@ -64,7 +64,7 @@ export default function PlanoTab({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col"
+      className="absolute inset-0 pt-3 md:pt-16 flex flex-col"
     >
       {/* Toggle bar */}
       <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2">

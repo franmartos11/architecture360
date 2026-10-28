@@ -46,7 +46,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-16 flex flex-col"
+      className="absolute inset-0 pt-3 md:pt-16 flex flex-col"
     >
       {/* Selector superior central (estilo idéntico a PlanoTab) */}
       {(hasRender && hasBim) && (
