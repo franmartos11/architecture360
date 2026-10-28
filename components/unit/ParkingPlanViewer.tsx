@@ -2,7 +2,6 @@
 
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
-import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { UnitParkingSpot } from '@/types';
 
 // Plano del piso de cocheras con el/los espacio(s) de ESTE depto resaltados.
@@ -22,7 +21,7 @@ export default function ParkingPlanViewer({
   return (
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
       <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={PLAN_WHEEL} doubleClick={PLAN_DOUBLE_CLICK}>
-        {(utils) => (
+        {() => (
         <>
         <TransformComponent
           wrapperStyle={{ width: '100%', height: '100%' }}
@@ -67,9 +66,6 @@ export default function ParkingPlanViewer({
             })}
           </div>
         </TransformComponent>
-        <div className="absolute bottom-3.5 right-3.5 z-20">
-          <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
-        </div>
         </>
         )}
       </TransformWrapper>

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, startTransition } fr
 import type { RefObject } from 'react';
 import Image, { getImageProps } from 'next/image';
 import { m as motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion';
-import { useTransitionRouter } from '@/components/ui/TransitionUtils';
+import { TransitionLink, useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL } from '@/lib/plan-zoom';
@@ -15,6 +15,8 @@ import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice
 import { FLOOR_KIND_LABEL } from '@/lib/floorKinds';
 import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor, floorName } from '@/lib/floor-explorer';
 import { ELEVATOR_EASE, floorDirection, floorSteps, floorTransitionMs, type FloorDirection } from '@/lib/floor-transition';
+import { UnitSheet, WIDE_QUERY } from './UnitSheet';
+import { MobileSelectionCard, MobileUnitDetail, type MobileActions, type MobileSelectionSummary } from './MobileUnitPanels';
 import { AmenityPanel, SpotPanel, IncludesBlock, NextAvailableCard, AmenityMarkerIcon, AMENITY_COLOR, AMENITY_TEXT } from './FloorPlanPanels';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -33,7 +35,12 @@ interface BuildingTab {
 const PLAN_SIZES = '(max-width: 768px) 100vw, 1400px';
 // Padding del área del plano — lo comparten el área (que se mide) y cada
 // capa de piso (que es absolute y no lo hereda).
-const PLAN_PADDING = 'p-2 sm:p-8 sm:pt-16';
+const PLAN_PADDING = 'p-0 wide:p-8 wide:pt-16';
+
+// Estado escrito (mobile): los colores de estado son para puntos y pines;
+// como texto chico sobre blanco no llegan al contraste mínimo.
+const STATUS_INK: Record<string, string> = { available: '#2E7D4F', reserved: '#A16207', sold: '#B91C1C' };
+const STATUS_SHORT = { available: 'Disponible', reserved: 'Reservada', sold: 'Vendida' } as const;
 
 /** Dirección y duración del viaje entre pisos. */
 interface FloorTrip { dir: FloorDirection; ms: number }
@@ -85,16 +92,16 @@ function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange, pane
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}
         aria-label="Capas del plano"
-        className="w-9 h-9 flex items-center justify-center rounded-full bg-white/95 shadow-sm text-gray-600 transition-colors"
+        className="w-11 h-11 flex items-center justify-center rounded-full bg-white/95 shadow-sm text-gray-600 transition-colors"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 3l9 5-9 5-9-5 9-5z" />
           <path d="M3 13l9 5 9-5" />
         </svg>
       </button>
       {open && (
         <div className="absolute top-full right-0 mt-2 z-20 bg-white/95 rounded-xl shadow-lg border border-gray-200/60 p-2 w-max">
-          <p className="text-[9.5px] font-semibold tracking-[0.12em] text-gray-300 px-1.5 pt-0.5 pb-1.5">CAPAS</p>
+          <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 px-1.5 pt-0.5 pb-1.5">CAPAS</p>
           <div className="flex flex-col gap-0.5">
             {options.map(([key, label]) => (
               <button
@@ -167,6 +174,8 @@ export default function FloorPlanViewer({
   // del piso de cocheras. Excluyente con selectedUnit.
   const [selOther, setSelOther] = useState<{ kind: 'amenity' | 'spot'; id: string } | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
+  // Hoja inferior con la ficha (solo mobile) — ver UnitSheet más abajo.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [showBim, setShowBim] = useState(false);
   // Escape sale del modelo BIM, además del botón "Volver al plano".
   useEffect(() => {
@@ -177,7 +186,6 @@ export default function FloorPlanViewer({
   }, [showBim]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
-  const asideRef = useRef<HTMLElement>(null);
   // El botón de capas se renderiza dos veces (variante desktop y mobile,
   // una siempre oculta por CSS según el ancho) — cada una necesita su
   // propia ref para que el "click afuera" no cierre por error la que sí
@@ -365,20 +373,39 @@ export default function FloorPlanViewer({
     });
   }, [hasSelectionOnFloor, unitsOnFloor, floorAmenities, floorSpots]);
 
-  // En pantallas angostas el panel vive debajo del plano, no al costado —
-  // sin este scroll, tocar algo en el plano no da ninguna señal de que pasó
-  // algo (la info cambió fuera de la vista).
-  const revealAside = useCallback(() => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-      requestAnimationFrame(() => asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  // En pantallas angostas lo elegido se resume en una tarjeta fija abajo
+  // (MobileSelectionCard) y el detalle sube como hoja (UnitSheet) al
+  // tocarla. Antes la ficha quedaba debajo de todo y la página intentaba
+  // bajar hasta ella — y el navegador descartaba ese scroll (la capa de
+  // zoom del plano se queda con el gesto).
+  // Si la pantalla pasa a escritorio (rotar una tablet), la ficha vuelve al
+  // panel lateral: la hoja se cierra y suelta el scroll.
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const mql = window.matchMedia(WIDE_QUERY);
+    const onChange = () => { if (mql.matches) setSheetOpen(false); };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [sheetOpen]);
+
+  // Franja de tarjetas (mobile): la elegida en el plano se trae a la vista.
+  const mobileStripRef = useRef<HTMLDivElement>(null);
+  const selectedStripKey = selectedUnit?.id ?? (selOther?.kind === 'amenity' ? selOther.id : null);
+  useEffect(() => {
+    const strip = mobileStripRef.current;
+    const card = selectedStripKey ? strip?.querySelector<HTMLElement>(`[data-strip-key="${CSS.escape(selectedStripKey)}"]`) : null;
+    if (!strip || !card) return;
+    const left = card.offsetLeft - strip.offsetLeft;
+    if (left < strip.scrollLeft || left + card.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      strip.scrollTo({ left: left - 16, behavior: reduce ? 'auto' : 'smooth' });
     }
-  }, []);
+  }, [selectedStripKey]);
 
   const handleSelectUnit = useCallback((unit: Unit) => {
     setSelectedUnit(unit);
     setSelOther(null);
-    revealAside();
-  }, [revealAside]);
+  }, []);
 
   const goToFloor = useCallback((num: number) => {
     setRequestedFloor(num);
@@ -391,8 +418,7 @@ export default function FloorPlanViewer({
     setRequestedFloor(floorNumber);
     setSelectedUnit(null);
     setSelOther({ kind, id });
-    revealAside();
-  }, [revealAside]);
+  }, []);
 
   const floorNumberById = useCallback((floorId?: string) => building.floors.find(f => f.id === floorId)?.number, [building.floors]);
 
@@ -468,351 +494,459 @@ export default function FloorPlanViewer({
     : []
   ).filter(([, , available]) => available);
 
-  return (
-    <div className="flex flex-col md:flex-row overflow-visible md:h-[calc(100vh-4rem)] md:overflow-hidden bg-white">
+  const selectionTitle = selectedUnit
+    ? (unitIsLand ? `Lote ${selectedUnit.name}` : `Unidad ${selectedUnit.name}`)
+    : selectedAmenity ? selectedAmenity.name
+    : selectedSpot ? spotLabel(selectedSpot) : null;
 
-      {/* ── Franja superior (solo pantallas angostas) — acá viven los
-          controles que en desktop flotan sobre el plano: torre, filtro,
-          contacto y el selector de piso. ─────────────────────────── */}
-      <div className="order-1 md:hidden w-full border-b border-gray-100 bg-white px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          {/* Las migas viven en la barra global ("Explorar 3D / Plantas"). */}
-          <div className="min-w-0 flex-1" />
-          {buildings.length > 1 && (
-            <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-full shrink-0">
-              {buildings.map(b => (
+  // ── Mobile: tarjeta fija y detalle ──────────────────────────────
+  const floorLabel = floor ? floorName(floor) : `Piso ${activeFloor}`;
+  const unitTypeLabel = (u: Unit) =>
+    unitIsLand ? '' : u.modelName || (u.bedrooms === 0 ? 'Monoambiente' : `${u.bedrooms} dorm.`);
+  const statusInk = (status: string) => STATUS_INK[status] ?? getStatusColor(status);
+  const mobileSummary: MobileSelectionSummary | null = selectedUnit
+    ? {
+        title: selectionTitle!,
+        subtitle: [unitTypeLabel(selectedUnit), `${selectedUnit.totalArea} m²`, floorLabel].filter(Boolean).join(' · '),
+        price: showPrice && selectedUnit.price ? formatPrice(selectedUnit.price, selectedUnit.currency) : undefined,
+        statusLabel: showStatus ? getStatusLabel(selectedUnit.status) : undefined,
+        statusColor: showStatus ? statusInk(selectedUnit.status) : undefined,
+        image: selectedUnit.interiorImageUrl || selectedUnit.galleryImages?.[0],
+      }
+    : selectedAmenity
+      ? { title: selectedAmenity.name, subtitle: `Amenity · uso común · ${floorLabel}`, image: selectedAmenity.images[0] }
+      : selectedSpot
+        ? {
+            title: spotLabel(selectedSpot),
+            subtitle: `Cochera de la unidad ${selectedSpot.unit.name} · ${floorLabel}`,
+            statusLabel: showStatus ? getStatusLabel(selectedSpot.unit.status) : undefined,
+            statusColor: showStatus ? statusInk(selectedSpot.unit.status) : undefined,
+          }
+        : null;
+  const isSold = selectedUnit?.status === 'sold';
+  // Con formulario de contacto: "Consultar" es la acción principal y entrar
+  // a la unidad (que arranca en su planta 3D) la secundaria. Sin él, entrar
+  // es la única.
+  const mobileActions: MobileActions = selectedUnit
+    ? {
+        favorite: { on: favorites.includes(selectedUnit.id), onToggle: () => toggleFavorite(selectedUnit.id) },
+        secondary: showLeads
+          ? selectedUnit.floorPlan3dUrl
+            ? { label: 'Ver en 3D', icon: 'cube', onClick: handleEnterUnit }
+            : { label: 'Ver unidad', onClick: handleEnterUnit }
+          : undefined,
+        primary: !showLeads
+          ? { label: isSold ? 'Ver la unidad' : 'Ingresar a la unidad', icon: 'arrow', onClick: handleEnterUnit }
+          : isSold && nextAvailableUnit
+            ? { label: 'Ver similares', onClick: () => { setSheetOpen(false); handleGoNextAvailable(); } }
+            : { label: 'Consultar', onClick: () => contactModal.open() },
+      }
+    : selectedSpot
+      ? {
+          primary: {
+            label: `Ver unidad ${selectedSpot.unit.name}`,
+            icon: 'arrow',
+            onClick: () => { setRequestedFloor(selectedSpot.unit.floor); handleSelectUnit(selectedSpot.unit); },
+          },
+        }
+      : {};
+  const mobileSpecs = selectedUnit
+    ? ([
+        { label: 'Superficie', value: `${selectedUnit.totalArea} m²` },
+        !unitIsLand && selectedUnit.modelName ? { label: 'Tipología', value: selectedUnit.modelName } : null,
+        !unitIsLand ? { label: 'Dormitorios', value: selectedUnit.bedrooms === 0 ? 'Monoambiente' : String(selectedUnit.bedrooms) } : null,
+        !unitIsLand ? { label: 'Baños', value: String(selectedUnit.bathrooms) } : null,
+        selectedUnit.orientation ? { label: 'Orientación', value: selectedUnit.orientation } : null,
+        showPrice && pricePerM2 ? { label: 'Precio por m²', value: pricePerM2 } : null,
+      ].filter(Boolean) as { label: string; value: string }[])
+    : [];
+  const mobilePhotos = selectedUnit
+    ? [...new Set([selectedUnit.interiorImageUrl, ...(selectedUnit.galleryImages ?? [])].filter((x): x is string => !!x))]
+    : [];
+
+  const panelContent = selectedUnit ? (
+    <div className="flex flex-col">
+      {/* Foto de portada */}
+      {/* sheet-cover: en la hoja inferior la foto va como tarjeta (ver UnitSheet). */}
+      <div className="sheet-cover relative h-[200px] bg-gray-100 flex-shrink-0">
+        {selectedUnit.interiorImageUrl && (
+          <Image
+            src={selectedUnit.interiorImageUrl}
+            alt="Interior"
+            fill
+            sizes="(max-width: 768px) 100vw, 336px"
+            priority
+            placeholder="blur"
+            blurDataURL={shimmerDataUrl(336, 200)}
+            className="object-cover"
+          />
+        )}
+        {showStatus && (
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getStatusColor(selectedUnit.status) }} />
+            <span className="text-[11px] font-bold tracking-[0.12em]" style={{ color: getStatusColor(selectedUnit.status) }}>
+              {getStatusLabel(selectedUnit.status).toUpperCase()}
+            </span>
+          </div>
+        )}
+        <div className="absolute top-3 right-3 flex gap-1.5">
+          <button
+            onClick={() => toggleFavorite(selectedUnit.id)}
+            aria-label={favorites.includes(selectedUnit.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            className="w-11 h-11 wide:w-8 wide:h-8 rounded-full bg-white/95 flex items-center justify-center"
+            style={{ color: favorites.includes(selectedUnit.id) ? '#c0483c' : '#5c6660' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill={favorites.includes(selectedUnit.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <path d="M12 20s-7-4.6-7-9.4A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7 3.6C19 15.4 12 20 12 20z" />
+            </svg>
+          </button>
+          <button
+            onClick={handleShare}
+            aria-label="Compartir esta unidad"
+            className="w-11 h-11 wide:w-8 wide:h-8 rounded-full bg-white/95 flex items-center justify-center text-gray-600"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            </svg>
+          </button>
+        </div>
+        {(selectedUnit.galleryImages?.length ?? 0) > 0 && (
+          <div className="absolute bottom-0 inset-x-0 px-3.5 pb-2 pt-6" style={{ background: 'linear-gradient(180deg,rgba(27,30,28,0),rgba(27,30,28,.72))' }}>
+            <p className="text-[10px] font-medium tracking-[0.14em] text-white/80">
+              {selectedUnit.galleryImages!.length} foto{selectedUnit.galleryImages!.length === 1 ? '' : 's'}
+              {selectedUnit.tourImageUrl ? ' · recorrido 360° disponible' : ''}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="p-[18px] flex flex-col">
+        <div className="flex items-baseline justify-between gap-2.5">
+          <h2 className="text-[25px] leading-none font-semibold text-gray-900">{selectedUnit.name}</h2>
+          <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap">
+            {hasFloorStep ? (selectedUnit.floor === 0 ? 'Planta baja' : `Piso ${selectedUnit.floor}`) : ''}
+          </span>
+        </div>
+        {!unitIsLand && selectedUnit.modelName && (
+          <p className="text-xs tracking-[0.11em] text-gray-400 mt-1.5">{selectedUnit.modelName}</p>
+        )}
+
+        {showPrice && (
+          <div className="flex items-end justify-between gap-3 mt-4">
+            <div className="min-w-0">
+              {selectedUnit.price ? (
+                <>
+                  <p className="text-[11px] font-medium tracking-[0.14em] text-gray-500">{priceCaption}</p>
+                  <p className="text-[27px] leading-none font-light text-gray-900 mt-1.5">{formatPrice(selectedUnit.price, selectedUnit.currency)}</p>
+                </>
+              ) : showLeads ? (
                 <button
-                  key={b.id}
-                  onClick={() => handleSwitchBuilding(b.id)}
-                  className={`h-6 px-2.5 rounded-full text-[11px] font-semibold transition-colors ${
-                    b.id === building.id ? 'bg-gray-900 text-white' : 'text-gray-500'
-                  }`}
+                  onClick={() => contactModal.open()}
+                  className="py-2 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                 >
-                  {b.name}
+                  Consultar precio
                 </button>
-              ))}
+              ) : null}
             </div>
+            {pricePerM2 && <span className="text-[11px] text-gray-400 pb-0.5 shrink-0">{pricePerM2}/m²</span>}
+          </div>
+        )}
+
+        <button
+          onClick={handleEnterUnit}
+          className="mt-4 h-12 flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[13.5px] transition-colors"
+        >
+          {selectedUnit.status === 'sold' ? 'Ver la unidad' : 'Ingresar a la unidad'}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+
+        <h4 className="text-[11px] font-semibold tracking-[0.16em] text-gray-500 mt-[22px]">
+          {unitIsLand ? 'DATOS DEL LOTE' : 'INSTALACIONES'}
+        </h4>
+        <div className="flex flex-col gap-[11px] mt-3">
+          <SpecRow icon="area-total" label={`Área total ${selectedUnit.totalArea} m²`} />
+          {!unitIsLand && (
+            <>
+              <SpecRow icon="area-inner" label={`Área interna ${selectedUnit.innerArea} m²`} />
+              {selectedUnit.balconyArea > 0 && (
+                <SpecRow icon="balcony" label={`Área balcones ${selectedUnit.balconyArea} m²`} />
+              )}
+              {selectedUnit.externalArea > 0 && (
+                <SpecRow icon="external" label={`Área externa ${selectedUnit.externalArea} m²`} />
+              )}
+              <SpecRow icon="bed" label={selectedUnit.bedrooms === 0 ? 'Monoambiente' : `${selectedUnit.bedrooms} dormitorio${selectedUnit.bedrooms !== 1 ? 's' : ''}`} />
+              <SpecRow icon="bath" label={`${selectedUnit.bathrooms} baño${selectedUnit.bathrooms !== 1 ? 's' : ''}`} />
+              {selectedUnit.hasServiceRoom
+                ? <SpecRow icon="extra" label="Cuarto de servicio" />
+                : <SpecRow icon="garage" label={(selectedUnit.garageSpaces ?? 0) === 0 ? 'Sin cochera' : `${selectedUnit.garageSpaces} cochera${selectedUnit.garageSpaces !== 1 ? 's' : ''}`} />}
+              {selectedUnit.orientation && (
+                <SpecRow icon="orientation" label={`Orientación ${selectedUnit.orientation}`} />
+              )}
+            </>
           )}
         </div>
 
-        {showStatus && (
+        {!unitIsLand && (
+          <IncludesBlock
+            unit={selectedUnit}
+            canGoSpot={floorId => floorNumberById(floorId) !== undefined}
+            onGoSpot={i => handleGoUnitSpot(selectedUnit, i)}
+            amenityCount={buildingAmenityCount}
+            amenityWhere={amenitiesWhereLabel(placedAmenities, building.floors)}
+            onGoAmenities={
+              mainAmenityFloorNumber !== undefined
+                ? () => goToFloor(mainAmenityFloorNumber)
+                : buildingAmenityCount > 0 ? () => handleEnterUnitTab('amenities') : undefined
+            }
+          />
+        )}
+
+        {pointsOfInterest.length > 0 && (
           <button
-            onClick={() => setOnlyAvailable(v => !v)}
-            className={`mt-2 h-7 px-3 inline-flex items-center gap-1.5 rounded-full border text-[11.5px] font-semibold transition-colors ${
-              onlyAvailable ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'border-gray-200 text-gray-600'
-            }`}
+            onClick={() => handleEnterUnitTab('ubicacion')}
+            className="mt-5 flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-[var(--theme-accent)] hover:text-gray-900 transition-colors"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${onlyAvailable ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-            Solo disponibles
+            Ubicación y alrededores
           </button>
         )}
 
+        {nextAvailableUnit && nextAvailableLabel && (
+          <NextAvailableCard caption="SIGUIENTE DISPONIBLE" label={nextAvailableLabel} onClick={handleGoNextAvailable} />
+        )}
+
+        {showLeads && (
+          <div className="mt-5 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
+            <div className="flex items-center gap-2.5">
+              <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+              </ContactBtn>
+              <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                </svg>
+              </ContactBtn>
+              <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347" />
+                  <path d="M12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413A11.815 11.815 0 0012.05 0zm-.004 21.785h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884z" />
+                </svg>
+              </ContactBtn>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : selectedAmenity && floor ? (
+    <AmenityPanel
+      amenity={selectedAmenity}
+      floorLabel={floorName(floor)}
+      tourHref={selectedAmenity.tourNodeId
+        ? selectedAmenity.buildingId
+          ? `${basePath}/edificio/${selectedAmenity.buildingId}/recorrido?focus=${selectedAmenity.tourNodeId}`
+          : `${basePath}/recorrido?focus=${selectedAmenity.tourNodeId}`
+        : null}
+      amenitiesHref={`${basePath}/amenities`}
+      siblings={floorAmenities.length > 1
+        ? floorAmenities.filter(a => a.id !== selectedAmenity.id)
+        : placedAmenities.filter(a => a.id !== selectedAmenity.id)}
+      siblingsTitle={floorAmenities.length > 1 ? 'EN ESTE PISO' : 'OTRAS AMENITIES'}
+      siblingFloorLabel={a => {
+        const f = building.floors.find(fl => fl.id === a.floorId);
+        return f ? floorName(f) : '';
+      }}
+      onSelectSibling={handleSelectAmenity}
+      next={nextAvailableUnit && nextAvailableLabel ? { label: nextAvailableLabel, onClick: handleGoNextAvailable } : null}
+    />
+  ) : selectedSpot && floor ? (
+    <SpotPanel
+      spot={selectedSpot}
+      floorLabel={floorName(floor)}
+      buildingName={building.name}
+      showStatus={showStatus}
+      showPrice={showPrice}
+      onGoOwner={() => {
+        setRequestedFloor(selectedSpot.unit.floor);
+        handleSelectUnit(selectedSpot.unit);
+      }}
+    />
+  ) : isSpecialFloor && floor ? (
+    <div className="flex flex-col">
+      <div className="relative h-[200px] bg-gray-900 overflow-hidden">
+        {floor.planImage && (
+          <Image
+            src={floor.planImage}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 100vw, 336px"
+            priority
+            placeholder="blur"
+            blurDataURL={shimmerDataUrl(336, 200)}
+            className="object-cover opacity-30 blur-[2px]"
+          />
+        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
+          <p className="text-[26px] leading-[1.15] font-light text-white">{building.name}</p>
+          <span className="px-3.5 py-1.5 bg-white/95 rounded-full text-[11.5px] font-semibold text-gray-900">
+            {activeFloor === 0 ? 'Planta baja' : `Piso ${activeFloor}`}
+          </span>
+        </div>
+      </div>
+      <div className="p-[18px]">
+        <h3 className="text-base font-semibold text-gray-900">{FLOOR_KIND_LABEL[floor.floorKind!]}</h3>
+        <p className="text-[12.5px] leading-[1.65] text-gray-500 mt-2">
+          {floor.floorKindDescription || `Este piso no tiene unidades a la venta — es de uso ${FLOOR_KIND_LABEL[floor.floorKind!].toLowerCase()}.`}
+        </p>
+        {nextAvailableUnit && (
+          <button
+            onClick={handleGoNextAvailable}
+            className="mt-4 h-11 w-full flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[12.5px] transition-colors"
+          >
+            Ver unidades disponibles
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  ) : (
+    <div className="p-[18px]">
+      {unitsOnFloor.length === 0 ? (
+        // Piso sin unidades (terraza, amenities sin marcar como tales):
+        // pedir que se elija una unidad no tenía sentido.
+        <>
+          <h3 className="text-base font-semibold text-gray-900 mb-2">{floor ? floorName(floor) : `Piso ${activeFloor}`}</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            {floorAmenities.length > 0
+              ? `Este piso no tiene unidades a la venta. Acá está${floorAmenities.length > 1 ? 'n' : ''} ${floorAmenities.map(a => a.name).join(', ')}.`
+              : 'Este piso no tiene unidades a la venta.'}
+          </p>
+          {nextAvailableUnit && (
+            <button
+              onClick={handleGoNextAvailable}
+              className="mt-4 h-11 w-full flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[13px] transition-opacity"
+            >
+              Ver unidades disponibles
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <h3 className="text-base font-semibold text-gray-900 mb-2">Resumen de planta</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Seleccioná una unidad en el plano interactivo para ver fotografías interiores y sus especificaciones completas.
+          </p>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    // Mobile: una pantalla de app (piso, plano, unidades y lo elegido), sin
+    // scroll de página; por debajo de 560 px de alto, scrollea.
+    // wide: piso mínimo de alto (34rem): en un celular horizontal (390 px de
+    // alto) el layout de escritorio dejaba ~130 px de plano, tapado a medias
+    // por la franja de unidades.
+    <div className="flex flex-col wide:flex-row h-[calc(100dvh-4rem)] min-h-[560px] wide:min-h-0 wide:h-[max(34rem,calc(100dvh-4rem))] overflow-hidden bg-white">
+
+      {/* ── Franja superior (solo pantallas angostas): torre, filtro y
+          selector de piso. ─────────────────────────────────────────── */}
+      <div className="order-1 wide:hidden w-full flex-none flex flex-col gap-2.5 border-b border-[#ECEEF0] bg-white px-4 py-3">
+        {buildings.length > 1 && (
+          <div className="flex gap-0.5 p-0.5 self-start bg-gray-100 rounded-full">
+            {buildings.map(b => (
+              <button
+                key={b.id}
+                onClick={() => handleSwitchBuilding(b.id)}
+                aria-pressed={b.id === building.id}
+                className={`hit-44 h-8 px-3.5 rounded-full text-xs font-semibold transition-colors ${
+                  b.id === building.id ? 'bg-gray-900 text-white' : 'text-gray-600'
+                }`}
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(floorNumbers.length > 1 || showStatus) && (
+          <div className="flex items-center justify-between gap-3 min-h-6">
+            <span className="text-[11px] font-bold tracking-[0.1em] text-[#5F6368]">{floorNumbers.length > 1 ? 'ELEGÍ EL PISO' : ''}</span>
+            {showStatus && (
+              <button
+                onClick={() => setOnlyAvailable(v => !v)}
+                aria-pressed={onlyAvailable}
+                className="hit-44 h-8 flex items-center gap-2 text-[13px] font-semibold text-gray-900"
+              >
+                Solo disponibles
+                <span aria-hidden="true" className={`relative w-10 h-6 shrink-0 rounded-full transition-colors ${onlyAvailable ? 'bg-[#2E7D4F]' : 'bg-[#C9CDD2]'}`}>
+                  <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-[left] ${onlyAvailable ? 'left-[19px]' : 'left-[3px]'}`} />
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
         {floorNumbers.length > 1 && (
-          <>
-            <div className="flex items-center justify-between mt-3">
-              <span className="text-[9.5px] font-semibold tracking-[0.14em] text-gray-500">ELEGÍ EL PISO</span>
-              {showStatus && (
-                <span className="text-[10.5px] font-medium text-emerald-600">{availableInBuilding.length} disponibles</span>
-              )}
-            </div>
-            <div className="flex gap-1.5 mt-2 overflow-x-auto pb-0.5">
-              {floorNumbers.map(num => {
-                const kind = building.floors.find(f => f.number === num)?.floorKind;
-                const special = kind && kind !== 'units';
-                const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
-                const fa = fu.filter(u => u.status === 'available');
-                const active = requestedFloor === num;
-                return (
-                  <button
-                    key={num}
-                    onClick={() => goToFloor(num)}
-                    className={`shrink-0 min-w-[54px] px-2.5 py-1.5 rounded-[11px] text-center border transition-colors ${
-                      active ? 'bg-gray-900 border-gray-900' : 'border-gray-200'
-                    }`}
-                  >
-                    <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-gray-800'}`}>
-                      {num === 0 ? 'PB' : num < 0 ? `SS${-num}` : num}
-                    </div>
-                    <div className={`text-[9px] font-medium mt-0.5 whitespace-nowrap ${active ? 'text-white/75' : special ? 'text-[#6f604f]' : showStatus && fa.length > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-                      {special
-                        ? (kind === 'parking' ? 'Cocheras' : FLOOR_KIND_LABEL[kind!])
-                        : showStatus ? (fa.length ? `${fa.length} libres` : 'Agotado') : ''}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </>
+          <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {floorNumbers.map(num => {
+              const kind = building.floors.find(f => f.number === num)?.floorKind;
+              const special = kind && kind !== 'units';
+              const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
+              const fa = fu.filter(u => u.status === 'available');
+              const active = requestedFloor === num;
+              // Sin unidades no es "Agotado" (sugiere que se vendió todo):
+              // es un piso de amenities, o no tiene nada a la venta.
+              const sub = special
+                ? (kind === 'parking' ? 'Cocheras' : FLOOR_KIND_LABEL[kind!])
+                : fu.length === 0
+                  ? (placedAmenities.some(a => floorNumberById(a.floorId) === num) ? 'Amenities' : '')
+                  : showStatus ? (fa.length ? `${fa.length} libres` : 'Agotado') : '';
+              const free = !special && fu.length > 0 && showStatus && fa.length > 0;
+              const label = num === 0 ? 'PB' : num < 0 ? `SS${-num}` : String(num);
+              return (
+                <button
+                  key={num}
+                  onClick={() => goToFloor(num)}
+                  aria-current={active ? 'true' : undefined}
+                  aria-label={`${num === 0 ? 'Planta baja' : `Piso ${label}`}${sub ? `, ${sub}` : ''}`}
+                  className={`grow shrink-0 basis-16 h-14 rounded-xl border flex flex-col items-center justify-center gap-0.5 transition-colors ${
+                    active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-[#DADDE1] text-gray-900'
+                  }`}
+                >
+                  <span className="text-[17px] font-bold leading-none">{label}</span>
+                  {sub && (
+                    <span className={`text-[11px] font-semibold whitespace-nowrap ${
+                      active ? (free ? 'text-[#A6E9C1]' : 'text-[#C9CDD2]') : free ? 'text-[#2E7D4F]' : 'text-[#6B7075]'
+                    }`}>
+                      {sub}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
       {/* ── Panel de la unidad ───────────────────────────────────── */}
-      <aside
-        ref={asideRef}
-        className="order-3 md:order-1 w-full md:w-[336px] md:flex-none flex flex-col bg-white border-t md:border-t-0 md:border-r border-gray-100 md:overflow-y-auto md:max-h-[calc(100vh-4rem)]"
-      >
-        {selectedUnit ? (
-          <div className="flex flex-col">
-            {/* Foto de portada */}
-            <div className="relative h-[200px] bg-gray-100 flex-shrink-0">
-              {selectedUnit.interiorImageUrl && (
-                <Image
-                  src={selectedUnit.interiorImageUrl}
-                  alt="Interior"
-                  fill
-                  sizes="(max-width: 768px) 100vw, 336px"
-                  priority
-                  placeholder="blur"
-                  blurDataURL={shimmerDataUrl(336, 200)}
-                  className="object-cover"
-                />
-              )}
-              {showStatus && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getStatusColor(selectedUnit.status) }} />
-                  <span className="text-[9.5px] font-bold tracking-[0.12em]" style={{ color: getStatusColor(selectedUnit.status) }}>
-                    {getStatusLabel(selectedUnit.status).toUpperCase()}
-                  </span>
-                </div>
-              )}
-              <div className="absolute top-3 right-3 flex gap-1.5">
-                <button
-                  onClick={() => toggleFavorite(selectedUnit.id)}
-                  aria-label={favorites.includes(selectedUnit.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                  className="w-8 h-8 rounded-full bg-white/95 flex items-center justify-center"
-                  style={{ color: favorites.includes(selectedUnit.id) ? '#c0483c' : '#5c6660' }}
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill={favorites.includes(selectedUnit.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                    <path d="M12 20s-7-4.6-7-9.4A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7 3.6C19 15.4 12 20 12 20z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleShare}
-                  aria-label="Compartir esta unidad"
-                  className="w-8 h-8 rounded-full bg-white/95 flex items-center justify-center text-gray-600"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-                  </svg>
-                </button>
-              </div>
-              {(selectedUnit.galleryImages?.length ?? 0) > 0 && (
-                <div className="absolute bottom-0 inset-x-0 px-3.5 pb-2 pt-6" style={{ background: 'linear-gradient(180deg,rgba(27,30,28,0),rgba(27,30,28,.72))' }}>
-                  <p className="text-[10px] font-medium tracking-[0.14em] text-white/80">
-                    {selectedUnit.galleryImages!.length} foto{selectedUnit.galleryImages!.length === 1 ? '' : 's'}
-                    {selectedUnit.tourImageUrl ? ' · recorrido 360° disponible' : ''}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-[18px] flex flex-col">
-              <div className="flex items-baseline justify-between gap-2.5">
-                <h2 className="text-[25px] leading-none font-semibold text-gray-900">{selectedUnit.name}</h2>
-                <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap">
-                  {hasFloorStep ? (selectedUnit.floor === 0 ? 'Planta baja' : `Piso ${selectedUnit.floor}`) : ''}
-                </span>
-              </div>
-              {!unitIsLand && selectedUnit.modelName && (
-                <p className="text-xs tracking-[0.11em] text-gray-400 mt-1.5">{selectedUnit.modelName}</p>
-              )}
-
-              {showPrice && (
-                <div className="flex items-end justify-between gap-3 mt-4">
-                  <div className="min-w-0">
-                    {selectedUnit.price ? (
-                      <>
-                        <p className="text-[9.5px] font-medium tracking-[0.14em] text-gray-400">{priceCaption}</p>
-                        <p className="text-[27px] leading-none font-light text-gray-900 mt-1.5">{formatPrice(selectedUnit.price, selectedUnit.currency)}</p>
-                      </>
-                    ) : showLeads ? (
-                      <button
-                        onClick={() => contactModal.open()}
-                        className="py-2 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                      >
-                        Consultar precio
-                      </button>
-                    ) : null}
-                  </div>
-                  {pricePerM2 && <span className="text-[11px] text-gray-400 pb-0.5 shrink-0">{pricePerM2}/m²</span>}
-                </div>
-              )}
-
-              <button
-                onClick={handleEnterUnit}
-                className="mt-4 h-12 flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[13.5px] transition-colors"
-              >
-                {selectedUnit.status === 'sold' ? 'Ver la unidad' : 'Ingresar a la unidad'}
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
-              </button>
-
-              <h4 className="text-[10px] font-semibold tracking-[0.16em] text-gray-500 mt-[22px]">
-                {unitIsLand ? 'DATOS DEL LOTE' : 'INSTALACIONES'}
-              </h4>
-              <div className="flex flex-col gap-[11px] mt-3">
-                <SpecRow icon="area-total" label={`Área total ${selectedUnit.totalArea} m²`} />
-                {!unitIsLand && (
-                  <>
-                    <SpecRow icon="area-inner" label={`Área interna ${selectedUnit.innerArea} m²`} />
-                    {selectedUnit.balconyArea > 0 && (
-                      <SpecRow icon="balcony" label={`Área balcones ${selectedUnit.balconyArea} m²`} />
-                    )}
-                    {selectedUnit.externalArea > 0 && (
-                      <SpecRow icon="external" label={`Área externa ${selectedUnit.externalArea} m²`} />
-                    )}
-                    <SpecRow icon="bed" label={`${selectedUnit.bedrooms} Dormitorio${selectedUnit.bedrooms !== 1 ? 's' : ''}`} />
-                    <SpecRow icon="bath" label={`${selectedUnit.bathrooms} Baños`} />
-                    <SpecRow
-                      icon="extra"
-                      label={selectedUnit.hasServiceRoom ? 'Cuarto de Servicio' : `${selectedUnit.garageSpaces ?? 0} cochera${(selectedUnit.garageSpaces ?? 0) !== 1 ? 's' : ''}`}
-                    />
-                    {selectedUnit.orientation && (
-                      <SpecRow icon="orientation" label={`Orientación ${selectedUnit.orientation}`} />
-                    )}
-                  </>
-                )}
-              </div>
-
-              {!unitIsLand && (
-                <IncludesBlock
-                  unit={selectedUnit}
-                  canGoSpot={floorId => floorNumberById(floorId) !== undefined}
-                  onGoSpot={i => handleGoUnitSpot(selectedUnit, i)}
-                  amenityCount={buildingAmenityCount}
-                  amenityWhere={amenitiesWhereLabel(placedAmenities, building.floors)}
-                  onGoAmenities={
-                    mainAmenityFloorNumber !== undefined
-                      ? () => goToFloor(mainAmenityFloorNumber)
-                      : buildingAmenityCount > 0 ? () => handleEnterUnitTab('amenities') : undefined
-                  }
-                />
-              )}
-
-              {pointsOfInterest.length > 0 && (
-                <button
-                  onClick={() => handleEnterUnitTab('ubicacion')}
-                  className="mt-5 flex items-center justify-center gap-1.5 h-[38px] rounded-[10px] border border-gray-200 text-[11.5px] font-medium text-gray-700 hover:border-[var(--theme-accent)] hover:text-gray-900 transition-colors"
-                >
-                  Ubicación y alrededores
-                </button>
-              )}
-
-              {nextAvailableUnit && nextAvailableLabel && (
-                <NextAvailableCard caption="SIGUIENTE DISPONIBLE" label={nextAvailableLabel} onClick={handleGoNextAvailable} />
-              )}
-
-              {showLeads && (
-                <div className="mt-5 pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 mb-3">Solicitar información</p>
-                  <div className="flex items-center gap-2.5">
-                    <ContactBtn title="Email" onClick={() => contactModal.open('email')}>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                      </svg>
-                    </ContactBtn>
-                    <ContactBtn title="Teléfono" onClick={() => contactModal.open('phone')}>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                      </svg>
-                    </ContactBtn>
-                    <ContactBtn title="WhatsApp" onClick={() => contactModal.open('whatsapp')}>
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347" />
-                        <path d="M12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413A11.815 11.815 0 0012.05 0zm-.004 21.785h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884z" />
-                      </svg>
-                    </ContactBtn>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : selectedAmenity && floor ? (
-          <AmenityPanel
-            amenity={selectedAmenity}
-            floorLabel={floorName(floor)}
-            tourHref={selectedAmenity.tourNodeId
-              ? selectedAmenity.buildingId
-                ? `${basePath}/edificio/${selectedAmenity.buildingId}/recorrido?focus=${selectedAmenity.tourNodeId}`
-                : `${basePath}/recorrido?focus=${selectedAmenity.tourNodeId}`
-              : null}
-            amenitiesHref={`${basePath}/amenities`}
-            siblings={floorAmenities.length > 1
-              ? floorAmenities.filter(a => a.id !== selectedAmenity.id)
-              : placedAmenities.filter(a => a.id !== selectedAmenity.id)}
-            siblingsTitle={floorAmenities.length > 1 ? 'EN ESTE PISO' : 'OTRAS AMENITIES'}
-            siblingFloorLabel={a => {
-              const f = building.floors.find(fl => fl.id === a.floorId);
-              return f ? floorName(f) : '';
-            }}
-            onSelectSibling={handleSelectAmenity}
-            next={nextAvailableUnit && nextAvailableLabel ? { label: nextAvailableLabel, onClick: handleGoNextAvailable } : null}
-          />
-        ) : selectedSpot && floor ? (
-          <SpotPanel
-            spot={selectedSpot}
-            floorLabel={floorName(floor)}
-            buildingName={building.name}
-            showStatus={showStatus}
-            showPrice={showPrice}
-            onGoOwner={() => {
-              setRequestedFloor(selectedSpot.unit.floor);
-              handleSelectUnit(selectedSpot.unit);
-            }}
-          />
-        ) : isSpecialFloor && floor ? (
-          <div className="flex flex-col">
-            <div className="relative h-[200px] bg-gray-900 overflow-hidden">
-              {floor.planImage && (
-                <Image
-                  src={floor.planImage}
-                  alt=""
-                  fill
-                  sizes="(max-width: 768px) 100vw, 336px"
-                  priority
-                  placeholder="blur"
-                  blurDataURL={shimmerDataUrl(336, 200)}
-                  className="object-cover opacity-30 blur-[2px]"
-                />
-              )}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                <p className="text-[26px] leading-[1.15] font-light text-white">{building.name}</p>
-                <span className="px-3.5 py-1.5 bg-white/95 rounded-full text-[11.5px] font-semibold text-gray-900">
-                  {activeFloor === 0 ? 'Planta baja' : `Piso ${activeFloor}`}
-                </span>
-              </div>
-            </div>
-            <div className="p-[18px]">
-              <h3 className="text-base font-semibold text-gray-900">{FLOOR_KIND_LABEL[floor.floorKind!]}</h3>
-              <p className="text-[12.5px] leading-[1.65] text-gray-500 mt-2">
-                {floor.floorKindDescription || `Este piso no tiene unidades a la venta — es de uso ${FLOOR_KIND_LABEL[floor.floorKind!].toLowerCase()}.`}
-              </p>
-              {nextAvailableUnit && (
-                <button
-                  onClick={handleGoNextAvailable}
-                  className="mt-4 h-11 w-full flex items-center justify-center gap-2 bg-[var(--theme-accent)] hover:opacity-85 rounded-[11px] text-[var(--theme-text-on-accent)] font-semibold text-[12.5px] transition-colors"
-                >
-                  Ver unidades disponibles
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="p-[18px]">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Resumen de planta</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Seleccioná una unidad en el plano interactivo para ver fotografías interiores y sus especificaciones completas.
-            </p>
-          </div>
-        )}
+      {/* En mobile la misma ficha va en la hoja inferior (ver UnitSheet). */}
+      <aside className="hidden wide:flex order-1 w-[336px] flex-none flex-col bg-white border-r border-gray-100 overflow-y-auto max-h-[max(34rem,calc(100dvh-4rem))]">
+        {panelContent}
       </aside>
 
       {/* ── Área principal del plano ─────────────────────────────── */}
-      <div className="order-2 md:flex-1 relative min-h-[60vh] md:min-h-0 md:min-w-0 overflow-hidden">
+      {/* En mobile es una columna — controles, plano con su proporción real,
+          franja de unidades — en vez de una caja fija del 60% de la
+          pantalla con todo encima: el plano (apaisado) quedaba en ~210 px
+          entre dos huecos y la franja le tapaba la parte de abajo. */}
+      <div className="order-2 flex-1 min-h-0 relative flex flex-col wide:block wide:min-w-0 overflow-hidden">
 
         {/* Overlay superior — solo desktop, en mobile los mismos controles
             viven en la franja de arriba. */}
-        <div className="hidden md:flex absolute top-3.5 left-3.5 right-3.5 z-20 items-start justify-between gap-3 pointer-events-none">
+        <div className="hidden wide:flex absolute top-3.5 left-3.5 right-3.5 z-20 items-start justify-between gap-3 pointer-events-none">
           <div className="flex flex-col items-start gap-2 pointer-events-auto min-w-0">
             {showStatus && (
               <button
@@ -867,41 +1001,50 @@ export default function FloorPlanViewer({
           </div>
         </div>
 
-        {/* Compás — variante mobile; en desktop va en el overlay superior. */}
-        <div className="md:hidden absolute top-3.5 left-3.5 z-20 pointer-events-none">
-          <CompassBadge />
-        </div>
-
-        {/* Botón de capas — variante mobile. En desktop el overlay superior
-            ya lo incluye; en mobile ese overlay está oculto (los mismos
-            controles viven en la franja de arriba, que no tiene lugar para
-            un panel de checkboxes), así que flota solo en esta esquina. */}
-        <div className="md:hidden absolute top-3.5 right-3.5 z-20 flex flex-col items-end gap-2">
-          {activeBimModel && (
-            <button
-              onClick={() => setShowBim(true)}
-              className="h-9 px-3.5 flex items-center gap-2 rounded-full bg-gray-900 text-white shadow-sm text-xs font-semibold transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
-              </svg>
-              Ver 3D
-            </button>
+        {/* Controles en mobile, flotando sobre el plano. 2D / 3D alterna el
+            plano y el modelo BIM del piso; sobre el modelo solo queda eso. */}
+        <div className="wide:hidden absolute top-3 left-3 right-3 z-40 flex items-center gap-2 pointer-events-none">
+          {!showBim && (
+            <div className="pointer-events-none">
+              <CompassBadge />
+            </div>
           )}
-          {layerOptions.length > 0 && (
-            <LayersToggle
-              options={layerOptions}
-              layers={layers}
-              onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
-              open={layersOpen}
-              onOpenChange={setLayersOpen}
-              panelRef={layersRefMobile}
-            />
+          <div className="flex-1" />
+          {activeBimModel && (
+            <div className="pointer-events-auto flex p-[3px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]" role="group" aria-label="Vista del piso">
+              {([['2D', false], ['3D', true]] as const).map(([lbl, bim]) => (
+                <button
+                  key={lbl}
+                  onClick={() => setShowBim(bim)}
+                  aria-pressed={showBim === bim}
+                  className={`hit-44 h-[34px] min-w-12 px-3 rounded-full text-[13px] font-bold transition-colors ${
+                    showBim === bim ? 'bg-gray-900 text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
+          {!showBim && layerOptions.length > 0 && (
+            <div className="pointer-events-auto">
+              <LayersToggle
+                options={layerOptions}
+                layers={layers}
+                onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
+                open={layersOpen}
+                onOpenChange={setLayersOpen}
+                panelRef={layersRefMobile}
+              />
+            </div>
           )}
         </div>
 
         {/* Plano + pines de unidad */}
-        <div ref={planAreaRef} className={`absolute inset-0 flex items-center justify-center ${PLAN_PADDING} cursor-grab active:cursor-grabbing`}>
+        <div
+          ref={planAreaRef}
+          className={`relative wide:absolute wide:inset-0 flex-1 min-h-[160px] wide:min-h-0 bg-[#3A3C3A] wide:bg-transparent flex items-center justify-center ${PLAN_PADDING} cursor-grab active:cursor-grabbing`}
+        >
           {showBim && activeBimModel ? (
             <div className="absolute inset-0 z-30 bg-gray-900 pointer-events-auto">
               {/* Oscuro y con texto: el visor BIM (y su pantalla de carga) es
@@ -909,7 +1052,7 @@ export default function FloorPlanViewer({
                   izquierda, lejos del selector Modelo 3D / Imágenes del centro. */}
               <button
                 onClick={() => setShowBim(false)}
-                className="absolute top-3.5 left-3.5 z-40 h-10 px-4 flex items-center gap-2 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-lg transition-colors"
+                className="hidden wide:flex absolute top-3.5 left-3.5 z-40 h-10 px-4 items-center gap-2 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -938,7 +1081,10 @@ export default function FloorPlanViewer({
               className={`absolute inset-0 flex items-center justify-center ${PLAN_PADDING}`}
             >
             <TransformWrapper
-              key={`${floor.planImage}-${planFitSize ? 'fit' : 'pending'}`}
+              // Con el tamaño del área en la key: si cambia (en mobile, al
+              // aparecer la tarjeta de abajo), el plano se vuelve a centrar
+              // en vez de quedar corrido con el centrado del tamaño viejo.
+              key={`${floor.planImage}-${planFitSize && planArea ? `${Math.round(planArea.w)}x${Math.round(planArea.h)}` : 'pending'}`}
               initialScale={1}
               minScale={0.5}
               maxScale={4}
@@ -1196,12 +1342,106 @@ export default function FloorPlanViewer({
               Cargando plano…
             </span>
           )}
+          {/* Leyenda de estados (mobile; en escritorio la franja ya los nombra). */}
+          {showStatus && !showBim && !waitingPlan && unitsOnFloor.length > 0 && (
+            <div className="wide:hidden absolute left-3 bottom-3 z-20 flex items-center gap-3 px-2.5 py-1.5 rounded-[14px] bg-white/95 shadow-[0_2px_6px_rgba(0,0,0,0.15)] text-[11px] font-semibold text-[#3C4043] pointer-events-none">
+              {(['available', 'reserved', 'sold'] as const).map(st => (
+                <span key={st} className="flex items-center gap-[5px]">
+                  <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: getStatusColor(st) }} />
+                  {STATUS_SHORT[st]}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Barra inferior — unidades y amenities del piso activo; en un piso
             de cocheras, la leyenda de estados. */}
+        {/* Mobile: tarjetas del piso, deslizables. */}
         {(unitsOnFloor.length > 0 || floorAmenities.length > 0 || floorSpots.length > 0) && (
-          <div className="absolute bottom-0 inset-x-0 z-10 border-t border-gray-100 bg-white/97 backdrop-blur-sm px-3.5 pt-2.5 pb-3">
+          <div className="wide:hidden flex-none flex flex-col gap-2.5 bg-white py-3 pl-4">
+            {/* En pantallas bajas (iPhone SE) se omite: el piso ya está
+                elegido arriba y el alto hace falta para el plano. */}
+            <div className="flex items-baseline gap-2 pr-4 [@media(max-height:700px)]:hidden">
+              <span className="text-[15px] font-bold text-gray-900 whitespace-nowrap">
+                {floorLabel}{floor?.floorKind === 'parking' ? ' · Cocheras' : ''}
+              </span>
+              <span className="flex-1 min-w-0 truncate text-[13px] text-[#5F6368]">{floorSummary}</span>
+              {unitsOnFloor.length > 0 && (
+                <TransitionLink href={`${basePath}/unidades`} className="hit-44 text-[13px] font-semibold text-gray-900 whitespace-nowrap">
+                  Ver lista
+                </TransitionLink>
+              )}
+            </div>
+            {unitsOnFloor.length === 0 && floorAmenities.length === 0 ? (
+              showStatus && (
+                <div className="flex gap-4 flex-wrap pr-4">
+                  {parkingLegend.map(g => (
+                    <div key={g.label} className="flex items-center gap-[7px]">
+                      <span className="w-3 h-3 rounded-[3px] border-[1.5px]" style={{ background: `${g.color}2e`, borderColor: `${g.color}a6` }} />
+                      <span className="text-xs font-medium text-gray-700">{g.label}</span>
+                      <span className="text-xs font-semibold text-gray-900">{g.n}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div ref={mobileStripRef} className="relative flex gap-2 overflow-x-auto snap-x snap-mandatory pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {unitsOnFloor.map(u => {
+                  const cur = selectedUnit?.id === u.id;
+                  const sold = showStatus && u.status === 'sold';
+                  return (
+                    <button
+                      key={u.id}
+                      data-strip-key={u.id}
+                      onClick={() => handleSelectUnit(u)}
+                      aria-pressed={cur}
+                      style={{ opacity: passesFilter(u) ? 1 : 0.42 }}
+                      className={`snap-start shrink-0 w-[148px] h-[84px] rounded-[14px] text-left [&>span]:leading-tight flex flex-col justify-between transition-colors ${
+                        cur ? 'border-2 border-gray-900 bg-[#F3F5F7] px-[11px] py-[9px]' : 'border border-[#DADDE1] bg-white px-3 py-2.5'
+                      } ${sold ? 'text-[#6B7075]' : 'text-gray-900'}`}
+                    >
+                      <span className="flex items-center gap-1.5 w-full min-w-0">
+                        <span aria-hidden="true" className="w-2 h-2 shrink-0 rounded-full" style={{ background: getStatusColor(u.status) }} />
+                        <span className="text-base font-bold">{u.name}</span>
+                        <span className="text-xs text-[#5F6368] truncate">{unitTypeLabel(u)}</span>
+                      </span>
+                      <span className="text-xs text-[#5F6368]">{u.totalArea} m²</span>
+                      <span className="text-sm font-bold tabular-nums truncate">
+                        {sold ? 'Vendida' : showPrice ? (u.price ? formatPrice(u.price, u.currency) : 'Consultar precio') : showStatus ? getStatusLabel(u.status) : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+                {floorAmenities.map(a => {
+                  const cur = selectedAmenity?.id === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      data-strip-key={a.id}
+                      onClick={() => selectOther('amenity', a.id, activeFloor)}
+                      aria-pressed={cur}
+                      className={`snap-start shrink-0 w-[148px] h-[84px] rounded-[14px] text-left [&>span]:leading-tight flex flex-col justify-between text-gray-900 ${
+                        cur ? 'border-2 px-[11px] py-[9px]' : 'border border-[#DADDE1] px-3 py-2.5'
+                      }`}
+                      style={{ background: cur ? '#f7f3ee' : '#fff', borderColor: cur ? AMENITY_COLOR : undefined }}
+                    >
+                      <span className="flex items-center gap-1.5 w-full min-w-0">
+                        <AmenityMarkerIcon size={9} />
+                        <span className="text-sm font-bold truncate">{a.name}</span>
+                      </span>
+                      <span className="text-xs text-[#5F6368] truncate">{a.specs?.[0]?.value ?? 'Uso común'}</span>
+                      <span className="text-xs font-semibold" style={{ color: AMENITY_TEXT }}>Amenity</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(unitsOnFloor.length > 0 || floorAmenities.length > 0 || floorSpots.length > 0) && (
+          <div className="hidden wide:block absolute bottom-0 inset-x-0 z-10 border-t border-gray-100 bg-white/97 backdrop-blur-sm px-3.5 pt-2.5 pb-3">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-[12.5px] font-semibold text-gray-900">
                 {floor ? floorName(floor) : `Piso ${activeFloor}`}
@@ -1236,7 +1476,7 @@ export default function FloorPlanViewer({
                       <div className="text-left">
                         <div className="flex items-baseline gap-2">
                           <span className="text-[12.5px] font-semibold text-gray-900 whitespace-nowrap">{u.name}</span>
-                          {!unitIsLand && <span className="text-[10.5px] text-gray-400 whitespace-nowrap">{u.bedrooms} dorm · {u.totalArea} m²</span>}
+                          {!unitIsLand && <span className="text-xs text-gray-500 whitespace-nowrap">{u.bedrooms} dorm · {u.totalArea} m²</span>}
                         </div>
                         {showPrice && (
                           <div className="text-[11.5px] font-semibold text-emerald-700 mt-0.5 whitespace-nowrap">
@@ -1260,7 +1500,7 @@ export default function FloorPlanViewer({
                       <div className="text-left">
                         <div className="flex items-baseline gap-2">
                           <span className="text-[12.5px] font-semibold text-gray-900 whitespace-nowrap">{a.name}</span>
-                          {a.specs?.[0] && <span className="text-[10.5px] text-gray-400 whitespace-nowrap">{a.specs[0].value}</span>}
+                          {a.specs?.[0] && <span className="text-xs text-gray-500 whitespace-nowrap">{a.specs[0].value}</span>}
                         </div>
                         <div className="text-[11.5px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: AMENITY_TEXT }}>Amenity · uso común</div>
                       </div>
@@ -1275,7 +1515,7 @@ export default function FloorPlanViewer({
 
       {/* ── Selector de piso vertical (solo desktop) ─────────────── */}
       {floorNumbers.length > 1 && (
-        <div className="hidden md:flex order-3 w-14 flex-shrink-0 flex-col items-center gap-1.5 py-3.5 bg-white border-l border-gray-100 overflow-y-auto">
+        <div className="hidden wide:flex order-3 w-14 flex-shrink-0 flex-col items-center gap-1.5 py-3.5 bg-white border-l border-gray-100 overflow-y-auto">
           <p className="text-[8.5px] font-semibold tracking-[0.12em] text-gray-300 pb-1">PISO</p>
           {floorNumbers.map(num => {
             const fl = building.floors.find(f => f.number === num);
@@ -1356,6 +1596,64 @@ export default function FloorPlanViewer({
         </div>
       )}
 
+      {/* ── Mobile: lo elegido, fijo abajo; tocándolo sube el detalle. ── */}
+      {mobileSummary && (
+        <div className="order-4 wide:hidden flex-none">
+          <MobileSelectionCard
+            summary={mobileSummary}
+            selectionKey={selectedUnit?.id ?? selOther?.id ?? ''}
+            actions={mobileActions}
+            onExpand={() => setSheetOpen(true)}
+          />
+        </div>
+      )}
+      <UnitSheet
+        open={sheetOpen && !!mobileSummary}
+        onClose={() => setSheetOpen(false)}
+        label={selectionTitle ?? ''}
+        contentKey={selectedUnit?.id ?? selOther?.id ?? ''}
+        handleOverContent={!!selectedUnit}
+      >
+        {selectedUnit && mobileSummary ? (
+          <MobileUnitDetail
+            summary={{ ...mobileSummary, subtitle: [unitTypeLabel(selectedUnit), floorLabel, building.name].filter(Boolean).join(' · ') }}
+            photos={mobilePhotos}
+            specs={mobileSpecs}
+            actions={mobileActions}
+            onClose={() => setSheetOpen(false)}
+            onShare={handleShare}
+          >
+            {!unitIsLand && (
+              <IncludesBlock
+                unit={selectedUnit}
+                canGoSpot={floorId => floorNumberById(floorId) !== undefined}
+                onGoSpot={i => { setSheetOpen(false); handleGoUnitSpot(selectedUnit, i); }}
+                amenityCount={buildingAmenityCount}
+                amenityWhere={amenitiesWhereLabel(placedAmenities, building.floors)}
+                onGoAmenities={
+                  mainAmenityFloorNumber !== undefined
+                    ? () => { setSheetOpen(false); goToFloor(mainAmenityFloorNumber); }
+                    : buildingAmenityCount > 0 ? () => handleEnterUnitTab('amenities') : undefined
+                }
+              />
+            )}
+            {pointsOfInterest.length > 0 && (
+              <button
+                onClick={() => handleEnterUnitTab('ubicacion')}
+                className="h-11 flex items-center justify-center rounded-xl border border-[#DADDE1] text-[13px] font-semibold text-gray-900"
+              >
+                Ubicación y alrededores
+              </button>
+            )}
+            {nextAvailableUnit && nextAvailableLabel && (
+              <NextAvailableCard caption="SIGUIENTE DISPONIBLE" label={nextAvailableLabel} onClick={handleGoNextAvailable} />
+            )}
+          </MobileUnitDetail>
+        ) : (
+          panelContent
+        )}
+      </UnitSheet>
+
       {showLeads && (
         <LeadCaptureModal
           isOpen={contactModal.isOpen}
@@ -1413,7 +1711,9 @@ function UnitDotMarker({
         hidden: { opacity: 0, scale: 0 },
         visible: { opacity: dimmed ? 0.35 : 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } }
       }}
-      className="absolute group pointer-events-auto z-10"
+      // La seleccionada encima de todas: al expandirse tapaba (y le robaba
+      // los toques) a las vecinas, que quedaban arriba por orden del DOM.
+      className={`absolute group pointer-events-auto ${isSelected ? 'z-30' : expanded ? 'z-20' : 'z-10'}`}
       style={{ left: `${dot.x}%`, top: `${dot.y}%`, transform: 'translate(-50%, -50%)' }}
       onClick={() => onSelect(unit)}
       onMouseEnter={() => onHoverChange(true)}
@@ -1463,8 +1763,9 @@ function SpecRow({ icon, label }: { icon: string; label: string }) {
     'area-inner': <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>,
     balcony: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" /></svg>,
     external: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6z" /></svg>,
-    bed: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>,
-    bath: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    bed: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6.5A1.5 1.5 0 0 1 4.5 10h15a1.5 1.5 0 0 1 1.5 1.5V18M3 18h18M3 18v2m18-2v2M5 10V7a1 1 0 0 1 1-1h4.5a1 1 0 0 1 1 1v3m1 0V7a1 1 0 0 1 1-1H18a1 1 0 0 1 1 1v3" /></svg>,
+    bath: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18v2.5A4.5 4.5 0 0 1 16.5 19h-9A4.5 4.5 0 0 1 3 14.5V12zM5.5 12V6.5a2 2 0 0 1 3.6-1.2M7 19l-1 2m11-2 1 2" /></svg>,
+    garage: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5h15M6 16.5V19m12-2.5V19M4.5 16.5l1.6-5.1A2 2 0 0 1 8 10h8a2 2 0 0 1 1.9 1.4l1.6 5.1M8 14h.01M16 14h.01" /></svg>,
     extra: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 20h16M6 20V8h5v12M13 20V4h5v16" /></svg>,
     orientation: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z" /><circle cx="12" cy="10" r="2.4" /></svg>,
   };

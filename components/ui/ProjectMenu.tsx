@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
 
 // Menú único del sitio público de un proyecto (rediseño C/D), para pantallas
 // de menos de 1200px — desde ahí la barra lista todas las secciones. Mismo
@@ -169,10 +170,10 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
 
             {exploreCards.length > 0 && (
               <div className="flex flex-col md:flex-row md:items-center gap-2.5 md:gap-3.5 py-2.5 md:py-1.5 border-t border-[var(--theme-text-on-dark)]/[.08] md:border-0">
-                <ActiveLabel active={!!section?.group} className="md:min-w-[150px]">Explorar 3D</ActiveLabel>
+                <ActiveLabel active={section?.group === EXPLORE_GROUP} className="md:min-w-[150px]">Explorar 3D</ActiveLabel>
                 <div className="grid grid-cols-3 gap-2 md:flex md:gap-2">
                   {exploreCards.map(card => {
-                    const active = card.label === section?.label && !!section?.group;
+                    const active = card.label === section?.label && section?.group === EXPLORE_GROUP;
                     return (
                       <Link
                         key={card.href}
@@ -185,13 +186,15 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
                         }`}
                       >
                         <span
-                          className={`block w-full aspect-[16/11] md:w-9 md:h-[26px] md:aspect-auto overflow-hidden rounded-lg md:rounded-[5px] bg-[var(--theme-text-on-dark)]/10 box-border ${
+                          className={`relative block w-full aspect-[16/11] md:w-9 md:h-[26px] md:aspect-auto overflow-hidden rounded-lg md:rounded-[5px] bg-[var(--theme-text-on-dark)]/10 box-border ${
                             active ? 'ring-2 ring-[var(--theme-accent)] md:ring-0' : ''
                           }`}
                         >
+                          {/* Por el optimizador: antes se bajaba el original (un
+                              360 de 2,6 MB) para una miniatura de ~110 px, y
+                              en el celular el menú abría con cuadros grises. */}
                           {card.image && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={card.image} alt="" className="w-full h-full object-cover" />
+                            <Image src={card.image} alt="" fill sizes="(max-width: 768px) 34vw, 40px" className="object-cover" />
                           )}
                         </span>
                         {card.label}
@@ -203,7 +206,13 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
             )}
 
             {after.map(link => (
-              <MenuLink key={link.href} {...link} active={isActive(link.href)} onClose={onClose} />
+              <MenuLink
+                key={link.href}
+                {...link}
+                // En la ficha de una unidad, "Unidades" también es la sección activa.
+                active={isActive(link.href) || (link.href === hrefs.units && /\/unidad\/[^/]+\/?$/.test(pathname))}
+                onClose={onClose}
+              />
             ))}
           </nav>
 

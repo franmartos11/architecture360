@@ -6,6 +6,12 @@
 @import "tailwindcss";
 
 /* ─── Custom Tailwind Theme ────────────────────────────────────── */
+/* "wide": pantalla de escritorio/tablet — ancha Y con alto suficiente. El
+   md de Tailwind solo mira el ancho, y un celular horizontal (844×390)
+   caía en el layout de escritorio con el plano aplastado (~130 px). Lo
+   usan las vistas con layout de panel + plano (FloorPlanViewer). */
+@custom-variant wide (@media (width >= 48rem) and (height >= 35rem));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -95,6 +101,23 @@ body {
 
 .animate-fade-in-up {
   animation: fade-in-up 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ─── Área de toque mínima ─────────────────────────────────────────
+   Para controles que visualmente son chicos (chips, pestañas) pero tienen
+   que poder tocarse con el dedo: amplía el área clickeable a 44×44 sin
+   cambiar cómo se ven. */
+.hit-44 {
+  position: relative;
+}
+.hit-44::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
 }
 
 /* ─── Apariciones al scrollear (components/ui/Reveal.tsx) ─────────

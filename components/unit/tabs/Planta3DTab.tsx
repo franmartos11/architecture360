@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { m as motion } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
-import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Unit, BimModel } from '@/types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 
@@ -130,7 +129,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
               doubleClick={PLAN_DOUBLE_CLICK}
               panning={{ disabled: false }}
             >
-              {(utils) => (
+              {() => (
               <>
               <TransformComponent
                 wrapperStyle={{ width: '100%', height: '100%' }}
@@ -146,9 +145,6 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
                   draggable={false}
                 />
               </TransformComponent>
-              <div className="absolute bottom-3.5 right-3.5 z-20">
-                <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
-              </div>
               </>
               )}
             </TransformWrapper>

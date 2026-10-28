@@ -12,6 +12,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
 import { useProjectNav } from '@/lib/project-nav-context';
+import { placePopover } from '@/lib/popover-placement';
 interface AerialViewProps {
   project: Project;
 }
@@ -75,6 +76,9 @@ export default function AerialView({ project }: AerialViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  // Alto real de la tarjeta de la torre (lo mide su ref), para ubicarla
+  // donde entre completa — ver placePopover.
+  const [popupH, setPopupH] = useState(190);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -335,6 +339,13 @@ export default function AerialView({ project }: AerialViewProps) {
             <span className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full animate-ping opacity-40 ${isActive ? 'bg-white scale-150' : 'bg-white/70'}`} />
             {/* Dot */}
             <span className={`relative flex w-5 h-5 rounded-full border-2 transition-all duration-200 ${isActive ? 'bg-white border-white scale-125' : isReady ? 'bg-black/70 border-white group-hover:bg-white/80 group-hover:scale-110' : 'bg-black/70 border-white'}`} />
+            {/* Nombre de la torre: un círculo solo no decía que se podía tocar
+                ni qué era. Es parte del botón, así que también se toca. */}
+            {!isActive && b?.name && (
+              <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 whitespace-nowrap px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-sm text-white text-xs font-semibold shadow-lg">
+                {b.name}
+              </span>
+            )}
           </button>
         );
       })}
@@ -342,29 +353,19 @@ export default function AerialView({ project }: AerialViewProps) {
       {/* ── Building popup ─────────────────────────────────────── */}
       <AnimatePresence>
         {activeHotspot && building && (() => {
-          // Clampeamos el offset horizontal para que la card (w-64 = 256px)
-          // no se salga de la pantalla cuando el hotspot está cerca del
-          // borde izquierdo/derecho — el caret puede dejar de apuntar
-          // exactamente al punto, pero es preferible a que se corte.
-          const anchorX = mapPoint(activeHotspot.x, activeHotspot.y).x;
-          const halfPopup = 128;
-          const edgeMargin = 12;
-          let offsetPx = 0;
-          if (containerSize.w > 0) {
-            const anchorPx = (anchorX / 100) * containerSize.w;
-            const desiredLeft = anchorPx - halfPopup;
-            const desiredRight = anchorPx + halfPopup;
-            if (desiredLeft < edgeMargin) offsetPx = edgeMargin - desiredLeft;
-            else if (desiredRight > containerSize.w - edgeMargin) offsetPx = (containerSize.w - edgeMargin) - desiredRight;
-          }
+          const anchor = mapPoint(activeHotspot.x, activeHotspot.y);
+          const place = placePopover({
+            anchorX: (anchor.x / 100) * containerSize.w,
+            anchorY: (anchor.y / 100) * containerSize.h,
+            width: 256,
+            height: popupH,
+            containerW: containerSize.w,
+            containerH: containerSize.h,
+          });
           return (
           <div
             className="absolute z-30 pointer-events-none"
-            style={{
-              left: `${anchorX}%`,
-              top: `${mapPoint(activeHotspot.x, activeHotspot.y).y}%`,
-              transform: `translate(calc(-50% + ${offsetPx}px), calc(-100% - 16px))`,
-            }}
+            style={{ left: place.left, top: place.top }}
           >
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -374,12 +375,19 @@ export default function AerialView({ project }: AerialViewProps) {
               className="pointer-events-auto"
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden w-64">
+              <div
+                ref={el => { if (el && el.offsetHeight !== popupH) setPopupH(el.offsetHeight); }}
+                className="relative bg-white rounded-2xl shadow-2xl w-64"
+              >
               {/* Building name */}
               <div className="px-5 pt-5 pb-4 text-center">
-                <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
-                  {project.name}
-                </p>
+                {/* El proyecto arriba solo si no se llama igual que la torre
+                    (Torre I / Torre I repetía lo mismo). */}
+                {project.name.trim().toLowerCase() !== building.name.trim().toLowerCase() && (
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">
+                    {project.name}
+                  </p>
+                )}
                 <h3 className="text-xl font-bold text-gray-900">
                   {building.name}
                 </h3>
@@ -400,13 +408,24 @@ export default function AerialView({ project }: AerialViewProps) {
               <div className="px-5 pb-5">
                 <button
                   onClick={handleEnterBuilding}
-                  className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors duration-200"
+                  className="w-full h-11 rounded-xl bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-accent)] font-semibold text-sm transition-opacity duration-200"
                 >
-                  Ingresar
+                  {typeConfig.hasFloorStep ? 'Ver plantas' : 'Ver el plano'}
                 </button>
               </div>
-              {/* Caret */}
-              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white" />
+              {/* Flecha hacia el pin, del lado donde quedó la tarjeta. */}
+              {place.caretOffset != null && place.side === 'above' && (
+                <div className="absolute -translate-x-1/2 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white" style={{ left: place.caretOffset }} />
+              )}
+              {place.caretOffset != null && place.side === 'below' && (
+                <div className="absolute -translate-x-1/2 bottom-full w-0 h-0 border-x-8 border-x-transparent border-b-8 border-b-white" style={{ left: place.caretOffset }} />
+              )}
+              {place.caretOffset != null && place.side === 'right' && (
+                <div className="absolute -translate-y-1/2 right-full w-0 h-0 border-y-8 border-y-transparent border-r-8 border-r-white" style={{ top: place.caretOffset }} />
+              )}
+              {place.caretOffset != null && place.side === 'left' && (
+                <div className="absolute -translate-y-1/2 left-full w-0 h-0 border-y-8 border-y-transparent border-l-8 border-l-white" style={{ top: place.caretOffset }} />
+              )}
             </div>
             </motion.div>
           </div>
@@ -486,7 +505,9 @@ export default function AerialView({ project }: AerialViewProps) {
       )}
 
       {/* ── Controles de la escena: un solo grupo abajo al centro —
-          flechas, nombre del ángulo y puntos. ───────────────────── */}
+          flechas, nombre del ángulo y puntos. Con un solo ángulo no hay a
+          dónde ir: las flechas no hacían nada, así que no se muestran. ── */}
+      {slides.length > 1 && (
       <div
         onClick={e => e.stopPropagation()}
         className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 p-1.5 rounded-2xl bg-[#121312]/[.76] backdrop-blur-md border border-white/[.14]"
@@ -526,6 +547,7 @@ export default function AerialView({ project }: AerialViewProps) {
           </svg>
         </button>
       </div>
+      )}
 
     </div>
   );

@@ -54,6 +54,9 @@ export function projectNavHrefs(
 
 // Dónde está el usuario, para la barra mínima: "Explorar 3D / Plantas" o
 // "Unidades · 21 disponibles". null fuera de las secciones conocidas.
+/** Grupo de las vistas de Explorar 3D en las migas. */
+export const EXPLORE_GROUP = 'Explorar 3D';
+
 export function projectSectionFor(
   pathname: string,
   basePath: string,
@@ -74,15 +77,22 @@ export function projectSectionFor(
     };
   }
   if (rel === '/ubicacion') return { label: 'Ubicación' };
-  if (rel === '/masterplan') return { group: 'Explorar 3D', label: 'Fachada' };
-  if (rel === '/recorrido') return { group: 'Explorar 3D', label: 'Recorrido 360' };
+  if (rel === '/masterplan') return { group: EXPLORE_GROUP, label: 'Fachada' };
+  if (rel === '/recorrido') return { group: EXPLORE_GROUP, label: 'Recorrido 360' };
   const buildingTour = rel.match(/^\/edificio\/([^/]+)\/recorrido$/);
   if (buildingTour) {
-    return { group: 'Explorar 3D', label: 'Recorrido 360', detail: buildingDetail(info, buildingTour[1]) };
+    return { group: EXPLORE_GROUP, label: 'Recorrido 360', detail: buildingDetail(info, buildingTour[1]) };
   }
   const building = rel.match(/^\/edificio\/([^/]+)$/);
   if (building) {
-    return { group: 'Explorar 3D', label: info.explore.plans?.label ?? 'Plantas', detail: buildingDetail(info, building[1]) };
+    return { group: EXPLORE_GROUP, label: info.explore.plans?.label ?? 'Plantas', detail: buildingDetail(info, building[1]) };
+  }
+  // Ficha de una unidad: "Unidades / 101". En una casa (una sola unidad)
+  // la unidad ES la sección.
+  const unit = rel.match(/^\/edificio\/[^/]+\/unidad\/([^/]+)$/);
+  if (unit) {
+    if (info.singleUnit) return { label: info.singleUnit.label };
+    return { group: info.unitsLabel, label: decodeURIComponent(unit[1]) };
   }
   return null;
 }

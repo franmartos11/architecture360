@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
-import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Unit, Room } from '@/types';
 import RoomPlanViewer from '../RoomPlanViewer';
 import ParkingPlanViewer from '../ParkingPlanViewer';
@@ -176,7 +175,7 @@ export default function PlanoTab({
                 doubleClick={PLAN_DOUBLE_CLICK}
                 panning={{ disabled: false }}
               >
-                {(utils) => (
+                {() => (
                 <>
                 <TransformComponent
                   wrapperStyle={{ width: '100%', height: '100%' }}
@@ -192,9 +191,6 @@ export default function PlanoTab({
                     draggable={false}
                   />
                 </TransformComponent>
-                <div className="absolute bottom-3.5 right-3.5 z-20">
-                  <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
-                </div>
                 </>
                 )}
               </TransformWrapper>

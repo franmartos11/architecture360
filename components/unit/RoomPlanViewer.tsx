@@ -3,7 +3,6 @@
 import { useState, useCallback, memo } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
-import PlanZoomControls from '@/components/floorplan/PlanZoomControls';
 import type { Room } from '@/types';
 
 interface RoomPlanViewerProps {
@@ -37,7 +36,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
   return (
     <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4">
       <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit centerZoomedOut wheel={PLAN_WHEEL} doubleClick={PLAN_DOUBLE_CLICK}>
-        {(utils) => (
+        {() => (
         <>
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={PLAN_CONTENT_STYLE}>
           {/* El overlay de polígonos tiene que coincidir EXACTO con la caja
@@ -77,9 +76,6 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
             )}
           </div>
         </TransformComponent>
-        <div className="absolute bottom-3.5 right-3.5 z-20">
-          <PlanZoomControls zoomIn={utils.zoomIn} zoomOut={utils.zoomOut} />
-        </div>
         </>
         )}
       </TransformWrapper>

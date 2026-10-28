@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { exploreCardsFor } from '@/components/ui/ProjectMenu';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
@@ -69,11 +70,8 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
                 aria-label={card.detail ? `${card.label} — ${card.detail}` : card.label}
                 className={`group flex items-center gap-3.5 p-2.5 rounded-xl text-white transition-colors ${active ? 'bg-white/[.07]' : 'hover:bg-white/[.05]'}`}
               >
-                <span className="w-[72px] h-[50px] shrink-0 overflow-hidden rounded-lg bg-white/10">
-                  {card.image && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={card.image} alt="" className="w-full h-full object-cover" />
-                  )}
+                <span className="relative w-[72px] h-[50px] shrink-0 overflow-hidden rounded-lg bg-white/10">
+                  {card.image && <Image src={card.image} alt="" fill sizes="72px" className="object-cover" />}
                 </span>
                 <span className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <span className="text-[15px] font-semibold truncate">{card.label}</span>

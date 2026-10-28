@@ -8,7 +8,7 @@ import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { ProjectMenuButton, ChatIcon } from '@/components/ui/ProjectMenu';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
 
 // Barra única del sitio público de un proyecto — la misma en la web, en
 // Explorar 3D y en la ficha de unidad (rediseño C/D). Según el ancho:
@@ -25,6 +25,8 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
   const section = projectSectionFor(pathname, basePath, info);
   const isActive = (href: string) => pathname.replace(/\/+$/, '') === href.replace(/\/+$/, '');
   const unitsLabel = info.singleUnit?.label ?? info.unitsLabel;
+  // En la ficha de una unidad, "Unidades" también es la sección activa.
+  const unitsActive = isActive(hrefs.units) || /\/unidad\/[^/]+\/?$/.test(pathname);
 
   // Sólida (sin vidrio) salvo sobre la foto del hero de la portada: el
   // vidrio translúcido sobre fondos claros se veía gris lavado.
@@ -58,13 +60,13 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
           <Link
             href={hrefs.home}
             aria-label={info.projectLocation ? `${info.projectName}, ${info.projectLocation} — inicio` : `${info.projectName} — inicio`}
-            className="shrink-0 min-w-0 flex flex-col"
+            className="hit-44 shrink-0 min-w-0 flex flex-col"
           >
             <span className="block font-[family-name:var(--theme-font-heading)] text-[17px] sm:text-lg font-semibold leading-tight tracking-tight text-[var(--theme-text-on-dark)] truncate max-w-[40vw] md:max-w-[280px]">
               {info.projectName}
             </span>
             {info.projectLocation && (
-              <span className="hidden sm:block mt-0.5 text-[9px] sm:text-[10px] tracking-[0.24em] uppercase text-[var(--theme-text-on-dark-muted)] truncate max-w-[280px]">
+              <span className="hidden sm:block mt-0.5 text-[11px] tracking-[0.2em] uppercase text-[var(--theme-text-on-dark-muted)] truncate max-w-[280px]">
                 {info.projectLocation}
               </span>
             )}
@@ -77,8 +79,8 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
             <Link href={hrefs.home} aria-current={onHome ? 'page' : undefined} className={`px-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors ${navItemClass(onHome)}`}>
               Proyecto
             </Link>
-            <ExploreSwitcher info={info} current={section?.group ? section.label : undefined} />
-            <Link href={hrefs.units} aria-current={isActive(hrefs.units) ? 'page' : undefined} className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-[15px] font-medium whitespace-nowrap transition-colors ${navItemClass(isActive(hrefs.units))}`}>
+            <ExploreSwitcher info={info} current={section?.group === EXPLORE_GROUP ? section.label : undefined} />
+            <Link href={hrefs.units} aria-current={unitsActive ? 'page' : undefined} className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-[15px] font-medium whitespace-nowrap transition-colors ${navItemClass(unitsActive)}`}>
               {unitsLabel}
               {!info.singleUnit && info.unitsAvailable != null && (
                 <span className="px-[7px] py-0.5 rounded-full text-[11px] font-semibold bg-[var(--theme-accent)]/25 text-[var(--theme-text-on-dark)]">
@@ -105,7 +107,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
             {section?.group ? (
               <>
                 <span className="md:hidden min-w-0 flex flex-col">
-                  <span className="text-[11px] text-[var(--theme-text-on-dark-muted)]">{section.group}</span>
+                  <span className="text-xs text-[var(--theme-text-on-dark-muted)]">{section.group}</span>
                   <span className="text-[15px] font-semibold truncate">{section.label}</span>
                 </span>
                 <span className="hidden md:flex items-baseline gap-2.5 min-w-0 text-[15px]">
