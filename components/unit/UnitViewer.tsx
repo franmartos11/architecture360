@@ -392,13 +392,21 @@ export default function UnitViewer({
 
   // ── Mobile: ficha en una página (ver UnitMobileView) ──
   if (!isWide) {
-    const mediaTabs = MOBILE_MEDIA.filter(t => tabHasContent[t]);
+    // En mobile "3D" son solo los renders: el modelo BIM no se ofrece (en un
+    // celular tarda mucho o no carga).
+    const mobileHas: Record<MobileMediaTab, boolean> = {
+      plano: tabHasContent.plano,
+      planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage),
+      tour360: tabHasContent.tour360,
+      galeria: tabHasContent.galeria,
+    };
+    const mediaTabs = MOBILE_MEDIA.filter(t => mobileHas[t]);
     // Arranca en el orden del selector (Plano primero), salvo que la URL
     // pida una vista (?tab=tour360, comparador) que tenga contenido.
     const requested = (initialTab || initialCompareUnitId) && startTab && (MOBILE_MEDIA as UnitViewTab[]).includes(startTab)
       ? (startTab as MobileMediaTab) : null;
     const mediaTab: MobileMediaTab | null =
-      (mobileMedia && tabHasContent[mobileMedia] ? mobileMedia : null) ?? requested ?? mediaTabs[0] ?? null;
+      (mobileMedia && mobileHas[mobileMedia] ? mobileMedia : null) ?? (requested && mobileHas[requested] ? requested : null) ?? mediaTabs[0] ?? null;
     const title = unitIsLand ? `Lote ${unit.name}` : hasUnitStep ? `Unidad ${unit.name}` : (buildingName || unit.name);
     const heading = unitIsLand
       ? `Lote ${unit.name}`
@@ -407,7 +415,7 @@ export default function UnitViewer({
       ? (unit.modelName || (unit.bedrooms === 0 ? 'Monoambiente' : `${unit.bedrooms} dorm.`))
       : UNIT_CATEGORY_LABEL[unitCategory(unit)];
     const renderMedia = (t: MobileMediaTab) =>
-      t === 'planta3d' ? <Planta3DTab key="planta3d" unit={unit} bimModel={bimModel} />
+      t === 'planta3d' ? <Planta3DTab key="planta3d" unit={unit} />
       : t === 'tour360' ? (
         <Tour360Tab
           key="tour360"

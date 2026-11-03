@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getBimModelById } from '@/data/bim-repository';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
+import BimMobileGate from '@/components/bim/BimMobileGate';
 
 interface PageProps { params: Promise<{ id: string }>; }
 
@@ -66,12 +67,15 @@ export default async function BimModelPage({ params }: PageProps) {
       )}
 
       {/* ── Visor Unificado (3D / Galería) ── */}
-      <BimUnifiedViewer 
-        geometryUrl={model.geometryUrl}
-        coverImage={model.coverImage}
-        galleryImages={model.galleryImages}
-        title={model.title}
-      />
+      {/* En mobile no se monta (ver BimMobileGate). */}
+      <BimMobileGate coverImage={model.coverImage} title={model.title}>
+        <BimUnifiedViewer
+          geometryUrl={model.geometryUrl}
+          coverImage={model.coverImage}
+          galleryImages={model.galleryImages}
+          title={model.title}
+        />
+      </BimMobileGate>
     </main>
   );
 }

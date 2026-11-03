@@ -9,7 +9,9 @@ export default function BimSection({ project }: SectionProps) {
   if (project.bimModels.length === 0) return null;
 
   return (
-    <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg)]">
+    // Solo en pantallas anchas: en mobile el modelo no carga bien (ver
+    // BimMobileGate), así que la sección no se ofrece.
+    <section className="hidden wide:block py-[var(--theme-spacing)] bg-[var(--theme-bg)]">
       <Reveal className="max-w-7xl mx-auto px-4 md:px-6 mb-12">
         <div className="flex flex-col gap-2">
           <h2 className="font-[family-name:var(--theme-font-heading)] text-3xl font-medium text-[var(--theme-text)]">
