@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useScrollLock } from '@/hooks/useScrollLock';
 
@@ -27,9 +27,11 @@ interface ModalPortalProps {
  * acento, tipografías), que viven en el contenedor `[data-project-theme]`:
  * se copian a un envoltorio `display: contents` que no altera el layout.
  */
+const subscribeNoop = () => () => {};
+
 export default function ModalPortal({ open, children }: ModalPortalProps) {
-  const [montado, setMontado] = useState(false);
-  useEffect(() => setMontado(true), []);
+  // true recién en el cliente (en el server, y al hidratar, false).
+  const montado = useSyncExternalStore(subscribeNoop, () => true, () => false);
   useScrollLock(open);
 
   if (!montado) return null;

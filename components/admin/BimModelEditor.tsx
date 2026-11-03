@@ -222,7 +222,8 @@ export default function BimModelEditor({
             <label className="block text-[11px] font-medium text-gray-500 mb-1">Unidades asignadas</label>
             <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-lg bg-white p-3 flex flex-col gap-4 shadow-inner">
               {floors.map(f => {
-                const floorUnits = (units as any[]).filter(u => u.floor_id === f.id);
+                // Llegan las filas de la base (floor_id, code), no el Unit mapeado.
+                const floorUnits = (units as unknown as { id: string; floor_id: string; name?: string; code?: string }[]).filter(u => u.floor_id === f.id);
                 if (floorUnits.length === 0) return null;
                 return (
                   <div key={f.id} className="flex flex-col gap-1.5">

@@ -345,7 +345,7 @@ export default function FloorPlanViewer({
     if (!floor?.id) return undefined;
     return bimModels.find(m => m.floorIds.includes(floor.id)) ??
            bimModels.find(m => m.floorIds.length === 0 && m.unitIds.length === 0);
-  }, [bimModels, floor?.id]);
+  }, [bimModels, floor]);
 
   // Unidades que tienen la forma real delimitada (polígono) sobre el plano,
   // para marcar la sección en gris al pasar el mouse.

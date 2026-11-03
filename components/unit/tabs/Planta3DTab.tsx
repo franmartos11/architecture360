@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { m as motion } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -26,18 +26,15 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
   const hasBimGallery = (bimModel?.galleryImages?.length ?? 0) > 0;
   const hasBim = hasBim3D || hasBimGallery;
 
-  const [viewMode, setViewMode] = useState<ViewMode>(
+  const [chosenMode, setViewMode] = useState<ViewMode>(
     hasRender ? 'render' : (hasBim3D ? 'bim-3d' : 'bim-gallery')
   );
+  // Si lo elegido ya no existe (ej. la unidad dejó de tener renders), se
+  // muestra lo que haya — derivado en el render, sin efecto que lo corrija.
+  const viewMode: ViewMode = chosenMode === 'render' && !hasRender ? (hasBim3D ? 'bim-3d' : 'bim-gallery') : chosenMode;
   const [activeIdx, setActiveIdx] = useState(0);
   const active = levels[activeIdx] ?? levels[0];
 
-  // Si el estado queda inválido
-  useEffect(() => {
-    if (viewMode === 'render' && !hasRender) {
-      setViewMode(hasBim3D ? 'bim-3d' : 'bim-gallery');
-    }
-  }, [hasRender, hasBim3D, viewMode]);
 
   return (
     <motion.div

@@ -146,29 +146,30 @@ export default function AerialView({ project }: AerialViewProps) {
   // Close popup on click outside
   const handleBackgroundClick = useCallback(() => {
     setActiveHotspot(null);
-  }, []);
+  }, [setActiveHotspot]);
 
   // Navigate to building floor plan — o directo a la casa si es tipo "casa".
-  const handleEnterBuilding = useCallback(() => {
+  // Solo se usa como onClick: no hace falta memorizarla.
+  const handleEnterBuilding = () => {
     if (!activeHotspot) return;
     setIsTransitioning(true);
     setTimeout(() => {
       router.push(singleUnit ? singleUnit.href : `${basePath}/edificio/${activeHotspot.buildingId}`);
     }, 500);
-  }, [activeHotspot, basePath, router, singleUnit]);
+  };
 
   // Prev/Next slide
   const goNext = useCallback(() => {
     setUserInteracted(true);
     setActiveHotspot(null);
     setCurrentSlide(i => (i + 1) % slides.length);
-  }, [slides.length]);
+  }, [slides.length, setUserInteracted, setActiveHotspot, setCurrentSlide]);
 
   const goPrev = useCallback(() => {
     setUserInteracted(true);
     setActiveHotspot(null);
     setCurrentSlide(i => (i - 1 + slides.length) % slides.length);
-  }, [slides.length]);
+  }, [slides.length, setUserInteracted, setActiveHotspot, setCurrentSlide]);
 
   // Keyboard navigation
   useEffect(() => {
