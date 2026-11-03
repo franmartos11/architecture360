@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { Project } from '@/types';
-import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import CommentSection from '@/components/CommentSection';
-import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import ProjectHero from '@/components/project-landing/ProjectHero';
+import { Container, SectionHeading } from '@/components/project-landing/ui';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
@@ -59,57 +59,36 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const academicLine = [project.academicInstitution, project.academicYear].filter(Boolean).join(' · ');
   const heroMetaLine = typeConfig.saleMode === 'showcase'
     ? (academicLine || project.location)
-    : [project.location, cheapestAvailable ? `Desde ${formatPrice(cheapestAvailable.price!, cheapestAvailable.currency)}` : null]
+    : [
+        project.location,
+        project.units.length > 1 ? `${project.units.length} ${pluralize(typeConfig.unitLabel).toLowerCase()}` : null,
+        cheapestAvailable ? `Desde ${formatPrice(cheapestAvailable.price!, cheapestAvailable.currency)}` : null]
         .filter(Boolean)
         .join(' · ');
+
+  const heroImage = project.masterplanImage
+    || project.aerialSlides[0]?.imageUrl
+    || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
+  // "SALTA · EDIFICIO" — línea chica del estado inicial del hero.
+  const heroKicker = [project.location?.split(',')[0]?.trim(), typeConfig.label.split(' — ')[0]]
+    .filter(Boolean).join(' · ').toUpperCase();
 
   return (
     // -mt-16 anula el pt-16 que el layout aplica para despejar el Navbar
     // fixed: acá el hero es a pantalla completa y tiene que pasar POR DEBAJO
     // del nav, que es translúcido a propósito.
-    <div className="-mt-16">
-      {/* Hero Section */}
-      <section className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <Image
-            src={project.masterplanImage || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'}
-            alt={project.name}
-            fill
-            sizes="100vw"
-            placeholder="blur"
-            blurDataURL={shimmerDataUrl(1920, 1080)}
-            className="object-cover"
-            priority
-          />
-          <div className="absolute inset-0 bg-black/40" />
-        </div>
-
-        <div className="relative z-10 text-center px-4 sm:px-6 mt-16 max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-thin tracking-wide text-white animate-fade-in-up">
-            {project.name}
-          </h1>
-          {project.tagline && (
-            <p className="mt-4 text-white/90 text-xl sm:text-2xl font-light">{project.tagline}</p>
-          )}
-          {heroMetaLine && (
-            <p className={`text-white/80 text-lg font-light tracking-wide ${project.tagline ? 'mt-2' : 'mt-4'}`}>{heroMetaLine}</p>
-          )}
-          {typeConfig.saleMode === 'venta' && project.units.length > 0 && (
-            <a
-              href={`${basePath}/unidades`}
-              className="mt-8 inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
-            >
-              VER DISPONIBILIDAD
-            </a>
-          )}
-        </div>
-
-        <a href="#next" className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-bounce">
-          <div className="w-10 h-10 rounded-full border border-white/50 flex items-center justify-center text-white backdrop-blur-sm">
-            &darr;
-          </div>
-        </a>
-      </section>
+    <div className="-mt-16 text-[var(--theme-text)]">
+      <ProjectHero
+        name={project.name}
+        image={heroImage}
+        kicker={heroKicker || undefined}
+        tagline={project.tagline || (typeConfig.saleMode === 'venta' ? 'Encontrá tu lugar' : undefined)}
+        meta={heroMetaLine || undefined}
+        primary={typeConfig.saleMode === 'venta' && project.units.length > 0
+          ? { href: `${basePath}/unidades`, label: 'Ver disponibilidad' }
+          : { href: `${basePath}/masterplan`, label: typeConfig.hasUnitStep ? 'Ver masterplan' : 'Ver vista frontal' }}
+        secondary={project.commonAreasTour ? { href: `${basePath}/recorrido`, label: 'Tour 360°' } : undefined}
+      />
 
       {sectionOrder.map(key => {
         const Section = SECTION_COMPONENTS[key];
@@ -117,26 +96,33 @@ export default async function ProjectLandingPage({ params }: PageProps) {
       })}
 
       {/* Comentarios */}
-      <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg)]">
-        <Reveal className="max-w-3xl mx-auto px-4 md:px-6 mb-10">
-          <h2 className="font-[family-name:var(--theme-font-heading)] text-3xl font-light text-[var(--theme-text)] leading-tight">Comentarios</h2>
-        </Reveal>
-        <div className="px-4 md:px-6">
-          <CommentSection entityType="project" entityId={project.id} />
-        </div>
+      <section id="comentarios" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
+        <Container>
+          <Reveal>
+            <SectionHeading eyebrow="Comentarios" title="Contanos qué te pareció" muted="el proyecto." className="mb-10" />
+          </Reveal>
+          <div className="max-w-3xl">
+            <CommentSection entityType="project" entityId={project.id} />
+          </div>
+        </Container>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)] py-12 border-t border-[var(--theme-border-on-dark)]">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="font-[family-name:var(--theme-font-heading)] text-2xl font-bold tracking-widest">{project.name.toUpperCase()}</div>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-light text-[var(--theme-text-on-dark-muted)]">
-            <a href={basePath || '/'} className="hover:text-[var(--theme-text-on-dark)] transition-colors">Inicio</a>
-            {project.description && <a href="#next" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Sobre el proyecto</a>}
-            {project.units.length > 0 && <a href="#modelos" className="hover:text-[var(--theme-text-on-dark)] transition-colors">{pluralize(typeConfig.unitLabel)}</a>}
-            {typeConfig.showCalculator && <a href="#cotizador" className="hover:text-[var(--theme-text-on-dark)] transition-colors">Cotizador</a>}
+      <footer className="bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <Container className="py-14 pb-10 flex flex-wrap gap-8 justify-between text-sm text-[var(--theme-text-muted)]">
+          <div className="flex flex-col gap-1">
+            <span className="font-[family-name:var(--theme-font-heading)] text-[22px] font-bold tracking-[-0.02em] text-[var(--theme-text)]">{project.name}</span>
+            {project.location && <span>{project.location}</span>}
           </div>
-        </div>
+          <nav aria-label="Pie de página" className="flex gap-x-6 gap-y-2 flex-wrap font-medium">
+            <a href={basePath || '/'} className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Inicio</a>
+            {project.description && <a href="#next" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Sobre el proyecto</a>}
+            {project.units.length > 0 && <a href="#modelos" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">{pluralize(typeConfig.unitLabel)}</a>}
+            {project.amenities.some(a => a.images.length > 0) && <a href="#amenities" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Amenities</a>}
+            {typeConfig.showCalculator && <a href="#cotizador" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Cotizador</a>}
+            {typeConfig.showLeads && <a href="#contacto" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Contacto</a>}
+          </nav>
+        </Container>
       </footer>
     </div>
   );

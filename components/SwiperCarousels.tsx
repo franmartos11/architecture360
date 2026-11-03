@@ -23,7 +23,7 @@ export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestC
   if (slides.length === 0) return null;
 
   return (
-    <div className="relative w-full max-w-6xl mx-auto">
+    <div className="relative w-full">
       <Swiper
         modules={[Navigation, Pagination, Autoplay]}
         spaceBetween={30}
@@ -35,10 +35,10 @@ export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestC
         pagination={{ clickable: true }}
         loop={true}
         autoplay={{ delay: 5000, disableOnInteraction: false }}
-        className="w-full h-[548px] rounded-[var(--theme-radius)] overflow-hidden pb-12"
+        className="w-full h-[380px] sm:h-[468px] rounded-[var(--theme-radius)] overflow-hidden pb-12"
       >
         {slides.map((item) => (
-          <SwiperSlide key={item.id} className="group relative rounded-[var(--theme-radius)] overflow-hidden h-[500px]">
+          <SwiperSlide key={item.id} className="group relative rounded-[var(--theme-radius)] overflow-hidden h-[340px] sm:h-[420px]">
             <Link href={`${basePath}/ubicacion`} className="block w-full h-full">
               <Image
                 src={item.image!}
@@ -49,20 +49,20 @@ export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestC
                 blurDataURL={shimmerDataUrl()}
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-10">
-                <h3 className="font-[family-name:var(--theme-font-heading)] text-white text-3xl mb-2">{item.name}</h3>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-6 sm:p-10">
+                <h3 className="font-[family-name:var(--theme-font-heading)] text-white text-2xl sm:text-3xl mb-2">{item.name}</h3>
                 {item.description && <p className="text-white/80">{item.description}</p>}
               </div>
             </Link>
           </SwiperSlide>
         ))}
       </Swiper>
-      {/* Custom Nav Buttons — este carrusel siempre vive en secciones de fondo oscuro (Ubicación) */}
+      {/* Botones propios — la sección Ubicación es de fondo claro (--theme-bg). */}
       <div className="flex justify-end gap-4 mt-4">
-        <button className="swiper-btn-prev-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-text-on-dark)] text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)] hover:text-[var(--theme-bg-alt)] transition-colors">
+        <button type="button" aria-label="Anterior" className="swiper-btn-prev-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
           &larr;
         </button>
-        <button className="swiper-btn-next-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-text-on-dark)] text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)] hover:text-[var(--theme-bg-alt)] transition-colors">
+        <button type="button" aria-label="Siguiente" className="swiper-btn-next-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
           &rarr;
         </button>
       </div>

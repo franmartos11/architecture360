@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { formatPrice, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
+import { Pill } from '@/components/project-landing/ui';
 import type { Unit } from '@/types';
 
 interface TypologyGroup {
@@ -31,7 +32,9 @@ function buildTypologies(units: Unit[]): TypologyGroup[] {
   return Array.from(groups.entries()).map(([key, groupUnits]) => {
     const areas = groupUnits.map(u => u.totalArea).filter(a => a > 0);
     const prices = groupUnits.map(u => u.price).filter((p): p is number => p != null && p > 0);
-    const sampleUnit = groupUnits[0];
+    // La foto de muestra: la primera unidad del grupo que tenga alguna.
+    const withImage = groupUnits.find(u => u.interiorImageUrl || u.floorPlan3dUrl);
+    const sampleUnit = withImage ?? groupUnits[0];
     return {
       id: key,
       label: key,
@@ -50,14 +53,10 @@ function buildTypologies(units: Unit[]): TypologyGroup[] {
 function formatArea(min: number, max: number): string {
   if (!min && !max) return '';
   if (min === max) return `${min} m²`;
-  return `${min} - ${max} m²`;
+  return `${min} – ${max} m²`;
 }
 
-function formatPriceRange(min: number | null, currency?: string): string {
-  return min == null ? '' : `Desde ${formatPrice(min, currency)}`;
-}
-
-export function TabsSection({ units, showPrice, unitIsLand = false }: { units: Unit[]; showPrice: boolean; unitIsLand?: boolean }) {
+export function TabsSection({ units, showPrice, unitIsLand = false, kindLabel }: { units: Unit[]; showPrice: boolean; unitIsLand?: boolean; kindLabel: string }) {
   const basePath = useProjectBasePath();
   const typologies = useMemo(() => buildTypologies(units), [units]);
   const [activeTab, setActiveTab] = useState(typologies[0]?.id ?? '');
@@ -65,69 +64,51 @@ export function TabsSection({ units, showPrice, unitIsLand = false }: { units: U
   const activeData = typologies.find(t => t.id === activeTab) ?? typologies[0];
   if (!activeData) return null;
 
+  // Un lote es terreno — no tiene dormitorios que anunciar. Un local /
+  // cochera tampoco: se anuncia su categoría en el rótulo de arriba.
+  const bedroomsText = activeData.categoryLabel
+    ? null
+    : activeData.bedrooms > 0 ? `${activeData.bedrooms}` : 'Monoambiente';
+  const area = formatArea(activeData.minArea, activeData.maxArea);
+  const specs = [
+    area && { label: 'Superficie', value: area },
+    !unitIsLand && bedroomsText && { label: 'Dormitorios', value: bedroomsText },
+    activeData.sampleUnit.bathrooms > 0 && !activeData.categoryLabel && { label: 'Baños', value: String(activeData.sampleUnit.bathrooms) },
+  ].filter(Boolean).slice(0, 2) as { label: string; value: string }[];
+
   return (
     <div className="w-full">
-      {/* Tab headers */}
-      <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-[var(--theme-border)] mb-12">
+      {/* Con muchas tipologías las pestañas scrollean de costado en vez de apilarse en 4 renglones. */}
+      <div role="tablist" aria-label="Modelos" className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
         {typologies.map((tab) => {
           const isActive = tab.id === activeData.id;
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className="pb-4 text-sm font-semibold tracking-widest transition-colors whitespace-nowrap"
-              style={{
-                color: isActive ? 'var(--theme-text)' : 'var(--theme-text-muted)',
-                borderBottom: isActive ? '2px solid var(--theme-accent)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
+              className={`flex-none h-11 px-[18px] rounded-full border text-sm font-semibold whitespace-nowrap cursor-pointer transition-colors duration-200 ${
+                isActive
+                  ? 'bg-[var(--theme-text)] text-[var(--theme-bg)] border-[var(--theme-text)]'
+                  : 'bg-transparent text-[var(--theme-text)] border-[var(--theme-border)] hover:border-[var(--theme-text)]/40'
+              }`}
             >
-              {tab.label.toUpperCase()}
+              {tab.label}
             </button>
           );
         })}
       </div>
 
-      {/* Tab content */}
-      <div className="grid md:grid-cols-2 gap-12 items-center animate-fade-in-up" key={activeData.id}>
-        <div className="space-y-6">
-          <div>
-            <h2 className="font-[family-name:var(--theme-font-heading)] text-4xl font-light text-[var(--theme-text)] mb-2">{activeData.label}</h2>
-            {/* Un lote es terreno — no tiene dormitorios que anunciar. Un
-                local / cochera tampoco: se anuncia su categoría. */}
-            {!unitIsLand && (
-              <div className="text-[var(--theme-accent)] tracking-wide">
-                {activeData.categoryLabel ?? (activeData.bedrooms > 0 ? `${activeData.bedrooms} dormitorio${activeData.bedrooms === 1 ? '' : 's'}` : 'Sin dormitorios')}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            {(activeData.minArea > 0 || activeData.maxArea > 0) && (
-              <h3 className="text-xl font-medium text-[var(--theme-text)]">{formatArea(activeData.minArea, activeData.maxArea)}</h3>
-            )}
-            {showPrice && activeData.minPrice != null && (
-              <h3 className="text-xl font-medium text-[var(--theme-text)]">{formatPriceRange(activeData.minPrice, activeData.sampleUnit.currency)}</h3>
-            )}
-          </div>
-
-          <div className="pt-4">
-            <a
-              href={`${basePath}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`}
-              className="inline-block px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm"
-            >
-              CONOCER {activeData.label.toUpperCase()}
-            </a>
-          </div>
-        </div>
-
-        <div className="relative h-[400px] md:h-[500px] w-full rounded-[var(--theme-radius)] overflow-hidden bg-[var(--theme-border)]">
+      <div role="tabpanel" key={activeData.id} className="flex flex-wrap gap-6 bg-[var(--theme-surface)] rounded-[calc(var(--theme-radius)*1.4)] p-3 sm:p-4 animate-fade-in-up">
+        <div className="relative flex-[999_1_520px] min-w-0 h-[300px] sm:h-[460px] rounded-[var(--theme-radius)] overflow-hidden bg-[var(--theme-border)]">
           {activeData.image ? (
             <Image
               src={activeData.image}
-              alt={activeData.label}
+              alt={`Imagen de referencia del modelo ${activeData.label}`}
               fill
-              sizes="(min-width: 768px) 50vw, 100vw"
+              sizes="(min-width: 1024px) 60vw, 100vw"
               placeholder="blur"
               blurDataURL={shimmerDataUrl()}
               className="object-cover"
@@ -135,6 +116,42 @@ export function TabsSection({ units, showPrice, unitIsLand = false }: { units: U
           ) : (
             <div className="w-full h-full flex items-center justify-center text-[var(--theme-text-muted)] text-sm">Sin imagen todavía</div>
           )}
+        </div>
+
+        <div className="flex-[1_1_300px] px-2 py-3 sm:px-5 sm:py-6 flex flex-col justify-between gap-8">
+          <div className="flex flex-col gap-3.5">
+            <span className="inline-flex items-center gap-2.5 text-[11px] tracking-[0.2em] font-bold uppercase text-[var(--theme-text-muted)]">
+              <span className="w-[22px] h-px bg-current" aria-hidden="true" />
+              {activeData.categoryLabel ?? kindLabel}
+            </span>
+            <h3 className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(32px,3.4vw,44px)] leading-none font-semibold tracking-[-0.035em] text-[var(--theme-text)] break-words">
+              {activeData.label}
+            </h3>
+            {specs.length > 0 && (
+              <dl className="m-0 mt-2 grid grid-cols-2 gap-2">
+                {specs.map(s => (
+                  <div key={s.label} className="bg-[var(--theme-bg)] rounded-[calc(var(--theme-radius)*0.7)] px-4 py-3.5">
+                    <dt className="text-[11px] tracking-[0.14em] font-bold uppercase text-[var(--theme-text-muted)]">{s.label}</dt>
+                    <dd className="m-0 mt-1.5 text-lg sm:text-xl font-semibold text-[var(--theme-text)]">{s.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {showPrice && (
+              <p className="m-0 text-sm text-[var(--theme-text-muted)]">
+                {activeData.minPrice != null ? 'Desde' : 'Precio'}
+                <span className="block text-[clamp(30px,3vw,40px)] leading-[1.1] font-semibold tracking-[-0.03em] text-[var(--theme-text)]">
+                  {activeData.minPrice != null ? formatPrice(activeData.minPrice, activeData.sampleUnit.currency) : 'Consultar'}
+                </span>
+              </p>
+            )}
+            <Pill href={`${basePath}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`} arrow size="lg" block>
+              Conocer {activeData.label}
+            </Pill>
+          </div>
         </div>
       </div>
     </div>

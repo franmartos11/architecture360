@@ -2,6 +2,8 @@ import type { ComponentType } from 'react';
 import type { SectionKey } from '@/lib/project-sections';
 import type { SectionProps } from './types';
 import AboutSection from './AboutSection';
+import GallerySection from './GallerySection';
+import StatsSection from './StatsSection';
 import BeforeAfterSection from './BeforeAfterSection';
 import ProcessSection from './ProcessSection';
 import TeamSection from './TeamSection';
@@ -20,6 +22,8 @@ import ContactSection from './ContactSection';
 // lugares distintos.
 export const SECTION_COMPONENTS: Record<SectionKey, ComponentType<SectionProps>> = {
   about: AboutSection,
+  gallery: GallerySection,
+  stats: StatsSection,
   before_after: BeforeAfterSection,
   process: ProcessSection,
   team: TeamSection,

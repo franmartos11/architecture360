@@ -100,10 +100,23 @@ describe('resolveSectionOrder', () => {
     expect(resolveSectionOrder(config, venta)).not.toContain('amenities');
   });
 
-  it('una key nueva del registro que falta en el guardado se agrega al final, habilitada', () => {
+  it('una key nueva del registro que falta en el guardado entra en su lugar por defecto, habilitada', () => {
     const config = SECTION_REGISTRY.filter(s => s.key !== 'typologies').map(s => ({ key: s.key, enabled: true }));
     const order = resolveSectionOrder(config, venta);
-    expect(order[order.length - 1]).toBe('typologies');
+    // Va justo después de la que la precede en el registro (bim), no al fondo.
+    expect(order[order.indexOf('bim') + 1]).toBe('typologies');
+  });
+
+  it('las secciones nuevas (gallery/stats) de un orden guardado viejo quedan pegadas a about', () => {
+    const config = [
+      { key: 'contact', enabled: true },
+      { key: 'about', enabled: true },
+      { key: 'amenities', enabled: true },
+    ];
+    const order = resolveSectionOrder(config, venta);
+    expect(order[0]).toBe('contact');
+    expect(order.indexOf('gallery')).toBe(order.indexOf('about') + 1);
+    expect(order.indexOf('stats')).toBe(order.indexOf('gallery') + 1);
   });
 
   it('respeta el orden guardado, no el default', () => {
@@ -133,7 +146,7 @@ describe('resolveSectionList', () => {
 
   it('el label de "masterplan" cambia si el tipo no tiene hasFloorStep', () => {
     const listEdificio = resolveSectionList(null, venta);
-    expect(listEdificio.find(s => s.key === 'masterplan')!.label).toBe('Masterplan interactivo');
+    expect(listEdificio.find(s => s.key === 'masterplan')!.label).toBe('Explorar 3D');
 
     const listCasa = resolveSectionList(null, casa);
     expect(listCasa.find(s => s.key === 'masterplan')!.label).toBe('Vista frontal');

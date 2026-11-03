@@ -1,23 +1,38 @@
+import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import HomeContactForm from '@/components/HomeContactForm';
 import type { SectionProps } from './types';
 
+// ['planos', 'precios', 'financiación'] → "planos, precios y financiación".
+function joinEs(items: (string | false)[]): string {
+  const list = items.filter(Boolean) as string[];
+  return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} y ${list.at(-1)}`;
+}
+
 export default function ContactSection({ project, typeConfig }: SectionProps) {
   if (!typeConfig.showLeads) return null;
 
-  return (
-    <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg-accent)] relative overflow-hidden">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
-        <Reveal>
-          <h2 className="font-[family-name:var(--theme-font-heading)] text-4xl sm:text-5xl md:text-6xl font-thin text-[var(--theme-text-on-dark)] leading-tight mb-6 text-center md:text-left">
-            Contactanos
-          </h2>
-        </Reveal>
+  // De fondo, la última vista aérea (distinta de la del hero cuando hay varias).
+  const bg = project.aerialSlides.at(-1)?.imageUrl || project.masterplanImage;
 
-        <Reveal delay={0.15} className="bg-[var(--theme-text-on-dark)]/5 backdrop-blur-sm p-6 md:p-8 rounded-[var(--theme-radius)] border border-[var(--theme-border-on-dark)]">
-          <div className="text-[var(--theme-text-on-dark)] mb-6 md:mb-8 font-light text-center md:text-left">Completa el formulario para obtener más información.</div>
-          <HomeContactForm projectSlug={project.slug} />
-        </Reveal>
+  return (
+    <section id="contacto" className="px-4 sm:px-6 py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
+      <div className="max-w-[1360px] mx-auto rounded-[calc(var(--theme-radius)*1.6)] overflow-hidden relative bg-[var(--theme-bg-alt)]">
+        {bg && <Image src={bg} alt="" aria-hidden="true" fill sizes="(min-width: 1360px) 1360px, 100vw" className="object-cover" />}
+        <div className="absolute inset-0 bg-[var(--theme-bg-alt)]/75" aria-hidden="true" />
+        <div className="relative p-5 sm:p-10 lg:p-14 flex flex-wrap gap-10 lg:gap-12 items-end text-[var(--theme-text-on-dark)]">
+          <Reveal className="flex-[1_1_380px] flex flex-col gap-5">
+            <h2 className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(36px,5.2vw,76px)] leading-none font-medium tracking-[-0.04em] text-balance">
+              Encontrá tu lugar. <span className="text-[var(--theme-text-on-dark-muted)]">Te ayudamos a elegirlo.</span>
+            </h2>
+            <p className="m-0 text-base text-[var(--theme-text-on-dark-muted)]">
+              Completá el formulario y te contactamos con {joinEs(['planos', typeConfig.showPrice && 'precios', typeConfig.showCalculator && 'financiación'])}.
+            </p>
+          </Reveal>
+          <Reveal delay={0.12} className="flex-[1_1_380px] min-w-0 bg-[var(--theme-surface)] text-[var(--theme-text)] rounded-[calc(var(--theme-radius)*1.2)] p-5 sm:p-7">
+            <HomeContactForm projectSlug={project.slug} />
+          </Reveal>
+        </div>
       </div>
     </section>
   );

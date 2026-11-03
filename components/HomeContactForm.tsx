@@ -1,11 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { Pill } from '@/components/project-landing/ui';
+
+// Tarjeta clara (--theme-surface) — vive encima de la foto oscurecida de
+// la sección Contacto, así que usa los colores de texto "sobre claro".
+const FIELD = 'h-[46px] w-full px-3.5 rounded-[calc(var(--theme-radius)*0.6)] border border-[var(--theme-border)] bg-transparent text-[15px] font-normal text-[var(--theme-text)] outline-none transition-colors focus:border-[var(--theme-text)]';
+const LABEL = 'flex flex-col gap-1.5 text-[13px] font-semibold text-[var(--theme-text)]';
 
 export default function HomeContactForm({ projectSlug }: { projectSlug: string }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -23,7 +30,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
           name,
           email,
           phone,
-          message: 'Hola, me interesa recibir más información sobre el proyecto.',
+          message: message.trim() || 'Hola, me interesa recibir más información sobre el proyecto.',
           unitId: null,
           unitName: 'General',
           source: 'home_contact_form',
@@ -36,6 +43,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
         setName('');
         setEmail('');
         setPhone('');
+        setMessage('');
       } else {
         setError('Hubo un error al enviar tu consulta. Por favor, intentá de nuevo.');
       }
@@ -48,52 +56,42 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
 
   if (isSuccess) {
     return (
-      <div className="text-center py-6">
-        <div className="w-14 h-14 mx-auto bg-[var(--theme-text-on-dark)]/10 text-[var(--theme-text-on-dark)] rounded-full flex items-center justify-center mb-4">
-          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="text-center py-10" role="status">
+        <div className="w-14 h-14 mx-auto bg-[var(--theme-text)]/5 text-[var(--theme-text)] rounded-full flex items-center justify-center mb-4">
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-[var(--theme-text-on-dark)] font-medium">¡Mensaje enviado!</p>
-        <p className="text-[var(--theme-text-on-dark-muted)] text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
+        <p className="text-[var(--theme-text)] font-semibold">¡Mensaje enviado!</p>
+        <p className="text-[var(--theme-text-muted)] text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input
-        type="text"
-        required
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="Nombre completo"
-        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
-      />
-      <input
-        type="email"
-        required
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        placeholder="Correo electrónico"
-        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
-      />
-      <input
-        type="tel"
-        required
-        value={phone}
-        onChange={e => setPhone(e.target.value)}
-        placeholder="Teléfono"
-        className="w-full p-4 bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-border-on-dark)] rounded-[var(--theme-radius)] text-[var(--theme-text-on-dark)] placeholder:text-[var(--theme-text-on-dark-muted)] focus:outline-none focus:border-[var(--theme-text-on-dark)] transition-colors"
-      />
-      {error && <p className="text-sm text-red-200">{error}</p>}
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full mt-2 py-4 rounded-[var(--theme-radius)] bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity tracking-wider text-sm disabled:opacity-70 disabled:cursor-not-allowed"
-      >
-        {isSubmitting ? 'Enviando...' : 'ENVIAR'}
-      </button>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className={LABEL}>
+          Nombre
+          <input type="text" required autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={FIELD} />
+        </label>
+        <label className={LABEL}>
+          Teléfono
+          <input type="tel" required autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} className={FIELD} />
+        </label>
+      </div>
+      <label className={LABEL}>
+        Email
+        <input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className={FIELD} />
+      </label>
+      <label className={LABEL}>
+        <span>Mensaje <span className="font-normal text-[var(--theme-text-muted)]">(opcional)</span></span>
+        <textarea rows={3} maxLength={2000} value={message} onChange={e => setMessage(e.target.value)} className={`${FIELD} h-auto py-3 resize-y`} />
+      </label>
+      {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+      <Pill type="submit" disabled={isSubmitting} arrow size="lg" block className="mt-1">
+        {isSubmitting ? 'Enviando…' : 'Enviar consulta'}
+      </Pill>
     </form>
   );
 }

@@ -8,6 +8,8 @@ import { pluralize } from '@/lib/units';
 // "chrome" fijo de la página, no contenido reordenable.
 export type SectionKey =
   | 'about'
+  | 'gallery'
+  | 'stats'
   | 'before_after'
   | 'process'
   | 'team'
@@ -28,15 +30,17 @@ export interface SectionMeta {
 // proyecto sin section_config guardado.
 export const SECTION_REGISTRY: SectionMeta[] = [
   { key: 'about', label: 'Sobre el proyecto' },
+  { key: 'gallery', label: 'Galería de fotos' },
+  { key: 'stats', label: 'Cifras' },
   { key: 'before_after', label: 'Antes / Después' },
   { key: 'process', label: 'Galería de proceso' },
   { key: 'team', label: 'Equipo' },
   { key: 'amenities', label: 'Amenidades' },
-  { key: 'masterplan', label: 'Masterplan interactivo' },
+  { key: 'masterplan', label: 'Explorar 3D' },
   { key: 'bim', label: 'Modelo BIM' },
   { key: 'typologies', label: 'Tipologías / unidades' },
-  { key: 'location', label: 'Ubicación' },
   { key: 'calculator', label: 'Calculadora' },
+  { key: 'location', label: 'Ubicación' },
   { key: 'contact', label: 'Contacto' },
 ];
 
@@ -79,6 +83,7 @@ export function isSectionAvailable(key: SectionKey, typeConfig: ProjectTypeConfi
 export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string | null {
   switch (key) {
     case 'about':
+    case 'gallery':
     case 'before_after':
     case 'process':
     case 'team':
@@ -95,6 +100,7 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
     case 'calculator':
       return '/admin/settings';
     case 'contact':
+    case 'stats':
       return null;
   }
 }
@@ -104,14 +110,16 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
 // pantalla a adivinar.
 export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): string {
   const hints: Record<SectionKey, string> = {
-    about: 'Descripción larga del proyecto (y ficha académica, si es "solo para mostrar").',
+    about: 'Descripción larga del proyecto (y ficha académica, si es "solo para mostrar"). El primer párrafo, si es corto, va en letra grande.',
+    gallery: 'Tira de 3–4 fotos tomadas de las vistas aéreas, portadas de edificios y amenities — no se carga aparte.',
+    stats: `Cantidad de ${pluralize(typeConfig.unitLabel).toLowerCase()}${typeConfig.showStatus ? ', disponibles' : ''}, niveles${typeConfig.showPrice ? ' y precio desde' : ''} — se calcula solo.`,
     before_after: 'Pares de fotos antes/después — reciclaje o rehabilitación.',
     process: 'Bocetos, maquetas y diagramas del proceso de diseño.',
     team: 'Colaboradores acreditados y confirmados.',
     amenities: 'Pileta, gym, SUM y demás espacios comunes.',
     masterplan: typeConfig.hasUnitStep
-      ? 'Foto aérea con hotspots — se carga en Proyecto → Vistas aéreas.'
-      : 'Foto del frente de la casa — se carga en Proyecto → Vista frontal.',
+      ? 'Accesos grandes a masterplan, tour 360°, unidades y BIM (los que tengan contenido). La foto aérea se carga en Proyecto → Vistas aéreas.'
+      : 'Accesos grandes a la vista frontal y al tour 360° (si hay). La foto se carga en Proyecto → Vista frontal.',
     bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
     typologies: `${pluralize(typeConfig.unitLabel)} disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
@@ -176,11 +184,21 @@ export interface SectionConfigEntry {
 // nueva después), esa se agrega al final habilitada por defecto — así
 // una sección nueva del sistema no queda invisible para proyectos ya
 // configurados.
-function resolveFullOrder(sectionConfig: SectionConfigEntry[] | null | undefined): SectionConfigEntry[] {
-  const saved = sectionConfig ?? [];
-  const savedKeys = new Set(saved.map(s => s.key));
-  const missing = DEFAULT_ORDER.filter(k => !savedKeys.has(k)).map(key => ({ key, enabled: true }));
-  return [...saved, ...missing];
+//
+// La key faltante entra justo después de la que la precede en el orden
+// por defecto (si está en el guardado) — así 'gallery'/'stats', que van
+// pegadas a 'about', no terminan al fondo de la página, debajo de
+// Contacto, en todo proyecto que ya tenía su orden guardado.
+export function resolveFullOrder(sectionConfig: SectionConfigEntry[] | null | undefined): SectionConfigEntry[] {
+  const out = [...(sectionConfig ?? [])];
+  const has = (k: string) => out.some(s => s.key === k);
+  DEFAULT_ORDER.forEach((key, i) => {
+    if (has(key)) return;
+    const prev = DEFAULT_ORDER.slice(0, i).reverse().find(has);
+    const at = prev ? out.findIndex(s => s.key === prev) + 1 : 0;
+    out.splice(at, 0, { key, enabled: true });
+  });
+  return out;
 }
 
 // Para la landing pública: solo las keys habilitadas Y disponibles para
