@@ -236,7 +236,7 @@ export default function LeadCaptureModal({
                     <button
                       type="button"
                       onClick={handleWhatsApp}
-                      className="h-[52px] shrink-0 rounded-xl bg-[#22C55E] text-[#0B1F12] flex items-center justify-center gap-2 text-[16px] font-bold"
+                      className="m-btn m-btn--whatsapp shrink-0 w-full"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d={WHATSAPP_PATH} /></svg>
                       Escribir por WhatsApp
@@ -295,13 +295,16 @@ export default function LeadCaptureModal({
                       type="submit"
                       form="lead-form-mobile"
                       disabled={isSubmitting}
-                      className="w-full h-[52px] rounded-xl bg-gray-900 text-white text-[16px] font-semibold flex items-center justify-center gap-2 disabled:opacity-70"
+                      className="m-btn m-btn--primary w-full"
                     >
                       {isSubmitting ? (
-                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-label="Enviando">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <>
+                          <svg className="w-[18px] h-[18px] animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.5"></circle>
+                            <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          </svg>
+                          Enviando…
+                        </>
                       ) : 'Enviar consulta'}
                     </button>
                   </div>

@@ -195,31 +195,23 @@ function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?:
           onClick={favorite.onToggle}
           aria-label={favorite.on ? 'Quitar de favoritos' : 'Guardar en favoritos'}
           aria-pressed={favorite.on}
-          className={`w-12 h-12 shrink-0 rounded-[14px] border flex items-center justify-center transition-colors ${
-            favorite.on ? 'text-[#C2410C] border-[#F3C3A8] bg-[#FFF4ED]' : 'text-gray-900 border-[#DADDE1] bg-white'
-          }`}
+          className={`m-btn !w-[52px] !px-0 shrink-0 ${favorite.on ? 'bg-[#FFF1E8] text-[#C2410C]' : 'm-btn--secondary'}`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill={favorite.on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} strokeLinejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /></svg>
         </button>
       )}
       {secondary && (
-        <button
-          type="button"
-          onClick={secondary.onClick}
-          className="flex-[1_1_0] min-w-0 h-12 rounded-[14px] border border-gray-900 bg-white text-gray-900 text-sm font-bold flex items-center justify-center gap-2 transition-[transform,background-color] duration-150 active:scale-[0.97] active:bg-gray-50"
-        >
+        <button type="button" onClick={secondary.onClick} className="m-btn m-btn--secondary flex-[1_1_0]">
           <span className="truncate">{secondary.label}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 opacity-60"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </button>
       )}
       {primary && (
-        <button
-          type="button"
-          onClick={primary.onClick}
-          className={`${equal ? 'flex-[1_1_0]' : 'flex-[1.3_1_0]'} min-w-0 h-12 rounded-[14px] bg-gray-900 text-white text-sm font-bold flex items-center justify-center gap-2 transition-[transform,background-color] duration-150 active:scale-[0.97] active:bg-gray-800`}
-        >
+        <button type="button" onClick={primary.onClick} className={`m-btn m-btn--primary ${equal ? 'flex-[1_1_0]' : 'flex-[1.3_1_0]'}`}>
+          {primary.icon !== 'arrow' && <ChatGlyph />}
           <span className="truncate">{primary.label}</span>
           {primary.icon === 'arrow' && (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           )}
         </button>
       )}
@@ -252,5 +244,14 @@ function PhotoCarousel({ photos }: { photos: string[] }) {
         </span>
       )}
     </>
+  );
+}
+
+// Globo de chat (acción de consultar).
+function ChatGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z" />
+    </svg>
   );
 }

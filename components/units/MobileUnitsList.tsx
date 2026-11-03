@@ -184,7 +184,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
             type="button"
             onClick={() => setSheetOpen(true)}
             aria-haspopup="dialog"
-            className="h-10 shrink-0 px-3 rounded-[10px] border border-[#D5D9DE] bg-white text-sm font-semibold flex items-center gap-2"
+            className="m-btn m-btn--secondary m-btn--sm shrink-0 !h-10 !px-3.5"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
             Ordenar y filtrar
@@ -200,7 +200,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
       ) : n === 0 ? (
         <div className="px-6 py-12 flex flex-col items-center gap-3 text-center">
           <span className="text-base font-bold">No hay {p.unitLabelPluralLower} con estos filtros</span>
-          <button type="button" onClick={clearSheet} className="h-11 px-[18px] rounded-xl border border-gray-900 text-sm font-semibold">
+          <button type="button" onClick={clearSheet} className="m-btn m-btn--secondary m-btn--sm">
             Limpiar filtros
           </button>
         </div>
@@ -349,8 +349,8 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
                 className="shrink-0 grid grid-cols-[1fr_2fr] gap-2 px-4 pt-3 border-t border-[#ECEEF0]"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
               >
-                <button type="button" onClick={clearSheet} className="h-12 rounded-xl border border-[#D5D9DE] text-[15px] font-semibold">Limpiar</button>
-                <button type="button" onClick={() => setSheetOpen(false)} className="h-12 rounded-xl bg-gray-900 text-white text-[15px] font-semibold">
+                <button type="button" onClick={clearSheet} className="m-btn m-btn--secondary">Limpiar</button>
+                <button type="button" onClick={() => setSheetOpen(false)} className="m-btn m-btn--primary">
                   {n === 1 ? 'Ver 1 unidad' : `Ver ${n} ${p.unitLabelPluralLower}`}
                 </button>
               </div>

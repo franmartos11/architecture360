@@ -202,6 +202,48 @@ html[data-nav-pending] [data-site-nav]::after {
 }
 
 /* ─── Buttons ──────────────────────────────────────────────────── */
+/* Botones del sitio público en mobile — una sola familia: mismo alto,
+   mismo redondeado y misma tipografía. El principal lleva el color de
+   marca del proyecto; el secundario es un gris suave sin borde (el
+   contorno negro se leía "de formulario"); WhatsApp se reconoce por el
+   logo, en un verde apagado que no le gana al resto de la pantalla. */
+@layer components {
+.m-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  height: 52px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  transition: transform 150ms ease, background-color 150ms ease, filter 150ms ease, opacity 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-btn:active { transform: scale(0.97); }
+.m-btn:disabled { opacity: 0.7; transform: none; }
+.m-btn:focus-visible { outline: 2px solid var(--theme-accent, #111827); outline-offset: 2px; }
+.m-btn--sm { height: 44px; padding: 0 14px; border-radius: 12px; font-size: 14px; }
+.m-btn--primary {
+  background: var(--theme-accent, #111827);
+  color: var(--theme-text-on-accent, #ffffff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(17, 24, 39, 0.14), 0 6px 16px -8px rgba(17, 24, 39, 0.35);
+}
+.m-btn--primary:active { filter: brightness(0.93); }
+.m-btn--secondary { background: #F1F2F4; color: #111827; }
+.m-btn--secondary:active { background: #E6E8EB; }
+.m-btn--whatsapp { background: #E9F4EE; color: #1B6B3E; }
+.m-btn--whatsapp:active { background: #DCEEE3; }
+@media (prefers-reduced-motion: reduce) {
+  .m-btn { transition: none; }
+  .m-btn:active { transform: none; }
+}
+}
+
 .btn-outline {
   @apply px-6 py-3 border border-trevo-dark text-trevo-dark hover:bg-trevo-dark hover:text-white transition-colors duration-300 tracking-wider text-sm;
 }

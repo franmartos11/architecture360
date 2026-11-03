@@ -22,6 +22,10 @@ interface ModalPortalProps {
  *
  * Monta recién en el cliente: en el server no hay document y el markup del
  * modal no tiene por qué estar en el HTML inicial.
+ *
+ * Colgado del body pierde las variables del tema del proyecto (color de
+ * acento, tipografías), que viven en el contenedor `[data-project-theme]`:
+ * se copian a un envoltorio `display: contents` que no altera el layout.
  */
 export default function ModalPortal({ open, children }: ModalPortalProps) {
   const [montado, setMontado] = useState(false);
@@ -29,5 +33,16 @@ export default function ModalPortal({ open, children }: ModalPortalProps) {
   useScrollLock(open);
 
   if (!montado) return null;
-  return createPortal(children, document.body);
+  return createPortal(
+    <div
+      className="contents"
+      ref={el => {
+        const theme = document.querySelector<HTMLElement>('[data-project-theme]');
+        if (el && theme) el.style.cssText = `${theme.style.cssText};display:contents`;
+      }}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
 }
