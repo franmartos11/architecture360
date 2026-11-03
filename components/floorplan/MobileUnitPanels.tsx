@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { m as motion, useReducedMotion } from 'framer-motion';
+import { SWAP } from '@/lib/motion';
 
 // Piezas de la vista de plantas en mobile: la tarjeta fija de abajo con lo
 // elegido en el plano y el detalle que se abre desde ella (dentro de
@@ -24,6 +25,10 @@ export interface MobileSelectionSummary {
   title: string;
   subtitle: string;
   price?: string;
+  /** Al lado del precio, más chico (ej. el precio por m²). */
+  priceNote?: string;
+  /** Datos cortos de la unidad (dormitorios, baños, orientación…), en chips. */
+  facts?: string[];
   statusLabel?: string;
   statusColor?: string;
   image?: string;
@@ -31,7 +36,8 @@ export interface MobileSelectionSummary {
 
 // ── Tarjeta fija de abajo ────────────────────────────────────────
 // Siempre a la vista mientras hay algo elegido: tocarla (o deslizarla hacia
-// arriba) abre el detalle.
+// arriba) abre el detalle. Las acciones van sin favorito — ese vive en el
+// detalle, acá le quitaba ancho a los dos botones.
 export function MobileSelectionCard({ summary, selectionKey, actions, onExpand }: {
   summary: MobileSelectionSummary;
   /** Cambia con la selección: el contenido entra con un fundido. */
@@ -41,43 +47,66 @@ export function MobileSelectionCard({ summary, selectionKey, actions, onExpand }
 }) {
   const reduced = !!useReducedMotion();
   const swipeFrom = useRef<number | null>(null);
-  const hasActions = !!(actions.favorite || actions.secondary || actions.primary);
+  const cardActions = { ...actions, favorite: undefined };
+  const hasActions = !!(cardActions.secondary || cardActions.primary);
   return (
     <div
-      className="relative z-10 flex flex-col gap-3 px-4 rounded-t-[20px] bg-white shadow-[0_-6px_20px_rgba(0,0,0,0.12)]"
-      style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+      className="relative z-10 px-4 bg-white"
+      style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}
       onPointerDown={e => { swipeFrom.current = e.clientY; }}
       onPointerUp={e => {
         if (swipeFrom.current !== null && e.clientY - swipeFrom.current < -24) onExpand();
         swipeFrom.current = null;
       }}
     >
-      <button type="button" onClick={onExpand} aria-label="Ver detalle" className="h-5 flex items-center justify-center">
-        <span aria-hidden="true" className="w-10 h-1 rounded-full bg-gray-300" />
-      </button>
-      <motion.button
-        key={selectionKey}
-        type="button"
-        onClick={onExpand}
-        aria-haspopup="dialog"
-        initial={reduced ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-        className="flex items-center gap-3 text-left text-gray-900"
-      >
-        <span className="relative w-16 h-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-          {summary.image && <Image src={summary.image} alt="" fill sizes="64px" className="object-cover" />}
-        </span>
-        <span className="flex-1 min-w-0 flex flex-col gap-[3px]">
-          {summary.statusLabel && <StatusLine label={summary.statusLabel} color={summary.statusColor} />}
-          <span className="flex items-baseline justify-between gap-2">
-            <span className="text-lg leading-tight font-bold truncate">{summary.title}</span>
-            {summary.price && <span className="text-base font-bold whitespace-nowrap tabular-nums">{summary.price}</span>}
+      <div className="flex flex-col gap-3.5 p-3.5 rounded-[18px] bg-white border border-[#EEF0F2] shadow-[0_6px_20px_rgba(0,0,0,0.08)]">
+        <motion.button
+          key={selectionKey}
+          type="button"
+          onClick={onExpand}
+          aria-haspopup="dialog"
+          aria-label={`${summary.title}: ver detalle`}
+          initial={reduced ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={SWAP}
+          className="flex items-center gap-3.5 text-left text-gray-900 transition-transform duration-150 active:scale-[0.985]"
+        >
+          <span className="relative w-[88px] h-[88px] shrink-0 overflow-hidden rounded-xl bg-gray-50">
+            {summary.image && <Image src={summary.image} alt="" fill sizes="88px" className="object-cover" />}
           </span>
-          <span className="text-[13px] text-gray-500 truncate">{summary.subtitle}</span>
-        </span>
-      </motion.button>
-      {hasActions && <ActionRow actions={actions} />}
+          <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+            {summary.statusLabel && (
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ background: summary.statusColor }} />
+                <span className="text-[13px] font-semibold" style={{ color: summary.statusColor }}>{summary.statusLabel}</span>
+              </span>
+            )}
+            <span className="text-[21px] leading-tight font-bold truncate">{summary.title}</span>
+            <span className="text-[13px] text-gray-500 truncate">{summary.subtitle}</span>
+            {summary.price && (
+              <span className="flex items-baseline gap-1.5 mt-0.5 min-w-0">
+                <span className="text-[17px] font-bold whitespace-nowrap tabular-nums">{summary.price}</span>
+                {summary.priceNote && <span className="text-xs text-gray-500 truncate tabular-nums">· {summary.priceNote}</span>}
+              </span>
+            )}
+          </span>
+        </motion.button>
+        {summary.facts && summary.facts.length > 0 && (
+          <motion.ul
+            key={`facts-${selectionKey}`}
+            initial={reduced ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...SWAP, delay: reduced ? 0 : 0.05 }}
+            className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mt-1"
+            aria-label="Datos de la unidad"
+          >
+            {summary.facts.map(f => (
+              <li key={f} className="shrink-0 px-2.5 py-1 rounded-lg bg-[#F3F5F7] text-[12.5px] font-semibold text-gray-700 whitespace-nowrap">{f}</li>
+            ))}
+          </motion.ul>
+        )}
+        {hasActions && <ActionRow actions={cardActions} equal />}
+      </div>
     </div>
   );
 }
@@ -154,10 +183,12 @@ function StatusLine({ label, color }: { label: string; color?: string }) {
   );
 }
 
-function ActionRow({ actions }: { actions: MobileActions }) {
+function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?: boolean }) {
   const { favorite, secondary, primary } = actions;
   return (
-    <div className="flex gap-2">
+    // En la tarjeta (equal, sin favorito) la acción principal va a la
+    // izquierda y "Ver unidad" a la derecha.
+    <div className={`flex gap-2 ${equal ? 'flex-row-reverse' : ''}`}>
       {favorite && (
         <button
           type="button"
@@ -175,7 +206,7 @@ function ActionRow({ actions }: { actions: MobileActions }) {
         <button
           type="button"
           onClick={secondary.onClick}
-          className="flex-[1_1_0] min-w-0 h-12 rounded-[14px] border border-gray-900 bg-white text-gray-900 text-sm font-bold flex items-center justify-center gap-2"
+          className="flex-[1_1_0] min-w-0 h-12 rounded-[14px] border border-gray-900 bg-white text-gray-900 text-sm font-bold flex items-center justify-center gap-2 transition-[transform,background-color] duration-150 active:scale-[0.97] active:bg-gray-50"
         >
           <span className="truncate">{secondary.label}</span>
         </button>
@@ -184,7 +215,7 @@ function ActionRow({ actions }: { actions: MobileActions }) {
         <button
           type="button"
           onClick={primary.onClick}
-          className="flex-[1.3_1_0] min-w-0 h-12 rounded-[14px] bg-gray-900 text-white text-sm font-bold flex items-center justify-center gap-2"
+          className={`${equal ? 'flex-[1_1_0]' : 'flex-[1.3_1_0]'} min-w-0 h-12 rounded-[14px] bg-gray-900 text-white text-sm font-bold flex items-center justify-center gap-2 transition-[transform,background-color] duration-150 active:scale-[0.97] active:bg-gray-800`}
         >
           <span className="truncate">{primary.label}</span>
           {primary.icon === 'arrow' && (

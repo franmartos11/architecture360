@@ -19,6 +19,7 @@ export default function PlanoTab({
   onPlanViewChange,
   onSelectRoom,
   focusRoomId,
+  fill = false,
 }: {
   unit: Unit;
   hasRooms: boolean;
@@ -27,6 +28,9 @@ export default function PlanoTab({
   onSelectRoom: (room: Room) => void;
   /** Ambiente a resaltar (viene de clickearlo en la lista de la sidebar). */
   focusRoomId?: string;
+  /** Ficha mobile: la imagen ocupa todo el recuadro y el selector de vista
+   *  flota chico arriba en vez de quitarle una fila. */
+  fill?: boolean;
 }) {
   // Casa de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
   // más arriba en unit.levels — acá se unifican para poder elegir cuál
@@ -64,11 +68,11 @@ export default function PlanoTab({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 pt-3 md:pt-16 flex flex-col"
+      className={`absolute inset-0 flex flex-col ${fill ? '' : 'pt-3 md:pt-16'}`}
     >
       {/* Toggle bar */}
-      <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
+      <div className={fill ? 'absolute top-2.5 inset-x-0 z-10 flex justify-center pointer-events-none' : 'flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2'}>
+        <div className={`flex items-center gap-1 rounded-xl p-1 pointer-events-auto ${fill ? 'bg-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.15)] backdrop-blur-sm' : 'bg-gray-100 shadow-inner'}`}>
           {hasRooms && (
             <button
               onClick={() => onPlanViewChange('ambientes')}
@@ -161,7 +165,7 @@ export default function PlanoTab({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: planView === '3d' ? 20 : -20 }}
             transition={{ duration: 0.25 }}
-            className="absolute inset-0 flex items-center justify-center p-2 sm:p-4"
+            className={`absolute inset-0 flex items-center justify-center ${fill ? '' : 'p-2 sm:p-4'}`}
           >
             {(unit.plan3dUrl || unit.technicalPlanUrl) && (
               <TransformWrapper
@@ -187,7 +191,7 @@ export default function PlanoTab({
                     width={1200}
                     height={1200}
                     unoptimized={(planView === '2d' ? unit.technicalPlanUrl : unit.plan3dUrl)?.endsWith('.svg')}
-                    className="max-w-[100cqw] max-h-[100cqh] object-contain"
+                    className={fill ? 'w-[100cqw] h-[100cqh] object-contain' : 'max-w-[100cqw] max-h-[100cqh] object-contain'}
                     draggable={false}
                   />
                 </TransformComponent>

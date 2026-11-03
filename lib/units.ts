@@ -100,6 +100,23 @@ export const UNIT_CATEGORY_LABEL: Record<UnitCategory, string> = {
   cochera: 'Cochera',
 };
 
+// Color propio para lo que no es vivienda (en el plano y en las listas):
+// así un local o una cochera no se confunde con un depto disponible. El
+// estado sigue mandando cuando no está disponible (reservada/vendida).
+export const CATEGORY_COLOR: Partial<Record<UnitCategory, string>> = {
+  comercial: '#3B82F6',
+  cochera: '#8B5CF6',
+};
+// Versión oscura, para texto chico sobre blanco (contraste).
+export const CATEGORY_INK: Partial<Record<UnitCategory, string>> = {
+  comercial: '#1D4ED8',
+  cochera: '#6D28D9',
+};
+export const CATEGORY_SHORT: Partial<Record<UnitCategory, string>> = {
+  comercial: 'Local',
+  cochera: 'Cochera',
+};
+
 const TYPE_BY_CATEGORY: Partial<Record<UnitCategory, string>> = {
   comercial: 'local comercial',
   cochera: 'cochera',

@@ -11,11 +11,13 @@ import { PLAN_WHEEL } from '@/lib/plan-zoom';
 import type { Building, Unit, Floor, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
-import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice } from '@/lib/units';
+import { getUnitsByBuildingAndFloor, getStatusColor, getStatusLabel, formatPrice, unitCategory, unitIsDwelling as unitIsDwellingCat, CATEGORY_COLOR, CATEGORY_SHORT } from '@/lib/units';
 import { FLOOR_KIND_LABEL } from '@/lib/floorKinds';
 import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor, floorName } from '@/lib/floor-explorer';
 import { ELEVATOR_EASE, floorDirection, floorSteps, floorTransitionMs, type FloorDirection } from '@/lib/floor-transition';
 import { UnitSheet, WIDE_QUERY } from './UnitSheet';
+import Segmented from '@/components/ui/Segmented';
+import { stagger } from '@/lib/motion';
 import { MobileSelectionCard, MobileUnitDetail, type MobileActions, type MobileSelectionSummary } from './MobileUnitPanels';
 import { AmenityPanel, SpotPanel, IncludesBlock, NextAvailableCard, AmenityMarkerIcon, AMENITY_COLOR, AMENITY_TEXT } from './FloorPlanPanels';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
@@ -41,6 +43,7 @@ const PLAN_PADDING = 'p-0 wide:p-8 wide:pt-16';
 // como texto chico sobre blanco no llegan al contraste mínimo.
 const STATUS_INK: Record<string, string> = { available: '#2E7D4F', reserved: '#A16207', sold: '#B91C1C' };
 const STATUS_SHORT = { available: 'Disponible', reserved: 'Reservada', sold: 'Vendida' } as const;
+const STATUS_PLURAL = { available: 'disponibles', reserved: 'reservadas', sold: 'vendidas' } as const;
 
 /** Dirección y duración del viaje entre pisos. */
 interface FloorTrip { dir: FloorDirection; ms: number }
@@ -160,8 +163,15 @@ export default function FloorPlanViewer({
   // activeFloor es el piso que se MUESTRA; requestedFloor, el que se pidió.
   // Se separan para que el plano viejo quede en pantalla hasta que el nuevo
   // esté decodificado (nunca un hueco en blanco) — ver el ajuste de abajo.
-  const [activeFloor, setActiveFloor] = useState(initialFloor);
-  const [requestedFloor, setRequestedFloor] = useState(initialFloor);
+  // El piso de la URL manda sobre el de la página: al volver con "atrás",
+  // Next puede restaurar la página con el ?piso= con que se entró, pero la
+  // URL ya tiene el último piso visto (ver el replaceState de más abajo).
+  const [startFloor] = useState(() => {
+    const q = Number(new URLSearchParams(window.location.search).get('piso'));
+    return building.floors.some(f => f.number === q) && window.location.search.includes('piso=') ? q : initialFloor;
+  });
+  const [activeFloor, setActiveFloor] = useState(startFloor);
+  const [requestedFloor, setRequestedFloor] = useState(startFloor);
   const reducedMotion = !!useReducedMotion();
   const [trip, setTrip] = useState<FloorTrip>({ dir: 0, ms: 0 });
   // Capas del plano que el visitante puede prender/apagar. Para un loteo las
@@ -177,12 +187,25 @@ export default function FloorPlanViewer({
   // Hoja inferior con la ficha (solo mobile) — ver UnitSheet más abajo.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showBim, setShowBim] = useState(false);
+  // Mobile: "Pisos" muestra los pisos como una lista tocable en la misma
+  // pantalla (es el único selector de piso en mobile); "Plantas", el plano.
+  const [mobileView, setMobileView] = useState<'pisos' | 'plantas'>('plantas');
   // Escape sale del modelo BIM, además del botón "Volver al plano".
   useEffect(() => {
     if (!showBim) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowBim(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, [showBim]);
+  // En mobile no hay 3D (ni botón para salir de él): si la pantalla se
+  // angosta con el modelo abierto, vuelve al plano.
+  useEffect(() => {
+    if (!showBim) return;
+    const mql = window.matchMedia(WIDE_QUERY);
+    const onChange = () => { if (!mql.matches) setShowBim(false); };
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, [showBim]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
@@ -220,7 +243,7 @@ export default function FloorPlanViewer({
   // pudo medir: se usa el ancho completo). Que exista = el plano está
   // descargado y decodificado, listo para mostrarse sin espera.
   const [planRatios, setPlanRatios] = useState<Record<string, number>>({});
-  const [planArea, setPlanArea] = useState<{ w: number; h: number } | null>(null);
+  const [planArea, setPlanArea] = useState<{ w: number; h: number; narrow: boolean } | null>(null);
 
   // Precarga de todos los planos del edificio, con el mismo srcSet/sizes que
   // el <Image> del plano: el cambio de piso no espera ninguna descarga.
@@ -250,7 +273,8 @@ export default function FloorPlanViewer({
       const cs = getComputedStyle(el);
       const w = Math.min(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), 1400);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-      if (w > 0 && h > 0) setPlanArea(prev => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+      const narrow = !window.matchMedia(WIDE_QUERY).matches;
+      if (w > 0 && h > 0) setPlanArea(prev => (prev && prev.w === w && prev.h === h && prev.narrow === narrow ? prev : { w, h, narrow }));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -296,6 +320,14 @@ export default function FloorPlanViewer({
       h = planArea.h;
       w = h * planRatio;
     }
+    // Mobile: el plano llena todo el recuadro — entero quedaba chico entre
+    // dos franjas vacías (sobre todo los apaisados). Se encuadra en las
+    // unidades (ver planStart) y lo recortado se ve arrastrando.
+    const cover = Math.max(planArea.w / w, planArea.h / h);
+    if (planArea.narrow) {
+      w *= cover;
+      h *= cover;
+    }
     planFitSize = { w, h };
   }
 
@@ -321,6 +353,45 @@ export default function FloorPlanViewer({
     () => unitsOnFloor.filter(u => u.polygon && u.polygon.length > 0),
     [unitsOnFloor]
   );
+
+  // Marcas de mobile: color (el del punto cargado en el admin, si no por
+  // estado) y dónde va el número — donde el admin puso la etiqueta; si no,
+  // el centro de la silueta.
+  const unitMarkColor = (u: Unit) => {
+    const custom = floor?.unitDots.find(d => d.unitId === u.id)?.color;
+    if (custom) return custom;
+    const cat = CATEGORY_COLOR[unitCategory(u)];
+    if (cat && (!showStatus || u.status === 'available')) return cat;
+    return showStatus ? getStatusColor(u.status) : NEUTRAL_DOT_COLOR;
+  };
+  const unitMarkPoint = (u: Unit): { x: number; y: number } | null => {
+    const dot = floor?.unitDots.find(d => d.unitId === u.id);
+    if (dot) return dot;
+    const poly = u.polygon;
+    if (!poly?.length) return null;
+    return { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, y: poly.reduce((a, p) => a + p.y, 0) / poly.length };
+  };
+
+  // Mobile: con el plano llenando el recuadro, arranca encuadrado en la
+  // zona de las unidades (no en el centro de la imagen, que en un plano
+  // apaisado puede ser la calle), sin dejar bordes vacíos.
+  let planStart: { x: number; y: number } | null = null;
+  if (planArea?.narrow && planFitSize && floor) {
+    const pts = [
+      ...polygonUnits.flatMap(u => u.polygon!),
+      ...floor.unitDots.filter(d => unitsOnFloor.some(u => u.id === d.unitId)),
+    ];
+    if (pts.length > 0) {
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const fx = (Math.min(...xs) + Math.max(...xs)) / 200;
+      const fy = (Math.min(...ys) + Math.max(...ys)) / 200;
+      const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+      planStart = {
+        x: clamp(planArea.w / 2 - fx * planFitSize.w, planArea.w - planFitSize.w, 0),
+        y: clamp(planArea.h / 2 - fy * planFitSize.h, planArea.h - planFitSize.h, 0),
+      };
+    }
+  }
 
   const floorAmenities = useMemo(
     () => (floor ? amenities.filter(a => a.floorId === floor.id && a.pin) : []),
@@ -388,24 +459,19 @@ export default function FloorPlanViewer({
     return () => mql.removeEventListener('change', onChange);
   }, [sheetOpen]);
 
-  // Franja de tarjetas (mobile): la elegida en el plano se trae a la vista.
-  const mobileStripRef = useRef<HTMLDivElement>(null);
-  const selectedStripKey = selectedUnit?.id ?? (selOther?.kind === 'amenity' ? selOther.id : null);
-  useEffect(() => {
-    const strip = mobileStripRef.current;
-    const card = selectedStripKey ? strip?.querySelector<HTMLElement>(`[data-strip-key="${CSS.escape(selectedStripKey)}"]`) : null;
-    if (!strip || !card) return;
-    const left = card.offsetLeft - strip.offsetLeft;
-    if (left < strip.scrollLeft || left + card.offsetWidth > strip.scrollLeft + strip.clientWidth) {
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      strip.scrollTo({ left: left - 16, behavior: reduce ? 'auto' : 'smooth' });
-    }
-  }, [selectedStripKey]);
-
   const handleSelectUnit = useCallback((unit: Unit) => {
     setSelectedUnit(unit);
     setSelOther(null);
   }, []);
+
+  // El piso que se ve queda en la URL (?piso=N): al volver con "atrás"
+  // desde la lista o una ficha, se vuelve a ese piso y no al de entrada.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('piso') === String(activeFloor)) return;
+    url.searchParams.set('piso', String(activeFloor));
+    window.history.replaceState(window.history.state, '', url);
+  }, [activeFloor]);
 
   const goToFloor = useCallback((num: number) => {
     setRequestedFloor(num);
@@ -507,8 +573,16 @@ export default function FloorPlanViewer({
   const mobileSummary: MobileSelectionSummary | null = selectedUnit
     ? {
         title: selectionTitle!,
-        subtitle: [unitTypeLabel(selectedUnit), `${selectedUnit.totalArea} m²`, floorLabel].filter(Boolean).join(' · '),
+        subtitle: [unitTypeLabel(selectedUnit), `${selectedUnit.totalArea} m²`].filter(Boolean).join(' · '),
         price: showPrice && selectedUnit.price ? formatPrice(selectedUnit.price, selectedUnit.currency) : undefined,
+        priceNote: showPrice && pricePerM2 ? `${pricePerM2}/m²` : undefined,
+        facts: [
+          !unitIsLand && unitIsDwellingCat(selectedUnit) && selectedUnit.bedrooms > 0 ? `${selectedUnit.bedrooms} dorm.` : null,
+          !unitIsLand && unitIsDwellingCat(selectedUnit) && selectedUnit.bathrooms > 0 ? `${selectedUnit.bathrooms} baño${selectedUnit.bathrooms === 1 ? '' : 's'}` : null,
+          !unitIsLand && selectedUnit.balconyArea > 0 ? `Balcón ${selectedUnit.balconyArea} m²` : null,
+          selectedUnit.orientation ? `Orient. ${selectedUnit.orientation}` : null,
+          !unitIsLand && (selectedUnit.garageSpaces ?? 0) > 0 ? `${selectedUnit.garageSpaces} cochera${selectedUnit.garageSpaces === 1 ? '' : 's'}` : null,
+        ].filter((x): x is string => !!x).slice(0, 3),
         statusLabel: showStatus ? getStatusLabel(selectedUnit.status) : undefined,
         statusColor: showStatus ? statusInk(selectedUnit.status) : undefined,
         image: selectedUnit.interiorImageUrl || selectedUnit.galleryImages?.[0],
@@ -530,7 +604,7 @@ export default function FloorPlanViewer({
   const mobileActions: MobileActions = selectedUnit
     ? {
         favorite: { on: favorites.includes(selectedUnit.id), onToggle: () => toggleFavorite(selectedUnit.id) },
-        secondary: showLeads ? { label: 'Ver ficha', onClick: handleEnterUnit } : undefined,
+        secondary: showLeads ? { label: 'Ver unidad', onClick: handleEnterUnit } : undefined,
         primary: !showLeads
           ? { label: isSold ? 'Ver la unidad' : 'Ingresar a la unidad', icon: 'arrow', onClick: handleEnterUnit }
           : isSold && nextAvailableUnit
@@ -849,7 +923,7 @@ export default function FloorPlanViewer({
 
       {/* ── Franja superior (solo pantallas angostas): torre, filtro y
           selector de piso. ─────────────────────────────────────────── */}
-      <div className="order-1 wide:hidden w-full flex-none flex flex-col gap-2.5 border-b border-[#ECEEF0] bg-white px-4 py-3">
+      <div className="order-1 wide:hidden w-full flex-none flex flex-col gap-2.5 bg-white px-4 pt-3">
         {buildings.length > 1 && (
           <div className="flex gap-0.5 p-0.5 self-start bg-gray-100 rounded-full">
             {buildings.map(b => (
@@ -867,64 +941,17 @@ export default function FloorPlanViewer({
           </div>
         )}
 
-        {(floorNumbers.length > 1 || showStatus) && (
-          <div className="flex items-center justify-between gap-3 min-h-6">
-            <span className="text-[11px] font-bold tracking-[0.1em] text-[#5F6368]">{floorNumbers.length > 1 ? 'ELEGÍ EL PISO' : ''}</span>
-            {showStatus && (
-              <button
-                onClick={() => setOnlyAvailable(v => !v)}
-                aria-pressed={onlyAvailable}
-                className="hit-44 h-8 flex items-center gap-2 text-[13px] font-semibold text-gray-900"
-              >
-                Solo disponibles
-                <span aria-hidden="true" className={`relative w-10 h-6 shrink-0 rounded-full transition-colors ${onlyAvailable ? 'bg-[#2E7D4F]' : 'bg-[#C9CDD2]'}`}>
-                  <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-[left] ${onlyAvailable ? 'left-[19px]' : 'left-[3px]'}`} />
-                </span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {floorNumbers.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {floorNumbers.map(num => {
-              const kind = building.floors.find(f => f.number === num)?.floorKind;
-              const special = kind && kind !== 'units';
-              const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
-              const fa = fu.filter(u => u.status === 'available');
-              const active = requestedFloor === num;
-              // Sin unidades no es "Agotado" (sugiere que se vendió todo):
-              // es un piso de amenities, o no tiene nada a la venta.
-              const sub = special
-                ? (kind === 'parking' ? 'Cocheras' : FLOOR_KIND_LABEL[kind!])
-                : fu.length === 0
-                  ? (placedAmenities.some(a => floorNumberById(a.floorId) === num) ? 'Amenities' : '')
-                  : showStatus ? (fa.length ? `${fa.length} libres` : 'Agotado') : '';
-              const free = !special && fu.length > 0 && showStatus && fa.length > 0;
-              const label = num === 0 ? 'PB' : num < 0 ? `SS${-num}` : String(num);
-              return (
-                <button
-                  key={num}
-                  onClick={() => goToFloor(num)}
-                  aria-current={active ? 'true' : undefined}
-                  aria-label={`${num === 0 ? 'Planta baja' : `Piso ${label}`}${sub ? `, ${sub}` : ''}`}
-                  className={`grow shrink-0 basis-16 h-14 rounded-xl border flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                    active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-[#DADDE1] text-gray-900'
-                  }`}
-                >
-                  <span className="text-[17px] font-bold leading-none">{label}</span>
-                  {sub && (
-                    <span className={`text-[11px] font-semibold whitespace-nowrap ${
-                      active ? (free ? 'text-[#A6E9C1]' : 'text-[#C9CDD2]') : free ? 'text-[#2E7D4F]' : 'text-[#6B7075]'
-                    }`}>
-                      {sub}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Fachada / Plantas: arriba, fuera del plano — flotando encima
+            tapaba unidades. En mobile no se ofrece el modelo 3D. */}
+        <div className="flex items-center gap-2">
+          <Segmented
+            className="flex-1"
+            ariaLabel="Vista"
+            value={mobileView}
+            onChange={setMobileView}
+            options={[{ value: 'pisos', label: 'Pisos' }, { value: 'plantas', label: 'Plantas' }]}
+          />
+        </div>
       </div>
 
       {/* ── Panel de la unidad ───────────────────────────────────── */}
@@ -934,14 +961,12 @@ export default function FloorPlanViewer({
       </aside>
 
       {/* ── Área principal del plano ─────────────────────────────── */}
-      {/* En mobile es una columna — controles, plano con su proporción real,
-          franja de unidades — en vez de una caja fija del 60% de la
-          pantalla con todo encima: el plano (apaisado) quedaba en ~210 px
-          entre dos huecos y la franja le tapaba la parte de abajo. */}
+      {/* En mobile es una columna: el plano con el selector de piso al
+          costado, la leyenda y el resumen del piso. Nada flota encima del
+          plano — los botones tapaban unidades. */}
       <div className="order-2 flex-1 min-h-0 relative flex flex-col wide:block wide:min-w-0 overflow-hidden">
 
-        {/* Overlay superior — solo desktop, en mobile los mismos controles
-            viven en la franja de arriba. */}
+        {/* Overlay superior — solo desktop. */}
         <div className="hidden wide:flex absolute top-3.5 left-3.5 right-3.5 z-20 items-start justify-between gap-3 pointer-events-none">
           <div className="flex flex-col items-start gap-2 pointer-events-auto min-w-0">
             {showStatus && (
@@ -997,49 +1022,56 @@ export default function FloorPlanViewer({
           </div>
         </div>
 
-        {/* Controles en mobile, flotando sobre el plano. 2D / 3D alterna el
-            plano y el modelo BIM del piso; sobre el modelo solo queda eso. */}
-        <div className="wide:hidden absolute top-3 left-3 right-3 z-40 flex items-center gap-2 pointer-events-none">
-          {!showBim && (
-            <div className="pointer-events-none">
-              <CompassBadge />
+        {/* Mobile: el plano a todo el ancho. En escritorio este envoltorio
+            desaparece (contents) y el plano ocupa todo el área. */}
+        {mobileView === 'pisos' && (
+          <div className="wide:hidden flex-1 min-h-0 flex flex-col gap-2 px-4 pt-3">
+            <div className="flex-1 min-h-0 flex flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {floorNumbers.map((num, i) => {
+                const fl = building.floors.find(f => f.number === num);
+                const kind = fl?.floorKind;
+                const special = !!kind && kind !== 'units';
+                const fu = getUnitsByBuildingAndFloor(allUnits, building.id, num);
+                const fa = fu.filter(u => u.status === 'available');
+                const hasAmen = placedAmenities.some(a => a.floorId === fl?.id);
+                const info = special
+                  ? (kind === 'parking' ? 'Cocheras' : FLOOR_KIND_LABEL[kind!])
+                  : fu.length === 0
+                    ? (hasAmen ? 'Amenities' : '')
+                    : showStatus ? (fa.length ? `${fa.length} de ${fu.length} disponibles` : 'Agotado') : `${fu.length} unidades`;
+                const free = !special && showStatus && fa.length > 0;
+                const amenityBand = (special && kind === 'amenity') || (fu.length === 0 && hasAmen);
+                const active = requestedFloor === num;
+                return (
+                  <motion.button
+                    key={num}
+                    type="button"
+                    onClick={() => { goToFloor(num); setMobileView('plantas'); }}
+                    aria-current={active ? 'true' : undefined}
+                    initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={stagger(i, reducedMotion)}
+                    className={`shrink-0 min-h-12 flex items-center justify-between gap-3 px-4 rounded-xl border text-left transition-[background-color,border-color,transform] duration-200 active:scale-[0.985] ${
+                      active ? 'border-gray-900 bg-[#F3F5F7]' : amenityBand ? 'border-[#E4DED6] bg-[#F7F3EE]' : 'border-[#DADDE1] bg-white'
+                    }`}
+                  >
+                    <span className="text-[15px] font-bold text-gray-900">{fl ? floorName(fl) : `Piso ${num}`}</span>
+                    {info && (
+                      <span className={`text-[13px] font-semibold ${free ? 'text-[#2E7D4F]' : amenityBand ? 'text-[#7A6A58]' : 'text-[#6B7075]'}`}>{info}</span>
+                    )}
+                  </motion.button>
+                );
+              })}
             </div>
-          )}
-          <div className="flex-1" />
-          {activeBimModel && (
-            <div className="pointer-events-auto flex p-[3px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]" role="group" aria-label="Vista del piso">
-              {([['2D', false], ['3D', true]] as const).map(([lbl, bim]) => (
-                <button
-                  key={lbl}
-                  onClick={() => setShowBim(bim)}
-                  aria-pressed={showBim === bim}
-                  className={`hit-44 h-[34px] min-w-12 px-3 rounded-full text-[13px] font-bold transition-colors ${
-                    showBim === bim ? 'bg-gray-900 text-white' : 'text-gray-900'
-                  }`}
-                >
-                  {lbl}
-                </button>
-              ))}
-            </div>
-          )}
-          {!showBim && layerOptions.length > 0 && (
-            <div className="pointer-events-auto">
-              <LayersToggle
-                options={layerOptions}
-                layers={layers}
-                onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
-                open={layersOpen}
-                onOpenChange={setLayersOpen}
-                panelRef={layersRefMobile}
-              />
-            </div>
-          )}
-        </div>
+            <span className="flex-none text-xs text-[#5F6368]">Tocá un piso para ver su planta</span>
+          </div>
+        )}
 
-        {/* Plano + pines de unidad */}
+        <div className={`${mobileView === 'pisos' ? 'hidden' : 'flex motion-safe:animate-[fade-in_260ms_ease-out]'} flex-1 min-h-0 pt-1 wide:contents`}>
+        {/* Plano + marcas de unidad */}
         <div
           ref={planAreaRef}
-          className={`relative wide:absolute wide:inset-0 flex-1 min-h-[160px] wide:min-h-0 bg-[#3A3C3A] wide:bg-transparent flex items-center justify-center ${PLAN_PADDING} cursor-grab active:cursor-grabbing`}
+          className={`relative wide:absolute wide:inset-0 flex-1 min-w-0 min-h-[160px] wide:min-h-0 bg-white wide:bg-transparent overflow-hidden wide:overflow-visible flex items-center justify-center ${PLAN_PADDING} cursor-grab active:cursor-grabbing`}
         >
           {showBim && activeBimModel ? (
             <div className="absolute inset-0 z-30 bg-gray-900 pointer-events-auto">
@@ -1082,9 +1114,11 @@ export default function FloorPlanViewer({
               // en vez de quedar corrido con el centrado del tamaño viejo.
               key={`${floor.planImage}-${planFitSize && planArea ? `${Math.round(planArea.w)}x${Math.round(planArea.h)}` : 'pending'}`}
               initialScale={1}
+              initialPositionX={planStart?.x}
+              initialPositionY={planStart?.y}
               minScale={0.5}
               maxScale={4}
-              centerOnInit
+              centerOnInit={!planStart}
               centerZoomedOut
               wheel={PLAN_WHEEL}
               doubleClick={{ disabled: false, step: 0.5 }}
@@ -1292,7 +1326,7 @@ export default function FloorPlanViewer({
                         initial="hidden"
                         animate="visible"
                         variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } }}
-                        className="absolute inset-0 pointer-events-none"
+                        className="absolute inset-0 pointer-events-none hidden wide:block"
                       >
                         {floor.unitDots.map(dot => {
                           const unit = unitsOnFloor.find(u => u.id === dot.unitId);
@@ -1323,6 +1357,71 @@ export default function FloorPlanViewer({
                         })}
                       </motion.div>
                     )}
+
+                    {/* Mobile: cada unidad marcada en el plano — su silueta
+                        pintada por estado y el número encima, sin pines (las
+                        etiquetas grandes se pisaban y tapaban el plano). La
+                        elegida, rellena; las demás, translúcidas. */}
+                    <svg className="wide:hidden absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      {polygonUnits.map(unit => {
+                        const c = unitMarkColor(unit);
+                        const cur = selectedUnit?.id === unit.id;
+                        return (
+                          <polygon
+                            key={unit.id}
+                            points={unit.polygon!.map(p => `${p.x},${p.y}`).join(' ')}
+                            vectorEffect="non-scaling-stroke"
+                            // Como estilo (no atributo) para que el cambio de
+                            // selección se funda en vez de saltar.
+                            style={{
+                              fill: cur ? `${c}d9` : `${c}52`,
+                              stroke: cur ? '#fff' : c,
+                              strokeWidth: cur ? 2.5 : 1.5,
+                              opacity: passesFilter(unit) ? 1 : 0.35,
+                              transition: 'fill 260ms ease-out, stroke 260ms ease-out, stroke-width 260ms ease-out, opacity 260ms ease-out',
+                            }}
+                            className="pointer-events-auto cursor-pointer"
+                            onClick={() => handleSelectUnit(unit)}
+                            role="button"
+                            aria-pressed={cur}
+                            aria-label={`${unitIsLand ? 'Lote' : 'Unidad'} ${unit.name}${showStatus ? `, ${getStatusLabel(unit.status)}` : ''}`}
+                          />
+                        );
+                      })}
+                    </svg>
+                    <div className="wide:hidden absolute inset-0 pointer-events-none">
+                      {unitsOnFloor.map(unit => {
+                        const at = unitMarkPoint(unit);
+                        if (!at) return null;
+                        const cur = selectedUnit?.id === unit.id;
+                        const hasShape = !!unit.polygon?.length;
+                        return (
+                          <span
+                            key={unit.id}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 whitespace-nowrap"
+                            style={{ left: `${at.x}%`, top: `${at.y}%`, opacity: passesFilter(unit) ? 1 : 0.4, zIndex: cur ? 2 : 1 }}
+                          >
+                            {/* Sin silueta cargada: un punto chico tocable. */}
+                            {!hasShape && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectUnit(unit)}
+                                aria-pressed={cur}
+                                aria-label={`${unitIsLand ? 'Lote' : 'Unidad'} ${unit.name}`}
+                                className="hit-44 pointer-events-auto w-3 h-3 rounded-full border-2 border-white shadow"
+                                style={{ background: unitMarkColor(unit), transform: cur ? 'scale(1.3)' : undefined }}
+                              />
+                            )}
+                            <span
+                              className="text-[11px] font-bold leading-none text-white transition-transform duration-[260ms] ease-out"
+                              style={{ textShadow: '0 1px 2px rgba(0,0,0,.65), 0 0 6px rgba(0,0,0,.35)', transform: cur ? 'scale(1.2)' : undefined }}
+                            >
+                              {unit.name}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
                   </TransformComponent>
 
                 </>
@@ -1338,100 +1437,58 @@ export default function FloorPlanViewer({
               Cargando plano…
             </span>
           )}
-          {/* Leyenda de estados (mobile; en escritorio la franja ya los nombra). */}
-          {showStatus && !showBim && !waitingPlan && unitsOnFloor.length > 0 && (
-            <div className="wide:hidden absolute left-3 bottom-3 z-20 flex items-center gap-3 px-2.5 py-1.5 rounded-[14px] bg-white/95 shadow-[0_2px_6px_rgba(0,0,0,0.15)] text-[11px] font-semibold text-[#3C4043] pointer-events-none">
-              {(['available', 'reserved', 'sold'] as const).map(st => (
-                <span key={st} className="flex items-center gap-[5px]">
-                  <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: getStatusColor(st) }} />
-                  {STATUS_SHORT[st]}
-                </span>
-              ))}
-            </div>
-          )}
+        </div>
         </div>
 
-        {/* Barra inferior — unidades y amenities del piso activo; en un piso
-            de cocheras, la leyenda de estados. */}
-        {/* Mobile: tarjetas del piso, deslizables. */}
+        {/* Mobile: el piso y sus estados en una sola línea (la leyenda en
+            una fila aparte le quitaba alto al plano). Solo los estados con
+            unidades, para que entre. */}
         {(unitsOnFloor.length > 0 || floorAmenities.length > 0 || floorSpots.length > 0) && (
-          <div className="wide:hidden flex-none flex flex-col gap-2.5 bg-white py-3 pl-4">
-            {/* En pantallas bajas (iPhone SE) se omite: el piso ya está
-                elegido arriba y el alto hace falta para el plano. */}
-            <div className="flex items-baseline gap-2 pr-4 [@media(max-height:700px)]:hidden">
-              <span className="text-[15px] font-bold text-gray-900 whitespace-nowrap">
-                {floorLabel}{floor?.floorKind === 'parking' ? ' · Cocheras' : ''}
+          <div className="wide:hidden flex-none flex items-center gap-3 px-4 pt-2.5 pb-3">
+            {/* Tocar el piso abre la lista de pisos (único selector en mobile). */}
+            <button
+              type="button"
+              onClick={() => setMobileView('pisos')}
+              aria-label={`${floorLabel}: cambiar de piso`}
+              className="hit-44 shrink-0 flex items-center gap-1 text-[16px] font-bold text-gray-900 whitespace-nowrap"
+            >
+              {floorLabel}{floor?.floorKind === 'parking' ? ' · Cocheras' : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {showStatus && (unitsOnFloor.length > 0 || floorSpots.length > 0) ? (
+              <span className="flex-1 min-w-0 flex items-center gap-2.5 overflow-hidden text-[12.5px] text-[#3C4043] whitespace-nowrap">
+                {(['available', 'reserved', 'sold'] as const).map(st => {
+                  const n = unitsOnFloor.length > 0
+                    ? unitsOnFloor.filter(u => u.status === st).length
+                    : floorSpots.filter(sp => sp.unit.status === st).length;
+                  if (n === 0 && st !== 'available') return null;
+                  return (
+                    <span key={st} className="flex items-center gap-1.5">
+                      <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: getStatusColor(st) }} />
+                      <span><b className="text-gray-900 tabular-nums">{n}</b> {st === 'available' ? (n === 1 ? 'libre' : 'libres') : n === 1 ? STATUS_SHORT[st].toLowerCase() : STATUS_PLURAL[st]}</span>
+                    </span>
+                  );
+                })}
+                {(['comercial', 'cochera'] as const).map(cat => {
+                  if (!unitsOnFloor.some(u => unitCategory(u) === cat)) return null;
+                  return (
+                    <span key={cat} className="flex items-center gap-1.5">
+                      <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: CATEGORY_COLOR[cat] }} />
+                      {CATEGORY_SHORT[cat]}{cat === 'comercial' ? 'es' : 's'}
+                    </span>
+                  );
+                })}
               </span>
-              <span className="flex-1 min-w-0 truncate text-[13px] text-[#5F6368]">{floorSummary}</span>
-              {unitsOnFloor.length > 0 && (
-                <TransitionLink href={`${basePath}/unidades`} className="hit-44 text-[13px] font-semibold text-gray-900 whitespace-nowrap">
-                  Ver lista
-                </TransitionLink>
-              )}
-            </div>
-            {unitsOnFloor.length === 0 && floorAmenities.length === 0 ? (
-              showStatus && (
-                <div className="flex gap-4 flex-wrap pr-4">
-                  {parkingLegend.map(g => (
-                    <div key={g.label} className="flex items-center gap-[7px]">
-                      <span className="w-3 h-3 rounded-[3px] border-[1.5px]" style={{ background: `${g.color}2e`, borderColor: `${g.color}a6` }} />
-                      <span className="text-xs font-medium text-gray-700">{g.label}</span>
-                      <span className="text-xs font-semibold text-gray-900">{g.n}</span>
-                    </div>
-                  ))}
-                </div>
-              )
             ) : (
-              <div ref={mobileStripRef} className="relative flex gap-2 overflow-x-auto snap-x snap-mandatory pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {unitsOnFloor.map(u => {
-                  const cur = selectedUnit?.id === u.id;
-                  const sold = showStatus && u.status === 'sold';
-                  return (
-                    <button
-                      key={u.id}
-                      data-strip-key={u.id}
-                      onClick={() => handleSelectUnit(u)}
-                      aria-pressed={cur}
-                      style={{ opacity: passesFilter(u) ? 1 : 0.42 }}
-                      className={`snap-start shrink-0 w-[148px] h-[84px] rounded-[14px] text-left [&>span]:leading-tight flex flex-col justify-between transition-colors ${
-                        cur ? 'border-2 border-gray-900 bg-[#F3F5F7] px-[11px] py-[9px]' : 'border border-[#DADDE1] bg-white px-3 py-2.5'
-                      } ${sold ? 'text-[#6B7075]' : 'text-gray-900'}`}
-                    >
-                      <span className="flex items-center gap-1.5 w-full min-w-0">
-                        <span aria-hidden="true" className="w-2 h-2 shrink-0 rounded-full" style={{ background: getStatusColor(u.status) }} />
-                        <span className="text-base font-bold">{u.name}</span>
-                        <span className="text-xs text-[#5F6368] truncate">{unitTypeLabel(u)}</span>
-                      </span>
-                      <span className="text-xs text-[#5F6368]">{u.totalArea} m²</span>
-                      <span className="text-sm font-bold tabular-nums truncate">
-                        {sold ? 'Vendida' : showPrice ? (u.price ? formatPrice(u.price, u.currency) : 'Consultar precio') : showStatus ? getStatusLabel(u.status) : ''}
-                      </span>
-                    </button>
-                  );
-                })}
-                {floorAmenities.map(a => {
-                  const cur = selectedAmenity?.id === a.id;
-                  return (
-                    <button
-                      key={a.id}
-                      data-strip-key={a.id}
-                      onClick={() => selectOther('amenity', a.id, activeFloor)}
-                      aria-pressed={cur}
-                      className={`snap-start shrink-0 w-[148px] h-[84px] rounded-[14px] text-left [&>span]:leading-tight flex flex-col justify-between text-gray-900 ${
-                        cur ? 'border-2 px-[11px] py-[9px]' : 'border border-[#DADDE1] px-3 py-2.5'
-                      }`}
-                      style={{ background: cur ? '#f7f3ee' : '#fff', borderColor: cur ? AMENITY_COLOR : undefined }}
-                    >
-                      <span className="flex items-center gap-1.5 w-full min-w-0">
-                        <AmenityMarkerIcon size={9} />
-                        <span className="text-sm font-bold truncate">{a.name}</span>
-                      </span>
-                      <span className="text-xs text-[#5F6368] truncate">{a.specs?.[0]?.value ?? 'Uso común'}</span>
-                      <span className="text-xs font-semibold" style={{ color: AMENITY_TEXT }}>Amenity</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <span className="flex-1 min-w-0 truncate text-[13px] text-[#5F6368]">{floorSummary}</span>
+            )}
+            {unitsOnFloor.length > 0 && (
+              <TransitionLink
+                href={`${basePath}/unidades`}
+                className="hit-44 text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap"
+              >
+                Ver lista
+              </TransitionLink>
             )}
           </div>
         )}

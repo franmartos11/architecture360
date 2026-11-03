@@ -12,6 +12,7 @@ import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import MobileUnitsList from './MobileUnitsList';
 import { filtersFromQuery, filtersToQuery, DEFAULT_UNIT_FILTERS, type UnitFilters } from '@/lib/unit-filters-url';
 import { findSimilarUnits } from '@/lib/similar-units';
 import type { Project, Unit, UnitCategory, UnitStatus, UnitType } from '@/types';
@@ -293,8 +294,62 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
   const gridTemplate = columns.map(c => c.width).join(' ');
 
   return (
-    <div className="min-h-screen bg-trevo-light pb-[120px]">
+    <div className="min-h-screen bg-white wide:bg-trevo-light wide:pb-[120px]">
 
+      {/* ── Mobile: pestañas por tipo, "Ordenar y filtrar" en una hoja y la
+          lista agrupada por piso. Escritorio sigue abajo, sin cambios. ── */}
+      <div className="wide:hidden">
+        <MobileUnitsList
+          units={filtered}
+          allUnits={project.units}
+          buildingName={buildingName}
+          hasMultipleBuildings={hasMultipleBuildings}
+          buildings={project.buildings.map(b => ({ id: b.id, name: b.name }))}
+          hasFloorStep={hasFloorStep}
+          unitIsLand={unitIsLand}
+          showPrice={showPrice}
+          showStatus={showStatus}
+          showLeads={typeConfig.showLeads}
+          unitLabelPluralLower={unitLabelPluralLower}
+          unitHref={u => `${basePath}/edificio/${u.buildingId}/unidad/${u.id}` + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '')}
+          categories={hasCategoryFilterRow ? categoriesPresent.map(c => ({ value: c, label: CATEGORY_CHIP_LABEL[c] })) : []}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          orden={orden}
+          setOrden={setOrden}
+          sortOptions={[
+            { value: 'piso', label: 'Por piso' },
+            ...(showPrice && pricedUnits.length > 0 ? [
+              { value: 'precio-asc' as const, label: 'Menor precio' },
+              { value: 'precio-desc' as const, label: 'Mayor precio' },
+            ] : []),
+            { value: 'm2-desc', label: 'Más m²' },
+            ...(!unitIsLand && hasDwellings ? [{ value: 'dorm-desc' as const, label: 'Más dormitorios' }] : []),
+          ]}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          buildingFilter={buildingFilter}
+          setBuildingFilter={setBuildingFilter}
+          typeFilter={typeFilter}
+          setTypeFilter={setTypeFilter}
+          typeOptions={hasTypeFilterRow ? typeChips : []}
+          maxPrice={maxPrice}
+          setMaxPrice={setMaxPrice}
+          priceBounds={priceBounds}
+          minArea={minArea}
+          setMinArea={setMinArea}
+          areaBounds={areaBounds}
+          feats={presentFeats}
+          selectedFeats={selectedFeats}
+          setSelectedFeats={f => setSelectedFeats(f as FeatKey[])}
+          onlyFavs={onlyFavs}
+          setOnlyFavs={setOnlyFavs}
+          favoritesCount={favorites.length}
+          onContact={openLead}
+        />
+      </div>
+
+      <div className="hidden wide:block">
       {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-trevo-dark">
         {heroImage && (
@@ -727,6 +782,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
           </>
         )}
       </AnimatePresence>
+      </div>
 
       {typeConfig.showLeads && (
         <LeadCaptureModal

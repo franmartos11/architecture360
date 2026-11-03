@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
@@ -26,6 +26,18 @@ import GaleriaTab from './tabs/GaleriaTab';
 import AmenitiesTab from './tabs/AmenitiesTab';
 import UbicacionTab from './tabs/UbicacionTab';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
+import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
+import UnitMobileView, { type MobileMediaTab } from './UnitMobileView';
+
+// Pantalla ancha (escritorio/tablet) — el mismo corte que el visor de
+// plantas. Debajo, la ficha es UnitMobileView en vez del visor completo.
+const subscribeWide = (cb: () => void) => {
+  const mql = window.matchMedia(WIDE_QUERY);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+};
+const getWide = () => window.matchMedia(WIDE_QUERY).matches;
+const MOBILE_MEDIA: MobileMediaTab[] = ['plano', 'planta3d', 'tour360', 'galeria'];
 
 interface UnitViewerProps {
   unit: Unit;
@@ -107,6 +119,7 @@ export default function UnitViewer({
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
+  const isWide = useSyncExternalStore(subscribeWide, getWide, () => true);
   const initialCompareUnitId = searchParams.get('compare');
 
   const hasTour = !!(unit.tourImageUrl || unit.tourData);
@@ -148,6 +161,8 @@ export default function UnitViewer({
 
   const [activeTab, setActiveTab] = useState<UnitViewTab>(startTab ?? 'planta3d');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  // Mobile: vista elegida de la imagen grande (null = la de arranque).
+  const [mobileMedia, setMobileMedia] = useState<MobileMediaTab | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [comparing, setComparing] = useState(canCompare && !!initialCompareUnitId);
@@ -321,6 +336,243 @@ export default function UnitViewer({
   const currentImg = lightboxOpen ? lightboxIndex : galleryIndex;
   const nextImgUrl = unit.galleryImages?.[currentImg + 1];
   const prevImgUrl = unit.galleryImages?.[currentImg - 1];
+
+  // Modales y visores a pantalla completa — los mismos en las dos fichas.
+  const overlays = (
+    <>
+        <ImageLightbox
+          isOpen={lightboxOpen}
+          images={unit.galleryImages ?? []}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+          altPrefix="Imagen"
+        />
+
+        <ImageLightbox
+          isOpen={amenityLightboxOpen}
+          images={activeAmenity?.images ?? []}
+          index={amenityImageIndex}
+          onIndexChange={setAmenityImageIndex}
+          onClose={() => setAmenityLightboxOpen(false)}
+          altPrefix={activeAmenity?.name ?? 'Imagen'}
+        />
+
+        <ImageLightbox
+          isOpen={roomLightboxOpen}
+          images={roomLightboxImages}
+          index={roomLightboxIndex}
+          onIndexChange={setRoomLightboxIndex}
+          onClose={() => setRoomLightboxOpen(false)}
+          altPrefix="Ambiente"
+        />
+
+
+        {showLeads && (
+          <LeadCaptureModal
+            isOpen={contactModal.isOpen}
+            onClose={contactModal.close}
+            unit={unit}
+            projectSlug={projectSlug}
+            defaultMethod={contactModal.method}
+          />
+        )}
+
+        {showCalculator && (
+          <MortgageCalculatorModal
+            isOpen={isCalculatorOpen}
+            onClose={() => setIsCalculatorOpen(false)}
+            unitPrice={unit.price || 150000}
+            currency={unit.currency}
+            projectSlug={projectSlug}
+          />
+        )}
+    </>
+  );
+
+  // ── Mobile: ficha en una página (ver UnitMobileView) ──
+  if (!isWide) {
+    const mediaTabs = MOBILE_MEDIA.filter(t => tabHasContent[t]);
+    // Arranca en el orden del selector (Plano primero), salvo que la URL
+    // pida una vista (?tab=tour360, comparador) que tenga contenido.
+    const requested = (initialTab || initialCompareUnitId) && startTab && (MOBILE_MEDIA as UnitViewTab[]).includes(startTab)
+      ? (startTab as MobileMediaTab) : null;
+    const mediaTab: MobileMediaTab | null =
+      (mobileMedia && tabHasContent[mobileMedia] ? mobileMedia : null) ?? requested ?? mediaTabs[0] ?? null;
+    const title = unitIsLand ? `Lote ${unit.name}` : hasUnitStep ? `Unidad ${unit.name}` : (buildingName || unit.name);
+    const heading = unitIsLand
+      ? `Lote ${unit.name}`
+      : isDwelling ? (unit.modelName || `Unidad ${unit.name}`) : UNIT_CATEGORY_LABEL[unitCategory(unit)];
+    const typeLabel = unitIsLand ? '' : isDwelling
+      ? (unit.modelName || (unit.bedrooms === 0 ? 'Monoambiente' : `${unit.bedrooms} dorm.`))
+      : UNIT_CATEGORY_LABEL[unitCategory(unit)];
+    const renderMedia = (t: MobileMediaTab) =>
+      t === 'planta3d' ? <Planta3DTab key="planta3d" unit={unit} bimModel={bimModel} />
+      : t === 'tour360' ? (
+        <Tour360Tab
+          key="tour360"
+          unit={unit}
+          focusNodeId={focusNodeId}
+          isFullscreen={isFullscreen}
+          onFullscreenChange={setIsFullscreen}
+          sunAzimuths={sunAzimuths}
+        />
+      )
+      : t === 'plano' ? (
+        <PlanoTab
+          key="plano"
+          unit={unit}
+          hasRooms={hasRooms}
+          planView={planView}
+          onPlanViewChange={setPlanView}
+          onSelectRoom={openRoomFichaFromPlan}
+          focusRoomId={planFocusRoomId}
+          fill
+        />
+      )
+      : (
+        <GaleriaTab
+          key="galeria"
+          images={unit.galleryImages ?? []}
+          activeIndex={galleryIndex}
+          onIndexChange={setGalleryIndex}
+          onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+        />
+      );
+    return (
+      <>
+        <UnitMobileView
+          unit={unit}
+          allUnits={allUnits}
+          buildingName={buildingName}
+          floorNumber={floorNumber}
+          basePath={basePath}
+          title={title}
+          heading={heading}
+          typeLabel={typeLabel}
+          showStatus={showStatus}
+          showPrice={typeConfig.showPrice}
+          showLeads={showLeads}
+          showCalculator={showCalculator}
+          hasFloorStep={hasFloorStep}
+          unitIsLand={unitIsLand}
+          isDwelling={isDwelling}
+          projectSlug={projectSlug}
+          mediaTabs={mediaTabs}
+          mediaTab={mediaTab}
+          onMediaTabChange={t => { setMobileMedia(t); setActiveTab(t); }}
+          renderMedia={renderMedia}
+          amenities={relevantAmenities}
+          hasPointsOfInterest={pointsOfInterest.length > 0}
+          scrollToSection={initialTab === 'amenities' || initialTab === 'ubicacion' ? initialTab : undefined}
+          shareUrl={shareUrl}
+          shareText={shareText}
+          onBack={() => router.push(backHref ?? `${basePath}/edificio/${buildingId}`)}
+          backLabel={backHref ? 'Volver a resultados' : 'Volver al plano'}
+          onCompare={canCompare ? () => setComparing(true) : undefined}
+          onContact={method => contactModal.open(method)}
+        />
+        <AnimatePresence>
+          {comparing && (
+            <CompareView
+              unit={unit}
+              allUnits={allUnits}
+              initialContentType={mediaTab ?? 'planta3d'}
+              initialCompareUnitId={initialCompareUnitId}
+              onClose={() => setComparing(false)}
+              showPrice={typeConfig.showPrice}
+              showLeads={showLeads}
+              projectSlug={projectSlug}
+            />
+          )}
+        </AnimatePresence>
+          {/* Mobile: ficha del ambiente al tocarlo en el plano */}
+          <AnimatePresence>
+            {planRoomModal && (() => {
+              const room = planRoomModal;
+              const roomName = room.name || ROOM_KIND_LABEL[room.kind ?? 'other'];
+              const canTour = !!room.tourNodeId && tabHasContent.tour360;
+              return (
+                <motion.div
+                  key="plan-room-modal"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[60] flex items-end"
+                  onClick={() => setPlanRoomModal(null)}
+                >
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                  <motion.div
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                    onClick={e => e.stopPropagation()}
+                    className="relative w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+                  >
+                    <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-gray-900 truncate">{roomName}</h3>
+                        <p className="text-xs text-gray-400">
+                          {ROOM_KIND_LABEL[room.kind ?? 'other']}{room.area ? ` · ${room.area} m²` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPlanRoomModal(null)}
+                        aria-label="Cerrar"
+                        className="w-9 h-9 shrink-0 rounded-full bg-gray-100 flex items-center justify-center"
+                      >
+                        <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="p-5 space-y-3">
+                      {room.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openRoomPhoto(room)}
+                          className="relative block w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-100"
+                        >
+                          <Image src={room.imageUrl} alt={roomName} fill sizes="100vw" placeholder="blur" blurDataURL={shimmerDataUrl(400, 300)} className="object-cover" />
+                          {!!room.images?.length && (
+                            <span className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-[11px] font-medium rounded-md px-2 py-0.5 backdrop-blur-sm">
+                              +{room.images.length} foto{room.images.length === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                      {!!room.features?.length && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {room.features.map(f => (
+                            <span key={f} className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">{f}</span>
+                          ))}
+                        </div>
+                      )}
+                      {!!room.notes && <p className="text-sm text-gray-500 whitespace-pre-line">{room.notes}</p>}
+                      {canTour && (
+                        <button
+                          type="button"
+                          onClick={() => { setPlanRoomModal(null); handleSelectRoom(room); }}
+                          className="w-full mt-1 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-semibold"
+                        >
+                          Ver en 360°
+                        </button>
+                      )}
+                      {!room.imageUrl && !room.features?.length && !room.notes && !canTour && (
+                        <p className="text-sm text-gray-400 py-2">Este ambiente todavía no tiene información cargada.</p>
+                      )}
+                    </div>
+                  </motion.div>
+                </motion.div>
+              );
+            })()}
+          </AnimatePresence>
+        {overlays}
+      </>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-gray-50 overflow-hidden relative">
@@ -682,48 +934,6 @@ export default function UnitViewer({
         </div>
       </aside>
 
-      {/* ── Mobile: fixed top bar ──────────────────────────── */}
-      <div className="md:hidden fixed top-16 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center gap-3 px-4 py-3 shadow-sm">
-        <button
-          onClick={() => router.push(backHref ?? `${basePath}/edificio/${buildingId}`)}
-          aria-label={backHref ? 'Volver a resultados' : 'Volver al plano'}
-          className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"
-        >
-          <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {/* El código de la unidad no se achica: si falta lugar se corta el estado. */}
-            <h1 className="text-[15px] font-bold text-gray-900 shrink-0">{unit.name}</h1>
-            {showStatus && (
-              <span className="text-[11px] font-semibold min-w-0 truncate" style={{ color: statusColor }}>{statusLabel.toUpperCase()}</span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 truncate">
-            {!unitIsLand ? (isDwelling ? (unit.modelName ? `${unit.modelName} · ` : '') : `${UNIT_CATEGORY_LABEL[unitCategory(unit)]} · `) : ''}{unit.totalArea}m²{hasFloorStep ? ` · P${floorNumber}` : ''}
-          </p>
-        </div>
-        {canCompare && !comparing && (
-          <button onClick={() => setComparing(true)} aria-label="Comparar con otra unidad" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <rect x="3" y="4" width="7.5" height="16" rx="1" />
-              <rect x="13.5" y="4" width="7.5" height="16" rx="1" />
-            </svg>
-          </button>
-        )}
-        <ShareMenu url={shareUrl} text={shareText} align="right">
-          {(trigger) => (
-            <button {...trigger} aria-label="Compartir" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-              </svg>
-            </button>
-          )}
-        </ShareMenu>
-      </div>
-
       {/* ── Main viewer ───────────────────────────────────── */}
       <div className="flex-1 relative overflow-hidden">
 
@@ -933,214 +1143,8 @@ export default function UnitViewer({
 
       </div>
 
-      <ImageLightbox
-        isOpen={lightboxOpen}
-        images={unit.galleryImages ?? []}
-        index={lightboxIndex}
-        onIndexChange={setLightboxIndex}
-        onClose={() => setLightboxOpen(false)}
-        altPrefix="Imagen"
-      />
+      {overlays}
 
-      <ImageLightbox
-        isOpen={amenityLightboxOpen}
-        images={activeAmenity?.images ?? []}
-        index={amenityImageIndex}
-        onIndexChange={setAmenityImageIndex}
-        onClose={() => setAmenityLightboxOpen(false)}
-        altPrefix={activeAmenity?.name ?? 'Imagen'}
-      />
-
-      <ImageLightbox
-        isOpen={roomLightboxOpen}
-        images={roomLightboxImages}
-        index={roomLightboxIndex}
-        onIndexChange={setRoomLightboxIndex}
-        onClose={() => setRoomLightboxOpen(false)}
-        altPrefix="Ambiente"
-      />
-
-      {/* Mobile: ficha del ambiente al tocarlo en el plano */}
-      <AnimatePresence>
-        {planRoomModal && (() => {
-          const room = planRoomModal;
-          const roomName = room.name || ROOM_KIND_LABEL[room.kind ?? 'other'];
-          const canTour = !!room.tourNodeId && tabHasContent.tour360;
-          return (
-            <motion.div
-              key="plan-room-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="md:hidden fixed inset-0 z-[60] flex items-end"
-              onClick={() => setPlanRoomModal(null)}
-            >
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                onClick={e => e.stopPropagation()}
-                className="relative w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
-              >
-                <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-                  <div className="min-w-0">
-                    <h3 className="text-base font-bold text-gray-900 truncate">{roomName}</h3>
-                    <p className="text-xs text-gray-400">
-                      {ROOM_KIND_LABEL[room.kind ?? 'other']}{room.area ? ` · ${room.area} m²` : ''}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setPlanRoomModal(null)}
-                    aria-label="Cerrar"
-                    className="w-9 h-9 shrink-0 rounded-full bg-gray-100 flex items-center justify-center"
-                  >
-                    <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="p-5 space-y-3">
-                  {room.imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => openRoomPhoto(room)}
-                      className="relative block w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-100"
-                    >
-                      <Image src={room.imageUrl} alt={roomName} fill sizes="100vw" placeholder="blur" blurDataURL={shimmerDataUrl(400, 300)} className="object-cover" />
-                      {!!room.images?.length && (
-                        <span className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-[11px] font-medium rounded-md px-2 py-0.5 backdrop-blur-sm">
-                          +{room.images.length} foto{room.images.length === 1 ? '' : 's'}
-                        </span>
-                      )}
-                    </button>
-                  )}
-                  {!!room.features?.length && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {room.features.map(f => (
-                        <span key={f} className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">{f}</span>
-                      ))}
-                    </div>
-                  )}
-                  {!!room.notes && <p className="text-sm text-gray-500 whitespace-pre-line">{room.notes}</p>}
-                  {canTour && (
-                    <button
-                      type="button"
-                      onClick={() => { setPlanRoomModal(null); handleSelectRoom(room); }}
-                      className="w-full mt-1 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-semibold"
-                    >
-                      Ver en 360°
-                    </button>
-                  )}
-                  {!room.imageUrl && !room.features?.length && !room.notes && !canTour && (
-                    <p className="text-sm text-gray-400 py-2">Este ambiente todavía no tiene información cargada.</p>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
-      {showLeads && (
-        <LeadCaptureModal
-          isOpen={contactModal.isOpen}
-          onClose={contactModal.close}
-          unit={unit}
-          projectSlug={projectSlug}
-          defaultMethod={contactModal.method}
-        />
-      )}
-
-      {showCalculator && (
-        <MortgageCalculatorModal
-          isOpen={isCalculatorOpen}
-          onClose={() => setIsCalculatorOpen(false)}
-          unitPrice={unit.price || 150000}
-          currency={unit.currency}
-          projectSlug={projectSlug}
-        />
-      )}
-
-      {/* ── Mobile: bottom navigation bar ──────────────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-100 flex items-stretch shadow-lg" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {visibleTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            aria-label={tab.label}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-all min-w-0 ${
-              activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'
-            }`}
-          >
-            <span className={`p-1.5 rounded-xl transition-all ${
-              activeTab === tab.id ? 'bg-gray-900 text-white' : 'text-gray-500'
-            }`}>
-              {tab.icon}
-            </span>
-            <span className="text-[11px] font-semibold">{tab.label}</span>
-          </button>
-        ))}
-
-        {/* Amenities tab — only if there are amenities */}
-        {relevantAmenities.length > 0 && (
-          <button
-            onClick={() => setActiveTab('amenities')}
-            aria-label="Amenities"
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-all min-w-0 ${
-              activeTab === 'amenities' ? 'text-gray-900' : 'text-gray-500'
-            }`}
-          >
-            <span className={`p-1.5 rounded-xl transition-all ${
-              activeTab === 'amenities' ? 'bg-gray-900 text-white' : 'text-gray-500'
-            }`}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5" />
-              </svg>
-            </span>
-            <span className="text-[11px] font-semibold">Amenities</span>
-          </button>
-        )}
-
-        {/* Ubicación tab — only if there are POIs */}
-        {pointsOfInterest.length > 0 && (
-          <button
-            onClick={() => setActiveTab('ubicacion')}
-            aria-label="Ubicación"
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-all min-w-0 ${
-              activeTab === 'ubicacion' ? 'text-gray-900' : 'text-gray-500'
-            }`}
-          >
-            <span className={`p-1.5 rounded-xl transition-all ${
-              activeTab === 'ubicacion' ? 'bg-gray-900 text-white' : 'text-gray-500'
-            }`}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-              </svg>
-            </span>
-            <span className="text-[11px] font-semibold">Ubicación</span>
-          </button>
-        )}
-
-        {/* Contact CTA */}
-        {showLeads && (
-          <button
-            onClick={() => contactModal.open()}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-brand-600"
-            aria-label="Contacto"
-          >
-            <span className="p-1.5 rounded-xl bg-brand-500 text-white">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-            </span>
-            <span className="text-[11px] font-semibold">Contacto</span>
-          </button>
-        )}
-      </nav>
 
     </div>
   );

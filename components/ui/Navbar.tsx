@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { TransitionLink as Link, useTransitionRouter } from '@/components/ui/TransitionUtils';
 import ExploreSwitcher, { navItemClass } from '@/components/ui/ExploreSwitcher';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { ProjectMenuButton, ChatIcon } from '@/components/ui/ProjectMenu';
@@ -17,6 +17,16 @@ import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo 
 //   único de ProjectMenu). En mobile Contactar y Menú quedan solo con ícono.
 // Mismo orden en la barra, el menú y la hoja: Proyecto, Explorar 3D,
 // Unidades, Amenities, Ubicación, Cotizador → Contactar.
+// Pantallas recorridas dentro del sitio en esta pestaña (navegación del
+// lado del cliente: document.referrer no cambia en esas). Si la nueva ruta es
+// la anterior de la pila, fue un "atrás" y se saca; si no, se apila.
+const visited: string[] = [];
+function trackVisit(path: string) {
+  if (visited[visited.length - 1] === path) return;
+  if (visited[visited.length - 2] === path) visited.pop();
+  else visited.push(path);
+}
+
 export default function Navbar({ info }: { info: ProjectNavInfo }) {
   const pathname = usePathname();
   const basePath = useProjectBasePath();
@@ -41,6 +51,23 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
   }, [onHome]);
   const glass = onHome && !scrolled;
 
+  // Volver (barra mínima): en todas las páginas menos la portada y la ficha
+  // de unidad (que trae su propia barra con volver). Va a la pantalla
+  // anterior del sitio; si se entró por un link directo, a la "de arriba":
+  // el recorrido de un edificio vuelve al edificio, el resto a la portada.
+  const router = useTransitionRouter();
+  const onUnitPage = /\/unidad\/[^/]+\/?$/.test(pathname);
+  const showBack = !onHome && !onUnitPage;
+  const parentHref = pathname.match(/^(.*\/edificio\/[^/]+)\/recorrido\/?$/)?.[1] ?? hrefs.home;
+  useEffect(() => { trackVisit(pathname); }, [pathname]);
+  const goBack = () => {
+    // Hay a dónde volver si se navegó dentro del sitio, o si se llegó desde
+    // otra página del mismo sitio (recarga completa).
+    const fromSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+    if (visited.length > 1 || (fromSite && window.history.length > 1)) router.back();
+    else router.push(parentHref);
+  };
+
   return (
     // site-nav: queda quieta durante la transición entre páginas;
     // data-site-nav: ahí corre la línea de navegación lenta (globals.css).
@@ -56,6 +83,16 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 sm:gap-5 h-16">
+          {showBack && (
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label="Volver"
+              className="min-[1200px]:hidden -ml-2 -mr-1.5 sm:-mr-3 w-11 h-11 shrink-0 flex items-center justify-center rounded-lg text-[var(--theme-text-on-dark)]"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+          )}
           {/* Marca — este sitio es white-label: lleva el nombre del proyecto, no el de la plataforma. */}
           <Link
             href={hrefs.home}

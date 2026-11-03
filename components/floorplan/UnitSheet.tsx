@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useEffectEvent, useRef } from 'react';
-import { m as motion, AnimatePresence, animate, useMotionValue, useReducedMotion } from 'framer-motion';
+import { m as motion, AnimatePresence } from 'framer-motion';
+import { useSheetDrag } from '@/hooks/useSheetDrag';
+import { BACKDROP } from '@/lib/motion';
 import { useScrollLock } from '@/hooks/useScrollLock';
 
 // Media query del layout de escritorio — la misma que la variante `wide`
 // de globals.css. Por encima, la ficha vive en el panel lateral y la hoja
 // no se usa.
 export const WIDE_QUERY = '(width >= 48rem) and (height >= 35rem)';
-
-const SHEET_SPRING = { type: 'spring', stiffness: 380, damping: 38, mass: 0.9 } as const;
 
 // ── Hoja inferior (mobile) ───────────────────────────────────────
 // La ficha de lo elegido en el plano sube desde abajo, sobre el plano
@@ -28,11 +28,7 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
   handleOverContent?: boolean;
   children: React.ReactNode;
 }) {
-  const reduced = !!useReducedMotion();
-  // Arrastre a mano: el proyecto carga framer-motion con `domAnimation`,
-  // que no incluye drag — sumar `domMax` solo para esto no vale el peso.
-  const y = useMotionValue(0);
-  const dragFrom = useRef<{ y: number; lastY: number; lastT: number } | null>(null);
+  const { reduced, y, handlers, sheetMotion } = useSheetDrag(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
   useScrollLock(open);
 
@@ -49,31 +45,6 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
     };
   }, [open]);
 
-  const onDragStart = (e: React.PointerEvent) => {
-    if (reduced || e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragFrom.current = { y: e.clientY, lastY: e.clientY, lastT: e.timeStamp };
-  };
-  const onDragMove = (e: React.PointerEvent) => {
-    const d = dragFrom.current;
-    if (!d) return;
-    const dy = e.clientY - d.y;
-    // Hacia arriba apenas cede: ya está abierta del todo.
-    y.set(dy > 0 ? dy : dy * 0.08);
-    d.lastY = e.clientY;
-    d.lastT = e.timeStamp;
-  };
-  const onDragEnd = (e: React.PointerEvent) => {
-    const d = dragFrom.current;
-    if (!d) return;
-    dragFrom.current = null;
-    const dy = e.clientY - d.y;
-    // px/ms del último tramo: un tirón corto y rápido también cierra.
-    const v = (e.clientY - d.lastY) / Math.max(1, e.timeStamp - d.lastT);
-    if (dy > 110 || (dy > 24 && v > 0.6)) onClose();
-    else animate(y, 0, SHEET_SPRING);
-  };
-
   return (
     // Sin portal: la ficha usa las variables del tema del proyecto (color de
     // acento), que viven en un ancestro — colgada del <body> las perdía.
@@ -86,7 +57,7 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={BACKDROP}
             className="fixed inset-0 z-[55] bg-[rgba(12,14,13,0.5)] backdrop-blur-[3px]"
           />
           <motion.div
@@ -96,20 +67,14 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
             aria-label={label}
             tabIndex={-1}
             style={reduced ? undefined : { y }}
-            initial={reduced ? { opacity: 0 } : { y: '100%' }}
-            animate={reduced ? { opacity: 1 } : { y: 0 }}
-            exit={reduced ? { opacity: 0 } : { y: '100%' }}
-            transition={reduced ? { duration: 0.15 } : SHEET_SPRING}
+            {...sheetMotion}
             className={`fixed inset-x-0 bottom-0 z-[56] flex flex-col rounded-t-[20px] bg-white overflow-hidden outline-none shadow-[0_-18px_60px_rgba(0,0,0,0.28)] ${handleOverContent ? 'h-[92dvh]' : 'max-h-[90dvh]'}`}
           >
             {handleOverContent ? (
               // Zona de arrastre al centro: a los costados de la foto van
               // compartir y cerrar.
               <div
-                onPointerDown={onDragStart}
-                onPointerMove={onDragMove}
-                onPointerUp={onDragEnd}
-                onPointerCancel={onDragEnd}
+                {...handlers}
                 className="absolute top-0 left-1/2 -translate-x-1/2 z-20 w-40 h-11 flex justify-center pt-2 touch-none cursor-grab active:cursor-grabbing"
               >
                 <span aria-hidden="true" className="w-10 h-1 rounded-full bg-white/85 shadow-[0_1px_3px_rgba(0,0,0,0.3)]" />
@@ -118,10 +83,7 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
               // Cabecera: se arrastra desde acá (el contenido de abajo
               // scrollea).
               <div
-                onPointerDown={onDragStart}
-                onPointerMove={onDragMove}
-                onPointerUp={onDragEnd}
-                onPointerCancel={onDragEnd}
+                {...handlers}
                 className="relative shrink-0 h-12 flex justify-center pt-2 touch-none cursor-grab active:cursor-grabbing"
               >
                 <span aria-hidden="true" className="w-10 h-[5px] rounded-full bg-gray-300" />
