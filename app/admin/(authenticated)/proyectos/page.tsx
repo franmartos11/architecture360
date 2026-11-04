@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, startTransition } from 'react';
+import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
@@ -39,7 +39,11 @@ export default function MisProyectosPage() {
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const newPanelRef = useRef<HTMLInputElement>(null);
+  const focusNewProject = () => {
+    newPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newPanelRef.current?.focus({ preventScroll: true });
+  };
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectRow | null>(null);
   const toast = useToast();
@@ -124,7 +128,8 @@ export default function MisProyectosPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-10 sm:py-12">
+      <div className="max-w-[1400px] mx-auto px-4 py-10 sm:py-12 flex gap-8 flex-wrap items-start">
+      <div className="flex-[999_1_640px] min-w-0">
         <div className="flex items-end justify-between gap-6 flex-wrap">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Mis proyectos</h1>
@@ -135,7 +140,7 @@ export default function MisProyectosPage() {
             </p>
           </div>
           <button
-            type="button" onClick={() => setWizardOpen(true)}
+            type="button" onClick={focusNewProject}
             className="shrink-0 h-[38px] px-4 flex items-center gap-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
           >
             <span className="text-base leading-none">+</span> Nuevo proyecto
@@ -268,14 +273,6 @@ export default function MisProyectosPage() {
             );
           })}
 
-          <button
-            type="button" onClick={() => setWizardOpen(true)}
-            className="min-h-[236px] border-[1.5px] border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center gap-2 bg-white/50 hover:bg-white hover:border-brand-500 transition-colors"
-          >
-            <span className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg">+</span>
-            <span className="text-sm font-medium text-gray-900">Nuevo proyecto</span>
-            <span className="text-[11px] text-gray-500 text-center max-w-[210px] leading-relaxed">Elegís la forma del desarrollo y el nombre. El resto se carga después.</span>
-          </button>
         </div>
 
         {visible.length === 0 && (projects ?? []).length > 0 && (
@@ -288,16 +285,15 @@ export default function MisProyectosPage() {
         )}
       </div>
 
-      {wizardOpen && (
-        <NewProjectWizard
-          onClose={() => setWizardOpen(false)}
-          onCreated={async (id) => {
-            const ok = await setActiveProject(id);
-            if (!ok) { toast('No se pudo activar el proyecto nuevo.', 'error'); return; }
-            window.location.href = '/admin/wizard'; // fuerza reload para que las rutas API lean la cookie nueva
-          }}
-        />
-      )}
+      <NewProjectPanel
+        inputRef={newPanelRef}
+        onCreated={async (id) => {
+          const ok = await setActiveProject(id);
+          if (!ok) { toast('No se pudo activar el proyecto nuevo.', 'error'); return; }
+          window.location.href = '/admin/carga'; // fuerza reload para que las rutas API lean la cookie nueva
+        }}
+      />
+      </div>
 
       <DeleteProjectModal
         project={deleteTarget}
@@ -308,7 +304,37 @@ export default function MisProyectosPage() {
   );
 }
 
-function NewProjectWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+// Íconos de cada forma (trazo, sin emoji) — mismos dibujos que el diseño de la carga.
+const FORM_ICONS: Record<ProjectType, string> = {
+  edificio: 'M5 21V3h14v18M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M3 21h18',
+  duplex: 'M3 21V10l5-4 5 4v11M13 21V10l4-4 4 4v11M2 21h20',
+  casa: 'M4 21V10l8-6 8 6v11M10 21v-6h4v6',
+  loteo: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18',
+  unico: 'M12 3 3 8l9 5 9-5zM3 8v8l9 5 9-5V8',
+};
+
+const FORM_HINTS: Record<ProjectType, string> = {
+  edificio: 'Pisos y unidades',
+  duplex: 'Varias casas',
+  casa: 'Una unidad',
+  loteo: 'Lotes en plano',
+  unico: 'Obra o concurso',
+};
+
+// "Vas a cargar:" — qué pasos trae la carga guiada de cada combinación.
+function willLoad(type: ProjectType, saleMode: ProjectSaleMode): string {
+  const byType: Record<ProjectType, string[]> = {
+    edificio: ['Torres, pisos y unidades', 'Tipologías', 'Planta tipo'],
+    duplex: ['Dúplex y sus unidades', 'Modelo de unidad', 'Plano del conjunto'],
+    casa: ['Datos de la casa', 'Ambientes y recorrido 360°'],
+    loteo: saleMode === 'venta' ? ['Plano del loteo', 'Manzanas y lotes', 'Precios por m²'] : ['Plano del loteo', 'Manzanas y lotes'],
+    unico: ['Niveles y plantas', 'Espacios'],
+  };
+  const tail = saleMode === 'venta' ? ['Precios, estados y leads'] : ['Ficha para tu portfolio'];
+  return [...byType[type], ...tail].join(' · ');
+}
+
+function NewProjectPanel({ onCreated, inputRef }: { onCreated: (id: string) => void; inputRef: React.RefObject<HTMLInputElement | null> }) {
   const [form, setForm] = useState({
     name: '',
     projectType: DEFAULT_PROJECT_TYPE as ProjectType,
@@ -340,90 +366,86 @@ function NewProjectWizard({ onClose, onCreated }: { onClose: () => void; onCreat
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/50 flex items-start justify-center p-5 py-10 overflow-y-auto z-[300]" onClick={onClose}>
-      <div className="w-full max-w-[660px] bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-lg font-semibold text-gray-900">Nuevo proyecto</p>
-            <p className="text-xs text-gray-500 mt-1">Dos decisiones y el nombre. Todo lo demás se edita después.</p>
-          </div>
-          <button type="button" onClick={onClose} className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors">✕</button>
-        </div>
+    <aside aria-label="Nuevo proyecto" className="flex-[1_1_340px] max-w-[420px] min-w-0 lg:sticky lg:top-6 bg-white border border-gray-200 rounded-2xl p-6 flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="m-0 text-xl font-semibold text-gray-900 tracking-tight">Nuevo proyecto</h2>
+        <p className="m-0 text-[13px] text-gray-500">Dos decisiones y el nombre. Todo lo demás se edita después.</p>
+      </div>
 
-        <div className="px-6 pt-5">
-          <p className="text-[11.5px] font-semibold text-gray-900">¿Qué forma tiene el desarrollo?</p>
-          <p className="text-[10.5px] text-gray-500 mt-0.5">Define qué vas a poder cargar: unidades, lotes o espacios.</p>
-          <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-            {(Object.entries(PROJECT_STRUCTURES) as [ProjectType, typeof PROJECT_STRUCTURES[ProjectType]][]).map(([key, config]) => {
-              const on = form.projectType === key;
-              return (
-                <button
-                  type="button" key={key}
-                  onClick={() => setForm(f => ({
-                    ...f, projectType: key,
-                    saleMode: config.allowedSaleModes.includes(f.saleMode) ? f.saleMode : config.allowedSaleModes[0],
-                  }))}
-                  className={`text-left p-3 rounded-xl border transition-colors ${on ? 'border-brand-500 bg-brand-50/60' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full border-[1.5px] shrink-0 ${on ? 'border-brand-500 bg-brand-500 shadow-[inset_0_0_0_2.5px_#fff]' : 'border-gray-300'}`} />
-                    <span className="text-xs font-medium text-gray-900">{config.label}</span>
-                  </div>
-                  <p className="text-[10.5px] text-gray-500 mt-1 leading-snug">{config.description}</p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="px-6 pt-5">
-          <p className="text-[11.5px] font-semibold text-gray-900">¿Es para vender o solo para mostrar?</p>
-          <div className="flex gap-2 mt-3 flex-wrap">
-            {(Object.entries(PROJECT_SALE_MODES) as [ProjectSaleMode, typeof PROJECT_SALE_MODES[ProjectSaleMode]][])
-              .filter(([key]) => structure.allowedSaleModes.includes(key))
-              .map(([key, config]) => {
-                const on = form.saleMode === key;
-                return (
-                  <button
-                    type="button" key={key}
-                    onClick={() => setForm(f => ({ ...f, saleMode: key }))}
-                    className={`flex-1 min-w-[200px] text-left p-3 rounded-xl border transition-colors ${on ? 'border-brand-500 bg-brand-50/60' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
-                  >
-                    <p className="text-xs font-medium text-gray-900">{config.label}</p>
-                    <p className="text-[10.5px] text-gray-500 mt-1 leading-snug">{config.description}</p>
-                  </button>
-                );
-              })}
-          </div>
-        </div>
-
-        <div className="px-6 pt-5 pb-5">
-          <p className="text-[11.5px] font-semibold text-gray-900">Nombre del proyecto</p>
-          <input
-            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="Ej: Loteo Zona Sur" autoFocus
-            className="w-full h-[38px] mt-2 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-          />
-          <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
-            <span>Tu link:</span>
-            <span className="font-medium text-brand-600 font-mono">arq360.com/{slugify(form.name) || 'mi-proyecto'}</span>
-          </p>
-          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-        </div>
-
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
-          <p className="text-[11px] text-gray-500">{structure.label} · {PROJECT_SALE_MODES[form.saleMode].label}{ready ? '' : ' · falta el nombre'}</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="h-9 px-3.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-900 hover:border-gray-300 transition-colors">Cancelar</button>
-            <button
-              type="button" onClick={handleCreate} disabled={!ready || creating}
-              className="h-9 px-4 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-            >
-              {creating ? 'Creando...' : 'Crear proyecto'}
-            </button>
-          </div>
+      <div className="flex flex-col gap-2.5">
+        <span className="text-xs font-semibold text-gray-900">1 · ¿Qué forma tiene el desarrollo?</span>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.entries(PROJECT_STRUCTURES) as [ProjectType, typeof PROJECT_STRUCTURES[ProjectType]][]).map(([key, config]) => {
+            const on = form.projectType === key;
+            return (
+              <button
+                type="button" key={key} aria-pressed={on}
+                onClick={() => setForm(f => ({
+                  ...f, projectType: key,
+                  saleMode: config.allowedSaleModes.includes(f.saleMode) ? f.saleMode : config.allowedSaleModes[0],
+                }))}
+                title={config.description}
+                className={`text-left flex flex-col gap-1 min-h-[92px] p-3 rounded-xl transition-colors ${on ? 'border-[1.5px] border-brand-700 bg-brand-50' : 'border border-gray-200 bg-white hover:border-gray-300'}`}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={on ? 'text-brand-700' : 'text-gray-500'}>
+                  <path d={FORM_ICONS[key]} />
+                </svg>
+                <span className="text-[13px] font-semibold text-gray-900 mt-1">{config.label}</span>
+                <span className="text-[11px] text-gray-500">{FORM_HINTS[key]}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
-    </div>
+
+      <div className="flex flex-col gap-2.5">
+        <span className="text-xs font-semibold text-gray-900">2 · ¿Es para vender o solo para mostrar?</span>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.entries(PROJECT_SALE_MODES) as [ProjectSaleMode, typeof PROJECT_SALE_MODES[ProjectSaleMode]][]).map(([key, config]) => {
+            const allowed = structure.allowedSaleModes.includes(key);
+            const on = form.saleMode === key;
+            return (
+              <button
+                type="button" key={key} aria-pressed={on} disabled={!allowed}
+                onClick={() => setForm(f => ({ ...f, saleMode: key }))}
+                title={allowed ? config.description : `Un ${structure.label.toLowerCase()} no se vende por unidades.`}
+                className={`text-left flex flex-col gap-1 min-h-[64px] p-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${on ? 'border-[1.5px] border-brand-700 bg-brand-50' : 'border border-gray-200 bg-white hover:border-gray-300'}`}
+              >
+                <span className="text-[13px] font-semibold text-gray-900">{config.label}</span>
+                <span className="text-[11px] text-gray-500">{key === 'venta' ? 'Precios, estados y leads' : 'Portfolio, sin precios'}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <label className="flex flex-col gap-2">
+        <span className="text-xs font-semibold text-gray-900">3 · Nombre del proyecto</span>
+        <input
+          ref={inputRef}
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+          placeholder="Ej: Loteo Zona Sur"
+          className="w-full h-11 px-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+        />
+        <span className="text-[11px] text-gray-500">
+          Tu link: <span className="font-medium text-brand-700 font-mono">arq360.com/{slugify(form.name) || 'mi-proyecto'}</span>
+        </span>
+      </label>
+
+      <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 leading-relaxed">
+        <span className="font-semibold text-gray-900">Vas a cargar: </span>
+        {willLoad(form.projectType, form.saleMode)}
+      </div>
+
+      {error && <p role="alert" className="text-xs text-red-600 -mt-2">{error}</p>}
+
+      <button
+        type="button" onClick={handleCreate} disabled={!ready || creating}
+        className="min-h-[48px] rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+      >
+        {creating ? 'Creando...' : ready ? 'Crear y empezar' : 'Poné un nombre para empezar'}
+      </button>
+    </aside>
   );
 }

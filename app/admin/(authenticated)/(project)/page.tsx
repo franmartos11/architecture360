@@ -102,7 +102,7 @@ export default function AdminDashboard() {
             : `Cargá ${pluralize(typeConfig.buildingLabel.toLowerCase())} para ver las métricas acá.`}
           action={
             <Link
-              href="/admin/wizard"
+              href="/admin/carga"
               className="inline-block px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
             >
               🪄 Usar el asistente →
