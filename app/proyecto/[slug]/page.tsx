@@ -69,9 +69,6 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const heroImage = project.masterplanImage
     || project.aerialSlides[0]?.imageUrl
     || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
-  // "SALTA · EDIFICIO" — línea chica del estado inicial del hero.
-  const heroKicker = [project.location?.split(',')[0]?.trim(), typeConfig.label.split(' — ')[0]]
-    .filter(Boolean).join(' · ').toUpperCase();
 
   return (
     // -mt-16 anula el pt-16 que el layout aplica para despejar el Navbar
@@ -81,7 +78,6 @@ export default async function ProjectLandingPage({ params }: PageProps) {
       <ProjectHero
         name={project.name}
         image={heroImage}
-        kicker={heroKicker || undefined}
         tagline={project.tagline || (typeConfig.saleMode === 'venta' ? 'Encontrá tu lugar' : undefined)}
         meta={heroMetaLine || undefined}
         primary={typeConfig.saleMode === 'venta' && project.units.length > 0

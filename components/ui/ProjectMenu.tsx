@@ -21,7 +21,7 @@ import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo 
 type Variant = 'bar' | 'light';
 
 const TRIGGER_CLASS: Record<Variant, string> = {
-  bar: 'h-11 w-11 justify-center sm:h-10 sm:w-auto sm:px-4 rounded-lg bg-[var(--theme-text-on-dark)]/10 border border-[var(--theme-text-on-dark)]/15 text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)]/15',
+  bar: 'h-11 w-11 justify-center sm:h-10 sm:w-auto sm:px-4 rounded-full bg-[var(--nav-fg,var(--theme-text-on-dark))]/10 border border-[var(--nav-fg,var(--theme-text-on-dark))]/15 text-[var(--nav-fg,var(--theme-text-on-dark))] hover:bg-[var(--nav-fg,var(--theme-text-on-dark))]/15',
   light: 'w-9 h-9 justify-center rounded-full bg-gray-100 text-gray-600 md:w-auto md:h-auto md:px-4 md:py-1.5 md:rounded-lg md:bg-white md:shadow md:text-gray-700 md:hover:bg-gray-50',
 };
 

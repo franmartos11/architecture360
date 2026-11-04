@@ -33,7 +33,7 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
   // Con un solo destino no hay nada que desplegar: link directo.
   if (cards.length < 2) {
     return cards[0] ? (
-      <Link href={cards[0].href} className={`px-3.5 py-2.5 rounded-lg text-[15px] font-medium whitespace-nowrap transition-colors ${navItemClass(!!current)}`}>
+      <Link href={cards[0].href} className={navItemClass(!!current)}>
         Explorar 3D
       </Link>
     ) : null;
@@ -47,9 +47,8 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={current ? `Explorar 3D: ${current}. Cambiar de vista` : 'Explorar 3D: elegir vista'}
-        className={`flex items-center gap-1.5 pl-3.5 pr-3 py-2.5 rounded-lg text-[15px] whitespace-nowrap transition-colors ${
-          open ? 'bg-white text-gray-900 font-semibold' : `font-medium ${navItemClass(!!current)}`
-        }`}
+        // Abierto se ve como activo (raya fija) — el resaltado lo lleva el panel.
+        className={`flex items-center gap-1.5 ${navItemClass(!!current || open)}`}
       >
         Explorar 3D
         <svg className={`w-[15px] h-[15px] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -58,7 +57,11 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 z-[55] w-[380px] p-2 rounded-2xl bg-[#1A1B1A] border border-white/[.12] shadow-[0_24px_60px_rgba(0,0,0,0.5)] flex flex-col gap-0.5">
+        // Vidrio líquido (onda Apple): tinte oscuro translúcido para que se lea
+        // sobre fondos claros y oscuros, desenfoque con saturación, borde y
+        // brillo especular arriba. Sin backdrop-filter (navegadores viejos)
+        // queda el tinte casi opaco del fallback.
+        <div className="lg-glass absolute left-0 top-full mt-3 z-[55] w-[380px] p-2 rounded-[26px] flex flex-col gap-0.5 text-white">
           {cards.map(card => {
             const active = card.label === current;
             return (
@@ -68,7 +71,7 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
                 onClick={() => setOpen(false)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={card.detail ? `${card.label} — ${card.detail}` : card.label}
-                className={`group flex items-center gap-3.5 p-2.5 rounded-xl text-white transition-colors ${active ? 'bg-white/[.07]' : 'hover:bg-white/[.05]'}`}
+                className={`group flex items-center gap-3.5 p-2.5 rounded-[18px] text-white transition-colors ${active ? 'bg-white/[.14]' : 'hover:bg-white/[.09]'}`}
               >
                 <span className="relative w-[72px] h-[50px] shrink-0 overflow-hidden rounded-lg bg-white/10">
                   {card.image && <Image src={card.image} alt="" fill sizes="72px" className="object-cover" />}
@@ -89,10 +92,18 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
   );
 }
 
-// Ítem de la barra completa — el activo con fondo, el resto atenuado.
-// Exportado para que Navbar pinte sus links igual.
+// Ítem de la barra completa, estilo aspasoftware.com: solo texto, atenuado,
+// con una raya fina que se dibuja de izquierda a derecha al pasar el mouse
+// y queda fija en la sección activa. Exportado para que Navbar pinte sus
+// links igual. El color sale de --nav-fg (lo define Navbar según el fondo).
+// (Clases escritas completas: Tailwind no ve las que se arman con variables.)
 export function navItemClass(active: boolean) {
-  return active
-    ? 'bg-[var(--theme-text-on-dark)]/15 text-[var(--theme-text-on-dark)]'
-    : 'text-[var(--theme-text-on-dark)]/85 hover:text-[var(--theme-text-on-dark)] hover:bg-[var(--theme-text-on-dark)]/5';
+  return [
+    'relative px-3 py-2.5 rounded-lg text-[15px] font-medium whitespace-nowrap transition-colors duration-300',
+    "after:content-[''] after:absolute after:left-3 after:right-3 after:bottom-1.5 after:h-px after:bg-current",
+    'after:transition-transform after:duration-[600ms] after:ease-[cubic-bezier(.16,1,.3,1)]',
+    active
+      ? 'text-[var(--nav-fg,var(--theme-text-on-dark))] after:origin-left after:scale-x-100'
+      : 'text-[var(--nav-fg,var(--theme-text-on-dark))]/75 hover:text-[var(--nav-fg,var(--theme-text-on-dark))] after:origin-right after:scale-x-0 hover:after:origin-left hover:after:scale-x-100',
+  ].join(' ');
 }

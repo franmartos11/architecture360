@@ -9,8 +9,6 @@ import { Container, Pill } from './ui';
 interface ProjectHeroProps {
   name: string;
   image: string;
-  /** Línea chica del estado inicial, ej. "SALTA · EDIFICIO". */
-  kicker?: string;
   /** Frase principal del estado final (la bajada del proyecto). */
   tagline?: string;
   /** Datos atenuados al lado de la frase: ubicación · cantidad · precio desde. */
@@ -60,14 +58,14 @@ function useRamp(v: MotionValue<number>, input: number[], output: number[]) {
 }
 
 /**
- * Hero a pantalla completa: arranca con la foto entera y, al scrollear, la
- * foto queda "metida" adentro del nombre del proyecto — el resto se llena
- * con el color de fondo del tema. La sección mide ~2,3 pantallas y el
- * contenido queda fijo (sticky) mientras dura el efecto.
+ * Hero a pantalla completa: arranca con el nombre del proyecto con la foto
+ * "metida" adentro de las letras (el resto con el color de fondo del tema)
+ * y, al scrollear, las letras crecen hasta dejar la foto entera. La sección
+ * mide ~2,3 pantallas y el contenido queda fijo (sticky) mientras dura.
  *
- * Sin movimiento (prefers-reduced-motion) se muestra directo el estado final.
+ * Sin movimiento (prefers-reduced-motion) queda fijo el nombre con la frase.
  */
-export default function ProjectHero({ name, image, kicker, tagline, meta, primary, secondary }: ProjectHeroProps) {
+export default function ProjectHero({ name, image, tagline, meta, primary, secondary }: ProjectHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const textRef = useRef<SVGTextElement>(null);
   const maskId = `hero-mask-${useId().replace(/:/g, '')}`;
@@ -101,12 +99,16 @@ export default function ProjectHero({ name, image, kicker, tagline, meta, primar
   const viewBox = `${VB_W / 2 - textW / 2 - pad} 0 ${textW + pad * 2} ${VB_H}`;
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
-  const photoScale = useRamp(scrollYProgress, [0, 0.7], [1.15, 1]);
-  const maskScale = useRamp(scrollYProgress, [0, 0.12, 0.7], [2.4, 2.4, 1]);
-  const maskOpacity = useRamp(scrollYProgress, [0, 0.12, 0.35], [0, 0, 1]);
-  const introOpacity = useRamp(scrollYProgress, [0, 0.14], [1, 0]);
-  const tagOpacity = useRamp(scrollYProgress, [0, 0.7, 0.88], [0, 0, 1]);
-  const tagY = useRamp(scrollYProgress, [0, 0.7, 0.88], [24, 24, 0]);
+  // Arranca con el nombre (la foto adentro de las letras) y al scrollear las
+  // letras crecen y se desvanecen hasta dejar la foto entera. El tramo final
+  // queda quieto sobre la foto antes de pasar a la sección siguiente.
+  const photoScale = useRamp(scrollYProgress, [0.1, 0.8], [1, 1.15]);
+  const maskScale = useRamp(scrollYProgress, [0.1, 0.7], [1, 2.4]);
+  const maskOpacity = useRamp(scrollYProgress, [0.45, 0.7], [1, 0]);
+  const tagOpacity = useRamp(scrollYProgress, [0, 0.15], [1, 0]);
+  const tagY = useRamp(scrollYProgress, [0, 0.15], [0, 24]);
+  // Invisibles, los botones no tienen que seguir atrapando clics sobre la foto.
+  const tagPointer = useTransform(tagOpacity, o => (o < 0.05 ? 'none' : 'auto'));
 
   const lineHeight = fontSize * 0.92;
   // Baseline del primer renglón: el bloque queda apenas por encima del centro
@@ -160,20 +162,8 @@ export default function ProjectHero({ name, image, kicker, tagline, meta, primar
 
         <h1 className="sr-only">{name}</h1>
 
-        {!reduce && (
-          <m.div
-            style={{ opacity: introOpacity }}
-            className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-3.5 text-white [text-shadow:0_2px_16px_rgba(0,0,0,0.35)] pointer-events-none"
-          >
-            {kicker && <span className="px-4 text-center text-xs sm:text-sm font-semibold tracking-[0.2em]">{kicker}</span>}
-            <span className="w-11 h-11 rounded-full border border-white/70 flex items-center justify-center" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-            </span>
-          </m.div>
-        )}
-
         <m.div
-          style={reduce ? undefined : { opacity: tagOpacity, y: tagY }}
+          style={reduce ? undefined : { opacity: tagOpacity, y: tagY, pointerEvents: tagPointer }}
           className="absolute inset-x-0 bottom-6 sm:bottom-10"
         >
           <Container className="flex flex-wrap gap-6 items-end justify-between">
