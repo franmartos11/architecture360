@@ -24,3 +24,12 @@ export function getProjectDisplayUrl(slug: string, origin: string): string {
   }
   return `${origin}/proyecto/${slug}`;
 }
+
+// "Ver sitio" de un proyecto en BORRADOR. Siempre por /proyecto/[slug] en el
+// mismo host del panel, aunque haya subdominios: la vista previa del
+// borrador necesita la sesión del dueño, y la cookie de sesión vive en el
+// dominio del panel — en el subdominio el dueño no está logueado y vería
+// "no disponible".
+export function getProjectPreviewHref(slug: string): string {
+  return `/proyecto/${slug}`;
+}

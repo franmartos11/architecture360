@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
 import { createPublicClient } from '@/lib/supabase/public';
 import { demoProject } from './mockData';
 import { getPublicBimModelsByProject } from './bim-repository';
@@ -9,6 +10,7 @@ import type { AerialSlide, Amenity, Building, Floor, PointOfInterest, Project, P
 import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@/lib/units';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { polygonCenter } from '@/lib/amenities';
+import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -218,6 +220,7 @@ function mapProject(
     academicTeam: project.academic_team ?? undefined,
     processGallery: project.process_gallery ?? [],
     beforeAfter: project.before_after ?? [],
+    constructionProgress: parseConstructionProgress(project.construction_progress) ?? undefined,
     collaborators,
     aerialSlides,
     buildings,
@@ -253,7 +256,64 @@ export const getPublicProjectBySlug = cache(async (slug: string): Promise<Projec
   if (!SUPABASE_CONFIGURED) {
     return slug === demoProject.slug ? demoProject : undefined;
   }
-  return readPublicProject(slug)(slug);
+  try {
+    return await readPublicProject(slug)(slug);
+  } catch (err) {
+    if (err instanceof PublicProjectNotFound) return undefined;
+    throw err;
+  }
+});
+
+/**
+ * "No existe / no está publicado" viaja como excepción y no como undefined
+ * a propósito: unstable_cache guarda cualquier valor que devuelva, undefined
+ * incluido. Así estaba antes, y alcanzaba con que el dueño abriera el link
+ * con el proyecto en borrador para que el 404 quedara cacheado hasta una
+ * hora — y como la invalidación de Next sirve la entrada vieja una vez más
+ * mientras revalida, publicar no lo arreglaba en la primera visita. Una
+ * excepción no se cachea, así que el negativo se vuelve a preguntar siempre.
+ */
+class PublicProjectNotFound extends Error {}
+
+export interface SiteProjectView {
+  project: Project;
+  /** true cuando es un borrador que ve su dueño: el sitio NO es público. */
+  isDraftPreview: boolean;
+}
+
+/**
+ * Lo que leen las páginas de /proyecto/[slug]: el proyecto publicado (con
+ * caché) y, si no lo hay, el borrador — pero solo para su dueño con sesión
+ * iniciada. Sin esto, "Ver sitio" desde el panel daba un 404 mientras el
+ * proyecto fuera borrador, sin explicar por qué.
+ *
+ * El camino del borrador no se cachea (lee con la sesión) y solo se toma
+ * cuando el público no encontró nada, así que a un visitante anónimo de un
+ * proyecto publicado no le agrega ni una consulta.
+ */
+export const getSiteProject = cache(async (slug: string): Promise<SiteProjectView | undefined> => {
+  const published = await getPublicProjectBySlug(slug);
+  if (published) return { project: published, isDraftPreview: false };
+  if (!SUPABASE_CONFIGURED) return undefined;
+
+  const user = await getRequestUser();
+  if (!user) return undefined;
+  const supabase = await createClient();
+  const { data: own } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('slug', slug)
+    .eq('owner_id', user.id)
+    .maybeSingle();
+  if (!own) return undefined;
+
+  const draft = await getProjectBySlug(slug);
+  return draft ? { project: draft, isDraftPreview: true } : undefined;
+});
+
+/** Atajo de getSiteProject para las páginas que solo necesitan el proyecto. */
+export const getSiteProjectBySlug = cache(async (slug: string): Promise<Project | undefined> => {
+  return (await getSiteProject(slug))?.project;
 });
 
 /** Red de seguridad por si un cambio entra por fuera de la app (SQL a mano, otro servicio). */
@@ -272,7 +332,11 @@ function readPublicProject(slug: string) {
   let reader = publicProjectReaders.get(slug);
   if (!reader) {
     reader = unstable_cache(
-      (s: string) => fetchProjectBySlug(createPublicClient(), s, { onlyPublished: true }),
+      async (s: string) => {
+        const project = await fetchProjectBySlug(createPublicClient(), s, { onlyPublished: true });
+        if (!project) throw new PublicProjectNotFound(s);
+        return project;
+      },
       ['public-project', slug],
       { tags: [projectCacheTag(slug)], revalidate: PUBLIC_PROJECT_REVALIDATE_SECONDS }
     );

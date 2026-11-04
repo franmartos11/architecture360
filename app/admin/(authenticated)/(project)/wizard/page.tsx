@@ -16,6 +16,8 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import PublishCallout from '@/components/admin/PublishCallout';
+import { usePublishState } from '@/lib/publish-state-context';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
@@ -103,6 +105,13 @@ function AdminWizardPageInner() {
       ];
 
   const [screen, setScreen] = useState<Screen>('wizard');
+  // Al llegar al resumen, lo recién cargado (lotes, unidades) tiene que
+  // contar para el mínimo de publicación — el estado compartido solo se
+  // refresca solo al cambiar de pantalla, y el resumen es la misma ruta.
+  const { refresh: refreshPublishState } = usePublishState();
+  useEffect(() => {
+    if (screen === 'resumen') refreshPublishState();
+  }, [screen, refreshPublishState]);
   const [step, setStep] = useState<Step>(() => STEPS[0].id);
   const [projectStep, setProjectStep] = useState<ProjectStep>('ubicacion');
   const [buildingId, setBuildingId] = useState<string | null>(null);
@@ -551,6 +560,9 @@ function AdminWizardPageInner() {
             {hasUnitStep ? 'Solo queda una cosa fuera de este asistente — cada una es una sola pantalla:' : 'Ya cargaste todo. Podés volver a editar cualquier parte:'}
           </p>
         </div>
+        {/* Último paso: publicar. Sin esto el asistente terminaba con el
+            proyecto en borrador y el link daba "no disponible". */}
+        <PublishCallout />
         <div className="grid gap-3">
           <Link href="/admin/proyecto" className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-brand-400 transition-colors">
             <p className="font-medium text-gray-900">{typeConfig.aerialLabel}</p>

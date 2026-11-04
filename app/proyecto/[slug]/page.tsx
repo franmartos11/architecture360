@@ -5,7 +5,7 @@ import Reveal from '@/components/ui/Reveal';
 import CommentSection from '@/components/CommentSection';
 import ProjectHero from '@/components/project-landing/ProjectHero';
 import { Container, SectionHeading } from '@/components/project-landing/ui';
-import { getPublicProjectBySlug } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
@@ -18,7 +18,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: project.name,
@@ -41,7 +41,7 @@ function projectDescription(project: Project): string {
 
 export default async function ProjectLandingPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) notFound();
 
   const basePath = await getProjectBasePath(slug);

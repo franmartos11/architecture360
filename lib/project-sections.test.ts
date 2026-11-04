@@ -119,6 +119,21 @@ describe('resolveSectionOrder', () => {
     expect(order.indexOf('stats')).toBe(order.indexOf('gallery') + 1);
   });
 
+  it('avance de obra entra después de tipologías en un orden guardado viejo', () => {
+    const config = SECTION_REGISTRY.filter(s => s.key !== 'progress').map(s => ({ key: s.key, enabled: true }));
+    const order = resolveSectionOrder(config, casa);
+    expect(order[order.indexOf('typologies') + 1]).toBe('progress');
+  });
+
+  it('avance de obra nunca se marca "vacía" (es opcional, como BIM)', () => {
+    const empty = computeEmptySectionKeys({
+      description: '', beforeAfter: [], processGallery: [], collaborators: [],
+      amenities: [], pointsOfInterest: [], units: [], aerialSlides: [],
+    });
+    expect(empty.has('progress')).toBe(false);
+    expect(sectionEditHref('progress', true)).toBe('/admin/proyecto/avance');
+  });
+
   it('respeta el orden guardado, no el default', () => {
     const config = [
       { key: 'contact', enabled: true },

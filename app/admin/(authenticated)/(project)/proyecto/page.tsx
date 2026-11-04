@@ -17,7 +17,9 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
-import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
+import { getProjectDisplayUrl } from '@/lib/project-url';
+import { usePublishState } from '@/lib/publish-state-context';
+import PublishCallout from '@/components/admin/PublishCallout';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type {
@@ -100,6 +102,7 @@ export default function AdminProjectPage() {
   const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
   const shareLink = useShareLink();
+  const publishState = usePublishState();
 
   const load = () => {
     startTransition(() => {
@@ -162,6 +165,7 @@ export default function AdminProjectPage() {
     setSaving(false);
     if (res.ok) {
       setSavedProject(project);
+      publishState.refresh();
       toast('Guardado.');
     } else {
       toast('Error al guardar.', 'error');
@@ -170,22 +174,24 @@ export default function AdminProjectPage() {
 
   const discardChanges = () => { if (savedProject) setProject(savedProject); };
 
+  // Mismo estado que el sidebar (lib/publish-state-context): publicar acá
+  // se refleja allá al instante, y el server valida el mínimo igual.
   const handleTogglePublished = async () => {
     if (!project) return;
-    const published = !project.published;
+    if (!publishState.published && dirty) {
+      toast('Guardá los cambios antes de publicar.', 'error');
+      return;
+    }
+    const published = !publishState.published;
     setPublishing(true);
-    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ published }),
-    });
+    const r = await publishState.setPublished(published);
     setPublishing(false);
-    if (res.ok) {
+    if (r.ok) {
       setProject({ ...project, published });
       setSavedProject(prev => prev ? { ...prev, published } : prev);
+      toast(published ? '¡Sitio publicado! Ya está en línea.' : 'Sitio despublicado: volvió a borrador.');
     } else {
-      const data = await res.json().catch(() => ({}));
-      toast(data.error ?? 'No se pudo cambiar la visibilidad del proyecto.', 'error');
+      toast(r.error ?? 'No se pudo cambiar la visibilidad del proyecto.', 'error');
     }
   };
 
@@ -214,6 +220,7 @@ export default function AdminProjectPage() {
     if (res.ok) {
       setNewSlide({ imageUrl: '', videoUrl: '', label: '' });
       load();
+      publishState.refresh();
     } else {
       toast(`Error al crear la ${aerialLower}.`, 'error');
     }
@@ -237,7 +244,7 @@ export default function AdminProjectPage() {
     const ok = await confirmDialog({ message: `¿Borrar esta ${aerialLower} y sus hotspots?`, confirmLabel: 'Borrar', danger: true });
     if (!ok) return;
     const res = await fetch(`/api/admin/aerial-slides/${id}`, { method: 'DELETE' });
-    if (res.ok) load();
+    if (res.ok) { load(); publishState.refresh(); }
   };
 
   const handleDeleteHotspot = async (id: string) => {
@@ -320,7 +327,8 @@ export default function AdminProjectPage() {
 
   const dirty = !!(project && savedProject && JSON.stringify(project) !== JSON.stringify(savedProject));
 
-  // Checklist de "listo para publicar" — distinto de useProjectCompleteness
+  // Checklist RECOMENDADO (no bloquea publicar; lo obligatorio está en
+  // lib/publish-readiness) — distinto de useProjectCompleteness
   // (esa mide secciones vacías de la landing tipo Amenities/Ubicación).
   // Acá se mira lo que esta misma pantalla carga. Hotspots solo aplica
   // cuando hay varios buildings de verdad para delimitar (no en casa/loteo,
@@ -359,9 +367,9 @@ export default function AdminProjectPage() {
           <div className="flex items-center gap-2.5">
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Proyecto</h2>
             <span className={`h-5 px-2 flex items-center rounded-md text-[11px] font-semibold ${
-              project.published ? 'bg-brand-900 text-white' : 'bg-white border border-gray-200 text-gray-500'
+              publishState.published ? 'bg-brand-900 text-white' : 'bg-amber-50 border border-amber-200 text-amber-700'
             }`}>
-              {project.published ? 'Publicado' : 'Borrador'}
+              {publishState.published ? 'Publicado' : 'Borrador'}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">Identidad, relato y {aerialLabelPlural.toLowerCase()} del sitio público.</p>
@@ -378,21 +386,22 @@ export default function AdminProjectPage() {
             <span className={`text-xs font-medium ${copied ? 'text-brand-600' : 'text-gray-900'}`}>{copied ? 'Copiado' : 'Copiar'}</span>
           </button>
           <a
-            href={getProjectHref(project.slug)}
+            href={publishState.siteHref}
             target="_blank"
             rel="noopener noreferrer"
             className="h-9 px-3 flex items-center border border-gray-300 text-gray-700 text-sm font-medium rounded-lg bg-white hover:bg-gray-50 transition-colors whitespace-nowrap"
           >
-            Ver sitio ↗
+            {publishState.published ? 'Ver sitio ↗' : 'Vista previa ↗'}
           </a>
           <button
             onClick={handleTogglePublished}
-            disabled={publishing}
+            disabled={publishing || (!publishState.published && !publishState.canPublish)}
+            title={!publishState.published && !publishState.canPublish ? `Para publicar falta: ${publishState.missingRequired.join(', ')}` : undefined}
             className={`h-9 px-4 flex items-center rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60 ${
-              project.published ? 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50' : 'bg-gray-900 text-white hover:bg-gray-800'
+              publishState.published ? 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50' : 'bg-gray-900 text-white hover:bg-gray-800'
             }`}
           >
-            {publishing ? 'Guardando...' : project.published ? 'Despublicar' : 'Publicar sitio'}
+            {publishing ? 'Guardando...' : publishState.published ? 'Despublicar' : 'Publicar sitio'}
           </button>
         </div>
       </div>
@@ -411,6 +420,12 @@ export default function AdminProjectPage() {
           Ubicación →
         </Link>
         <Link
+          href="/admin/proyecto/avance"
+          className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+        >
+          Avance de obra →
+        </Link>
+        <Link
           href="/admin/proyecto/recorrido"
           className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
         >
@@ -424,20 +439,25 @@ export default function AdminProjectPage() {
         </button>
       </div>
 
-      {/* Checklist "listo para publicar" — calculado en el cliente a partir
-          de lo que ya está cargado; ítems adaptados por tipo de proyecto
-          (hotspots no aplica a casa/loteo, que son singleBuilding). */}
+      {/* Lo OBLIGATORIO para publicar (y el botón) vive en PublishCallout,
+          compartido con el sidebar y el dashboard. */}
+      <PublishCallout />
+
+      {/* Checklist RECOMENDADO — no bloquea publicar. Calculado en el
+          cliente a partir de lo que ya está cargado; ítems adaptados por
+          tipo de proyecto (hotspots no aplica a casa/loteo, que son
+          singleBuilding). */}
       <Card>
         <div className="p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {checklistMissing.length === 0 ? 'Listo para publicar' : 'Falta poco para publicar'}
+                {checklistMissing.length === 0 ? 'Ficha completa' : 'Recomendado para una ficha completa'}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
                 {checklistMissing.length === 0
                   ? 'Todas las secciones de la ficha están completas.'
-                  : `Pendiente: ${checklistMissing.join(' · ')}`}
+                  : `No es obligatorio para publicar. Pendiente: ${checklistMissing.join(' · ')}`}
               </p>
             </div>
             <div className="flex items-center gap-2.5 shrink-0">

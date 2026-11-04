@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getPublicProjectBySlug } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import LocationView from '@/components/location/LocationView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
@@ -10,7 +10,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: `${project.name} | Ubicación`,
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function UbicacionPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) notFound();
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);

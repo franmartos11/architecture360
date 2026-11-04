@@ -5,8 +5,10 @@ vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
 }));
+vi.mock('@/data/project-repository', () => ({ getProjectBySlug: vi.fn() }));
 
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { getProjectBySlug } from '@/data/project-repository';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, PATCH } from './route';
 
@@ -215,6 +217,37 @@ describe('PATCH /api/admin/project', () => {
     expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
+  it('constructionProgress: se guarda saneado (sin HTML, sin fotos que no sean http, sin etapas huérfanas)', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: {
+        stages: [{ id: 's1', label: '<script>x</script>Estructura' }],
+        currentStageId: 'otra',
+        percent: 55,
+        updates: [{ id: 'u1', date: '2026-03-01', stageId: 's1', title: 'Losa', images: ['https://a.supabase.co/1.jpg', 'data:image/png;base64,AAA'] }],
+      },
+    }));
+    expect(res.status).toBe(200);
+    const payload = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(payload.construction_progress).toEqual({
+      stages: [{ id: 's1', label: 'Estructura' }],
+      percent: 55,
+      updates: [{ id: 'u1', date: '2026-03-01', stageId: 's1', title: 'Losa', images: ['https://a.supabase.co/1.jpg'] }],
+    });
+  });
+
+  it('constructionProgress vacío: guarda null', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0].construction_progress).toBeNull();
+  });
+
   it('cambio de saleMode compatible: valida el combo y actualiza', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({
@@ -238,5 +271,50 @@ describe('PATCH /api/admin/project', () => {
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'X' }));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('update failed');
+  });
+});
+
+describe('PATCH /api/admin/project: publicar exige el mínimo', () => {
+  const loteo = (over: Record<string, unknown> = {}) => ({
+    name: 'Loteo Norte', projectType: 'loteo', saleMode: 'venta',
+    masterplanImage: 'https://x/plano.jpg', aerialSlides: [], buildings: [{ id: 'b1' }], units: [{ id: 'u1' }],
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset().mockResolvedValue('project-1');
+    vi.mocked(getProjectBySlug).mockReset();
+  });
+
+  it('loteo sin lotes ni imagen: 422 con lo que falta, no actualiza', async () => {
+    const supabase = mockSupabase({ results: [{ data: { slug: 'loteo-norte' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(getProjectBySlug).mockResolvedValue(loteo({ masterplanImage: undefined, units: [] }) as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: true }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.missing).toHaveLength(2);
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('con el mínimo cargado: publica', async () => {
+    const supabase = mockSupabase({ results: [{ data: { slug: 'loteo-norte' } }, { data: { id: 'project-1', published: true }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(getProjectBySlug).mockResolvedValue(loteo() as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: true }));
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[1].value.update.mock.calls[0][0].published).toBe(true);
+  });
+
+  it('despublicar no valida nada', async () => {
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1', published: false }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
+    expect(res.status).toBe(200);
+    expect(getProjectBySlug).not.toHaveBeenCalled();
   });
 });

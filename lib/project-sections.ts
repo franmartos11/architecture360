@@ -17,6 +17,7 @@ export type SectionKey =
   | 'masterplan'
   | 'bim'
   | 'typologies'
+  | 'progress'
   | 'location'
   | 'calculator'
   | 'contact';
@@ -39,6 +40,7 @@ export const SECTION_REGISTRY: SectionMeta[] = [
   { key: 'masterplan', label: 'Explorar 3D' },
   { key: 'bim', label: 'Modelo BIM' },
   { key: 'typologies', label: 'Tipologías / unidades' },
+  { key: 'progress', label: 'Avance de obra' },
   { key: 'calculator', label: 'Calculadora' },
   { key: 'location', label: 'Ubicación' },
   { key: 'contact', label: 'Contacto' },
@@ -95,6 +97,8 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
       return '/admin/proyecto/bim';
     case 'location':
       return '/admin/proyecto/ubicacion';
+    case 'progress':
+      return '/admin/proyecto/avance';
     case 'typologies':
       return hasFloorStep ? '/admin/edificios' : '/admin/inventory';
     case 'calculator':
@@ -123,6 +127,7 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
     bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
     typologies: `${pluralize(typeConfig.unitLabel)} disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
+    progress: 'Etapas, porcentaje, entrega estimada y actualizaciones con fotos — con time-lapse.',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
     contact: 'Formulario de contacto — se activa según el modo de venta.',
   };
@@ -156,8 +161,9 @@ interface EmptyCheckProject {
 // fallback real (components/aerial/AerialView.tsx) era una pantalla en
 // blanco sin ningún aviso cuando no había ninguna vista aérea cargada.
 //
-// 'bim' queda AFUERA a propósito, igual que 'calculator'/'contact': es
-// opcional (no todo proyecto necesita un modelo BIM), así que marcarla
+// 'bim' y 'progress' quedan AFUERA a propósito, igual que 'calculator'/'contact': son
+// opcionales (no todo proyecto necesita un modelo BIM, y una obra terminada no
+// tiene avance que contar), así que marcarlas
 // "vacía" generaría un aviso de "te falta esto" en cualquier proyecto que
 // legítimamente decidió no cargar uno. El componente de la sección igual
 // resuelve solo si tiene o no piezas para mostrar.

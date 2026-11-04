@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
-import { getProjectHref } from '@/lib/project-url';
+import { usePublishState } from '@/lib/publish-state-context';
 import { resolveSectionList, sectionEditHref, sectionHint, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { SECTION_EDITORS } from '@/components/admin/section-editors/registry';
@@ -51,6 +51,7 @@ const STATUS_PILL: Partial<Record<Status, [string, string]>> = {
 // /admin/sitio/secciones para orden/visibilidad); ver lib/project-sections.ts.
 export default function AdminSitioPage() {
   const typeConfig = useProjectTypeConfig();
+  const publishState = usePublishState();
   const [project, setProject] = useState<Project | null>(null);
   const [sections, setSections] = useState<SectionRow[] | null>(null);
   const [emptyKeys, setEmptyKeys] = useState<Set<SectionKey>>(new Set());
@@ -182,12 +183,12 @@ export default function AdminSitioPage() {
             </p>
           </div>
           <a
-            href={getProjectHref(project.slug)}
+            href={publishState.siteHref}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
           >
-            <ExternalLink className="w-4 h-4" /> Ver sitio público
+            <ExternalLink className="w-4 h-4" /> {publishState.published ? 'Ver sitio público' : 'Vista previa (borrador)'}
           </a>
         </div>
 
@@ -355,7 +356,7 @@ export default function AdminSitioPage() {
 // hay que darles el padding nosotros — sin tocar el componente compartido
 // y arriesgar duplicar el padding en su página propia.
 const EDITOR_NEEDS_PADDING: Partial<Record<SectionKey, true>> = {
-  before_after: true, team: true, amenities: true, location: true,
+  before_after: true, team: true, amenities: true, location: true, progress: true,
 };
 
 function SectionPanelBody({

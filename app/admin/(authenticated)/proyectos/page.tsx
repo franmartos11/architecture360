@@ -5,7 +5,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import { formatRelativeTime } from '@/lib/relativeTime';
-import { getProjectHref } from '@/lib/project-url';
+import { getProjectHref, getProjectPreviewHref } from '@/lib/project-url';
 import { slugify } from '@/lib/slug';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from '@/lib/project-types';
 import type { ProjectType, ProjectSaleMode } from '@/types';
@@ -227,7 +227,7 @@ export default function MisProyectosPage() {
                       className="absolute top-10 right-2.5 w-[172px] bg-white border border-gray-200 rounded-xl shadow-[0_16px_34px_-14px_rgba(16,24,40,.3)] p-1.5 z-10"
                     >
                       <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">Seguir cargando</button>
-                      <a href={getProjectHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="block w-full text-left h-[30px] leading-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">Ver sitio público</a>
+                      <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="block w-full text-left h-[30px] leading-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
                       <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">Duplicar</button>
                       <div className="h-px bg-gray-100 my-1 mx-1.5" />
                       <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-red-600 hover:bg-red-50">Eliminar proyecto</button>

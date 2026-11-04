@@ -391,6 +391,11 @@ alter table projects add column if not exists academic_team text;
 -- solo los muestra en modo showcase.
 alter table projects add column if not exists process_gallery text[] not null default '{}';
 alter table projects add column if not exists before_after jsonb not null default '[]'; -- [{ label, beforeImage, afterImage }]
+-- Avance de obra: etapas (las define cada proyecto), porcentaje, entrega
+-- estimada y actualizaciones con fecha y fotos. Un solo blob JSON, igual que
+-- before_after: se lee y se escribe siempre entero desde un solo editor.
+-- null = sin cargar. Forma: ver ConstructionProgress en types/index.ts.
+alter table projects add column if not exists construction_progress jsonb;
 
 -- Bajada corta del hero (ej: "3 dormitorios frente al mar en Punta del
 -- Este") — separada de `description`, que es el texto largo de "Sobre el

@@ -11,6 +11,7 @@ import AmenitiesSection from './AmenitiesSection';
 import MasterplanCtaSection from './MasterplanCtaSection';
 import BimSection from './BimSection';
 import TypologiesSection from './TypologiesSection';
+import ConstructionProgressSection from './ConstructionProgressSection';
 import LocationSection from './LocationSection';
 import CalculatorSection from './CalculatorSection';
 import ContactSection from './ContactSection';
@@ -31,6 +32,7 @@ export const SECTION_COMPONENTS: Record<SectionKey, ComponentType<SectionProps>>
   masterplan: MasterplanCtaSection,
   bim: BimSection,
   typologies: TypologiesSection,
+  progress: ConstructionProgressSection,
   location: LocationSection,
   calculator: CalculatorSection,
   contact: ContactSection,

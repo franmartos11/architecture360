@@ -6,6 +6,7 @@ import CalculatorEditor from '@/components/admin/section-editors/CalculatorEdito
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
+import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import type { ProjectSaleMode, ProjectType } from '@/types';
@@ -14,6 +15,7 @@ export default function SettingsPage() {
   const { showCalculator } = useProjectTypeConfig();
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
+  const publishState = usePublishState();
   const [project, setProject] = useState<{ id: string; name: string; project_type: string; sale_mode: string; published: boolean } | null>(null);
   const [savingMode, setSavingMode] = useState(false);
   const [savingPublished, setSavingPublished] = useState(false);
@@ -53,21 +55,12 @@ export default function SettingsPage() {
     }
   };
 
+  // Mismo estado (y misma validación del mínimo) que el sidebar y /admin/proyecto.
   const handleTogglePublished = async () => {
-    if (!project) return;
-    const published = !project.published;
     setSavingPublished(true);
-    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ published }),
-    });
+    const r = await publishState.setPublished(!publishState.published);
     setSavingPublished(false);
-    if (res.ok) setProject({ ...project, published });
-    else {
-      const data = await res.json().catch(() => ({}));
-      toast(data.error ?? 'No se pudo cambiar la visibilidad del proyecto.', 'error');
-    }
+    if (!r.ok) toast(r.error ?? 'No se pudo cambiar la visibilidad del proyecto.', 'error');
   };
 
   return (
@@ -82,23 +75,27 @@ export default function SettingsPage() {
           <CardHeader className="block">
             <h3 className="text-lg font-semibold text-gray-900">Visibilidad del sitio</h3>
             <p className="text-sm text-gray-500">
-              En borrador, el sitio público de este proyecto deja de responder (404) — vos seguís viéndolo desde el preview de &quot;Sitio web&quot; en el admin mientras lo terminás de cargar.
+              En borrador, el link del sitio muestra &quot;no disponible&quot; a los demás. Vos lo seguís viendo como vista previa mientras tengas la sesión iniciada.
             </p>
           </CardHeader>
           <div className="p-6">
             <button
               type="button"
               onClick={handleTogglePublished}
-              disabled={savingPublished}
+              disabled={savingPublished || (!publishState.published && !publishState.canPublish)}
               className="flex items-center gap-3 text-left disabled:opacity-60"
             >
-              <span className={`w-10 h-6 shrink-0 rounded-full p-0.5 flex transition-colors ${project.published ? 'bg-brand-500 justify-end' : 'bg-gray-300 justify-start'}`}>
+              <span className={`w-10 h-6 shrink-0 rounded-full p-0.5 flex transition-colors ${publishState.published ? 'bg-brand-500 justify-end' : 'bg-gray-300 justify-start'}`}>
                 <span className="w-5 h-5 rounded-full bg-white shadow" />
               </span>
               <span>
-                <span className="block text-sm font-medium text-gray-900">{project.published ? 'Publicado' : 'Borrador'}</span>
+                <span className="block text-sm font-medium text-gray-900">{publishState.published ? 'Publicado' : 'Borrador'}</span>
                 <span className="block text-xs text-gray-500 mt-0.5">
-                  {project.published ? 'El sitio público está en línea.' : 'El sitio público no es accesible todavía.'}
+                  {publishState.published
+                    ? 'El sitio público está en línea.'
+                    : publishState.canPublish
+                      ? 'El sitio público no es accesible todavía. Tocá para publicarlo.'
+                      : `Para publicar falta: ${publishState.missingRequired.join(', ')}.`}
                 </span>
               </span>
             </button>

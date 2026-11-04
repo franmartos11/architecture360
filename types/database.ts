@@ -31,6 +31,8 @@ export interface ProjectRow {
   academic_team: string | null;
   process_gallery: string[];
   before_after: BeforeAfterPair[];
+  /** Ver ConstructionProgress — se normaliza al leer (parseConstructionProgress). */
+  construction_progress?: unknown;
   show_in_portfolio: boolean;
   published: boolean;
   created_at: string;

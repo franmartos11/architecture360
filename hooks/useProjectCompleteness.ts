@@ -1,45 +1,14 @@
 'use client';
 
-import { startTransition, useEffect, useState } from 'react';
-import { resolveSectionList, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
-import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
-import type { ProjectTypeConfig } from '@/lib/project-types';
+import { usePublishState, type MissingSection } from '@/lib/publish-state-context';
 
-export interface MissingSection {
-  key: SectionKey;
-  label: string;
-}
+export type { MissingSection };
 
-// Qué secciones de la landing pública están habilitadas y disponibles
-// para este tipo de proyecto pero todavía no tienen contenido cargado —
-// mismo criterio que ya usa /admin/sitio, para poder avisarle al admin
-// ANTES de que comparta el link, en vez de que se entere por un cliente
-// que vio una página vacía.
-export function useProjectCompleteness(typeConfig: ProjectTypeConfig) {
-  const activeProjectId = useActiveProjectId();
-  const [missing, setMissing] = useState<MissingSection[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    startTransition(() => {
-      setLoading(true);
-    });
-    fetch(withActiveProject('/api/admin/project/preview', activeProjectId))
-      .then(res => res.json())
-      .then(data => {
-        if (cancelled || !data.project) return;
-        const emptyKeys = computeEmptySectionKeys(data.project);
-        const list = resolveSectionList(data.project.sectionConfig, typeConfig)
-          .filter(s => s.enabled && s.available && emptyKeys.has(s.key))
-          .map(s => ({ key: s.key, label: s.label }));
-        setMissing(list);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeConfig.saleMode, typeConfig.buildingLabel, typeConfig.unitLabel, activeProjectId]);
-
-  return { missing, loading };
+// Qué secciones de la landing pública están habilitadas pero vacías. Ahora
+// sale del estado de publicación compartido del panel (una sola consulta
+// para el sidebar y todas las pantallas, refrescada al navegar) — ver
+// lib/publish-state-context.tsx.
+export function useProjectCompleteness() {
+  const { missingSections, loading } = usePublishState();
+  return { missing: missingSections, loading };
 }

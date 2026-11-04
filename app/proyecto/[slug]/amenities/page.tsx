@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getPublicProjectBySlug } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
@@ -11,7 +11,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
     title: `${project.name} | Amenities`,
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function AmenitiesPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { edificio } = await searchParams;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) notFound();
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);

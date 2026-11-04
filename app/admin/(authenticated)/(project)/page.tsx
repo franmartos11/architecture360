@@ -10,9 +10,10 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
-import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
+import { usePublishState } from '@/lib/publish-state-context';
+import PublishCallout from '@/components/admin/PublishCallout';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
-import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
+import { getProjectDisplayUrl } from '@/lib/project-url';
 import { poppins, ACCENT, CHART_COLOR, LEAD_BADGE, money } from '@/lib/panel-comercial-style';
 
 import { pluralize } from '@/lib/units';
@@ -35,7 +36,7 @@ export default function AdminDashboard() {
   const uAgree = unitAgreement(typeConfig);
   const shareLink = useShareLink();
   const activeProjectId = useActiveProjectId();
-  const { missing: missingSections } = useProjectCompleteness(typeConfig);
+  const { siteHref } = usePublishState();
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [project, setProject] = useState<ProjectSummary | null>(null);
@@ -138,17 +139,7 @@ export default function AdminDashboard() {
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-900 mb-1">Compartí tu proyecto</h3>
           <p className="text-sm text-gray-500 mb-4">Mandá este link para que lo vean — no hace falta cuenta ni login.</p>
-          {missingSections.length > 0 && (
-            <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm font-medium text-amber-800">
-                Antes de compartir, te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`}:{' '}
-                {missingSections.map(s => s.label).join(', ')}.
-              </p>
-              <Link href="/admin/sitio" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2">
-                Completar ahora →
-              </Link>
-            </div>
-          )}
+          <PublishCallout className="mb-4" />
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="font-mono text-sm text-gray-900 bg-gray-50 px-4 py-2.5 rounded-lg truncate flex-1">
               {getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '')}
@@ -161,7 +152,7 @@ export default function AdminDashboard() {
                 Copiar link
               </button>
               <a
-                href={getProjectHref(project.slug)}
+                href={siteHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
@@ -245,17 +236,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {missingSections.length > 0 && (
-        <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
-          <p className="text-sm font-medium text-amber-800">
-            Antes de compartir, te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`}:{' '}
-            {missingSections.map(s => s.label).join(', ')}.
-          </p>
-          <Link href="/admin/sitio" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap">
-            Completar ahora →
-          </Link>
-        </div>
-      )}
+      <PublishCallout />
 
       {unitsWithoutPrice.length > 0 && (
         <div className="rounded-[11px] p-[12px_15px] flex items-center gap-3 flex-wrap" style={{ background: '#fdf7ec', border: '1px solid rgba(176,124,32,.22)' }}>

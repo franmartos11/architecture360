@@ -4,9 +4,8 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
-import { useProjectCompleteness } from '@/hooks/useProjectCompleteness';
-import ShareMenu from '@/components/ui/ShareMenu';
-import { getProjectHref, getProjectDisplayUrl } from '@/lib/project-url';
+import SitePublishStatus from '@/components/admin/SitePublishStatus';
+import { getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
@@ -45,8 +44,6 @@ export default function ProjectAdminShell({
   // Casi siempre es dato viejo (valor combinado legacy, migración a medias).
   const badType = typeConfig.fallbackFields.type ? project.project_type : null;
   const badSaleMode = typeConfig.fallbackFields.saleMode ? project.sale_mode : null;
-  const { missing: missingSections } = useProjectCompleteness(typeConfig);
-  const publicHref = getProjectHref(project.slug);
   const shareUrl = typeof window !== 'undefined' ? getProjectDisplayUrl(project.slug, window.location.origin) : '';
 
   useEffect(() => {
@@ -79,6 +76,7 @@ export default function ProjectAdminShell({
     { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
     { label: 'Amenidades', href: '/admin/proyecto/amenities' },
     { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
+    { label: 'Avance de obra', href: '/admin/proyecto/avance' },
     { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },
     { label: 'Modelo BIM', href: '/admin/proyecto/bim' },
   ];
@@ -125,48 +123,7 @@ export default function ProjectAdminShell({
             </Link>
             <h1 className="text-lg font-bold tracking-wide mt-1.5 truncate" title={project.name}>{project.name}</h1>
             {userEmail && <p className="text-gray-500 text-xs mt-0.5 truncate">{userEmail}</p>}
-            <div className="flex items-center gap-2 mt-3">
-              <a
-                href={publicHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs text-gray-200 hover:text-white transition-colors truncate"
-                title={`Ver el sitio público: ${publicHref}`}
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                <span className="truncate">Ver sitio público</span>
-              </a>
-              <ShareMenu url={shareUrl} text={`Mirá el proyecto ${project.name}`} align="left">
-                {(trigger) => (
-                  <button
-                    {...trigger}
-                    className="shrink-0 p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-200 hover:text-white transition-colors"
-                    title="Compartir el proyecto"
-                    aria-label="Compartir el proyecto"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                )}
-              </ShareMenu>
-            </div>
-            {missingSections.length > 0 && (
-              <Link
-                href="/admin/sitio"
-                title={`Antes de compartir, te falta cargar: ${missingSections.map(s => s.label).join(', ')}`}
-                className="mt-2 flex items-start gap-1.5 px-2.5 py-1.5 bg-amber-950/40 hover:bg-amber-950/60 border border-amber-800/40 rounded-lg text-xs text-amber-300 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                </svg>
-                <span className="min-w-0">
-                  Te falta cargar {missingSections.length === 1 ? '1 sección' : `${missingSections.length} secciones`} antes de compartir
-                </span>
-              </Link>
-            )}
+            <SitePublishStatus shareUrl={shareUrl} shareText={`Mirá el proyecto ${project.name}`} />
           </div>
           <button
             onClick={() => setMobileNavOpen(open => !open)}

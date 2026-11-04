@@ -4,12 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { projectCacheTag } from '@/data/project-repository';
 
 // El segundo argumento de revalidateTag es un perfil de cache-life, no un
-// modo de invalidación: dice cada cuánto se considera vieja la entrada de
-// acá en adelante. 'max' la daría por fresca 30 días — o sea, lo contrario
-// de lo que queremos. 'seconds' (revalidate: 1) la vence enseguida, que es
-// la forma de invalidar de verdad desde un Route Handler. updateTag, que
-// sería lo directo, solo se puede llamar desde un Server Action.
-const INVALIDAR_YA = 'seconds';
+// modo de invalidación. Un perfil con nombre ('max', 'seconds'…) marca la
+// entrada como VIEJA: Next la sigue sirviendo una vez más mientras la rehace
+// en segundo plano — así, el primero en entrar después de guardar (casi
+// siempre el propio dueño, recién publicado) veía la versión anterior, o el
+// 404 de cuando era borrador. { expire: 0 } la da por VENCIDA: la próxima
+// visita espera la versión nueva. updateTag, que sería lo directo, solo se
+// puede llamar desde un Server Action.
+const INVALIDAR_YA = { expire: 0 };
 
 /**
  * Tira la caché del microsite de un proyecto.

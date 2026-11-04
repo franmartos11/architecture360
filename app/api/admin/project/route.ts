@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
-import { PROJECT_SALE_MODES, isValidTypeCombo } from '@/lib/project-types';
+import { PROJECT_SALE_MODES, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
+import { getPublishReadiness, describeMissing } from '@/lib/publish-readiness';
+import { getProjectBySlug } from '@/data/project-repository';
+import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
@@ -40,6 +43,9 @@ const projectPatchSchema = z.object({
   academicTeam: z.string().max(500).nullable().optional(),
   processGallery: z.unknown().optional(),
   beforeAfter: z.unknown().optional(),
+  // Avance de obra: la forma se valida y se sanea entera en
+  // parseConstructionProgress (null = sin avance cargado).
+  constructionProgress: z.unknown().optional(),
   showInPortfolio: z.boolean().optional(),
   published: z.boolean().optional(),
 });
@@ -170,8 +176,30 @@ export async function PATCH(request: Request) {
   if (body.academicTeam !== undefined) updates.academic_team = sanitizeText(body.academicTeam, 500);
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
+  if (body.constructionProgress !== undefined) updates.construction_progress = parseConstructionProgress(body.constructionProgress);
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;
-  if (body.published !== undefined) updates.published = body.published;
+  if (body.published !== undefined) {
+    // Publicar exige el mínimo de lib/publish-readiness — el mismo que
+    // muestra el panel. Se valida acá además de en el botón para que no
+    // haya forma de dejar en línea un sitio roto (otra pantalla, a mano).
+    if (body.published) {
+      const { data: row } = await supabase.from('projects').select('slug').eq('id', projectId).maybeSingle();
+      const project = row ? await getProjectBySlug(row.slug) : undefined;
+      if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+      const typeConfig = getProjectTypeConfig(project.projectType, body.saleMode ?? project.saleMode);
+      const readiness = getPublishReadiness(
+        { ...project, name: body.name ?? project.name },
+        typeConfig
+      );
+      if (!readiness.canPublish) {
+        return NextResponse.json(
+          { error: `Todavía no se puede publicar. ${describeMissing(readiness.missing)}`, missing: readiness.missing },
+          { status: 422 }
+        );
+      }
+    }
+    updates.published = body.published;
+  }
   updates.updated_at = new Date().toISOString();
 
   const { data, error } = await supabase

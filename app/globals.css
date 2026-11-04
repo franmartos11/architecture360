@@ -771,3 +771,12 @@ html[data-nav-pending] [data-site-nav]::after {
   .nav-cta, .nav-cta::after { transition: none; }
   .nav-cta:hover { transform: none; }
 }
+
+/* ─── Time-lapse del avance de obra: la marca de la actualización en curso
+   avanza la parte que le toca a la foto actual (de --lapse-from a
+   --lapse-to) en lo que dura el cuadro (--lapse-ms). */
+.lapse-run { animation: lapse-run var(--lapse-ms, 1400ms) linear forwards; }
+@keyframes lapse-run {
+  from { transform: scaleX(var(--lapse-from, 0)); }
+  to { transform: scaleX(var(--lapse-to, 1)); }
+}

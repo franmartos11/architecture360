@@ -3,6 +3,7 @@ import { resolveActiveProjectId, requireProjectAccess } from '@/lib/supabase/req
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { ActiveProjectIdProvider } from '@/lib/active-project-context';
 import ProjectAdminShell from './ProjectAdminShell';
+import { PublishStateProvider } from '@/lib/publish-state-context';
 
 // Todo lo que cuelga de este grupo de rutas (dashboard, edificios,
 // inventario, leads, configuración, wizard, proyecto) necesita un
@@ -19,7 +20,7 @@ export default async function ProjectAdminLayout({ children }: { children: React
 
   const { data: project } = await access.supabase
     .from('projects')
-    .select('id, slug, name, project_type, sale_mode')
+    .select('id, slug, name, project_type, sale_mode, published')
     .eq('id', projectId)
     .maybeSingle();
   if (!project) redirect('/admin/proyectos');
@@ -42,9 +43,17 @@ export default async function ProjectAdminLayout({ children }: { children: React
 
   return (
     <ActiveProjectIdProvider projectId={project.id}>
-      <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref}>
-        {children}
-      </ProjectAdminShell>
+      <PublishStateProvider
+        projectId={project.id}
+        slug={project.slug}
+        initialPublished={!!project.published}
+        projectType={project.project_type}
+        saleMode={project.sale_mode}
+      >
+        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref}>
+          {children}
+        </ProjectAdminShell>
+      </PublishStateProvider>
     </ActiveProjectIdProvider>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getPublicProjectBySlug } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import UnitsListView from '@/components/units/UnitsListView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
@@ -12,7 +12,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function UnidadesPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const sp = await searchParams;
-  const project = await getPublicProjectBySlug(slug);
+  const project = await getSiteProjectBySlug(slug);
   if (!project) notFound();
 
   // Los filtros llegan por query string para que un listado filtrado sea una

@@ -300,6 +300,41 @@ export interface PointOfInterest {
 }
 
 // ─── Antes / Después (reciclaje, rehabilitación) ─────────────────────
+// ─── Avance de obra ─────────────────────────────────────────────────
+// Igual para cualquier tipo de proyecto: las etapas las define cada uno
+// (nombre, orden y cantidad) — la lista por tipo de lib/construction-progress
+// es solo una sugerencia para arrancar. Todo es opcional salvo que haya
+// algo para mostrar (ver hasConstructionProgress).
+export interface ConstructionStage {
+  id: string;
+  label: string;
+}
+
+export interface ConstructionUpdate {
+  id: string;
+  /** yyyy-mm-dd. */
+  date: string;
+  /** id de una de las etapas — opcional. */
+  stageId?: string;
+  title: string;
+  body?: string;
+  /** La primera es la portada; todas entran al time-lapse. */
+  images: string[];
+  /** Desde dónde se sacó ("Frente", "Dron") — texto libre, opcional. */
+  view?: string;
+}
+
+export interface ConstructionProgress {
+  stages: ConstructionStage[];
+  /** id de la etapa en curso — sin esto se toma la de la última actualización. */
+  currentStageId?: string;
+  /** 0-100 — sin esto no se muestra el número. */
+  percent?: number;
+  /** Texto libre ("Diciembre 2027", "Posesión desde junio") — las entregas casi nunca se anuncian con día exacto. */
+  deliveryEstimate?: string;
+  updates: ConstructionUpdate[];
+}
+
 export interface BeforeAfterPair {
   label: string;
   beforeImage: string;
@@ -516,6 +551,8 @@ export interface Project {
   processGallery: string[];
   /** Pares antes/después — para reciclaje o rehabilitación. */
   beforeAfter: BeforeAfterPair[];
+  /** Avance de obra — etapas, porcentaje y actualizaciones con fotos. undefined = sin cargar. */
+  constructionProgress?: ConstructionProgress;
   /** Créditos confirmados — quién trabajó en el proyecto, más allá del dueño. */
   collaborators: ProjectCollaborator[];
   aerialSlides: AerialSlide[];

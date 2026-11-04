@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation';
 import ProjectChrome from '@/components/ui/ProjectChrome';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { ProjectBasePathProvider } from '@/lib/project-base-path-context';
-import { getPublicProjectBySlug } from '@/data/project-repository';
+import type { Metadata } from 'next';
+import { getSiteProject } from '@/data/project-repository';
+import DraftPreviewBar from '@/components/project-landing/DraftPreviewBar';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
@@ -20,7 +22,7 @@ interface LayoutProps {
 // página, el theme no llegaba a ninguna de ellas y el explorador quedaba sin
 // la identidad visual que la desarrolladora personalizó.
 //
-// El fetch del proyecto no agrega un query: getPublicProjectBySlug está
+// El fetch del proyecto no agrega un query: getSiteProject está
 // memoizado con cache() de React, así que esta llamada y la que hace cada
 // página en la misma request se deduplican.
 // "Exterior y terraza" — bajada de Recorrido 360 en el desplegable de
@@ -34,13 +36,22 @@ function tourSpacesLabel(names: string[]): string | undefined {
   return `${[first, ...rest].join(', ')} y ${last}`;
 }
 
+// Un borrador solo lo ve su dueño (ver getSiteProject), pero igual: que
+// ningún buscador lo indexe si alguien comparte el link antes de publicar.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const view = await getSiteProject(slug);
+  return view?.isDraftPreview ? { robots: { index: false, follow: false } } : {};
+}
+
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   const { slug } = await params;
-  const [basePath, project] = await Promise.all([
+  const [basePath, view] = await Promise.all([
     getProjectBasePath(slug),
-    getPublicProjectBySlug(slug),
+    getSiteProject(slug),
   ]);
-  if (!project) notFound();
+  if (!view) notFound();
+  const { project, isDraftPreview } = view;
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
@@ -95,6 +106,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         >
           {children}
         </ProjectChrome>
+        {isDraftPreview && <DraftPreviewBar projectId={project.id} />}
       </div>
     </ProjectBasePathProvider>
   );
