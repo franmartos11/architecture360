@@ -78,14 +78,14 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     return (
       <div className="space-y-6">
         <div>
-          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← Datos {agree.del} {buildingLabel.toLowerCase()}</Link>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Plano y ambientes {agree.del} {buildingLabel.toLowerCase()}</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← Datos {agree.del} {buildingLabel.toLowerCase()}</Link>
+          <h1 className="m-0 mt-2 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">Plano y ambientes</h1>
+          <p className="m-0 mt-2.5 text-sm leading-relaxed text-gray-600 max-w-[760px]">
             Subí el plano 2D de cada planta y marcá el contorno de cada ambiente. En <strong>Rectángulo</strong> arrastrá de esquina a esquina; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. Cada cambio se guarda solo.
           </p>
         </div>
         {units.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-white/60 p-10 text-center text-[13px] text-gray-600">
             No se encontró la unidad de {agree.esta} {buildingLabel.toLowerCase()} — probá recargar.
           </div>
         ) : (
@@ -104,21 +104,22 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
   const showTabs = !unitIsLand && (!isParking || units.length > 0);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName} · {floorLabel}</Link>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2.5">
+        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="self-start inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← Volver al piso</Link>
+        <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">{buildingName} · {floorLabel}</p>
         {isParking && !unitIsLand ? (
           <>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Marcar cocheras en el plano</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="m-0 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">Cocheras en el plano</h1>
+            <p className="m-0 text-sm leading-relaxed text-gray-600 max-w-[760px]">
               Tocá <strong>Agregar cochera</strong>, marcá el espacio sobre el plano y elegí de qué {unitLabelLower} es — podés cargar todas las de este subsuelo de una sentada. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra; en <strong>Forma libre</strong> hacé click para ir marcando el contorno y tocá <strong>Listo</strong> (o Escape) cuando terminaste. El desplegable incluye {pluralize(unitLabelLower)} de todos los pisos del edificio, porque la cochera del subsuelo es de un depto de arriba.
             </p>
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Delimitar {pluralize(unitLabelLower)} en el plano</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. En <strong>Rectángulo</strong> arrastrá de una esquina a la otra. En <strong>Forma libre</strong> hacé click para ir marcando el contorno; cuando terminaste tocá <strong>Listo</strong> (o Escape) y queda guardado. Arrastrá cualquier punto para ajustarlo, doble click para borrarlo. El pin (📍) con el nombre se ubica solo en el centro — usá <strong>Pin</strong> para moverlo a mano. Si te equivocás, <strong>Deshacer</strong> (o Ctrl/Cmd+Z) vuelve un paso atrás.
+            <h1 className="m-0 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">Planta y delimitación</h1>
+            <p className="m-0 text-sm leading-relaxed text-gray-600 max-w-[760px]">
+              Elegí {uAgree.un} {unitLabelLower} de la lista y marcá su contorno sobre el plano. El pin con el nombre se ubica solo en el centro; con <strong>Mover pin</strong> lo cambiás de lugar. Así el comprador toca su {unitLabelLower} en el plano del sitio.
             </p>
           </>
         )}
@@ -127,30 +128,30 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       {/* Un lote no tiene "ambientes" — solo se delimita su silueta. El resto
           de los tipos sí (deptos, dúplex): solapa aparte para eso. */}
       {showTabs && (
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <div role="tablist" aria-label="Qué se marca" className="flex items-center gap-0.5 bg-[#EAE7E0] rounded-[10px] p-[3px] w-fit max-w-full overflow-x-auto">
           {isParking && (
             <button
               onClick={() => setView('cocheras')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'cocheras' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+              role="tab" aria-selected={view === 'cocheras'} className={`min-h-[36px] px-3.5 rounded-lg text-[13px] whitespace-nowrap ${view === 'cocheras' ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Cocheras
             </button>
           )}
           <button
             onClick={() => setView('deptos')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'deptos' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+            role="tab" aria-selected={view === 'deptos'} className={`min-h-[36px] px-3.5 rounded-lg text-[13px] whitespace-nowrap ${view === 'deptos' ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}
           >
             {pluralize(unitLabel)}{hasFloorStep ? ' en el piso' : ''}
           </button>
           <button
             onClick={() => setView('amenities')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'amenities' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+            role="tab" aria-selected={view === 'amenities'} className={`min-h-[36px] px-3.5 rounded-lg text-[13px] whitespace-nowrap ${view === 'amenities' ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Amenities
           </button>
           <button
             onClick={() => setView('ambientes')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+            role="tab" aria-selected={view === 'ambientes'} className={`min-h-[36px] px-3.5 rounded-lg text-[13px] whitespace-nowrap ${view === 'ambientes' ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Ambientes
           </button>
@@ -170,7 +171,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
       ) : view === 'deptos' ? (
         <FloorUnitsDelimiter buildingId={buildingId} floorId={floorId} />
       ) : units.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white/60 p-10 text-center text-[13px] text-gray-600">
           Este piso todavía no tiene {pluralize(unitLabelLower)} — cargalas primero en la pestaña de {pluralize(unitLabel)}.
         </div>
       ) : (
@@ -182,7 +183,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
                 <button
                   key={u.id}
                   onClick={() => setActiveId(u.id)}
-                  className={`flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  className={`flex items-center gap-2 shrink-0 min-h-[40px] px-3.5 rounded-full text-[13px] font-semibold border transition-colors ${
                     isActive ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
                   }`}
                 >

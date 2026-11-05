@@ -1,17 +1,17 @@
 import BimEditor from '@/components/admin/section-editors/BimEditor';
+import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
 
 export const metadata = { title: 'Modelo BIM' };
 
 export default function AdminProjectBimPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Modelo BIM</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Mostrá tu trabajo con imágenes y, más adelante, un modelo 3D navegable de este proyecto.
-        </p>
-      </div>
+    <div className="flex flex-col gap-7">
+      <ChapterHeader
+        title="Inmersivo"
+        description="Recorrido 360°, modelo BIM y vista 3D en un mismo lugar. Mostrá tu trabajo con imágenes y un modelo 3D navegable de este proyecto."
+      />
       <BimEditor />
+      <ChapterFooter />
     </div>
   );
 }

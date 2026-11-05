@@ -6,7 +6,6 @@ import { GripVertical, ChevronUp, ChevronDown, ExternalLink, Eye, EyeOff } from 
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
-import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
@@ -33,13 +32,7 @@ type Filter = 'all' | 'pending' | 'hidden' | 'locked';
 type Selected = 'portada' | SectionKey;
 
 const STATUS_DOT: Record<Status, string> = {
-  ok: 'bg-brand-500', empty: 'bg-amber-400', hidden: 'bg-gray-300', locked: 'bg-gray-200',
-};
-
-const STATUS_PILL: Partial<Record<Status, [string, string]>> = {
-  empty: ['vacía — no se muestra', 'bg-amber-50 border-amber-200 text-amber-700'],
-  hidden: ['oculta', 'bg-gray-100 border-gray-200 text-gray-600'],
-  locked: ['no disponible', 'bg-gray-50 border-gray-200 text-gray-400'],
+  ok: 'bg-brand-700', empty: 'bg-[#E0B060]', hidden: 'bg-gray-300', locked: 'bg-gray-200',
 };
 
 // Centro de control de la landing, unificado en una sola pantalla: la
@@ -165,183 +158,178 @@ export default function AdminSitioPage() {
     ? `Sección ${sections.indexOf(selRow) + 1} de ${sections.length} · ${selStatus === 'hidden' ? 'oculta del sitio' : selStatus === 'locked' ? 'no disponible' : 'visible en el sitio'}`
     : '';
 
+  const selectedSectionComponent = selRow && selStatus !== 'locked' ? SECTION_COMPONENTS[selRow.key] : null;
+
   return (
-    // xl+: el panel de edición no depende del scroll de la página — ambas
-    // columnas quedan atadas a la altura visible (100vh menos el padding
-    // fijo del shell) y cada una scrollea POR DENTRO. Antes el panel usaba
-    // sticky y, con una lista larga, seleccionar una sección de más abajo
-    // dejaba el panel scrolleado fuera de vista. Debajo de xl se apila
-    // normal (scroll de página), no vale la pena forzar altura fija en mobile.
-    <div className="flex flex-col xl:flex-row gap-6 xl:items-stretch xl:h-[calc(100vh-4rem)]">
+    // Tres columnas del diseño ("Sitio · Secciones"): la lista de secciones
+    // (orden real de la página), la vista de cómo se lee lo seleccionado y
+    // el panel para editarlo. En xl+ cada columna ocupa el alto visible y
+    // scrollea POR DENTRO (antes el panel sticky quedaba fuera de vista con
+    // listas largas); debajo de xl se apilan con scroll de página. -m-6
+    // md:-m-8 anula el padding del shell para que las columnas lleguen a
+    // los bordes como en el diseño.
+    <div className="-m-6 md:-m-8 flex flex-col xl:flex-row xl:h-screen bg-[#F5F3EE]">
       {/* ── Lista ─────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
-        <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Secciones del sitio</h2>
-            <p className="text-sm text-gray-500 mt-1 max-w-xl">
-              Este es el orden real de la página. Arrastrá para reordenar, tocá el ojo para mostrar u ocultar, y editá el contenido en el panel de al lado.
-            </p>
-          </div>
-          <a
-            href={publishState.siteHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
-          >
-            <ExternalLink className="w-4 h-4" /> {publishState.published ? 'Ver sitio público' : 'Vista previa (borrador)'}
-          </a>
+      <section aria-label="Secciones" className="xl:w-[320px] shrink-0 px-4 sm:px-6 py-8 flex flex-col gap-4 xl:overflow-y-auto border-b xl:border-b-0 xl:border-r border-gray-200">
+        <div className="flex flex-col gap-2">
+          <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">Sitio web</p>
+          <h1 className="m-0 text-[36px] leading-[1.05] font-semibold text-gray-900">Secciones</h1>
+          <p className="m-0 text-[13px] leading-relaxed text-gray-600">
+            Este es el orden real de la página. Arrastrá para reordenar, tocá el ojo para mostrar u ocultar, y editá cada una en el panel.
+          </p>
         </div>
 
-        <Card className="shrink-0 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex flex-col gap-1.5 shrink-0 sm:min-w-[170px]">
-            <p className="text-sm font-semibold text-gray-900">{okCount} de {publishable} secciones listas</p>
-            <div className="flex gap-1">
-              {sections.map(s => (
-                <span key={s.key} title={s.label} className={`w-3 h-1.5 rounded-full ${STATUS_DOT[statuses.get(s.key)!]}`} />
-              ))}
-            </div>
-          </div>
-          <p className="flex-1 text-xs text-gray-500 leading-relaxed">
-            {counts.pending
-              ? `Te faltan ${counts.pending} con contenido. Las vacías no aparecen en el sitio hasta que cargues algo.`
-              : 'Todas las secciones activas tienen contenido.'}
-          </p>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-[14px] border border-gray-200 bg-white">
+          <span className="font-display text-[22px] font-semibold text-gray-900">{okCount}/{publishable}</span>
+          <span className="flex-1 text-xs leading-snug text-gray-600">secciones con contenido</span>
           {counts.pending > 0 && (
-            <button
-              type="button"
-              onClick={() => setFilter('pending')}
-              className="shrink-0 h-8 px-3.5 rounded-lg text-xs font-medium bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 transition-colors whitespace-nowrap"
-            >
-              Ver las {counts.pending} pendientes →
+            <button type="button" onClick={() => setFilter(filter === 'pending' ? 'all' : 'pending')}
+              className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200">
+              {counts.pending} vacía{counts.pending === 1 ? '' : 's'}
             </button>
           )}
-        </Card>
+        </div>
 
-        <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
           {([
-            ['all', `Todas · ${counts.all}`],
-            ['pending', `Pendientes · ${counts.pending}`],
-            ['hidden', `Ocultas · ${counts.hidden}`],
-            ['locked', `No disponibles · ${counts.locked}`],
-          ] as [Filter, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={`h-7 px-3 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
-                filter === key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-              }`}
-            >
+            ['all', `Todas ${counts.all}`],
+            ['pending', `Vacías ${counts.pending}`],
+            ['hidden', `Ocultas ${counts.hidden}`],
+            ['locked', `No disponibles ${counts.locked}`],
+          ] as [Filter, string][]).filter(([key]) => key === 'all' || counts[key] > 0).map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}
+              className={`min-h-[32px] px-2.5 rounded-lg text-xs transition-colors ${filter === key ? 'bg-[#EAE7E0] font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}>
               {label}
             </button>
           ))}
         </div>
 
-        <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {filter === 'all' && (
-            <button
-              type="button"
-              onClick={() => setSelected('portada')}
-              className={`shrink-0 w-full flex items-center gap-3 px-4 sm:px-6 py-3.5 text-left border-b border-gray-100 transition-colors ${
-                selected === 'portada' ? 'bg-brand-50' : 'bg-white hover:bg-gray-50'
-              }`}
-            >
-              <span className="w-5 shrink-0" />
-              <span className="w-4 text-xs text-gray-300 font-mono text-right shrink-0">·</span>
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-900">Portada</span>
-                  <span className="shrink-0 text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">fija</span>
-                </span>
-                <span className="block text-xs text-gray-500 mt-0.5 truncate">Nombre, bajada, ubicación y foto de fondo del hero.</span>
-              </span>
-              <span className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${selected === 'portada' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-700'}`}>
-                Editar
-              </span>
-            </button>
-          )}
+        {filter === 'all' && (
+          <button
+            type="button"
+            onClick={() => setSelected('portada')}
+            className={`w-full flex items-center gap-3 min-h-[52px] px-3.5 rounded-xl text-left bg-white transition-colors ${
+              selected === 'portada' ? 'border-[1.5px] border-gray-900' : 'border border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <span className="w-4 shrink-0" />
+            <span className="w-2 h-2 rounded-full shrink-0 bg-gray-900" />
+            <span className="flex-1 min-w-0 flex flex-col">
+              <span className="text-sm font-semibold text-gray-900">Portada</span>
+              <span className="text-[11px] text-gray-500 truncate">Fija · nombre, bajada y foto</span>
+            </span>
+          </button>
+        )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {filteredSections.length === 0 ? (
-              <div className="py-12 flex flex-col items-center gap-2 text-center px-6">
-                <p className="text-sm font-medium text-gray-900">No hay secciones en este filtro</p>
-                <button type="button" onClick={() => setFilter('all')} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                  Ver todas las secciones
-                </button>
-              </div>
-            ) : (
-              <Reorder.Group as="ul" axis="y" values={filteredSections} onReorder={next => { if (filter === 'all') setSections(next); }} className="divide-y divide-gray-100">
-                {filteredSections.map(s => {
-                  const i = sections.indexOf(s);
-                  return (
-                    <SectionRowItem
-                      key={s.key}
-                      section={s}
-                      index={i}
-                      status={statuses.get(s.key)!}
-                      isSelected={selected === s.key}
-                      saving={saving}
-                      isFirst={i === 0}
-                      isLast={i === sections.length - 1}
-                      draggableEnabled={filter === 'all'}
-                      onSelect={() => setSelected(s.key)}
-                      onToggle={() => toggleSection(s.key)}
-                      onMoveUp={() => moveSection(i, -1)}
-                      onMoveDown={() => moveSection(i, 1)}
-                      onDragEnd={handleDragEnd}
-                    />
-                  );
-                })}
-              </Reorder.Group>
-            )}
+        {filteredSections.length === 0 ? (
+          <div className="py-8 flex flex-col items-center gap-2 text-center">
+            <p className="m-0 text-sm font-medium text-gray-900">No hay secciones en este filtro</p>
+            <button type="button" onClick={() => setFilter('all')} className="min-h-[40px] text-sm font-semibold text-gray-900 underline underline-offset-2">
+              Ver todas las secciones
+            </button>
           </div>
-        </Card>
-      </div>
+        ) : (
+          <Reorder.Group as="ul" axis="y" values={filteredSections} onReorder={next => { if (filter === 'all') setSections(next); }} className="flex flex-col gap-2 m-0 p-0 list-none">
+            {filteredSections.map(s => {
+              const i = sections.indexOf(s);
+              return (
+                <SectionRowItem
+                  key={s.key}
+                  section={s}
+                  status={statuses.get(s.key)!}
+                  isSelected={selected === s.key}
+                  saving={saving}
+                  isFirst={i === 0}
+                  isLast={i === sections.length - 1}
+                  draggableEnabled={filter === 'all'}
+                  onSelect={() => setSelected(s.key)}
+                  onToggle={() => toggleSection(s.key)}
+                  onMoveUp={() => moveSection(i, -1)}
+                  onMoveDown={() => moveSection(i, 1)}
+                  onDragEnd={handleDragEnd}
+                />
+              );
+            })}
+          </Reorder.Group>
+        )}
+      </section>
+
+      {/* ── Vista ─────────────────────────────────────────────── */}
+      <section aria-label="Vista previa" className="flex-1 min-w-0 px-4 sm:px-8 py-8 bg-[#EFECE6] flex flex-col gap-4 xl:overflow-y-auto">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-[13px] font-semibold text-gray-900">Así se ve · {panelTitle}</span>
+          <a href={publishState.siteHref} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 min-h-[36px] text-[13px] font-semibold text-gray-900 underline underline-offset-2">
+            {publishState.published ? 'Abrir en tamaño real' : 'Vista previa (borrador)'} <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+          </a>
+        </div>
+        <div className="rounded-2xl overflow-hidden bg-white shadow-[0_1px_2px_rgba(23,25,26,0.06),0_16px_40px_-16px_rgba(23,25,26,0.22)]">
+          {selected === 'portada' ? (
+            <div className="relative aspect-[16/10] flex items-end p-6"
+              style={project.masterplanImage ? undefined : { background: 'repeating-linear-gradient(135deg, #3D4741 0 14px, #39433D 14px 28px)' }}>
+              {project.masterplanImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={project.masterplanImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" aria-hidden="true" />
+              <div className="relative flex flex-col gap-1 text-white">
+                {project.location && <span className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-90">{project.location}</span>}
+                <span className="font-display text-[28px] leading-tight font-semibold tracking-[-0.02em]">{project.name}</span>
+                {project.tagline && <span className="text-[13px] opacity-90">{project.tagline}</span>}
+              </div>
+            </div>
+          ) : selectedSectionComponent ? (
+            <SectionPreviewFrame height={520} scale={0.45}>
+              <div className={ALL_FONT_CLASSNAMES} style={theme.cssVars as React.CSSProperties}>
+                {(() => { const C = selectedSectionComponent; return <C project={project} typeConfig={typeConfig} basePath={`/proyecto/${project.slug}`} />; })()}
+              </div>
+            </SectionPreviewFrame>
+          ) : (
+            <div className="aspect-[16/10] flex items-center justify-center p-8 text-center text-[13px] text-gray-600">
+              Esta sección no aplica a este proyecto, así que no se muestra en el sitio.
+            </div>
+          )}
+        </div>
+        {selStatus === 'empty' && (
+          <p className="m-0 text-xs text-amber-800">Está vacía: no aparece en el sitio hasta que le cargues contenido.</p>
+        )}
+      </section>
 
       {/* ── Panel de edición ──────────────────────────────────── */}
-      <div className="w-full xl:w-[440px] shrink-0 xl:h-full">
-        <Card className="flex flex-col xl:h-full">
-          <div className="shrink-0 px-6 py-4 border-b border-gray-100">
-            <p className="text-base font-semibold text-gray-900">{panelTitle}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{panelMeta}</p>
-          </div>
+      <aside aria-label="Editar sección" className="xl:w-[360px] shrink-0 bg-gray-50 border-t xl:border-t-0 xl:border-l border-gray-200 flex flex-col xl:h-full">
+        <div className="shrink-0 px-6 pt-8 pb-4">
+          <p className="m-0 text-xs text-gray-600">{panelMeta}</p>
+          <p className="m-0 mt-1 font-display text-[24px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">{panelTitle}</p>
+        </div>
 
-          <div className="max-h-[70vh] xl:max-h-none xl:flex-1 xl:min-h-0 overflow-y-auto">
-            {selected === 'portada' ? (
-              <PortadaEditor onSaved={load} />
-            ) : selRow ? (
-              <SectionPanelBody
-                row={selRow}
-                status={selStatus}
-                typeConfig={typeConfig}
-                project={project}
-                theme={theme}
-                onSaved={load}
-              />
-            ) : null}
-          </div>
+        <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
+          {selected === 'portada' ? (
+            <PortadaEditor onSaved={load} />
+          ) : selRow ? (
+            <SectionPanelBody row={selRow} status={selStatus} typeConfig={typeConfig} onSaved={load} />
+          ) : null}
+        </div>
 
-          <div className="shrink-0 px-6 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => goStep(-1)}
-              disabled={selIndex <= 0}
-              aria-label="Sección anterior"
-              className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg text-gray-700 hover:border-gray-300 disabled:opacity-30 disabled:hover:border-gray-200 transition-colors"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              onClick={() => goStep(1)}
-              disabled={selIndex >= navOrder.length - 1}
-              className="flex-1 h-9 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-30 disabled:hover:bg-gray-900 transition-colors"
-            >
-              Siguiente sección →
-            </button>
-          </div>
-        </Card>
-      </div>
+        <div className="shrink-0 px-6 py-4 border-t border-gray-200 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => goStep(-1)}
+            disabled={selIndex <= 0}
+            aria-label="Sección anterior"
+            className="w-11 h-11 flex items-center justify-center border border-gray-300 bg-white rounded-[10px] text-gray-900 hover:border-gray-400 disabled:opacity-30"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={() => goStep(1)}
+            disabled={selIndex >= navOrder.length - 1}
+            className="flex-1 min-h-[44px] px-4 bg-gray-900 text-white rounded-[10px] text-sm font-semibold hover:bg-black disabled:opacity-30"
+          >
+            Siguiente sección →
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -360,24 +348,22 @@ const EDITOR_NEEDS_PADDING: Partial<Record<SectionKey, true>> = {
 };
 
 function SectionPanelBody({
-  row, status, typeConfig, project, theme, onSaved,
+  row, status, typeConfig, onSaved,
 }: {
   row: SectionRow;
   status: Status;
   typeConfig: ReturnType<typeof useProjectTypeConfig>;
-  project: Project;
-  theme: ReturnType<typeof resolveTheme>;
   onSaved: () => void;
 }) {
   if (status === 'locked') {
     return (
-      <div className="p-6">
-        <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5">
-          <p className="text-sm font-medium text-gray-900">Esta sección todavía no aplica</p>
-          <p className="text-xs text-gray-500 leading-relaxed">{row.unavailableReason ?? sectionHint(row.key, typeConfig)}</p>
+      <div className="px-6 pb-6">
+        <div className="p-4 bg-white border border-gray-200 rounded-[14px] flex flex-col gap-2.5">
+          <p className="m-0 text-sm font-semibold text-gray-900">Esta sección todavía no aplica</p>
+          <p className="m-0 text-xs text-gray-600 leading-relaxed">{row.unavailableReason ?? sectionHint(row.key, typeConfig)}</p>
           <Link
             href="/admin/settings"
-            className="inline-flex items-center h-8 px-3 border border-gray-300 rounded-lg bg-white text-xs font-medium text-gray-900 hover:border-gray-400 transition-colors"
+            className="self-start inline-flex items-center min-h-[36px] px-3 border border-gray-300 rounded-lg bg-white text-xs font-semibold text-gray-900 hover:border-gray-400"
           >
             Cambiar modo de venta →
           </Link>
@@ -388,53 +374,38 @@ function SectionPanelBody({
 
   const Editor = SECTION_EDITORS[row.key];
   const href = sectionEditHref(row.key, typeConfig.hasFloorStep);
-  const SectionComponent = SECTION_COMPONENTS[row.key];
 
-  return (
-    <>
-      {Editor ? (
-        <div className={EDITOR_NEEDS_PADDING[row.key] ? 'p-6' : ''}>
-          <Editor onSaved={onSaved} />
-        </div>
-      ) : (
-        <div className="p-6">
-          <div className="p-4 bg-brand-50 border border-brand-100 rounded-xl space-y-2.5">
-            <p className="text-xs text-gray-600 leading-relaxed">{sectionHint(row.key, typeConfig)}</p>
-            {href && (
-              <Link
-                href={href}
-                className="inline-flex items-center h-8 px-3 border border-gray-200 rounded-lg bg-white text-xs font-medium text-gray-900 hover:border-gray-300 transition-colors"
-              >
-                Ir a editar →
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Fondo distinto (en vez de otra línea divisoria) para separarlo del
-          formulario de arriba — la mayoría de los editores YA terminan con
-          su propio "pt-4 border-t" antes del botón Guardar, así que una
-          segunda línea acá quedaba pegada a esa y se veía como un doble
-          borde. */}
-      <div className="mt-2 px-6 py-6 bg-gray-50">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">Cómo se ve</p>
-        <SectionPreviewFrame>
-          <div className={ALL_FONT_CLASSNAMES} style={theme.cssVars as React.CSSProperties}>
-            <SectionComponent project={project} typeConfig={typeConfig} basePath={`/proyecto/${project.slug}`} />
-          </div>
-        </SectionPreviewFrame>
+  return Editor ? (
+    <div className={EDITOR_NEEDS_PADDING[row.key] ? 'px-6 pb-6' : ''}>
+      <Editor onSaved={onSaved} />
+    </div>
+  ) : (
+    <div className="px-6 pb-6">
+      <div className="p-4 bg-white border border-gray-200 rounded-[14px] flex flex-col gap-2.5">
+        <p className="m-0 text-[13px] font-semibold text-gray-900">Contenido</p>
+        <p className="m-0 text-xs text-gray-600 leading-relaxed">{sectionHint(row.key, typeConfig)}</p>
+        {href && (
+          <Link href={href} className="self-start min-h-[32px] inline-flex items-center text-[13px] font-semibold text-gray-900 underline underline-offset-2">
+            Ir a editar →
+          </Link>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 
+const STATUS_SUB: Record<Status, string> = {
+  ok: 'Con contenido',
+  empty: 'Vacía · no se muestra',
+  hidden: 'Oculta',
+  locked: 'No disponible',
+};
+
 function SectionRowItem({
-  section: s, index, status, isSelected, saving, isFirst, isLast, draggableEnabled,
+  section: s, status, isSelected, saving, isFirst, isLast, draggableEnabled,
   onSelect, onToggle, onMoveUp, onMoveDown, onDragEnd,
 }: {
   section: SectionRow;
-  index: number;
   status: Status;
   isSelected: boolean;
   saving: boolean;
@@ -449,7 +420,7 @@ function SectionRowItem({
 }) {
   const dragControls = useDragControls();
   const isLocked = status === 'locked';
-  const pill = STATUS_PILL[status];
+  const muted = status === 'hidden' || isLocked;
 
   return (
     <Reorder.Item
@@ -458,8 +429,10 @@ function SectionRowItem({
       dragControls={dragControls}
       onDragEnd={onDragEnd}
       onClick={onSelect}
-      className={`flex items-center gap-3 px-4 sm:px-6 py-3.5 cursor-pointer transition-colors ${isSelected ? 'bg-brand-50' : 'bg-white hover:bg-gray-50'}`}
-      whileDrag={{ boxShadow: '0 10px 28px rgba(0,0,0,0.14)', zIndex: 10, position: 'relative' }}
+      className={`group flex items-center gap-2 min-h-[52px] pl-1.5 pr-1.5 rounded-xl bg-white cursor-pointer transition-colors ${
+        isSelected ? 'border-[1.5px] border-gray-900' : 'border border-gray-200 hover:border-gray-300'
+      }`}
+      whileDrag={{ boxShadow: '0 10px 28px rgba(23,25,26,0.14)', zIndex: 10, position: 'relative' }}
     >
       <button
         type="button"
@@ -467,29 +440,27 @@ function SectionRowItem({
         onClick={e => e.stopPropagation()}
         disabled={!draggableEnabled || isLocked}
         aria-label={`Arrastrar para reordenar ${s.label}`}
-        className={`shrink-0 p-1 -ml-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100 touch-none ${
+        className={`shrink-0 w-7 h-9 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 touch-none ${
           draggableEnabled && !isLocked ? 'cursor-grab active:cursor-grabbing' : 'opacity-30 cursor-not-allowed'
         }`}
       >
         <GripVertical className="w-4 h-4" />
       </button>
 
-      <span className="w-4 text-xs text-gray-300 font-mono text-right shrink-0">{index + 1}</span>
+      <span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <span className="flex items-center gap-2 flex-wrap">
-          <span className={`text-sm font-semibold ${status === 'ok' || status === 'empty' ? 'text-gray-900' : 'text-gray-400'}`}>{s.label}</span>
-          {pill && <span className={`shrink-0 text-[10px] font-medium border px-2 py-0.5 rounded-full ${pill[1]}`}>{pill[0]}</span>}
-        </span>
-      </div>
+      <span className="flex-1 min-w-0 flex flex-col">
+        <span className={`text-sm font-semibold truncate ${muted ? 'text-gray-500' : 'text-gray-900'}`}>{s.label}</span>
+        <span className={`text-[11px] truncate ${status === 'empty' ? 'text-amber-800' : 'text-gray-500'}`}>{STATUS_SUB[status]}</span>
+      </span>
 
-      <div className="shrink-0 flex flex-col -my-1">
+      <span className="shrink-0 flex xl:hidden xl:group-hover:flex xl:group-focus-within:flex flex-col">
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onMoveUp(); }}
           disabled={isFirst || saving}
           aria-label={`Subir ${s.label}`}
-          className="p-0.5 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+          className="w-7 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
@@ -498,11 +469,11 @@ function SectionRowItem({
           onClick={e => { e.stopPropagation(); onMoveDown(); }}
           disabled={isLast || saving}
           aria-label={`Bajar ${s.label}`}
-          className="p-0.5 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+          className="w-7 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
-      </div>
+      </span>
 
       <button
         type="button"
@@ -510,16 +481,12 @@ function SectionRowItem({
         disabled={saving || isLocked}
         title={isLocked ? 'No disponible' : status === 'hidden' ? 'Mostrar en el sitio' : 'Ocultar del sitio'}
         aria-label={`${status === 'hidden' ? 'Mostrar' : 'Ocultar'} ${s.label}`}
-        className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-          isLocked ? 'opacity-25 text-gray-400' : status === 'hidden' ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+        className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+          isLocked ? 'opacity-30 text-gray-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         }`}
       >
         {status === 'hidden' || isLocked ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
       </button>
-
-      <span className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${isSelected ? 'bg-gray-900 text-white' : isLocked ? 'text-gray-300' : 'border border-gray-200 text-gray-700'}`}>
-        Editar
-      </span>
     </Reorder.Item>
   );
 }

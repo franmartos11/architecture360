@@ -61,10 +61,11 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
+          <Link href="/admin/proyecto" className="inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← Proyecto</Link>
+          <p className="m-0 mt-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">{buildingLabel}</p>
+          <h1 className="m-0 mt-1.5 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">
             Datos {agree.del} {buildingLabel.toLowerCase()}
-          </h2>
+          </h1>
         </div>
       </div>
 

@@ -7,8 +7,8 @@ import type { UnitStatus } from '@/types';
 import type { UnitGroupProps } from '@/lib/unit-fields';
 
 const STATUS_PILL_BG: Record<UnitStatus, string> = {
-  available: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  reserved: 'bg-amber-50 border-amber-200 text-amber-700',
+  available: 'bg-brand-100 border-brand-200 text-brand-800',
+  reserved: 'bg-amber-50 border-amber-200 text-amber-800',
   sold: 'bg-gray-100 border-gray-200 text-gray-600',
 };
 

@@ -10,7 +10,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
-type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'>;
+type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'> & Partial<Pick<DbUnitRow, 'type' | 'total_area'>>;
 type UnitDot = { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' };
 type SiblingFloor = { id: string; number: number; label: string };
 
@@ -191,9 +191,10 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano." onRetry={load} />;
 
+  const emptyBox = 'rounded-2xl border border-dashed border-gray-300 bg-white/60 p-10 text-center text-[13px] text-gray-600';
   if (!planImage) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+      <div className={emptyBox}>
         {hasFloorStep
           ? 'Este piso todavía no tiene un plano cargado — agregalo primero en la pantalla del edificio.'
           : `${container[0].toUpperCase()}${container.slice(1)} todavía no tiene su plano — subilo primero en los datos ${buildingAgreement(typeConfig).del} ${buildingLabelLower}.`}
@@ -202,25 +203,36 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   }
   if (units.length === 0) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center text-gray-400">
+      <div className={emptyBox}>
         {container[0].toUpperCase()}{container.slice(1)} todavía no tiene {pluralize(unitLabelLower)} — cargalas primero en la pestaña de {pluralize(unitLabel)}.
       </div>
     );
   }
 
+  const drawnCount = units.filter(u => (points[u.id]?.length ?? 0) >= 3).length;
+  const activeUnit = units.find(u => u.id === activeId) ?? null;
+  const activeUndrawn = activeUnit && (points[activeUnit.id]?.length ?? 0) < 3;
+  const toolBtn = (on: boolean) => `min-h-[36px] px-3.5 rounded-lg text-[13px] transition-colors ${on ? 'bg-white/15 text-white font-semibold' : 'text-[#C9C6BE] hover:text-white'}`;
+  const STATUS_LABEL: Record<string, string> = { available: 'Disponible', reserved: 'Reservada', sold: 'Vendida' };
+
+  // Diseño "Planta y delimitación": el plano en una tarjeta con la barra
+  // de herramientas oscura flotando arriba, y a la derecha la lista de
+  // unidades del piso con su estado de dibujo, el aviso de la que falta y
+  // los atajos.
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
-      <div className="space-y-3">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 items-start">
+      <div className="flex flex-col gap-3 min-w-0">
         {siblingFloors.length > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white rounded-xl border border-gray-200 p-3">
-            <p className="text-xs text-gray-500 flex-1">¿Este piso tiene el mismo layout que otro ya delimitado? Copiá los polígonos y pines en vez de redibujarlos.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-[14px] border border-gray-200 bg-white px-4 py-3">
+            <p className="m-0 text-xs leading-relaxed text-gray-600 flex-1">¿Mismo layout que otro piso ya delimitado? Copiá sus formas y pines en vez de redibujarlos.</p>
             <div className="flex gap-2 shrink-0">
               <select
                 value={copySourceFloorId}
                 onChange={e => setCopySourceFloorId(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
+                aria-label="Piso de referencia"
+                className="min-h-[40px] text-[13px] border border-gray-300 bg-white rounded-[10px] px-2.5 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-500/30"
               >
-                <option value="">Elegir piso de referencia...</option>
+                <option value="">Copiar de…</option>
                 {siblingFloors.sort((a, b) => a.number - b.number).map(f => (
                   <option key={f.id} value={f.id}>{f.label}</option>
                 ))}
@@ -228,90 +240,90 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
               <button
                 onClick={handleCopyDelimitation}
                 disabled={!copySourceFloorId || copyingDelimitation}
-                className="text-xs px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white rounded-lg transition-colors whitespace-nowrap"
+                className="min-h-[40px] px-3.5 text-[13px] font-semibold border border-gray-300 bg-white hover:border-gray-400 disabled:opacity-40 text-gray-900 rounded-[10px] whitespace-nowrap"
               >
-                {copyingDelimitation ? 'Copiando...' : 'Copiar delimitación'}
+                {copyingDelimitation ? 'Copiando...' : 'Copiar'}
               </button>
             </div>
           </div>
         )}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-          <button
-            onClick={() => setMode('rectangle')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${mode === 'rectangle' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Rectángulo
-          </button>
-          <button
-            onClick={() => setMode('point')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${mode === 'point' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Forma libre
-          </button>
-          <button
-            onClick={() => setMode('pin')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${mode === 'pin' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            📍 Pin
-          </button>
+
+        <div className="relative rounded-2xl border border-gray-200 bg-white p-3 sm:p-4" style={{ backgroundImage: 'radial-gradient(#E4E0D8 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+          <div className="relative z-10 mx-auto mb-3 w-fit max-w-full flex flex-wrap justify-center gap-0.5 p-1 rounded-xl bg-gray-900 shadow-[0_8px_24px_rgba(23,25,26,0.25)]" role="toolbar" aria-label="Herramientas de dibujo">
+            <button type="button" onClick={() => setMode('rectangle')} aria-pressed={mode === 'rectangle'} className={toolBtn(mode === 'rectangle')}>Rectángulo</button>
+            <button type="button" onClick={() => setMode('point')} aria-pressed={mode === 'point'} className={toolBtn(mode === 'point')}>Forma libre</button>
+            <button type="button" onClick={() => setMode('pin')} aria-pressed={mode === 'pin'} className={toolBtn(mode === 'pin')}>Mover pin</button>
+          </div>
+          <PolygonCanvas
+            imageUrl={planImage}
+            shapes={shapes}
+            activeId={activeId}
+            mode={mode}
+            onPointsChange={handlePointsChange}
+            onComplete={handleSave}
+            pinPoint={activeId ? (pinOverrides[activeId] ?? (points[activeId]?.length >= 3 ? centroid(points[activeId]) : null)) : null}
+            onPinPlace={point => activeId && setPinOverrides(prev => ({ ...prev, [activeId]: point }))}
+            pinColor={activeId ? (pinColors[activeId] || getStatusColor(units.find(u => u.id === activeId)?.status ?? '')) : undefined}
+          />
         </div>
-        <PolygonCanvas
-          imageUrl={planImage}
-          shapes={shapes}
-          activeId={activeId}
-          mode={mode}
-          onPointsChange={handlePointsChange}
-          onComplete={handleSave}
-          pinPoint={activeId ? (pinOverrides[activeId] ?? (points[activeId]?.length >= 3 ? centroid(points[activeId]) : null)) : null}
-          onPinPlace={point => activeId && setPinOverrides(prev => ({ ...prev, [activeId]: point }))}
-          pinColor={activeId ? (pinColors[activeId] || getStatusColor(units.find(u => u.id === activeId)?.status ?? '')) : undefined}
-        />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">{pluralize(unitLabel)}</h3>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="m-0 font-display text-[17px] font-semibold tracking-[-0.02em] text-gray-900">{pluralize(unitLabel)} {hasFloorStep ? 'del piso' : ''}</h3>
+          <span className="text-xs text-gray-600">{drawnCount} de {units.length} dibujad{unitAgreeSuffix(typeConfig)}s</span>
         </div>
-        <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
+        <div className="flex flex-col gap-2 lg:max-h-[62vh] lg:overflow-y-auto">
           {units.map((u, i) => {
             const isActive = u.id === activeId;
             const pointCount = points[u.id]?.length ?? 0;
+            const drawn = pointCount >= 3;
+            const meta = [u.type, u.total_area ? `${u.total_area} m²` : null].filter(Boolean).join(' · ');
             return (
-              <div key={u.id} className={`p-4 ${isActive ? 'bg-brand-50/50' : ''}`}>
+              <div key={u.id} className={`rounded-xl bg-white transition-colors ${isActive ? 'border-[1.5px] border-gray-900' : drawn ? 'border border-gray-200' : 'border border-dashed border-gray-300'}`}>
                 <button
                   onClick={() => setActiveId(u.id)}
-                  className="w-full flex items-center gap-2 text-left mb-2"
+                  aria-pressed={isActive}
+                  className="w-full flex items-center gap-3 min-h-[56px] px-3.5 text-left"
                 >
-                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                  <span className="font-medium text-gray-900 text-sm">{u.code}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</span>
+                  <span className="w-4 h-4 rounded shrink-0 border border-black/10" style={{ background: drawn ? PALETTE[i % PALETTE.length] : '#F6E9D3' }} />
+                  <span className="flex-1 min-w-0 flex flex-col">
+                    <span className="font-display text-[15px] font-semibold text-gray-900">{u.code}</span>
+                    {meta && <span className="text-[11px] text-gray-600 truncate">{meta}</span>}
+                  </span>
+                  <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${drawn ? 'bg-brand-100 text-brand-800' : 'bg-gray-100 text-gray-700'}`}>
+                    {drawn ? (STATUS_LABEL[u.status] ?? 'Dibujada') : 'Sin dibujar'}
+                  </span>
                 </button>
                 {isActive && (
-                  <div className="pl-5 space-y-2.5">
-                    <div>
-                      <p className="text-[11px] font-medium text-gray-500 mb-1">Color del pin</p>
+                  <div className="px-3.5 pb-3.5 pt-1 flex flex-col gap-3 border-t border-gray-200">
+                    <div className="pt-2.5">
+                      <p className="m-0 text-[11px] font-medium text-gray-600 mb-1.5">Color del pin</p>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           onClick={() => setPinColors(prev => ({ ...prev, [u.id]: undefined }))}
                           title="Automático (según estado de la unidad)"
-                          className={`w-5 h-5 rounded-full shrink-0 bg-gradient-to-br from-green-400 via-yellow-400 to-red-400 ${!pinColors[u.id] ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
+                          aria-label="Color automático según estado"
+                          className={`w-6 h-6 rounded-full shrink-0 bg-gradient-to-br from-green-400 via-yellow-400 to-red-400 ${!pinColors[u.id] ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
                         />
                         {MARKER_COLORS.map(c => (
                           <button
                             key={c}
                             onClick={() => setPinColors(prev => ({ ...prev, [u.id]: c }))}
                             title={c}
+                            aria-label={`Color ${c}`}
                             style={{ background: c }}
-                            className={`w-5 h-5 rounded-full shrink-0 ${pinColors[u.id] === c ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
+                            className={`w-6 h-6 rounded-full shrink-0 ${pinColors[u.id] === c ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
                           />
                         ))}
                         <label
                           title="Color personalizado"
-                          className="relative w-5 h-5 rounded-full shrink-0 border border-dashed border-gray-300 flex items-center justify-center cursor-pointer overflow-hidden text-gray-400 text-[10px]"
+                          className="relative w-6 h-6 rounded-full shrink-0 border border-dashed border-gray-300 flex items-center justify-center cursor-pointer overflow-hidden text-gray-500 text-[11px]"
                         >
                           +
                           <input
                             type="color"
+                            aria-label="Color personalizado"
                             value={pinColors[u.id] ?? '#000000'}
                             onChange={e => setPinColors(prev => ({ ...prev, [u.id]: e.target.value }))}
                             className="absolute inset-0 opacity-0 cursor-pointer"
@@ -321,19 +333,19 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
                     </div>
 
                     <div>
-                      <p className="text-[11px] font-medium text-gray-500 mb-1">Estilo del pin</p>
-                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 w-fit">
+                      <p className="m-0 text-[11px] font-medium text-gray-600 mb-1.5">Estilo del pin</p>
+                      <div className="grid grid-cols-2 p-[3px] rounded-[10px] bg-[#EAE7E0] gap-0.5">
                         <button
                           onClick={() => setPinStyles(prev => ({ ...prev, [u.id]: 'pill' }))}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${(pinStyles[u.id] ?? 'pill') === 'pill' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`min-h-[32px] px-2 rounded-lg text-xs ${(pinStyles[u.id] ?? 'pill') === 'pill' ? 'bg-white font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
                         >
-                          Pastilla con nombre
+                          Con nombre
                         </button>
                         <button
                           onClick={() => setPinStyles(prev => ({ ...prev, [u.id]: 'dot' }))}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${pinStyles[u.id] === 'dot' ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`min-h-[32px] px-2 rounded-lg text-xs ${pinStyles[u.id] === 'dot' ? 'bg-white font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
                         >
-                          Punto simple
+                          Punto
                         </button>
                       </div>
                     </div>
@@ -342,14 +354,14 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
                       <button
                         onClick={() => handleClear(u.id)}
                         disabled={pointCount === 0}
-                        className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors"
+                        className="min-h-[36px] px-3 text-xs font-medium border border-gray-300 bg-white hover:border-gray-400 disabled:opacity-40 text-gray-900 rounded-lg"
                       >
-                        Vaciar
+                        Borrar forma
                       </button>
                       <button
                         onClick={() => handleSave(u.id)}
                         disabled={savingId === u.id || (pointCount < 3 && !pinOverrides[u.id])}
-                        className="text-xs px-2.5 py-1 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white rounded-lg transition-colors ml-auto"
+                        className="min-h-[36px] px-3.5 text-xs font-semibold bg-gray-900 hover:bg-black disabled:opacity-40 text-white rounded-lg ml-auto"
                       >
                         {savingId === u.id ? 'Guardando...' : 'Guardar'}
                       </button>
@@ -360,24 +372,37 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
             );
           })}
         </div>
+
+        {activeUnit && activeUndrawn && (
+          <p className="m-0 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs leading-relaxed text-amber-800">
+            <b>{activeUnit.code}</b> todavía no tiene forma. Dibujala sobre el plano con la herramienta de arriba.
+          </p>
+        )}
+
+        <div className="px-3.5 py-3 rounded-xl border border-gray-200 bg-white flex flex-col gap-1">
+          <span className="text-[13px] font-semibold text-gray-900">Cómo se dibuja</span>
+          <span className="text-xs leading-relaxed text-gray-600">
+            Rectángulo: arrastrá de una esquina a la otra. Forma libre: click en cada esquina y Listo (o Escape). Doble click borra un punto · Ctrl/⌘+Z deshace.
+          </span>
+        </div>
       </div>
 
       {orphanDots.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden lg:col-start-2">
-          <div className="px-5 py-3 border-b border-amber-100 bg-amber-50">
-            <h3 className="font-semibold text-amber-900 text-sm">Pines huérfanos</h3>
-            <p className="text-xs text-amber-700 mt-0.5">
+        <div className="rounded-xl border border-amber-200 bg-white overflow-hidden lg:col-start-2">
+          <div className="px-4 py-3 border-b border-amber-200 bg-amber-50">
+            <h3 className="m-0 font-semibold text-amber-800 text-[13px]">Pines huérfanos</h3>
+            <p className="m-0 text-xs text-amber-800 mt-0.5">
               Estos aparecen como &quot;?&quot; en el sitio público — no coinciden con ningún {unitLabelLower} cargado. Se pueden borrar.
             </p>
           </div>
           <div className="divide-y divide-gray-100">
             {orphanDots.map(d => (
-              <div key={d.unitId} className="flex items-center gap-3 px-5 py-3 text-sm">
+              <div key={d.unitId} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <span className="w-6 h-6 rounded-full bg-gray-200 border-2 border-dashed border-gray-400 flex items-center justify-center text-gray-500 text-[10px] font-bold shrink-0">?</span>
                 <span className="text-gray-500 truncate">id: {d.unitId}</span>
                 <button
                   onClick={() => handleDeleteOrphan(d.unitId)}
-                  className="text-xs text-red-500 hover:text-red-700 ml-auto shrink-0"
+                  className="min-h-[32px] text-xs font-semibold text-red-700 underline underline-offset-2 ml-auto shrink-0"
                 >
                   Borrar
                 </button>
@@ -388,4 +413,9 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
       )}
     </div>
   );
+}
+
+/** "dibujada"/"dibujado" según el género de unitLabel (Unidad → a, Lote → o). */
+function unitAgreeSuffix(config: { unitLabelGender: 'm' | 'f' }) {
+  return config.unitLabelGender === 'f' ? 'a' : 'o';
 }

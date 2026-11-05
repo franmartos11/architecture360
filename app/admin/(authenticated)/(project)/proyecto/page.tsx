@@ -10,9 +10,7 @@ import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import { Card, CardHeader } from '@/components/ui/Card';
+import { PageHeader, SectionRow, Pill, btnPrimary, btnSecondary, fieldClass } from '@/components/admin/panel-ui';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -55,11 +53,6 @@ const COLLABORATOR_STATUS_LABEL: Record<CollaboratorRow['status'], string> = {
   pending: 'Pendiente',
   accepted: 'Aceptado',
   declined: 'Rechazado',
-};
-const COLLABORATOR_STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
-  pending: 'bg-amber-50 text-amber-700',
-  accepted: 'bg-green-50 text-green-700',
-  declined: 'bg-gray-100 text-gray-500',
 };
 
 export default function AdminProjectPage() {
@@ -357,622 +350,461 @@ export default function AdminProjectPage() {
   if (loading) return <LoadingSpinner text="Cargando proyecto..." tone="light" />;
   if (loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={load} />;
 
+  const displayUrl = origin ? getProjectDisplayUrl(project.slug, origin) : `/proyecto/${project.slug}`;
+  const textareaClass = `${fieldClass} py-3 leading-relaxed resize-y`;
+  const chapterLinks = [
+    { label: 'Amenidades', href: '/admin/proyecto/amenities' },
+    { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
+    { label: 'Avance de obra', href: '/admin/proyecto/avance' },
+    { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },
+    { label: 'Modelo BIM', href: '/admin/proyecto/bim' },
+  ];
+
+  // Layout del diseño "Ficha · Esencial": columna de formulario por
+  // secciones (título a la izquierda, campos a la derecha) y "Vista en vivo"
+  // a la derecha. Anula el padding del shell para ocupar todo el alto.
   return (
-    <div className="space-y-6">
-      {/* Header — estado, link público y publicar/despublicar (mismo PATCH
-          { published } que usa /admin/settings, replicado acá para no
-          obligar a saltar de pantalla solo para publicar). */}
-      <div className="sticky top-0 z-10 -mx-6 md:-mx-8 px-6 md:px-8 py-3 bg-gray-50/90 backdrop-blur border-b border-gray-100 flex flex-wrap items-center gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Proyecto</h2>
-            <span className={`h-5 px-2 flex items-center rounded-md text-[11px] font-semibold ${
-              publishState.published ? 'bg-brand-900 text-white' : 'bg-amber-50 border border-amber-200 text-amber-700'
-            }`}>
-              {publishState.published ? 'Publicado' : 'Borrador'}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">Identidad, relato y {aerialLabelPlural.toLowerCase()} del sitio público.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={handleCopyLink}
-            className="h-9 px-3 flex items-center gap-2 border border-gray-300 rounded-lg bg-white hover:border-gray-400 transition-colors"
-            title={getProjectDisplayUrl(project.slug, origin)}
-          >
-            <span className="font-mono text-xs text-gray-500 max-w-[180px] truncate">
-              {origin ? getProjectDisplayUrl(project.slug, origin) : `/proyecto/${project.slug}`}
-            </span>
-            <span className={`text-xs font-medium ${copied ? 'text-brand-600' : 'text-gray-900'}`}>{copied ? 'Copiado' : 'Copiar'}</span>
-          </button>
-          <a
-            href={publishState.siteHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-9 px-3 flex items-center border border-gray-300 text-gray-700 text-sm font-medium rounded-lg bg-white hover:bg-gray-50 transition-colors whitespace-nowrap"
-          >
-            {publishState.published ? 'Ver sitio ↗' : 'Vista previa ↗'}
-          </a>
-          <button
-            onClick={handleTogglePublished}
-            disabled={publishing || (!publishState.published && !publishState.canPublish)}
-            title={!publishState.published && !publishState.canPublish ? `Para publicar falta: ${publishState.missingRequired.join(', ')}` : undefined}
-            className={`h-9 px-4 flex items-center rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60 ${
-              publishState.published ? 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50' : 'bg-gray-900 text-white hover:bg-gray-800'
-            }`}
-          >
-            {publishing ? 'Guardando...' : publishState.published ? 'Despublicar' : 'Publicar sitio'}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Link
-          href="/admin/proyecto/amenities"
-          className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Amenities →
-        </Link>
-        <Link
-          href="/admin/proyecto/ubicacion"
-          className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Ubicación →
-        </Link>
-        <Link
-          href="/admin/proyecto/avance"
-          className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Avance de obra →
-        </Link>
-        <Link
-          href="/admin/proyecto/recorrido"
-          className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Recorrido de espacios comunes →
-        </Link>
-        <button
-          onClick={() => shareLink(getProjectDisplayUrl(project.slug, window.location.origin), project.name, `Mirá el proyecto ${project.name}`)}
-          className="ml-auto px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Compartir
-        </button>
-      </div>
-
-      {/* Lo OBLIGATORIO para publicar (y el botón) vive en PublishCallout,
-          compartido con el sidebar y el dashboard. */}
-      <PublishCallout />
-
-      {/* Checklist RECOMENDADO — no bloquea publicar. Calculado en el
-          cliente a partir de lo que ya está cargado; ítems adaptados por
-          tipo de proyecto (hotspots no aplica a casa/loteo, que son
-          singleBuilding). */}
-      <Card>
-        <div className="p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                {checklistMissing.length === 0 ? 'Ficha completa' : 'Recomendado para una ficha completa'}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {checklistMissing.length === 0
-                  ? 'Todas las secciones de la ficha están completas.'
-                  : `No es obligatorio para publicar. Pendiente: ${checklistMissing.join(' · ')}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-2.5 shrink-0">
-              <div className="w-32 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${checklistPct === 100 ? 'bg-brand-500' : 'bg-gray-400'}`}
-                  style={{ width: `${checklistPct}%` }}
-                />
-              </div>
-              <span className="text-sm font-semibold text-gray-900">{checklistOk}/{checklistItems.length}</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {checklistItems.map(item => (
-              <span
-                key={item.label}
-                className={`h-6.5 px-2.5 flex items-center gap-1.5 rounded-md text-xs font-medium ${
-                  item.ok ? 'bg-brand-50 text-brand-800' : 'bg-white border border-gray-200 text-gray-500'
-                }`}
-              >
-                <span className={`text-xs font-bold ${item.ok ? 'text-brand-600' : 'text-gray-300'}`}>{item.ok ? '✓' : '•'}</span>
-                {item.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {/* Identidad */}
-      <Card>
-        <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">Identidad</h3>
-          <p className="text-sm text-gray-500">Nombre, lugar y la frase con la que abre el sitio.</p>
-        </CardHeader>
-        <form onSubmit={handleSaveProject} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input
-              label="Nombre del proyecto"
-              value={project.name}
-              onChange={e => setProject({ ...project, name: e.target.value })}
-              required
-            />
-            <Input
-              label="Ciudad o zona"
-              value={project.location ?? ''}
-              onChange={e => setProject({ ...project, location: e.target.value })}
-              placeholder="Ej: Punta del Este, Uruguay"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-5 items-start">
-            <div>
-              <div className="flex items-baseline justify-between gap-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bajada de portada</label>
-                <span className={`text-[11px] ${(project.tagline ?? '').length > 90 ? 'text-red-500' : 'text-gray-400'}`}>
-                  {(project.tagline ?? '').length} / 90
-                </span>
-              </div>
-              <Input
-                value={project.tagline ?? ''}
-                onChange={e => setProject({ ...project, tagline: e.target.value })}
-                placeholder="Ej: 3 dormitorios frente al mar en Punta del Este"
-                maxLength={140}
-              />
-              <p className="text-xs text-gray-400 mt-1.5">
-                Una línea, lo primero que se lee. La descripción larga va más abajo y aparece al scrollear.
-              </p>
-            </div>
-            <div className="rounded-xl overflow-hidden border border-gray-200">
-              <div className="h-5 bg-gray-100 border-b border-gray-200 flex items-center gap-1 px-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                <span className="text-[9px] text-gray-400 ml-1.5">Portada del sitio</span>
-              </div>
-              <div
-                className="h-28 px-3.5 pb-3.5 flex flex-col justify-end gap-1 bg-cover bg-center"
-                style={{
-                  backgroundImage: `linear-gradient(180deg, rgba(16,24,40,.18), rgba(16,24,40,.72))${project.masterplan_image ? `, url(${project.masterplan_image})` : ''}`,
-                  backgroundColor: '#dfe4de',
-                }}
-              >
-                <p className="text-white font-semibold text-sm leading-tight drop-shadow">{project.name || 'Nombre del proyecto'}</p>
-                <p className="text-white/90 text-[11px] leading-tight">{project.tagline || project.location || 'La bajada aparece acá'}</p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-baseline justify-between gap-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {saleMode === 'showcase' ? 'Memoria del proyecto' : 'Descripción'}
-              </label>
-              <span className={`text-[11px] ${(project.description ?? '').length > 600 ? 'text-red-500' : 'text-gray-400'}`}>
-                {(project.description ?? '').length} / 600
-              </span>
-            </div>
-            {saleMode === 'showcase' && (
-              <p className="text-xs text-gray-400 mb-2">Concepto, partido, referencias — el texto que explica el proyecto, no solo lo que se ve en las imágenes. Dejá una línea en blanco entre párrafos.</p>
-            )}
-            <textarea
-              value={project.description ?? ''}
-              onChange={e => setProject({ ...project, description: e.target.value })}
-              rows={saleMode === 'showcase' ? 10 : 3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
-            />
-          </div>
-
-          <ImageUploader
-            label="Imagen del masterplan"
-            value={project.masterplan_image ?? ''}
-            onChange={url => setProject({ ...project, masterplan_image: url })}
-            folder="masterplan"
+    <div className="-m-6 md:-m-8 flex flex-wrap items-stretch min-h-screen">
+      <div className="flex-[999_1_600px] min-w-0 px-4 py-8 sm:px-10 sm:py-10">
+        <div className="max-w-[760px] mx-auto flex flex-col gap-7">
+          <PageHeader
+            eyebrow={`Ficha del proyecto · ${publishState.published ? 'Publicado' : 'Borrador'}`}
+            title="Esencial"
+            description={`Lo primero que ve ${saleMode === 'venta' ? 'un comprador' : 'quien visita el proyecto'}. Con esto completo el sitio ya se puede publicar; todo lo demás suma, pero no bloquea.`}
           />
 
-          <LocationPicker
-            label="Centro del mapa de Ubicación"
-            latitude={project.latitude}
-            longitude={project.longitude}
-            onChange={(lat, lng) => setProject({ ...project, latitude: lat, longitude: lng })}
-          />
-
-          {/* Sin botón acá — el guardado de "Identidad" (y de Ficha
-              académica / Galería de proceso / Antes-Después, más abajo) es
-              único, vía la barra flotante de cambios sin guardar. */}
-        </form>
-      </Card>
-
-      {/* Colaboradores — créditos públicos, no acceso al admin */}
-      <Card>
-        <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">Colaboradores</h3>
-          <p className="text-sm text-gray-500">Acreditá a quien trabajó en este proyecto por su handle de portfolio. El crédito queda pendiente hasta que esa persona lo confirma, y recién ahí aparece en la ficha del proyecto y en su propio portfolio.</p>
-        </CardHeader>
-        {project.academic_team && (
-          <p className="px-6 py-3 text-sm text-amber-700 bg-amber-50 border-b border-amber-100">
-            Antes tenías cargado como texto libre: <span className="font-medium">&ldquo;{project.academic_team}&rdquo;</span>. Ese campo se sacó porque quedaba duplicado con esto — agregalos acá abajo como colaboradores reales para que puedan confirmarlo y les quede en su portfolio.
-          </p>
-        )}
-        <div className="divide-y divide-gray-100">
-          {collaborators.map(c => (
-            <div key={c.id} className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                {c.profile?.avatar_image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.profile.avatar_image} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-sm text-gray-400">{(c.profile?.display_name ?? '?').charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-gray-900 truncate">{c.profile?.display_name ?? c.profile?.handle ?? '(perfil borrado)'}</p>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${COLLABORATOR_STATUS_CLASS[c.status]}`}>
-                    {COLLABORATOR_STATUS_LABEL[c.status]}
-                  </span>
-                </div>
-                {editingCollaboratorId === c.id ? (
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <input
-                      value={editingContribution}
-                      onChange={e => setEditingContribution(e.target.value)}
-                      className="flex-1 px-2.5 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                      autoFocus
-                    />
-                    <button onClick={() => handleSaveCollaboratorEdit(c.id)} className="text-xs font-medium text-brand-600 hover:text-brand-700 shrink-0">Guardar</button>
-                    <button onClick={() => setEditingCollaboratorId(null)} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">Cancelar</button>
-                  </div>
-                ) : (
-                  c.contribution && <p className="text-sm text-gray-500 truncate">{c.contribution}</p>
-                )}
-                {c.status === 'accepted' && editingCollaboratorId !== c.id && (
-                  <p className="text-xs text-gray-400 mt-0.5">Si editás lo que hizo, vuelve a pedirle confirmación.</p>
-                )}
-              </div>
-              {editingCollaboratorId !== c.id && (
-                <div className="flex items-center gap-3 shrink-0">
-                  <button onClick={() => startEditingCollaborator(c)} className="text-sm text-gray-500 hover:text-gray-700">
-                    Editar
-                  </button>
-                  <button onClick={() => handleRemoveCollaborator(c.id)} className="text-sm text-red-500 hover:text-red-700">
-                    Quitar
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {collaborators.length === 0 && (
-            <p className="p-6 text-sm text-gray-400 text-center">Todavía no acreditaste a nadie en este proyecto.</p>
-          )}
-        </div>
-        <form onSubmit={handleAddCollaborator} className="p-6 bg-gray-50/50 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <PersonSearchSelect
-              selected={selectedCollaborator}
-              onSelect={setSelectedCollaborator}
-              onClear={() => setSelectedCollaborator(null)}
-              placeholder="Buscar por nombre o handle..."
-            />
-            <Input
-              value={newCollaborator.contribution}
-              onChange={e => setNewCollaborator({ ...newCollaborator, contribution: e.target.value })}
-              placeholder="Qué hizo (ej: Renders y maqueta)"
-              aria-label="Qué hizo en el proyecto"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            {collaboratorError && <p className="text-sm text-red-500">{collaboratorError}</p>}
-            <Button type="submit" disabled={addingCollaborator || !selectedCollaborator} className="ml-auto">
-              {addingCollaborator ? 'Agregando...' : '+ Acreditar'}
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      {/* Comentarios — moderación desde el admin, se publican desde la ficha pública */}
-      <Card>
-        <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">Comentarios</h3>
-          <p className="text-sm text-gray-500">Lo que dejan los visitantes en la ficha pública del proyecto. Podés borrar cualquiera.</p>
-        </CardHeader>
-        <div className="divide-y divide-gray-100">
-          {comments.map(c => (
-            <div key={c.id} className="p-4 flex items-start gap-4">
-              <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                {c.author?.avatar_image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.author.avatar_image} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-sm text-gray-400">{(c.author?.display_name ?? 'U').charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-gray-900 text-sm">{c.author?.display_name ?? 'Usuario'}</p>
-                  <span className="text-xs text-gray-400">
-                    {new Date(c.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-line">{c.body}</p>
-              </div>
-              <button onClick={() => handleDeleteComment(c.id)} className="text-xs text-gray-400 hover:text-red-500 shrink-0">
-                Borrar
-              </button>
-            </div>
-          ))}
-          {comments.length === 0 && (
-            <p className="p-6 text-sm text-gray-400 text-center">Todavía no hay comentarios en este proyecto.</p>
-          )}
-        </div>
-      </Card>
-
-      {/* Ficha académica — solo tiene sentido en proyectos showcase */}
-      {saleMode === 'showcase' && (
-        <Card>
-          <CardHeader className="block">
-            <h3 className="text-lg font-semibold text-gray-900">Ficha académica</h3>
-            <p className="text-sm text-gray-500">Contexto del trabajo — se muestra junto a la memoria en el sitio público.</p>
-          </CardHeader>
-          <form onSubmit={handleSaveProject} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <Input
-              label="Institución / Universidad"
-              value={project.academic_institution ?? ''}
-              onChange={e => setProject({ ...project, academic_institution: e.target.value })}
-              placeholder="Universidad de Buenos Aires"
-            />
-            <Input
-              label="Carrera"
-              value={project.academic_career ?? ''}
-              onChange={e => setProject({ ...project, academic_career: e.target.value })}
-              placeholder="Arquitectura"
-            />
-            <Input
-              label="Cátedra / Tutor"
-              value={project.academic_tutor ?? ''}
-              onChange={e => setProject({ ...project, academic_tutor: e.target.value })}
-              placeholder="Cátedra Pérez"
-            />
-            <Input
-              label="Año"
-              value={project.academic_year ?? ''}
-              onChange={e => setProject({ ...project, academic_year: e.target.value })}
-              placeholder="2025"
-            />
-          </form>
-        </Card>
-      )}
-
-      {/* Galería de proceso — bocetos, maquetas, diagramas, aparte de las fotos finales */}
-      {saleMode === 'showcase' && (
-        <Card>
-          <CardHeader className="block">
-            <h3 className="text-lg font-semibold text-gray-900">Galería de proceso</h3>
-            <p className="text-sm text-gray-500">Bocetos, maquetas, diagramas de programa o estructura — el proceso detrás del proyecto, aparte de las fotos finales.</p>
-          </CardHeader>
-          <form onSubmit={handleSaveProject} className="p-6 space-y-4">
-            <MultiImageUploader
-              values={project.process_gallery}
-              onChange={urls => setProject({ ...project, process_gallery: urls })}
-              folder="process"
-            />
-          </form>
-        </Card>
-      )}
-
-      {/* Antes / Después — para reciclaje o rehabilitación */}
-      {saleMode === 'showcase' && (
-        <Card>
-          <CardHeader className="block">
-            <h3 className="text-lg font-semibold text-gray-900">Antes / Después</h3>
-            <p className="text-sm text-gray-500">Para un reciclaje o una rehabilitación — cada par se muestra con un slider comparador en el sitio público.</p>
-          </CardHeader>
-          <div className="divide-y divide-gray-100">
-            {project.before_after.map((pair, i) => (
-              <div key={i} className="p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Input
-                      label="Etiqueta"
-                      value={pair.label}
-                      onChange={e => updateBeforeAfterAt(i, { label: e.target.value })}
-                      placeholder="Fachada, Interior, Patio..."
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeBeforeAfterAt(i)}
-                    className="text-sm text-red-500 hover:text-red-700 mt-6 shrink-0"
-                  >
-                    Borrar
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ImageUploader
-                    label="Antes"
-                    value={pair.beforeImage}
-                    onChange={url => updateBeforeAfterAt(i, { beforeImage: url })}
-                    folder="before-after"
-                  />
-                  <ImageUploader
-                    label="Después"
-                    value={pair.afterImage}
-                    onChange={url => updateBeforeAfterAt(i, { afterImage: url })}
-                    folder="before-after"
-                  />
-                </div>
-              </div>
+          <nav aria-label="Más de la ficha" className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">También en la ficha:</span>
+            {chapterLinks.map(l => (
+              <Link key={l.href} href={l.href} className="min-h-[36px] px-3 flex items-center rounded-full border border-gray-200 bg-white text-[13px] text-gray-900 hover:border-gray-300">
+                {l.label}
+              </Link>
             ))}
-          </div>
-          <div className="p-6 bg-gray-50/50">
-            <button type="button" onClick={addBeforeAfterPair} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-              + Agregar comparación
+            <button
+              type="button"
+              onClick={() => shareLink(getProjectDisplayUrl(project.slug, window.location.origin), project.name, `Mirá el proyecto ${project.name}`)}
+              className="min-h-[36px] px-3 flex items-center rounded-full border border-gray-200 bg-white text-[13px] text-gray-900 hover:border-gray-300"
+            >
+              Compartir
             </button>
-          </div>
-        </Card>
-      )}
+          </nav>
 
-      {/* Vistas aéreas / Vista frontal — la entrada al masterplan. Cada
-          vista se muestra como tarjeta con miniatura + chips de hotspots;
-          el detalle fino (mover/agregar un hotspot) sigue viviendo en
-          /admin/proyecto/aereas/[id] como antes. */}
-      <Card>
-        <CardHeader className="block">
-          <h3 className="text-lg font-semibold text-gray-900">{aerialLabelPlural}</h3>
-          <p className="text-sm text-gray-500">
-            {!hasUnitStep
+          {/* Lo OBLIGATORIO para publicar (y el botón) vive en PublishCallout,
+              compartido con el sidebar y el dashboard. */}
+          <PublishCallout />
+
+          <form onSubmit={handleSaveProject} className="flex flex-col gap-7">
+            <SectionRow title="Identidad" description="Nombre y ubicación tal como aparecen en el sitio y al compartir el link." first>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-gray-700">Nombre del proyecto</span>
+                <input value={project.name} onChange={e => setProject({ ...project, name: e.target.value })} required className={`${fieldClass} text-[15px]`} />
+              </label>
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-gray-700">Ciudad o zona</span>
+                  <input value={project.location ?? ''} onChange={e => setProject({ ...project, location: e.target.value })} placeholder="Ej: Punta del Este, Uruguay" className={fieldClass} />
+                </label>
+                <div className="flex flex-col gap-1.5 min-w-0">
+                  <span className="text-xs font-medium text-gray-700">Dirección pública</span>
+                  <div className="flex items-stretch min-h-[44px] rounded-[10px] border border-gray-300 bg-white overflow-hidden">
+                    <span className="flex-1 min-w-0 px-3 flex items-center font-mono text-xs text-gray-700 bg-gray-100 truncate" title={displayUrl}>{displayUrl}</span>
+                    <button type="button" onClick={handleCopyLink} className="px-3.5 border-l border-gray-300 text-[13px] font-semibold text-gray-900 hover:bg-gray-50 shrink-0">
+                      {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </SectionRow>
+
+            <SectionRow
+              title="Portada"
+              description="Una imagen fuerte y una frase. Es lo único que se ve antes de hacer scroll."
+              badge={!project.masterplan_image ? <Pill tone="warn">Requerido para publicar</Pill> : undefined}
+            >
+              <ImageUploader
+                label="Imagen principal"
+                value={project.masterplan_image ?? ''}
+                onChange={url => setProject({ ...project, masterplan_image: url })}
+                folder="masterplan"
+              />
+              <label className="flex flex-col gap-1.5">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="text-xs font-medium text-gray-700">Bajada de portada</span>
+                  <span className={`text-xs ${(project.tagline ?? '').length > 90 ? 'text-red-600' : 'text-gray-500'}`}>{(project.tagline ?? '').length} / 90</span>
+                </span>
+                <textarea
+                  value={project.tagline ?? ''}
+                  onChange={e => setProject({ ...project, tagline: e.target.value })}
+                  placeholder="Ej: 3 dormitorios frente al mar en Punta del Este"
+                  maxLength={140}
+                  rows={2}
+                  className={`${textareaClass} text-[15px]`}
+                />
+                <span className="text-xs text-gray-500">Una línea, lo primero que se lee. Se ve en la vista en vivo mientras escribís.</span>
+              </label>
+            </SectionRow>
+
+            <SectionRow
+              title={saleMode === 'showcase' ? 'Memoria del proyecto' : 'Relato'}
+              description={saleMode === 'showcase'
+                ? 'Concepto, partido, referencias — el texto que explica el proyecto. Dejá una línea en blanco entre párrafos.'
+                : 'Por qué este proyecto y no otro. Entre 60 y 120 palabras funciona mejor.'}
+            >
+              <div className="rounded-xl border border-gray-300 bg-white overflow-hidden focus-within:border-brand-700 focus-within:ring-2 focus-within:ring-brand-500/30">
+                <textarea
+                  aria-label={saleMode === 'showcase' ? 'Memoria del proyecto' : 'Descripción'}
+                  value={project.description ?? ''}
+                  onChange={e => setProject({ ...project, description: e.target.value })}
+                  rows={saleMode === 'showcase' ? 10 : 5}
+                  className="block w-full px-4 py-3.5 text-[15px] leading-[1.7] text-gray-900 outline-none resize-y border-0"
+                />
+                <div className="flex justify-between px-3.5 py-2 border-t border-gray-100 text-xs text-gray-500">
+                  <span>{(project.description ?? '').trim().split(/\s+/).filter(Boolean).length} palabras</span>
+                  <span className={(project.description ?? '').length > 600 ? 'text-red-600' : ''}>{(project.description ?? '').length} / 600</span>
+                </div>
+              </div>
+            </SectionRow>
+
+            <SectionRow title="Ubicación en el mapa" description="El centro del mapa de la sección Ubicación. Los lugares cercanos se cargan en Ubicación.">
+              <LocationPicker
+                label="Centro del mapa"
+                latitude={project.latitude}
+                longitude={project.longitude}
+                onChange={(lat, lng) => setProject({ ...project, latitude: lat, longitude: lng })}
+              />
+            </SectionRow>
+
+            {saleMode === 'showcase' && (
+              <SectionRow title="Ficha académica" description="Contexto del trabajo — se muestra junto a la memoria en el sitio público.">
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  {([
+                    ['Institución / Universidad', 'academic_institution', 'Universidad de Buenos Aires'],
+                    ['Carrera', 'academic_career', 'Arquitectura'],
+                    ['Cátedra / Tutor', 'academic_tutor', 'Cátedra Pérez'],
+                    ['Año', 'academic_year', '2025'],
+                  ] as const).map(([label, key, ph]) => (
+                    <label key={key} className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium text-gray-700">{label}</span>
+                      <input value={project[key] ?? ''} onChange={e => setProject({ ...project, [key]: e.target.value })} placeholder={ph} className={fieldClass} />
+                    </label>
+                  ))}
+                </div>
+              </SectionRow>
+            )}
+
+            {saleMode === 'showcase' && (
+              <SectionRow title="Galería de proceso" description="Bocetos, maquetas, diagramas — el proceso detrás del proyecto, aparte de las fotos finales.">
+                <MultiImageUploader
+                  values={project.process_gallery}
+                  onChange={urls => setProject({ ...project, process_gallery: urls })}
+                  folder="process"
+                />
+              </SectionRow>
+            )}
+
+            {saleMode === 'showcase' && (
+              <SectionRow title="Antes / Después" description="Para un reciclaje o una rehabilitación — cada par se muestra con un slider comparador.">
+                {project.before_after.map((pair, i) => (
+                  <div key={i} className="p-4 rounded-2xl border border-gray-200 bg-white flex flex-col gap-3.5">
+                    <div className="flex items-end gap-3">
+                      <label className="flex-1 flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-gray-700">Etiqueta</span>
+                        <input value={pair.label} onChange={e => updateBeforeAfterAt(i, { label: e.target.value })} placeholder="Fachada, Interior, Patio..." className={fieldClass} />
+                      </label>
+                      <button type="button" onClick={() => removeBeforeAfterAt(i)} className="min-h-[44px] px-3 text-[13px] font-medium text-red-700 hover:bg-red-50 rounded-lg shrink-0">Borrar</button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <ImageUploader label="Antes" value={pair.beforeImage} onChange={url => updateBeforeAfterAt(i, { beforeImage: url })} folder="before-after" />
+                      <ImageUploader label="Después" value={pair.afterImage} onChange={url => updateBeforeAfterAt(i, { afterImage: url })} folder="before-after" />
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addBeforeAfterPair} className="self-start min-h-[40px] text-[13px] font-semibold text-brand-700">+ Agregar comparación</button>
+              </SectionRow>
+            )}
+          </form>
+
+          {/* Vistas aéreas / Vista frontal — la entrada al masterplan. El
+              detalle fino (hotspots) sigue en /admin/proyecto/aereas/[id]. */}
+          <section className="flex flex-col gap-4 pt-7 border-t border-gray-200">
+            <div className="flex flex-col gap-1.5 max-w-[560px]">
+              <h2 className="m-0 text-[15px] font-semibold text-gray-900">{aerialLabelPlural}</h2>
+              <p className="m-0 text-[13px] leading-relaxed text-gray-600">{!hasUnitStep
               ? `La foto del frente de la ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`
               : typeConfig.singleBuilding
               ? `La vista aérea ${agree.del} ${buildingLabelLower} — lo primero que se ve al entrar al masterplan.`
-              : `Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada ${buildingLabelLower}.`}
-          </p>
-        </CardHeader>
-
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-          {slides.map(slide => {
-            const slideHotspots = hotspots.filter(h => h.slide_id === slide.id);
-            const isExpanded = expandedSlideId === slide.id;
-            const delimitLabel = hasUnitStep
-              ? `Delimitar ${pluralize(buildingLabelLower)} →`
-              : `Marcar ${agree.el} ${buildingLabelLower} →`;
-            return (
-              <div key={slide.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col">
-                <button
-                  type="button"
-                  onClick={() => setExpandedSlideId(isExpanded ? null : slide.id)}
-                  className="relative h-32 border-b border-gray-100 bg-cover bg-center bg-gray-100"
-                  style={slide.image_url ? { backgroundImage: `url(${slide.image_url})` } : undefined}
-                  title="Click para editar la foto/video"
-                >
-                  <span className="absolute top-2 left-2 flex gap-1.5">
-                    <span className="h-5 px-2 flex items-center rounded-md bg-gray-900/85 text-white text-[10px] font-medium">
-                      {slide.video_url ? 'Video' : 'Foto'}
-                    </span>
-                    {slideHotspots.length === 0 && (
-                      <span className="h-5 px-2 flex items-center rounded-md bg-amber-50 text-amber-700 text-[10px] font-medium">
-                        Sin hotspots
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    role="button"
-                    onClick={e => { e.stopPropagation(); handleDeleteSlide(slide.id); }}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-md bg-white/95 border border-gray-200 flex items-center justify-center text-xs text-gray-500 hover:text-red-600 hover:bg-white"
-                    title="Borrar vista"
-                  >
-                    ✕
-                  </span>
-                </button>
-
-                <div className="p-3.5 flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-sm text-gray-900 truncate">{slide.label}</p>
-                    <span className="text-[11px] text-gray-400 shrink-0">
-                      {slideHotspots.length} {slideHotspots.length === 1 ? 'hotspot' : 'hotspots'}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {slideHotspots.length > 0 ? slideHotspots.map(h => {
-                      const b = buildings.find(bb => bb.id === h.building_id);
-                      return (
-                        <span key={h.id} className="h-5.5 px-2 flex items-center gap-1 rounded-md bg-gray-100 text-[11px] text-gray-600">
-                          {b?.name ?? `(${buildingLabelLower} ${agree.borrado})`}
-                          <button onClick={() => handleDeleteHotspot(h.id)} className="text-gray-400 hover:text-red-500">×</button>
-                        </span>
-                      );
-                    }) : (
-                      <span className="h-5.5 px-2 flex items-center rounded-md bg-gray-100 text-[11px] text-gray-500">
-                        Todavía sin {pluralize(buildingLabelLower)} marcados
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 pt-0.5">
-                    <Link
-                      href={`/admin/proyecto/aereas/${slide.id}`}
-                      className="flex-1 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-xs font-medium text-gray-900 hover:border-brand-400 hover:text-brand-700 transition-colors"
-                    >
-                      {delimitLabel}
-                    </Link>
+              : `Lo primero que ve el visitante al entrar al masterplan, con los hotspots de cada ${buildingLabelLower}.`}</p>
+            </div>
+            <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))' }}>
+              {slides.map(slide => {
+                const slideHotspots = hotspots.filter(h => h.slide_id === slide.id);
+                const isExpanded = expandedSlideId === slide.id;
+                const delimitLabel = hasUnitStep
+                  ? `Delimitar ${pluralize(buildingLabelLower)} →`
+                  : `Marcar ${agree.el} ${buildingLabelLower} →`;
+                return (
+                  <div key={slide.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden flex flex-col">
                     <button
                       type="button"
                       onClick={() => setExpandedSlideId(isExpanded ? null : slide.id)}
-                      className="w-8 h-8 shrink-0 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:border-gray-300 hover:text-gray-900"
-                      title="Editar foto / video"
+                      className="relative aspect-[16/9] bg-cover bg-center bg-gray-100"
+                      style={slide.image_url ? { backgroundImage: `url(${slide.image_url})` } : { background: 'repeating-linear-gradient(135deg, #EFECE6 0 12px, #F5F3EE 12px 24px)' }}
+                      title="Editar la foto o el video"
                     >
-                      ✎
+                      <span className="absolute top-2.5 left-2.5 flex gap-1.5">
+                        <Pill tone="dark">{slide.video_url ? 'Video' : 'Foto'}</Pill>
+                        {slideHotspots.length === 0 && <Pill tone="warn">Sin hotspots</Pill>}
+                      </span>
+                      <span
+                        role="button"
+                        aria-label="Borrar vista"
+                        onClick={e => { e.stopPropagation(); handleDeleteSlide(slide.id); }}
+                        className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-white/95 flex items-center justify-center text-sm text-gray-700 hover:text-red-700"
+                      >
+                        ✕
+                      </span>
                     </button>
+                    <div className="p-3.5 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="m-0 font-semibold text-sm text-gray-900 truncate">{slide.label}</p>
+                        <span className="text-[11px] text-gray-500 shrink-0">{slideHotspots.length} {slideHotspots.length === 1 ? 'hotspot' : 'hotspots'}</span>
+                      </div>
+                      {slideHotspots.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {slideHotspots.map(h => {
+                            const b = buildings.find(bb => bb.id === h.building_id);
+                            return (
+                              <span key={h.id} className="min-h-[24px] pl-2 pr-1 flex items-center gap-1 rounded-full bg-gray-100 text-[11px] text-gray-700">
+                                {b?.name ?? `(${buildingLabelLower} ${agree.borrado})`}
+                                <button type="button" aria-label="Quitar hotspot" onClick={() => handleDeleteHotspot(h.id)} className="w-5 h-5 rounded-full text-gray-500 hover:text-red-700">×</button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Link href={`/admin/proyecto/aereas/${slide.id}`} className={`${btnSecondary} flex-1 !min-h-[36px] text-[13px]`}>{delimitLabel}</Link>
+                        <button type="button" onClick={() => setExpandedSlideId(isExpanded ? null : slide.id)} aria-label="Editar foto o video"
+                          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[10px] border border-gray-300 bg-white text-gray-700 hover:border-gray-400">✎</button>
+                      </div>
+                      {isExpanded && (
+                        <div className="grid grid-cols-1 gap-3 pt-3 border-t border-gray-200">
+                          <ImageUploader label="Foto (poster / respaldo)" value={slide.image_url} onChange={url => handleUpdateSlide(slide.id, { imageUrl: url })} folder="aerial" />
+                          <VideoUploader label="Video (opcional — reemplaza la foto si está)" value={slide.video_url ?? ''} onChange={url => handleUpdateSlide(slide.id, { videoUrl: url })} folder="aerial" />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {isExpanded && (
-                    <div className="grid grid-cols-1 gap-3 pt-2 mt-1 border-t border-gray-100">
-                      <ImageUploader
-                        label="Foto (poster / respaldo)"
-                        value={slide.image_url}
-                        onChange={url => handleUpdateSlide(slide.id, { imageUrl: url })}
-                        folder="aerial"
-                      />
-                      <VideoUploader
-                        label="Video (opcional — reemplaza la foto si está)"
-                        value={slide.video_url ?? ''}
-                        onChange={url => handleUpdateSlide(slide.id, { videoUrl: url })}
-                        folder="aerial"
-                      />
+                );
+              })}
+
+              <form onSubmit={handleAddSlide} className="rounded-2xl border-[1.5px] border-dashed border-gray-300 bg-gray-50 p-4 flex flex-col gap-3">
+                <div>
+                  <p className="m-0 text-sm font-semibold text-gray-900">Agregar {aerialLower}</p>
+                  <p className="m-0 mt-0.5 text-xs text-gray-600">Foto o video de dron. Después ubicás los hotspots sobre la imagen.</p>
+                </div>
+                <input
+                  value={newSlide.label}
+                  onChange={e => setNewSlide({ ...newSlide, label: e.target.value })}
+                  placeholder={hasUnitStep ? 'Etiqueta (ej: Vista Norte)' : 'Etiqueta (ej: Frente)'}
+                  aria-label={`Etiqueta de la ${aerialLower}`}
+                  className={fieldClass}
+                />
+                <ImageUploader label="Foto (poster / respaldo)" value={newSlide.imageUrl} onChange={url => setNewSlide({ ...newSlide, imageUrl: url })} onUploadingChange={setNewSlideImageUploading} folder="aerial" />
+                <VideoUploader label="Video (opcional)" value={newSlide.videoUrl} onChange={url => setNewSlide({ ...newSlide, videoUrl: url })} onUploadingChange={setNewSlideVideoUploading} folder="aerial" />
+                <button type="submit" disabled={newSlideImageUploading || newSlideVideoUploading} className={btnPrimary}>
+                  {newSlideImageUploading || newSlideVideoUploading ? 'Subiendo...' : `+ Agregar ${aerialLower}`}
+                </button>
+              </form>
+            </div>
+          </section>
+
+          {/* Colaboradores — créditos públicos, no acceso al admin (diseño "Equipo"). */}
+          <SectionRow
+            title="Equipo"
+            description="Acreditá a quien trabajó en el proyecto por su handle. El crédito queda pendiente hasta que esa persona lo confirma; recién ahí aparece en la ficha y en su portfolio."
+          >
+            {project.academic_team && (
+              <p className="m-0 px-4 py-3 text-[13px] leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-xl">
+                Antes tenías cargado como texto libre: <span className="font-semibold">&ldquo;{project.academic_team}&rdquo;</span>. Ese campo se sacó porque quedaba duplicado con esto — agregalos acá como colaboradores reales para que puedan confirmarlo.
+              </p>
+            )}
+            <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+              {collaborators.map((c, i) => (
+                <div key={c.id} className={`px-4 py-3.5 flex items-center gap-3.5 ${i > 0 ? 'border-t border-gray-200' : ''}`}>
+                  <div className="w-10 h-10 rounded-full bg-brand-700 text-white overflow-hidden shrink-0 flex items-center justify-center text-[13px] font-semibold">
+                    {c.profile?.avatar_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.profile.avatar_image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (c.profile?.display_name ?? '?').split(/\s+/).map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="m-0 text-sm font-semibold text-gray-900 truncate">{c.profile?.display_name ?? c.profile?.handle ?? '(perfil borrado)'}</p>
+                      <Pill tone={c.status === 'accepted' ? 'green' : c.status === 'pending' ? 'warn' : 'neutral'}>{COLLABORATOR_STATUS_LABEL[c.status]}</Pill>
+                    </div>
+                    {editingCollaboratorId === c.id ? (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <input value={editingContribution} onChange={e => setEditingContribution(e.target.value)} className={`${fieldClass} !min-h-[36px]`} autoFocus aria-label="Qué hizo" />
+                        <button type="button" onClick={() => handleSaveCollaboratorEdit(c.id)} className="min-h-[36px] px-2 text-[13px] font-semibold text-brand-700 shrink-0">Guardar</button>
+                        <button type="button" onClick={() => setEditingCollaboratorId(null)} className="min-h-[36px] px-2 text-[13px] text-gray-600 shrink-0">Cancelar</button>
+                      </div>
+                    ) : (
+                      c.contribution && <p className="m-0 text-[13px] text-gray-600 truncate">{c.contribution}</p>
+                    )}
+                    {c.status === 'accepted' && editingCollaboratorId !== c.id && (
+                      <p className="m-0 text-[11px] text-gray-500 mt-0.5">Si editás lo que hizo, vuelve a pedirle confirmación.</p>
+                    )}
+                  </div>
+                  {editingCollaboratorId !== c.id && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button type="button" onClick={() => startEditingCollaborator(c)} className="min-h-[36px] px-2.5 text-[13px] text-gray-700 hover:text-gray-900">Editar</button>
+                      <button type="button" onClick={() => handleRemoveCollaborator(c.id)} className="min-h-[36px] px-2.5 text-[13px] text-red-700 hover:text-red-800">Quitar</button>
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })}
-
-          {/* Alta de vista nueva */}
-          <div className="border border-dashed border-gray-300 rounded-xl p-4 flex flex-col gap-3 bg-gray-50/40">
-            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center text-base font-medium">+</div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Agregar {aerialLower}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Foto o video de dron. Después ubicás los hotspots sobre la imagen.</p>
+              ))}
+              {collaborators.length === 0 && (
+                <p className="m-0 px-4 py-6 text-sm text-gray-500 text-center">Todavía no acreditaste a nadie en este proyecto.</p>
+              )}
+              <form onSubmit={handleAddCollaborator} className="p-4 bg-gray-50 border-t border-gray-200 flex flex-col gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <PersonSearchSelect
+                    selected={selectedCollaborator}
+                    onSelect={setSelectedCollaborator}
+                    onClear={() => setSelectedCollaborator(null)}
+                    placeholder="Buscar por nombre o handle..."
+                  />
+                  <input
+                    value={newCollaborator.contribution}
+                    onChange={e => setNewCollaborator({ ...newCollaborator, contribution: e.target.value })}
+                    placeholder="Qué hizo (ej: Renders y maqueta)"
+                    aria-label="Qué hizo en el proyecto"
+                    className={fieldClass}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  {collaboratorError && <p className="m-0 text-sm text-red-600">{collaboratorError}</p>}
+                  <button type="submit" disabled={addingCollaborator || !selectedCollaborator} className={`${btnPrimary} ml-auto`}>
+                    {addingCollaborator ? 'Agregando...' : '+ Acreditar'}
+                  </button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleAddSlide} className="flex flex-col gap-2.5">
-              <Input
-                value={newSlide.label}
-                onChange={e => setNewSlide({ ...newSlide, label: e.target.value })}
-                placeholder={hasUnitStep ? 'Etiqueta (ej: Vista Norte)' : 'Etiqueta (ej: Frente)'}
-                aria-label={`Etiqueta de la ${aerialLower}`}
-              />
-              <ImageUploader
-                label="Foto (poster / respaldo)"
-                value={newSlide.imageUrl}
-                onChange={url => setNewSlide({ ...newSlide, imageUrl: url })}
-                onUploadingChange={setNewSlideImageUploading}
-                folder="aerial"
-              />
-              <VideoUploader
-                label="Video (opcional)"
-                value={newSlide.videoUrl}
-                onChange={url => setNewSlide({ ...newSlide, videoUrl: url })}
-                onUploadingChange={setNewSlideVideoUploading}
-                folder="aerial"
-              />
-              <Button type="submit" disabled={newSlideImageUploading || newSlideVideoUploading}>
-                {newSlideImageUploading || newSlideVideoUploading ? 'Subiendo...' : `+ Agregar ${aerialLower}`}
-              </Button>
-            </form>
+          </SectionRow>
+
+          {/* Comentarios — moderación; se publican desde la ficha pública. */}
+          <SectionRow title="Comentarios" description="Lo que dejan los visitantes en la ficha pública. Podés borrar cualquiera.">
+            <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+              {comments.map((c, i) => (
+                <div key={c.id} className={`px-4 py-3.5 flex items-start gap-3.5 ${i > 0 ? 'border-t border-gray-200' : ''}`}>
+                  <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center text-[13px] font-semibold text-gray-700">
+                    {c.author?.avatar_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.author.avatar_image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (c.author?.display_name ?? 'U').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="m-0 text-sm font-semibold text-gray-900">{c.author?.display_name ?? 'Usuario'}</p>
+                      <span className="text-xs text-gray-500">{new Date(c.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
+                    </div>
+                    <p className="m-0 text-sm text-gray-700 mt-0.5 whitespace-pre-line">{c.body}</p>
+                  </div>
+                  <button type="button" onClick={() => handleDeleteComment(c.id)} className="min-h-[36px] px-2 text-[13px] text-gray-600 hover:text-red-700 shrink-0">Borrar</button>
+                </div>
+              ))}
+              {comments.length === 0 && (
+                <p className="m-0 px-4 py-6 text-sm text-gray-500 text-center">Todavía no hay comentarios en este proyecto.</p>
+              )}
+            </div>
+          </SectionRow>
+
+          <div className="flex items-center justify-between gap-4 flex-wrap pt-7 border-t border-gray-200">
+            <p className="m-0 text-xs text-gray-600 max-w-md">
+              ¿Necesitás borrar este proyecto? Se elimina la ficha, el sitio público y su link — no se puede deshacer.
+            </p>
+            <button type="button" onClick={() => setDeleteOpen(true)} className="min-h-[40px] text-[13px] font-semibold text-red-700 hover:text-red-800 shrink-0">
+              Eliminar este proyecto
+            </button>
           </div>
         </div>
-      </Card>
-
-      <div className="flex items-center justify-between gap-4 px-1 pb-2">
-        <p className="text-xs text-gray-400 max-w-md">
-          ¿Necesitás borrar este proyecto? Se elimina la ficha, el sitio público y su link — no se puede deshacer.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDeleteOpen(true)}
-          className="text-sm font-medium text-red-500/85 hover:text-red-600 shrink-0"
-        >
-          Eliminar este proyecto
-        </button>
       </div>
+
+      {/* Vista en vivo — la portada del sitio con lo que se está escribiendo. */}
+      <aside aria-label="Vista en vivo" className="flex-[1_1_340px] lg:max-w-[380px] min-w-0 px-4 py-8 sm:px-6 bg-[#EFECE6] border-t lg:border-t-0 lg:border-l border-gray-200">
+        <div className="lg:sticky lg:top-8 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px] font-semibold text-gray-900">Vista en vivo</span>
+            <a href={publishState.siteHref} target="_blank" rel="noopener noreferrer" className="min-h-[36px] px-3 flex items-center rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-900 hover:border-gray-400">
+              {publishState.published ? 'Ver sitio ↗' : 'Vista previa ↗'}
+            </a>
+          </div>
+          <div className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-[0_1px_2px_rgba(23,25,26,0.06),0_12px_32px_-12px_rgba(23,25,26,0.18)]">
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-200">
+              <span className="w-2 h-2 rounded-full bg-gray-300" /><span className="w-2 h-2 rounded-full bg-gray-300" /><span className="w-2 h-2 rounded-full bg-gray-300" />
+              <span className="ml-2 font-mono text-[10px] text-gray-600 truncate">{displayUrl.replace(/^https?:\/\//, '')}</span>
+            </div>
+            <div
+              className="relative min-h-[300px] p-5 flex flex-col justify-end gap-2 bg-cover bg-center"
+              style={project.masterplan_image
+                ? { backgroundImage: `linear-gradient(180deg, rgba(23,25,26,.15), rgba(23,25,26,.78)), url(${project.masterplan_image})` }
+                : { background: 'repeating-linear-gradient(135deg, #2B302D 0 14px, #313733 14px 28px)' }}
+            >
+              {!project.masterplan_image && (
+                <span className="absolute left-1/2 top-[22%] -translate-x-1/2 whitespace-nowrap text-[10px] tracking-[0.12em] uppercase text-[#C9C6BE] border border-dashed border-[#6B6A65] rounded px-2.5 py-1">[ Imagen de portada ]</span>
+              )}
+              {project.location && <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#E4E0D8]">{project.location}</span>}
+              <span className="font-display text-[28px] leading-[1.05] font-semibold text-white tracking-[-0.02em]">{project.name || 'Nombre del proyecto'}</span>
+              <span className="text-[13px] leading-snug text-white/90">{project.tagline || 'La bajada aparece acá'}</span>
+              <span className="flex gap-2 pt-2">
+                <span className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white text-gray-900">{saleMode === 'venta' ? 'Ver unidades' : 'Ver proyecto'}</span>
+                <span className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/70 text-white">Consultar</span>
+              </span>
+            </div>
+            <div className="grid grid-cols-3 px-4 py-3 gap-2">
+              <div><div className="font-display text-base font-semibold text-gray-900">{buildings.length}</div><div className="text-[10px] text-gray-500">{buildings.length === 1 ? buildingLabelLower : pluralize(buildingLabelLower)}</div></div>
+              <div><div className="font-display text-base font-semibold text-gray-900">{unitPrices.total || '—'}</div><div className="text-[10px] text-gray-500">unidades</div></div>
+              <div><div className="font-display text-base font-semibold text-gray-900">{slides.length}</div><div className="text-[10px] text-gray-500">{slides.length === 1 ? aerialLower : aerialLabelPlural.toLowerCase()}</div></div>
+            </div>
+          </div>
+
+          {/* Checklist RECOMENDADO — no bloquea publicar. */}
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13px] font-semibold text-gray-900">{checklistMissing.length === 0 ? 'Ficha completa' : 'Para una ficha completa'}</span>
+              <span className="font-display text-[13px] font-semibold text-gray-900">{checklistOk}/{checklistItems.length}</span>
+            </div>
+            <div className="h-1 rounded-full bg-gray-200 overflow-hidden" aria-hidden="true">
+              <div className="h-full rounded-full bg-brand-700" style={{ width: `${checklistPct}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {checklistItems.map(item => (
+                <span key={item.label} className={`min-h-[28px] px-2.5 flex items-center gap-1.5 rounded-full text-xs ${item.ok ? 'bg-brand-100 text-brand-800 font-medium' : 'bg-white border border-gray-200 text-gray-600'}`}>
+                  {item.ok ? '✓' : '·'} {item.label}
+                </span>
+              ))}
+            </div>
+            <p className="m-0 text-xs text-gray-600">No es obligatorio para publicar.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleTogglePublished}
+              disabled={publishing || (!publishState.published && !publishState.canPublish)}
+              title={!publishState.published && !publishState.canPublish ? `Para publicar falta: ${publishState.missingRequired.join(', ')}` : undefined}
+              className={`${publishState.published ? btnSecondary : btnPrimary} flex-1`}
+            >
+              {publishing ? 'Guardando...' : publishState.published ? 'Despublicar' : 'Publicar sitio'}
+            </button>
+          </div>
+        </div>
+      </aside>
 
       {/* Barra flotante de cambios sin guardar — cubre Identidad, Ficha
           académica, Galería de proceso y Antes/Después (todos comparten el

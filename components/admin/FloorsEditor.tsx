@@ -202,7 +202,7 @@ export default function FloorsEditor({
             const isUnitsFloor = f.floor_kind === 'units';
             const status = floorStatus({ floorKind: f.floor_kind, hasPlan: !!f.plan_image, totalUnits: c.total, missingPhoto: c.missingPhoto, missingPrice: c.missingPrice });
             const label = floorStatusLabel({ floorKind: f.floor_kind, hasPlan: !!f.plan_image, totalUnits: c.total, missingPhoto: c.missingPhoto, missingPrice: c.missingPrice });
-            const statusDot = status === 'complete' ? 'bg-brand-500' : status === 'partial' ? 'bg-amber-400' : 'bg-gray-200';
+            const statusDot = status === 'complete' ? 'bg-brand-500' : status === 'partial' ? 'bg-[#E0B060]' : 'bg-gray-200';
             const editingLabel = editingCell?.id === f.id && editingCell.field === 'label';
             const editingDescription = editingCell?.id === f.id && editingCell.field === 'description';
 
@@ -268,7 +268,7 @@ export default function FloorsEditor({
                 </span>
                 <span className="flex-1 min-w-0 text-xs">
                   <span className="text-gray-600">{isUnitsFloor ? `${c.total} unidad${c.total === 1 ? '' : 'es'} · ` : ''}</span>
-                  <span className={status === 'complete' ? 'text-green-600' : status === 'partial' ? 'text-amber-600' : 'text-gray-400'}>{label}</span>
+                  <span className={status === 'complete' ? 'text-brand-800' : status === 'partial' ? 'text-amber-800' : 'text-gray-400'}>{label}</span>
                 </span>
                 <span className="shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
                   <button type="button" title="Modelos BIM 3D" onClick={() => setBimModalOpen(true)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium text-[10px]">3D</button>

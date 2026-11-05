@@ -30,8 +30,8 @@ type Filter = 'all' | 'available' | 'noPhoto' | 'noPlano';
 type View = 'table' | 'grid';
 
 const STATUS_PILL_BG: Record<UnitStatus, string> = {
-  available: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  reserved: 'bg-amber-50 border-amber-200 text-amber-700',
+  available: 'bg-brand-100 border-brand-200 text-brand-800',
+  reserved: 'bg-amber-50 border-amber-200 text-amber-800',
   sold: 'bg-gray-100 border-gray-200 text-gray-600',
 };
 
@@ -318,11 +318,12 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
       <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <Link href={`/admin/edificios/${buildingId}`} className="text-sm text-gray-500 hover:text-gray-700">← {buildingName}</Link>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{pluralize(unitLabel)} de {buildingName}</h2>
+            <Link href={`/admin/edificios/${buildingId}`} className="inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← {buildingName}</Link>
+            <p className="m-0 mt-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">{buildingName}</p>
+            <h1 className="m-0 mt-1.5 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">{pluralize(unitLabel)}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <p className="text-xs text-gray-400">{saving ? 'Guardando...' : savedLabel}</p>
+            <p className="m-0 text-xs text-gray-600" aria-live="polite">{saving ? 'Guardando...' : savedLabel}</p>
             <button
               type="button"
               onClick={() => setCsvOpen(o => !o)}
@@ -477,7 +478,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
                     )}
                     <span className="w-20 shrink-0 flex items-center gap-1.5">
                       <span className={`w-7 h-5 rounded ${photoCount ? 'bg-gray-100' : 'bg-gray-50 border border-dashed border-gray-200'}`} />
-                      <span className={`text-[11px] font-medium ${photoCount ? 'text-gray-500' : 'text-amber-700'}`}>{photoCount}</span>
+                      <span className={`text-[11px] font-medium ${photoCount ? 'text-gray-500' : 'text-amber-800'}`}>{photoCount}</span>
                     </span>
                     <span className="w-28 shrink-0">
                       <span className={`inline-flex h-6 items-center px-2.5 rounded-full text-[10.5px] font-medium border ${delimited ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>

@@ -11,7 +11,7 @@ export default function SectionPreviewFrame({ children, height = 260, scale = 0.
   return (
     <div className="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-white" style={{ height }}>
       <div
-        className="pointer-events-none select-none absolute top-0 left-0 origin-top-left"
+        className="atrium-reset pointer-events-none select-none absolute top-0 left-0 origin-top-left"
         style={{ transform: `scale(${scale})`, width: `${100 / scale}%` }}
       >
         {children}

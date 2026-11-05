@@ -1,19 +1,17 @@
 'use client';
 
-import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LocationEditor from '@/components/admin/section-editors/LocationEditor';
+import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
 
 export default function AdminUbicacionPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/admin/proyecto" className="text-sm text-gray-500 hover:text-gray-700">← Proyecto</Link>
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Ubicación y Puntos de Interés</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Colegios, salud, comercios, transporte y entretenimiento cercanos al proyecto. Las coordenadas del centro del mapa se configuran en &quot;Proyecto → Datos generales&quot;.
-        </p>
-      </div>
+    <div className="flex flex-col gap-7">
+      <ChapterHeader
+        title="Entorno"
+        description="Dónde está y qué tiene cerca. Colegios, salud, comercios, transporte y entretenimiento, con el tiempo desde el proyecto. El centro del mapa se fija en la Ficha → Esencial."
+      />
       <LocationEditor />
+      <ChapterFooter />
     </div>
   );
 }

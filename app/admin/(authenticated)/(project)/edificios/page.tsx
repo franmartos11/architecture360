@@ -7,7 +7,6 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import { Card, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -153,24 +152,35 @@ export default function AdminBuildingsPage() {
   }
   if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${pluralize(buildingLabelLower)}`}.`} onRetry={load} />;
 
+  const totalUnits = buildings.reduce((n, b) => n + b.units_count, 0);
+  const totalFloors = buildings.reduce((n, b) => n + b.floors_loaded, 0);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{pluralize(buildingLabel)}</h2>
-          <p className="text-sm text-gray-500 mt-1">
+    <div className="flex flex-col gap-7">
+      <div className="flex items-end justify-between gap-x-6 gap-y-4 flex-wrap">
+        <div className="min-w-0 flex flex-col gap-2.5 flex-[1_1_420px]">
+          <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">Estructura</p>
+          <h1 className="m-0 text-[34px] sm:text-[44px] leading-[1.05] font-semibold text-gray-900">{pluralize(buildingLabel)}</h1>
+          <p className="m-0 text-[15px] leading-relaxed text-gray-600 max-w-[640px]">
+            {buildings.length > 0 && (
+              <span className="text-gray-900">
+                {buildings.length} {buildings.length === 1 ? buildingLabelLower : pluralize(buildingLabelLower)}
+                {hasFloorStep ? ` · ${totalFloors} pisos` : ''} · {totalUnits} {totalUnits === 1 ? unitLabelLower : pluralize(unitLabelLower)}
+                {' — '}
+              </span>
+            )}
             {hasFloorStep
-              ? 'Cada torre con sus pisos, unidades y su silueta en la foto aérea.'
+              ? 'cada torre con sus pisos, unidades y su silueta en la foto aérea.'
               : hasUnitStep
-              ? `${pluralize(buildingLabel)} del proyecto. Entrá a cada ${agree.uno} para gestionar sus ${pluralize(unitLabelLower)}.`
-              : `${pluralize(buildingLabel)} del proyecto. Entrá a cada ${agree.uno} para completar sus datos.`}
+              ? `entrá a cada ${agree.uno} para gestionar sus ${pluralize(unitLabelLower)}.`
+              : `entrá a cada ${agree.uno} para completar sus datos.`}
           </p>
           {!firstSlideId && (
-            <p className="text-sm text-amber-600 mt-2">
+            <p className="m-0 text-[13px] text-amber-800 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 self-start">
               {hasUnitStep
                 ? `Para poder delimitar la silueta de ${hasFloorStep ? 'una torre' : `${agree.un} ${buildingLabelLower}`} en la foto, primero cargá al menos una ${aerialLower} en `
                 : `Para poder marcar ${agree.el} ${buildingLabelLower} sobre la foto del frente, primero cargá la ${aerialLower} en `}
-              <Link href="/admin/proyecto" className="underline hover:text-amber-700">Proyecto</Link>.
+              <Link href="/admin/proyecto" className="font-semibold underline underline-offset-2">Proyecto</Link>.
             </p>
           )}
         </div>
@@ -180,14 +190,14 @@ export default function AdminBuildingsPage() {
         {!(typeConfig.singleBuilding && buildings.length > 0) && (
           <button
             type="button" onClick={() => setNewOpen(o => !o)}
-            className="h-9 px-4 flex items-center gap-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+            className="min-h-[44px] px-4 flex items-center gap-2 bg-brand-700 text-white text-sm font-semibold rounded-[10px] hover:bg-brand-800 transition-colors whitespace-nowrap"
           >
-            <span className="text-base leading-none">+</span> Nuevo {buildingLabelLower}
+            <span className="text-base leading-none" aria-hidden="true">+</span> Nuevo {buildingLabelLower}
           </button>
         )}
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
         {buildings.map(b => {
           const isDeleting = deletingId === b.id;
           const isDuplicating = duplicatingId === b.id;
@@ -196,26 +206,30 @@ export default function AdminBuildingsPage() {
           const unitsReady = b.units_count > 0;
           const complete = planReady && unitsReady && (!firstSlideId || b.has_silhouette);
           return (
-            <Card key={b.id} className={`overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-              <div className="p-4 flex items-start gap-3">
-                <div className="w-11 h-11 shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                  {b.cover_image && (
+            <div key={b.id} className={`flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className="p-[18px] flex items-start gap-3">
+                <div className="w-10 h-10 shrink-0 rounded-lg overflow-hidden bg-gray-900 text-white flex items-center justify-center font-display text-sm font-semibold">
+                  {b.cover_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={b.cover_image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span aria-hidden="true">{b.name.trim().charAt(0).toUpperCase()}</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-[15px] truncate">{b.name}</p>
-                  <p className="text-[10.5px] text-gray-400 font-mono mt-0.5 truncate">/{b.slug}</p>
+                  <p className="m-0 font-display text-[19px] font-semibold tracking-[-0.02em] text-gray-900 truncate">{b.name}</p>
+                  <p className="m-0 text-xs text-gray-600 mt-0.5 truncate">
+                    {hasFloorStep ? `${b.floors_loaded} pisos · ` : ''}{b.units_count} {b.units_count === 1 ? unitLabelLower : pluralize(unitLabelLower)}
+                  </p>
                 </div>
-                <span className={`shrink-0 h-[22px] px-2.5 flex items-center rounded-md text-[10px] font-medium ${
-                  complete ? 'bg-gray-900 text-white' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                <span className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                  complete ? 'bg-brand-100 text-brand-800' : 'bg-amber-100 text-amber-800'
                 }`}>
-                  {complete ? 'Listo para publicar' : 'Falta cargar'}
+                  {complete ? 'Completo' : 'Falta cargar'}
                 </span>
               </div>
 
-              <div className="px-4 pb-3.5 flex flex-col gap-2">
+              <div className="px-[18px] pb-4 flex flex-col gap-1">
                 {hasFloorStep && (
                   <BuildingCheck
                     ok={planReady}
@@ -240,39 +254,39 @@ export default function AdminBuildingsPage() {
                 )}
               </div>
 
-              <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/60 flex items-center gap-2">
+              <div className="mt-auto px-[18px] py-3 border-t border-gray-200 flex items-center gap-1">
                 <Link
                   href={`/admin/edificios/${b.id}`}
-                  className="h-8 px-3 flex items-center bg-gray-900 text-white rounded-lg text-[11.5px] font-medium hover:bg-gray-800 transition-colors"
+                  className="min-h-[40px] px-3.5 flex items-center bg-gray-900 text-white rounded-[10px] text-[13px] font-semibold hover:bg-black transition-colors"
                 >
                   {hasFloorStep ? 'Gestionar pisos →' : hasUnitStep ? `${pluralize(unitLabel)} →` : 'Editar →'}
                 </Link>
                 <div className="flex-1" />
                 <button
                   type="button" onClick={() => handleDuplicate(b)} disabled={isBusy}
-                  className="h-8 px-2.5 rounded-lg text-[11.5px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors disabled:opacity-50"
+                  className="min-h-[40px] px-3 rounded-[10px] text-[13px] font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors disabled:opacity-50"
                 >
                   {isDuplicating ? 'Duplicando...' : 'Duplicar'}
                 </button>
                 <button
                   type="button" onClick={() => handleDelete(b)} disabled={isBusy}
-                  className="h-8 px-2.5 rounded-lg text-[11.5px] font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+                  className="min-h-[40px] px-3 rounded-[10px] text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50"
                 >
                   {isDeleting ? 'Borrando...' : 'Borrar'}
                 </button>
               </div>
-            </Card>
+            </div>
           );
         })}
 
         {!(typeConfig.singleBuilding && buildings.length > 0) && (
           <button
             type="button" onClick={() => setNewOpen(true)}
-            className="min-h-[170px] border-[1.5px] border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center gap-2 bg-white/50 hover:bg-white hover:border-brand-500 transition-colors"
+            className="min-h-[190px] border-[1.5px] border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center gap-2 px-4 hover:bg-white/60 hover:border-gray-400 transition-colors"
           >
-            <span className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg">+</span>
-            <span className="text-sm font-medium text-gray-900">Nuevo {buildingLabelLower}</span>
-            <span className="text-[11px] text-gray-500 text-center max-w-[220px] leading-relaxed">
+            <span className="text-xl leading-none text-gray-700" aria-hidden="true">+</span>
+            <span className="text-sm font-semibold text-gray-900">Nuevo {buildingLabelLower}</span>
+            <span className="text-xs text-gray-600 text-center max-w-[220px] leading-relaxed">
               {hasFloorStep ? 'Nombre y cuántos pisos tiene. Los pisos se crean vacíos y los cargás después.' : `Nombre ${agree.del} ${buildingLabelLower}. El resto se carga después.`}
             </span>
           </button>
@@ -280,11 +294,11 @@ export default function AdminBuildingsPage() {
       </div>
 
       {buildings.length === 0 && (
-        <p className="text-sm text-gray-400">Todavía no hay {pluralize(buildingLabel.toLowerCase())}.</p>
+        <p className="m-0 text-sm text-gray-600">Todavía no hay {pluralize(buildingLabel.toLowerCase())}.</p>
       )}
 
       {typeConfig.singleBuilding && buildings.length > 0 && (
-        <p className="text-sm text-gray-400">
+        <p className="m-0 text-sm text-gray-600">
           {typeConfig.unitIsLand
             ? 'Este loteo ya tiene su etapa. Para desarrollos con varias etapas, escribinos.'
             : `Este proyecto ya tiene ${agree.esta} ${buildingLabelLower} — no admite más de una.`}
@@ -292,24 +306,24 @@ export default function AdminBuildingsPage() {
       )}
 
       {newOpen && (
-        <Card>
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-gray-900">Nuevo {buildingLabelLower}</h3>
-            <div className="flex items-center gap-3">
-              <Link href="/admin/wizard" className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap">
-                🪄 Usar el asistente →
+        <div className="rounded-2xl border border-gray-200 bg-white">
+          <div className="px-5 sm:px-6 pt-5 flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="m-0 font-display text-xl font-semibold tracking-[-0.02em] text-gray-900">Nuevo {buildingLabelLower}</h2>
+            <div className="flex items-center gap-1">
+              <Link href="/admin/wizard" className="min-h-[40px] flex items-center px-2 text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap">
+                Usar el asistente →
               </Link>
-              <button type="button" onClick={() => setNewOpen(false)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-700">✕</button>
+              <button type="button" onClick={() => setNewOpen(false)} aria-label="Cerrar" className="w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900">✕</button>
             </div>
-          </CardHeader>
-          <p className="px-6 pt-4 text-xs text-gray-500">
+          </div>
+          <p className="m-0 px-5 sm:px-6 pt-2 text-[13px] text-gray-600">
             {hasFloorStep
               ? 'Este formulario solo crea el edificio. Para cargar pisos, unidades, delimitación y tour de una — paso a paso — usá el asistente.'
               : hasUnitStep
               ? `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el plano, ${pluralize(unitLabelLower)}, delimitación y tour de una — paso a paso — usá el asistente.`
               : `Este formulario solo crea ${agree.el} ${buildingLabelLower}. Para cargar el resto de los datos, fotos, ambientes y tour — paso a paso — usá el asistente.`}
           </p>
-          <form onSubmit={handleCreate} className="p-6 space-y-3">
+          <form onSubmit={handleCreate} className="p-5 sm:p-6 space-y-3">
             <div className="flex flex-col sm:flex-row gap-3 items-end">
               <div className="flex-1 w-full">
                 <Input
@@ -344,8 +358,8 @@ export default function AdminBuildingsPage() {
               />
             )}
           </form>
-          {error && <p className="px-6 pb-4 text-sm text-red-500">{error}</p>}
-        </Card>
+          {error && <p role="alert" className="m-0 px-5 sm:px-6 pb-4 text-sm text-red-700">{error}</p>}
+        </div>
       )}
     </div>
   );
@@ -353,12 +367,12 @@ export default function AdminBuildingsPage() {
 
 function BuildingCheck({ ok, label, action, href }: { ok: boolean; label: string; action: string; href: string }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <span className={`w-4 h-4 shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${ok ? 'bg-brand-500' : 'border border-gray-300'}`}>
+    <div className="flex items-center gap-2.5 min-h-[34px]">
+      <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${ok ? 'bg-brand-100 text-brand-800' : 'border-[1.5px] border-dashed border-gray-300'}`} aria-hidden="true">
         {ok ? '✓' : ''}
       </span>
-      <span className="flex-1 min-w-0 text-[11.5px] text-gray-700 truncate">{label}</span>
-      <Link href={href} className={`shrink-0 text-[11px] font-medium ${ok ? 'text-gray-400 hover:text-gray-600' : 'text-brand-600 hover:text-brand-700'}`}>
+      <span className="flex-1 min-w-0 text-[13px] text-gray-700 truncate">{label}</span>
+      <Link href={href} className={`shrink-0 min-h-[32px] flex items-center text-xs ${ok ? 'text-gray-600 hover:text-gray-900' : 'font-semibold text-gray-900 underline underline-offset-2'}`}>
         {action}
       </Link>
     </div>

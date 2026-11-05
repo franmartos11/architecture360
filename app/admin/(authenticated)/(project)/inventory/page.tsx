@@ -11,7 +11,8 @@ import type { UnitRow as DbUnitRow } from '@/types/database';
 import type { UnitStatus, UnitType } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement, buildingAgreement } from '@/lib/project-types';
-import { poppins, ACCENT, STATUS_STYLE, money, CHIP_CLASS, chipStyle } from '@/lib/panel-comercial-style';
+import { STATUS_STYLE, money } from '@/lib/panel-comercial-style';
+import { PageHeader, btnSecondary } from '@/components/admin/panel-ui';
 
 // building_name/floor_number no son columnas reales de `units` — las agrega
 // /api/admin/units enriqueciendo cada fila para el listado global.
@@ -19,8 +20,6 @@ type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'model_name' | 'type' | 'total_ar
   building_name: string | null;
   floor_number: number | null;
 };
-
-const DARK_BG = '#101828';
 
 export default function AdminInventory() {
   const [units, setUnits] = useState<UnitRow[]>([]);
@@ -197,259 +196,308 @@ export default function AdminInventory() {
   if (loading) return <LoadingSpinner text={`Cargando ${hasFloorStep ? 'inventario' : `${pluralize(unitLabelLower)}`}...`} tone="light" />;
   if (error) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el inventario' : `${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}`}.`} onRetry={fetchUnits} />;
 
+  const counts = {
+    available: units.filter(u => u.status === 'available').length,
+    reserved: units.filter(u => u.status === 'reserved').length,
+    sold: units.filter(u => u.status === 'sold').length,
+  };
+  const floorsCount = new Set(units.map(u => `${u.building_name}|${u.floor_number}`)).size;
+  const title = hasFloorStep ? 'Inventario' : `${pluralize(unitLabel)}`;
+
+  // Tipologías = model_name (lo que arma la carga guiada: "Tipología A").
+  const typologies = Array.from(
+    units.reduce((m, u) => {
+      if (!u.model_name) return m;
+      const t = m.get(u.model_name) ?? { name: u.model_name, type: u.type, area: u.total_area, count: 0 };
+      t.count += 1;
+      m.set(u.model_name, t);
+      return m;
+    }, new Map<string, { name: string; type: string; area: number | null; count: number }>()).values()
+  ).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+  // Corte del edificio elegido (o del único): un piso por fila, una celda por unidad, color por estado.
+  const corteBuilding = buildingFilter !== 'all' ? buildingFilter : (buildingNames.length === 1 ? buildingNames[0] : null);
+  const corteFloors = hasFloorStep && corteBuilding
+    ? Array.from(units.filter(u => u.building_name === corteBuilding).reduce((m, u) => {
+        const key = u.floor_number ?? 0;
+        m.set(key, [...(m.get(key) ?? []), u].sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true })));
+        return m;
+      }, new Map<number, UnitRow[]>()).entries()).sort((a, b) => b[0] - a[0])
+    : [];
+
+  const statusPill: Record<UnitStatus, string> = {
+    available: 'bg-brand-50 text-brand-800 border-brand-200',
+    reserved: 'bg-amber-100 text-amber-800 border-amber-200',
+    sold: 'bg-gray-900 text-white border-gray-900',
+  };
+  const th = 'px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 whitespace-nowrap';
+  const darkBtn = 'min-h-[36px] px-3 rounded-lg border border-[#3A3B38] text-[13px] font-semibold text-white hover:border-gray-500';
+
   return (
-    <div className={`${poppins.className} flex flex-col gap-3.5`}>
-      <div>
-        <div className="text-[22px] font-semibold leading-tight text-[#101828]">{hasFloorStep ? 'Inventario' : `${pluralize(unitLabel)}`}</div>
-        <p className="text-xs leading-relaxed mt-[5px]" style={{ color: 'rgba(16,24,40,.55)' }}>
-          {hasFloorStep
-            ? 'Estados y precios de las unidades. Para cargar deptos nuevos o editar sus specs, entrá por Edificios → el piso correspondiente.'
-            : hasUnitStep
-            ? `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}. Para cargar ${pluralize(unitLabelLower)} ${uAgree.nuevo}s, entrá por ${pluralize(buildingLabel)} → la delimitación.`
-            : `Actualizá estados y precios rápido, en lote. Para cargar el resto de los datos de ${bAgree.un} ${buildingLabelLower} ${bAgree.nuevo}, entrá por ${pluralize(buildingLabel)}.`}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por código o modelo..."
-          className="flex-1 min-w-[200px] h-9 px-3 rounded-[9px] text-[12.5px] outline-none transition-all"
-          style={{ border: '1px solid rgba(16,24,40,.14)', background: '#fff', color: '#101828' }}
-        />
-        {buildingNames.length > 1 && (
-          <div className="relative">
-            <select
-              value={buildingFilter}
-              onChange={e => setBuildingFilter(e.target.value)}
-              className={`${CHIP_CLASS} appearance-none pr-7`}
-              style={chipStyle(buildingFilter !== 'all')}
-            >
-              <option value="all">{hasFloorStep ? 'Todos los edificios' : `Todas las ${pluralize(buildingLabelLower)}`}</option>
-              {buildingNames.map(name => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px]" style={{ color: 'rgba(16,24,40,.4)' }}>▾</span>
-          </div>
-        )}
-        {typeConfig.showStatus && (
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as UnitStatus | 'all')}
-              className={`${CHIP_CLASS} appearance-none pr-7`}
-              style={chipStyle(statusFilter !== 'all')}
-            >
-              <option value="all">Cualquier estado</option>
-              <option value="available">Disponible</option>
-              <option value="reserved">Reservado</option>
-              <option value="sold">Vendido</option>
-            </select>
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px]" style={{ color: 'rgba(16,24,40,.4)' }}>▾</span>
-          </div>
-        )}
-        {typesPresent.length > 1 && (
-          <div className="relative">
-            <select
-              value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value as UnitType | 'all')}
-              className={`${CHIP_CLASS} appearance-none pr-7`}
-              style={chipStyle(typeFilter !== 'all')}
-            >
-              <option value="all">Cualquier tipología</option>
-              {typesPresent.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px]" style={{ color: 'rgba(16,24,40,.4)' }}>▾</span>
-          </div>
-        )}
-        <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'rgba(16,24,40,.45)' }}>{filteredUnits.length} de {units.length}</span>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          disabled={filteredUnits.length === 0}
-          className="h-9 px-[13px] flex items-center rounded-[9px] text-[11.5px] font-medium transition-colors disabled:opacity-40"
-          style={{ border: '1px solid rgba(16,24,40,.14)', background: '#fff', color: '#101828' }}
-        >
-          Exportar CSV
-        </button>
-      </div>
-
-      {selectedIds.size > 0 && (
-        <div className="rounded-[11px] p-[11px_14px] flex flex-wrap items-center gap-2.5" style={{ background: DARK_BG }}>
-          <span className="text-[11.5px] font-medium text-white whitespace-nowrap">{selectedIds.size} seleccionada{selectedIds.size === 1 ? '' : 's'}</span>
-
-          {typeConfig.showStatus && (
-            <div className="flex items-center gap-2">
-              <div
-                onClick={() => setBulkStatus(s => s === 'available' ? 'reserved' : s === 'reserved' ? 'sold' : 'available')}
-                className="h-[30px] px-[11px] flex items-center rounded-[7px] text-[11px] font-medium text-white cursor-pointer"
-                style={{ border: '1px solid rgba(255,255,255,.22)' }}
-              >
-                Estado: {STATUS_STYLE[bulkStatus].label} ▾
-              </div>
-              <button type="button" disabled={bulkWorking} onClick={handleBulkStatus} className="h-[30px] px-[11px] flex items-center rounded-[7px] text-[11px] font-medium bg-white text-[#101828] disabled:opacity-50">
-                Aplicar estado
-              </button>
-            </div>
-          )}
-
-          {typeConfig.showPrice && (
-            <div className="flex items-center gap-1.5">
-              <div className="w-px h-[22px]" style={{ background: 'rgba(255,255,255,.18)' }} />
-              <div
-                onClick={() => setBulkPriceSign(s => s === 'increase' ? 'decrease' : 'increase')}
-                className="h-[30px] px-[11px] flex items-center rounded-[7px] text-[11px] font-medium text-white cursor-pointer"
-                style={{ border: '1px solid rgba(255,255,255,.22)' }}
-              >
-                {bulkPriceSign === 'increase' ? 'Subir' : 'Bajar'}
-              </div>
-              <input
-                type="number" min={0} value={bulkPriceAmount} onChange={e => setBulkPriceAmount(e.target.value)}
-                placeholder="Monto"
-                className="w-[82px] h-[30px] px-2.5 rounded-[7px] text-[11.5px] text-white outline-none placeholder:text-white/50"
-                style={{ background: 'rgba(255,255,255,.12)', border: 0 }}
-              />
-              <div
-                onClick={() => setBulkPriceMode(m => m === 'pct' ? 'fixed' : 'pct')}
-                className="h-[30px] px-[11px] flex items-center rounded-[7px] text-[11px] font-medium text-white cursor-pointer whitespace-nowrap"
-                style={{ border: '1px solid rgba(255,255,255,.22)' }}
-              >
-                {bulkPriceMode === 'pct' ? '%' : 'Monto fijo'}
-              </div>
-              <button type="button" disabled={bulkWorking} onClick={handleBulkPrice} className="h-[30px] px-[11px] flex items-center rounded-[7px] text-[11px] font-medium bg-white text-[#101828] disabled:opacity-50 whitespace-nowrap">
-                Aplicar precio
-              </button>
-            </div>
-          )}
-
-          <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-[11px]" style={{ color: 'rgba(255,255,255,.6)' }}>
-            Deseleccionar todo
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Estructura e inventario"
+        title={title}
+        description={
+          <>
+            {buildingNames.length > 1 && `${buildingNames.length} ${pluralize(buildingLabelLower)} · `}
+            {hasFloorStep && floorsCount > 0 && `${floorsCount} pisos · `}
+            {units.length} {units.length === 1 ? unitLabelLower : pluralize(unitLabelLower)}
+            {typeConfig.showStatus && units.length > 0 && <> — <b className="font-semibold text-gray-900">{counts.available} disponibles</b>, {counts.reserved} reservadas, {counts.sold} vendidas</>}
+          </>
+        }
+        actions={
+          <button type="button" onClick={handleExportCsv} disabled={filteredUnits.length === 0} className={btnSecondary}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
+            Exportar CSV
           </button>
-        </div>
+        }
+      />
+
+      <p className="m-0 -mt-3 text-[13px] text-gray-600 max-w-[720px]">
+        {hasFloorStep
+          ? 'Estados y precios de las unidades. Para cargar unidades nuevas o editar sus datos, entrá por Edificios → el piso correspondiente.'
+          : hasUnitStep
+          ? `Actualizá estados y precios de ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}. Para cargar ${pluralize(unitLabelLower)} ${uAgree.nuevo}s, entrá por ${pluralize(buildingLabel)} → la delimitación.`
+          : `Actualizá estados y precios rápido, en lote. Para cargar el resto de los datos de ${bAgree.un} ${buildingLabelLower} ${bAgree.nuevo}, entrá por ${pluralize(buildingLabel)}.`}
+      </p>
+
+      {typologies.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="m-0 text-[15px] font-semibold text-gray-900">Tipologías <span className="font-normal text-gray-600">— tocá una para filtrar la tabla</span></h2>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(188px, 100%), 1fr))' }}>
+            {typologies.map(t => {
+              const on = typeFilter === t.type && search === t.name;
+              const letter = t.name.replace(/^Tipolog[ií]a\s*/i, '').charAt(0).toUpperCase() || '·';
+              return (
+                <button key={t.name} type="button" aria-pressed={on}
+                  onClick={() => { if (on) { setSearch(''); setTypeFilter('all'); } else { setSearch(t.name); setTypeFilter('all'); } }}
+                  className={`text-left flex flex-col gap-2 p-3.5 rounded-[14px] bg-white transition-colors ${on ? 'border-[1.5px] border-gray-900' : 'border border-gray-200 hover:border-gray-300'}`}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-gray-900 text-white text-sm font-semibold flex items-center justify-center">{letter}</span>
+                    <span className="text-xs text-gray-600">{t.count} {t.count === 1 ? unitLabelLower : pluralize(unitLabelLower)}</span>
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-900 truncate">{t.type || t.name}</span>
+                    {t.area ? <span className="font-display text-[22px] leading-tight font-semibold text-gray-900">{t.area} m²</span> : <span className="text-xs text-gray-500">Sin superficie</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid rgba(16,24,40,.09)' }}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse" style={{ minWidth: 900 }}>
-            <thead>
-              <tr style={{ background: '#fbfcfd', borderBottom: '1px solid rgba(16,24,40,.08)' }}>
-                <th className="px-4 py-3 w-[30px]">
-                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="rounded" style={{ accentColor: ACCENT }} aria-label="Seleccionar todas" />
-                </th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>{hasFloorStep ? 'Unidad' : unitLabel}</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase w-[150px]" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>{hasFloorStep ? 'Edificio / Piso' : buildingLabel}</th>
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase w-[168px]" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>Tipología</th>
-                {typeConfig.showStatus && <th className="px-4 py-3 text-[10px] font-semibold uppercase w-[132px]" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>Estado</th>}
-                {typeConfig.showPrice && <th className="px-4 py-3 text-[10px] font-semibold uppercase w-[168px]" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>Precio</th>}
-                {typeConfig.showPrice && <th className="px-4 py-3 text-[10px] font-semibold uppercase w-24 text-right" style={{ color: 'rgba(16,24,40,.5)', letterSpacing: '.06em' }}>{currency}/m²</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUnits.map(unit => {
-                const status = STATUS_STYLE[unit.status];
-                return (
-                <tr key={unit.id} style={{ borderBottom: '1px solid rgba(16,24,40,.06)', background: selectedIds.has(unit.id) ? '#f4f7f3' : '#fff' }}>
-                  <td className="px-4 py-3">
-                    <input type="checkbox" checked={selectedIds.has(unit.id)} onChange={() => toggleSelected(unit.id)} className="rounded" style={{ accentColor: ACCENT }} aria-label={`Seleccionar ${unit.code}`} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-[12.5px] font-semibold text-[#101828]">{unit.code}</div>
-                    <div className="text-[10.5px] mt-0.5" style={{ color: 'rgba(16,24,40,.45)' }}>{unit.total_area ?? '—'} m² total</div>
-                  </td>
-                  <td className="px-4 py-3 text-[11.5px]" style={{ color: 'rgba(16,24,40,.62)' }}>
-                    <span>{unit.building_name ?? '—'}</span>
-                    {hasFloorStep && <>{'  ·  Planta '}{unit.floor_number ?? '—'}</>}
-                  </td>
-                  <td className="px-4 py-3 text-[11px] uppercase" style={{ color: 'rgba(16,24,40,.62)', letterSpacing: '.04em' }}>
-                    {unit.model_name}
-                  </td>
-                  {typeConfig.showStatus && (
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        <select
-                          value={unit.status}
-                          disabled={savingId === unit.id}
-                          onChange={(e) => handleUpdateUnit(unit.id, { status: e.target.value as 'available' | 'reserved' | 'sold' })}
-                          className="w-full h-[33px] pl-[11px] pr-6 rounded-lg text-[11.5px] font-medium outline-none appearance-none cursor-pointer disabled:opacity-50"
-                          style={{ color: status.color, background: status.bg, border: `1px solid ${status.border}` }}
-                        >
-                          <option value="available">Disponible</option>
-                          <option value="reserved">Reservado</option>
-                          <option value="sold">Vendido</option>
-                        </select>
-                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] opacity-50">▾</span>
-                      </div>
-                    </td>
-                  )}
-                  {typeConfig.showPrice && (
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        <span className="absolute left-[11px] top-1/2 -translate-y-1/2 text-[11.5px] font-medium" style={{ color: 'rgba(16,24,40,.4)' }}>$</span>
-                        <input
-                          type="number"
-                          defaultValue={unit.price ?? ''}
-                          placeholder="Consultar"
-                          disabled={savingId === unit.id}
-                          onBlur={(e) => {
-                            // Vacío = null ("Consultar"); un 0 tipeado a propósito se guarda como 0;
-                            // texto inválido no pisa el precio existente (restaura el campo).
-                            const change = priceChangeFromInput(e.target, unit.price);
-                            if (change) handleUpdateUnit(unit.id, change);
-                          }}
-                          className="w-full h-[33px] pl-6 pr-[42px] rounded-lg text-[12px] font-medium outline-none transition-all"
-                          style={{ border: '1px solid rgba(16,24,40,.13)', background: '#fff', color: '#101828' }}
-                        />
-                        <span className="absolute right-[11px] top-1/2 -translate-y-1/2 text-[9.5px] font-medium" style={{ color: 'rgba(16,24,40,.38)' }}>{unit.currency || 'USD'}</span>
-                      </div>
-                    </td>
-                  )}
-                  {typeConfig.showPrice && (
-                    <td className="px-4 py-3 text-[11.5px] text-right" style={{ color: unit.price && unit.total_area ? 'rgba(16,24,40,.55)' : '#a06a12' }}>
-                      {unit.price && unit.total_area ? money(unit.price / unit.total_area) : '—'}
-                    </td>
-                  )}
-                </tr>
-              );})}
-              {filteredUnits.length === 0 && (
-                <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-[12px]" style={{ color: 'rgba(16,24,40,.4)' }}>
-                  {units.length === 0
-                    ? (hasFloorStep ? 'Todavía no hay unidades cargadas.' : `Todavía no hay ${pluralize(unitLabelLower)} ${uAgree.cargado}s.`)
-                    : (hasFloorStep ? 'Ninguna unidad coincide con el filtro.' : `${uAgree.ningun === 'ninguna' ? 'Ninguna' : 'Ningún'} ${unitLabelLower} coincide con el filtro.`)}
-                </td></tr>
-              )}
-            </tbody>
-            {filteredUnits.length > 0 && (
-              <tfoot>
-                <tr style={{ background: '#fbfcfd', borderTop: '1px solid rgba(16,24,40,.08)' }}>
-                  <td className="px-4 py-3" />
-                  <td className="px-4 py-3 text-[11.5px] font-medium" style={{ color: 'rgba(16,24,40,.6)' }}>{filteredUnits.length} {hasFloorStep ? 'unidades' : `${pluralize(unitLabelLower)}`} filtrada{filteredUnits.length === 1 ? '' : 's'}</td>
-                  <td colSpan={typeConfig.showStatus ? 2 : 1} className="px-4 py-3 text-[11.5px]" style={{ color: 'rgba(16,24,40,.5)' }}>
-                    {typeConfig.showStatus && (
-                      <>
-                        {filteredUnits.filter(u => u.status === 'available').length} disponibles · {filteredUnits.filter(u => u.status === 'reserved').length} reservadas · {filteredUnits.filter(u => u.status === 'sold').length} vendidas
-                      </>
-                    )}
-                  </td>
-                  {typeConfig.showPrice && (
-                    <>
-                      <td className="px-4 py-3 text-[13px] font-semibold text-[#101828]">
-                        {money(filteredUnits.reduce((s, u) => s + (u.price || 0), 0))}
-                      </td>
-                      <td className="px-4 py-3 text-[11.5px] text-right" style={{ color: 'rgba(16,24,40,.5)' }}>
-                        {(() => {
-                          const totalArea = filteredUnits.reduce((s, u) => s + (u.total_area || 0), 0);
-                          const totalVal = filteredUnits.reduce((s, u) => s + (u.price || 0), 0);
-                          return totalArea ? `${money(totalVal / totalArea)}/m²` : '—';
-                        })()}
-                      </td>
-                    </>
-                  )}
-                </tr>
-              </tfoot>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-end gap-x-4 gap-y-3 flex-wrap border-b border-gray-200">
+          {buildingNames.length > 1 && (
+            <div role="tablist" aria-label={pluralize(buildingLabel)} className="flex gap-1 overflow-x-auto -mb-px">
+              {[{ value: 'all', label: hasFloorStep ? 'Todos' : 'Todas', count: units.length }, ...buildingNames.map(n => ({ value: n, label: n, count: units.filter(u => u.building_name === n).length }))].map(tab => (
+                <button key={tab.value} type="button" role="tab" aria-selected={buildingFilter === tab.value} onClick={() => setBuildingFilter(tab.value)}
+                  className={`min-h-[44px] px-3.5 text-sm whitespace-nowrap border-b-2 ${buildingFilter === tab.value ? 'border-gray-900 font-semibold text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-900'}`}>
+                  {tab.label} <span className="text-gray-500 font-normal">{tab.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1" />
+          <div className="flex items-center gap-2 flex-wrap pb-2.5 w-full sm:w-auto">
+            <label className="flex-1 sm:flex-none flex items-center gap-2 min-h-[40px] px-3 rounded-[10px] border border-gray-200 bg-white sm:w-[220px] focus-within:border-brand-700">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6A65" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Código o tipología" aria-label="Buscar por código o tipología"
+                className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-900 outline-none placeholder:text-gray-500" />
+            </label>
+            {typeConfig.showStatus && (
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as UnitStatus | 'all')} aria-label="Filtrar por estado"
+                className="min-h-[40px] px-3 rounded-[10px] border border-gray-200 bg-white text-[13px] text-gray-900">
+                <option value="all">Cualquier estado</option>
+                <option value="available">Disponible</option>
+                <option value="reserved">Reservado</option>
+                <option value="sold">Vendido</option>
+              </select>
             )}
-          </table>
+            {typesPresent.length > 1 && (
+              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value as UnitType | 'all')} aria-label="Filtrar por tipo"
+                className="min-h-[40px] px-3 rounded-[10px] border border-gray-200 bg-white text-[13px] text-gray-900">
+                <option value="all">Cualquier tipo</option>
+                {typesPresent.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-5 flex-wrap items-start">
+          {corteFloors.length > 0 && (
+            <section aria-label={`Corte de ${corteBuilding}`} className="flex-[1_1_220px] md:max-w-[240px] min-w-0 rounded-2xl border border-gray-200 bg-white p-4 flex flex-col gap-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-600 truncate">Corte · {corteBuilding}</span>
+              <div className="flex flex-col gap-1">
+                {corteFloors.map(([floor, list]) => (
+                  <div key={floor} className="flex items-center gap-1.5">
+                    <span className="w-6 text-right text-[11px] text-gray-500 shrink-0">{floor === 0 ? 'PB' : floor}</span>
+                    <div className="flex-1 flex gap-1">
+                      {list.map(u => (
+                        <button key={u.id} type="button" title={`${u.code} · ${STATUS_STYLE[u.status].label}`} aria-label={`${u.code}: ${STATUS_STYLE[u.status].label}`}
+                          onClick={() => setSearch(u.code)}
+                          className="flex-1 h-5 rounded-[4px] min-w-[10px]" style={{ background: CORTE_COLOR[u.status] }} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="h-1.5 rounded-sm bg-[#D6D1C7] ml-[30px]" aria-hidden="true" />
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-700">
+                {(['available', 'reserved', 'sold'] as UnitStatus[]).map(st => (
+                  <span key={st} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: CORTE_COLOR[st] }} />{STATUS_STYLE[st].label}</span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="flex-[999_1_480px] min-w-0 rounded-2xl border border-gray-200 bg-white overflow-hidden">
+            {selectedIds.size > 0 && (
+              <div className="bg-gray-900 px-4 py-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-white whitespace-nowrap mr-1">{selectedIds.size} seleccionada{selectedIds.size === 1 ? '' : 's'}</span>
+                {typeConfig.showStatus && (
+                  <span className="flex items-center gap-1.5">
+                    <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as UnitStatus)} aria-label="Estado a aplicar"
+                      className="min-h-[36px] px-2.5 rounded-lg bg-transparent border border-[#3A3B38] text-[13px] text-white [&>option]:text-gray-900">
+                      <option value="available">Disponible</option>
+                      <option value="reserved">Reservado</option>
+                      <option value="sold">Vendido</option>
+                    </select>
+                    <button type="button" disabled={bulkWorking} onClick={handleBulkStatus} className={`${darkBtn} disabled:opacity-50`}>Cambiar estado</button>
+                  </span>
+                )}
+                {typeConfig.showPrice && (
+                  <span className="flex items-center gap-1.5 flex-wrap">
+                    <select value={bulkPriceSign} onChange={e => setBulkPriceSign(e.target.value as 'increase' | 'decrease')} aria-label="Subir o bajar"
+                      className="min-h-[36px] px-2.5 rounded-lg bg-transparent border border-[#3A3B38] text-[13px] text-white [&>option]:text-gray-900">
+                      <option value="increase">Subir</option>
+                      <option value="decrease">Bajar</option>
+                    </select>
+                    <input type="number" min={0} value={bulkPriceAmount} onChange={e => setBulkPriceAmount(e.target.value)} placeholder="Monto" aria-label="Monto del ajuste"
+                      className="w-[84px] min-h-[36px] px-2.5 rounded-lg bg-white/10 text-[13px] text-white outline-none placeholder:text-white/50" />
+                    <select value={bulkPriceMode} onChange={e => setBulkPriceMode(e.target.value as 'pct' | 'fixed')} aria-label="Porcentaje o monto fijo"
+                      className="min-h-[36px] px-2.5 rounded-lg bg-transparent border border-[#3A3B38] text-[13px] text-white [&>option]:text-gray-900">
+                      <option value="pct">%</option>
+                      <option value="fixed">Monto fijo</option>
+                    </select>
+                    <button type="button" disabled={bulkWorking} onClick={handleBulkPrice} className={`${darkBtn} disabled:opacity-50`}>Ajustar precio</button>
+                  </span>
+                )}
+                <button type="button" onClick={() => setSelectedIds(new Set())} aria-label="Deseleccionar todo"
+                  className="ml-auto w-9 h-9 rounded-lg text-white/70 hover:text-white flex items-center justify-center">✕</button>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-4 py-3 w-[44px]">
+                      <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="w-4 h-4 accent-[#37463F]" aria-label="Seleccionar todas" />
+                    </th>
+                    <th className={th}>{hasFloorStep ? 'Unidad' : unitLabel}</th>
+                    <th className={th}>{hasFloorStep ? 'Edificio · Piso' : buildingLabel}</th>
+                    <th className={th}>Tipología</th>
+                    {typeConfig.showStatus && <th className={`${th} w-[156px]`}>Estado</th>}
+                    {typeConfig.showPrice && <th className={`${th} w-[150px]`}>Precio</th>}
+                    {typeConfig.showPrice && <th className={`${th} w-24 text-right`}>{currency}/m²</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUnits.map(unit => (
+                    <tr key={unit.id} className={`border-b border-gray-100 ${selectedIds.has(unit.id) ? 'bg-brand-50' : 'bg-white'}`}>
+                      <td className="px-4 py-2.5">
+                        <input type="checkbox" checked={selectedIds.has(unit.id)} onChange={() => toggleSelected(unit.id)} className="w-4 h-4 accent-[#37463F]" aria-label={`Seleccionar ${unit.code}`} />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="text-sm font-semibold text-gray-900 whitespace-nowrap">{unit.code}</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">{unit.total_area ?? '—'} m² total</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-[13px] text-gray-700 whitespace-nowrap">
+                        {unit.building_name ?? '—'}{hasFloorStep && <> · {unit.floor_number === 0 ? 'PB' : `Piso ${unit.floor_number ?? '—'}`}</>}
+                      </td>
+                      <td className="px-4 py-2.5 text-[13px] text-gray-700 whitespace-nowrap">{unit.model_name ?? <span className="text-gray-400">—</span>}</td>
+                      {typeConfig.showStatus && (
+                        <td className="px-4 py-2.5">
+                          <select
+                            value={unit.status}
+                            disabled={savingId === unit.id}
+                            aria-label={`Estado de ${unit.code}`}
+                            onChange={(e) => handleUpdateUnit(unit.id, { status: e.target.value as UnitStatus })}
+                            className={`w-full min-w-[128px] min-h-[36px] pl-3 pr-1.5 rounded-full border text-xs font-semibold outline-none cursor-pointer disabled:opacity-50 ${statusPill[unit.status]}`}
+                          >
+                            <option value="available">Disponible</option>
+                            <option value="reserved">Reservado</option>
+                            <option value="sold">Vendido</option>
+                          </select>
+                        </td>
+                      )}
+                      {typeConfig.showPrice && (
+                        <td className="px-4 py-2.5">
+                          <span className="flex items-center min-h-[36px] rounded-lg border border-gray-300 bg-white focus-within:border-brand-700 overflow-hidden">
+                            <span className="pl-2.5 text-[11px] font-semibold text-gray-600">{unit.currency || 'USD'}</span>
+                            <input
+                              type="number"
+                              defaultValue={unit.price ?? ''}
+                              placeholder="Consultar"
+                              disabled={savingId === unit.id}
+                              aria-label={`Precio de ${unit.code}`}
+                              onBlur={(e) => {
+                                // Vacío = null ("Consultar"); un 0 tipeado a propósito se guarda como 0;
+                                // texto inválido no pisa el precio existente (restaura el campo).
+                                const change = priceChangeFromInput(e.target, unit.price);
+                                if (change) handleUpdateUnit(unit.id, change);
+                              }}
+                              className="flex-1 min-w-0 h-[34px] px-2 text-[13px] font-medium text-gray-900 outline-none bg-transparent placeholder:text-gray-400"
+                            />
+                          </span>
+                        </td>
+                      )}
+                      {typeConfig.showPrice && (
+                        <td className={`px-4 py-2.5 text-xs text-right ${unit.price && unit.total_area ? 'text-gray-600' : 'text-amber-800'}`}>
+                          {unit.price && unit.total_area ? money(unit.price / unit.total_area) : '—'}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {filteredUnits.length === 0 && (
+                    <tr><td colSpan={columnCount} className="px-6 py-10 text-center text-[13px] text-gray-500">
+                      {units.length === 0
+                        ? (hasFloorStep ? 'Todavía no hay unidades cargadas.' : `Todavía no hay ${pluralize(unitLabelLower)} ${uAgree.cargado}s.`)
+                        : (hasFloorStep ? 'Ninguna unidad coincide con el filtro.' : `${uAgree.ningun === 'ninguna' ? 'Ninguna' : 'Ningún'} ${unitLabelLower} coincide con el filtro.`)}
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {filteredUnits.length > 0 && (
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center gap-x-6 gap-y-1 flex-wrap text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">{filteredUnits.length} {hasFloorStep ? 'unidades' : `${pluralize(unitLabelLower)}`} en la vista</span>
+                {typeConfig.showStatus && (
+                  <span>
+                    {filteredUnits.filter(u => u.status === 'available').length} disponibles · {filteredUnits.filter(u => u.status === 'reserved').length} reservadas · {filteredUnits.filter(u => u.status === 'sold').length} vendidas
+                  </span>
+                )}
+                {typeConfig.showPrice && (
+                  <span className="sm:ml-auto">
+                    <b className="font-semibold text-gray-900">{money(filteredUnits.reduce((sum, u) => sum + (u.price || 0), 0))}</b>
+                    {(() => {
+                      const totalArea = filteredUnits.reduce((sum, u) => sum + (u.total_area || 0), 0);
+                      const totalVal = filteredUnits.reduce((sum, u) => sum + (u.price || 0), 0);
+                      return totalArea ? ` · ${money(totalVal / totalArea)}/m²` : '';
+                    })()}
+                  </span>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>
   );
 }
+
+// Colores del corte (diseño): disponible, reservada, vendida.
+const CORTE_COLOR: Record<UnitStatus, string> = { available: '#9DB3A5', reserved: '#E3B567', sold: '#2B302D' };

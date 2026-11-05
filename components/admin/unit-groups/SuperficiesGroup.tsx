@@ -45,7 +45,7 @@ export default function SuperficiesGroup({ values, onChange }: UnitGroupProps) {
         </div>
       </div>
       {mismatch && (
-        <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+        <p className="text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
           Interior + balcón + exterior suman {fmtM2(partsSum)} m², pero el total es {fmtM2(values.totalArea ?? 0)} m².
         </p>
       )}

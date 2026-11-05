@@ -25,8 +25,8 @@ type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
 };
 
 const STATUS_DOT: Record<UnitGroupStatus, string> = {
-  complete: 'bg-brand-500',
-  partial: 'bg-amber-400',
+  complete: 'bg-brand-700',
+  partial: 'bg-[#E0B060]',
   empty: 'bg-gray-200',
 };
 
@@ -173,7 +173,7 @@ export default function UnitShellLayout({
   if (loadError || !unit) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">
+        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="self-start inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">
           ← Volver a {pluralize(unitLabelLower)}
         </Link>
         <ErrorState message={`No se pudo cargar ${uAgree.el} ${unitLabelLower}.`} onRetry={load} />
@@ -188,19 +188,19 @@ export default function UnitShellLayout({
   return (
     <UnitShellContext.Provider value={{ unit, values, patch }}>
       <div className="flex flex-col gap-4">
-        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="text-sm text-gray-500 hover:text-gray-700">
+        <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="self-start inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">
           ← Volver a {pluralize(unitLabelLower)}
         </Link>
 
         <Card className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <p className="text-base font-semibold text-gray-900">{unitLabel} {unit.code}</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="m-0 flex items-baseline gap-2.5 flex-wrap"><span className="font-display text-[30px] leading-none font-semibold tracking-[-0.025em] text-gray-900">{unit.code}</span><span className="text-xs text-gray-600">{unitLabel}</span></p>
+            <p className="m-0 text-xs text-gray-600 mt-1.5">
               {curIdx >= 0 ? `${curIdx + 1} de ${siblings.length} · ` : ''}{getStatusLabel(unit.status).toLowerCase()}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <p className="text-xs text-gray-400 shrink-0">{saving ? 'Guardando...' : savedLabel}</p>
+            <p className="m-0 text-xs text-gray-600 shrink-0" aria-live="polite">{saving ? 'Guardando...' : savedLabel}</p>
             {!unitIsLand && copyOptions.length > 0 && (
               <button
                 type="button" onClick={() => setCopyOpen(o => !o)}
@@ -261,7 +261,7 @@ export default function UnitShellLayout({
                 return (
                   <Link
                     key={g.key} href={href}
-                    className={`flex items-center gap-2.5 h-9 px-3 rounded-lg text-[12.5px] font-medium transition-colors ${active ? 'bg-brand-50 text-brand-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                    className={`flex items-center gap-2.5 min-h-[40px] px-3 rounded-lg text-[13px] transition-colors ${active ? 'bg-[#EAE7E0] text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-100'}`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
                     {g.label}
@@ -276,7 +276,7 @@ export default function UnitShellLayout({
 
             <div className={`flex flex-col gap-2 p-3.5 rounded-xl border ${delimited ? 'bg-brand-50 border-brand-100' : 'bg-amber-50 border-amber-200'}`}>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${delimited ? 'bg-brand-500' : 'bg-amber-400'}`} />
+                <span className={`w-2 h-2 rounded-full shrink-0 ${delimited ? 'bg-brand-700' : 'bg-[#E0B060]'}`} />
                 <p className="text-[11.5px] font-medium text-gray-900">{delimited ? 'Delimitado en el plano' : 'Falta marcarlo en el plano'}</p>
               </div>
               <p className="text-[11px] leading-relaxed text-gray-600">

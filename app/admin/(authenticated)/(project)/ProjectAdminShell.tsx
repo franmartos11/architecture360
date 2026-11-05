@@ -125,7 +125,7 @@ export default function ProjectAdminShell({
 
   return (
     <ProjectTypeProvider projectType={project.project_type} saleMode={project.sale_mode}>
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+    <div className="atrium-ui min-h-screen bg-[#F5F3EE] flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="carga-guiada w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex-shrink-0 md:min-h-screen flex flex-col">
         <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3 md:block">

@@ -780,7 +780,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                     {typeConfig.showStatus && (
                       <td className="px-6 py-3 text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium
-                          ${u.status === 'available' ? 'bg-green-50 text-green-700' : ''}
+                          ${u.status === 'available' ? 'bg-brand-100 text-brand-800' : ''}
                           ${u.status === 'reserved' ? 'bg-yellow-50 text-yellow-700' : ''}
                           ${u.status === 'sold' ? 'bg-red-50 text-red-700' : ''}`}>
                           {u.status}
@@ -809,7 +809,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       )}
                       <button onClick={() => startEdit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Editar</button>
                       <button onClick={() => duplicateUnit(u)} className="text-sm font-medium text-gray-600 hover:text-gray-900">Duplicar</button>
-                      <button onClick={() => handleDelete(u.id)} className="text-sm text-red-500 hover:text-red-700">Borrar</button>
+                      <button onClick={() => handleDelete(u.id)} className="text-sm text-red-700 hover:text-red-800">Borrar</button>
                     </td>
                   </tr>
                 ))}
@@ -907,7 +907,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             )}
           </div>
           {!unitIsLand && wizardAreaMismatch && (
-            <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+            <p className="text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
               Interior + balcón + exterior suman {fmtM2(wizardAreaSum)} m², pero el total es {fmtM2(areaTotalNum)} m².
             </p>
           )}
@@ -1003,7 +1003,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               : 'El polígono del depto en el plano y los ambientes se cargan en los pasos siguientes.'}
           </p>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-700">{error}</p>}
 
           <div className="pt-4 border-t border-gray-100 flex items-center gap-3">
             <Button type="submit" disabled={saving}>
@@ -1110,7 +1110,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                       <input
                         id="totalArea" type="number" step="0.01" value={form.totalArea}
                         onChange={e => setForm({ ...form, totalArea: e.target.value })}
-                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${hasAreaMismatch ? 'border-amber-400' : 'border-brand-200'}`}
+                        className={`w-full px-4 py-2 mt-1 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none transition-shadow ${hasAreaMismatch ? 'border-amber-300' : 'border-brand-200'}`}
                       />
                     </div>
                     <Input label="Área interna (m²)" id="innerArea" type="number" step="0.01" value={form.innerArea} onChange={e => setForm({ ...form, innerArea: e.target.value })} />
@@ -1349,7 +1349,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
                                 placeholder="Detalle libre (ventanal al jardín, piso de madera…)"
                               />
                             </div>
-                            <button type="button" onClick={() => removeRoom(room.id)} className="text-sm text-red-500 hover:text-red-700 pb-2 shrink-0">
+                            <button type="button" onClick={() => removeRoom(room.id)} className="text-sm text-red-700 hover:text-red-800 pb-2 shrink-0">
                               Quitar
                             </button>
                           </div>
@@ -1450,7 +1450,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
             <div className="p-4">
               <h4 className="text-sm font-semibold text-gray-900">Para publicar la casa</h4>
               <div className="h-1.5 rounded-full bg-gray-100 mt-2.5 overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${casaDone === casaSectionDefs.length ? 'bg-brand-500' : 'bg-amber-400'}`} style={{ width: `${(casaDone / casaSectionDefs.length) * 100}%` }} />
+                <div className={`h-full rounded-full transition-all ${casaDone === casaSectionDefs.length ? 'bg-brand-500' : 'bg-[#E0B060]'}`} style={{ width: `${(casaDone / casaSectionDefs.length) * 100}%` }} />
               </div>
               <p className="text-xs text-gray-400 mt-1.5">{casaDone} de {casaSectionDefs.length} bloques completos</p>
             </div>
@@ -1485,7 +1485,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
               <p className="text-xs text-gray-400">
                 {casaDirty ? 'Hay cambios sin guardar en esta pantalla.' : 'Se guarda por bloque: podés salir y seguir después.'}
               </p>
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && <p className="text-xs text-red-700">{error}</p>}
             </div>
           </Card>
         </div>

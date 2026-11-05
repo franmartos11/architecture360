@@ -335,9 +335,9 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Ambientes — {unitCode}</h2>
+            <h2 className="m-0 font-display text-[22px] font-semibold tracking-[-0.02em] text-gray-900">Ambientes — {unitCode}</h2>
             {rooms.length > 0 && (
-              <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${linkedRoomsCount === rooms.length ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+              <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${linkedRoomsCount === rooms.length ? 'bg-brand-100 text-brand-800' : 'bg-amber-50 text-amber-800'}`}>
                 {linkedRoomsCount}/{rooms.length} con recorrido 360°
               </span>
             )}
@@ -362,7 +362,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
               onClick={() => setActiveLevelIdx(i)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeLevelIdx === i ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              {l.label}{!l.planImage && <span className="text-amber-500 ml-1">·</span>}
+              {l.label}{!l.planImage && <span className="text-amber-800 ml-1">·</span>}
             </button>
           ))}
         </div>
@@ -452,7 +452,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
                       <button onClick={() => setActiveId(r.id)} className="font-medium text-gray-900 text-sm text-left flex-1">
                         {r.name}
                       </button>
-                      <button onClick={() => handleDeleteRoom(r.id)} className="text-xs text-red-500 hover:text-red-700">Borrar</button>
+                      <button onClick={() => handleDeleteRoom(r.id)} className="text-xs text-red-700 hover:text-red-800">Borrar</button>
                     </div>
 
                     <div className="pl-5 space-y-2">

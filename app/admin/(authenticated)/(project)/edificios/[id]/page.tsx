@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, use, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import { PageHeader, StatStrip, btnPrimary } from '@/components/admin/panel-ui';
 import ImageUploader from '@/components/admin/ImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -163,22 +164,18 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {pluralize(buildingLabel)}</Link>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">{building.name}</h2>
-          <p className="text-sm text-gray-500 mt-1 font-mono">{building.slug}</p>
-        </div>
-        {hasFloorStep && (
-          <Link
-            href={`/admin/edificios/${id}/recorrido`}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
-          >
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        back={<Link href="/admin/edificios" className="inline-flex items-center min-h-[28px] hover:text-gray-900">← {pluralize(buildingLabel)}</Link>}
+        eyebrow={hasFloorStep ? 'Edificio' : buildingLabel}
+        title={building.name}
+        description={<span className="font-mono text-[13px] text-gray-500">/{building.slug}</span>}
+        actions={hasFloorStep ? (
+          <Link href={`/admin/edificios/${id}/recorrido`} className={btnPrimary}>
             Recorrido 360° de la torre →
           </Link>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <Accordion value={buildingTab} onChange={setBuildingTab} collapsible>
         <AccordionItem
@@ -226,15 +223,15 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
 
       {hasFloorStep ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <StatCard value={`${floors.length} / ${building.total_floors}`} label="pisos cargados de los declarados" warn={floors.length < building.total_floors} />
-            <StatCard value={`${floorsWithPlan} / ${floors.length}`} label="pisos con su plano subido" warn={floorsWithPlan < floors.length} />
-            <StatCard value={String(totalUnits)} label={totalUnits ? `unidades en ${readyFloors} pisos publicables` : 'unidades — todavía ninguna'} warn={totalUnits === 0} />
-          </div>
+          <StatStrip stats={[
+            { label: 'Pisos cargados', value: `${floors.length} / ${building.total_floors}`, hint: 'de los declarados', tone: floors.length < building.total_floors ? 'warn' : 'default' },
+            { label: 'Pisos con plano', value: `${floorsWithPlan} / ${floors.length}`, hint: 'el sitio necesita el plano para mostrar los deptos', tone: floorsWithPlan < floors.length ? 'warn' : 'default' },
+            { label: 'Unidades', value: String(totalUnits), hint: totalUnits ? `en ${readyFloors} pisos publicables` : 'todavía ninguna', tone: totalUnits === 0 ? 'warn' : 'default' },
+          ]} />
 
           {(missingFloors > 0 || floorsWithoutPlan > 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
-              <p className="flex-1 min-w-[220px] text-sm text-amber-800">
+            <div className="bg-amber-50 border border-amber-200 rounded-[14px] px-4 py-3 flex items-center gap-3 flex-wrap">
+              <p className="m-0 flex-1 min-w-[220px] text-[13px] text-amber-800">
                 {missingFloors > 0
                   ? `Declaraste ${building.total_floors} pisos y tenés ${floors.length} cargados. Puedo crear los ${missingFloors} que faltan, vacíos y numerados.`
                   : `${floorsWithoutPlan} piso${floorsWithoutPlan === 1 ? '' : 's'} todavía no ${floorsWithoutPlan === 1 ? 'tiene' : 'tienen'} plano: el sitio no puede mostrar sus deptos hasta que lo subas.`}
@@ -242,7 +239,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
               {missingFloors > 0 && (
                 <button
                   type="button" onClick={generateMissingFloors} disabled={generating}
-                  className="h-8 px-3 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shrink-0"
+                  className={`${btnPrimary} shrink-0`}
                 >
                   {generating ? 'Creando...' : `Crear los ${missingFloors} pisos`}
                 </button>
@@ -250,16 +247,15 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-end justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pisos</h3>
-              <p className="text-sm text-gray-500">Cada piso necesita su plano para que el sitio pueda mostrar los deptos.</p>
+              <h2 className="m-0 text-[15px] font-semibold text-gray-900">Pisos <span className="font-normal text-gray-600">— cada piso necesita su plano para que el sitio pueda mostrar los deptos</span></h2>
             </div>
             <Link
               href={`/admin/wizard?buildingId=${id}&step=piso`}
-              className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0"
+              className="min-h-[36px] flex items-center text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap shrink-0"
             >
-              🪄 Usar el asistente →
+              Usar el asistente →
             </Link>
           </div>
 
@@ -279,13 +275,13 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         <Card>
           <CardHeader>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Datos {agree.del} {buildingLabelLower}</h3>
+              <h3 className="m-0 text-[15px] font-semibold text-gray-900">Datos {agree.del} {buildingLabelLower}</h3>
               <p className="text-sm text-gray-500">Precio, fotos, ambientes y tour de {agree.esta} {buildingLabelLower}.</p>
             </div>
             {floors[0] && (
               <Link
                 href={`/admin/edificios/${id}/pisos/${floors[0].id}`}
-                className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0"
+                className="min-h-[36px] flex items-center text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap shrink-0"
               >
                 Editar →
               </Link>
@@ -298,9 +294,9 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                 if (c.total === 0) return <p className="text-sm text-gray-400">Todavía no cargaste los datos {agree.del} {buildingLabelLower}.</p>;
                 return (
                   <p className="text-sm text-gray-600">
-                    {c.missingPhoto > 0 && <span className="text-amber-600">Sin foto</span>}
-                    {c.missingPrice > 0 && <span className="text-amber-600">{c.missingPhoto > 0 ? ' · ' : ''}Sin precio</span>}
-                    {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="text-green-600">Completo</span>}
+                    {c.missingPhoto > 0 && <span className="text-amber-800">Sin foto</span>}
+                    {c.missingPrice > 0 && <span className="text-amber-800">{c.missingPhoto > 0 ? ' · ' : ''}Sin precio</span>}
+                    {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="text-brand-800">Completo</span>}
                   </p>
                 );
               })()
@@ -317,13 +313,13 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
         <Card>
           <CardHeader>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Plano de subdivisión</h3>
+              <h3 className="m-0 text-[15px] font-semibold text-gray-900">Plano de subdivisión</h3>
               <p className="text-sm text-gray-500">El plano sobre el que vas a delimitar cada {unitLabel.toLowerCase()}.</p>
             </div>
             {floors[0] && (
               <Link
                 href={`/admin/edificios/${id}/pisos/${floors[0].id}`}
-                className="text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap shrink-0"
+                className="min-h-[36px] flex items-center text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap shrink-0"
               >
                 {pluralize(unitLabel)} →
               </Link>
@@ -343,9 +339,9 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
                   return (
                     <p className="text-sm text-gray-600">
                       {c.total} {unitLabelLower}{c.total === 1 ? '' : 's'}
-                      {c.missingPhoto > 0 && <span className="text-amber-600"> · {c.missingPhoto} sin foto</span>}
-                      {c.missingPrice > 0 && <span className="text-amber-600"> · {c.missingPrice} sin precio</span>}
-                      {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="text-green-600"> · Completo</span>}
+                      {c.missingPhoto > 0 && <span className="text-amber-800"> · {c.missingPhoto} sin foto</span>}
+                      {c.missingPrice > 0 && <span className="text-amber-800"> · {c.missingPrice} sin precio</span>}
+                      {c.missingPhoto === 0 && c.missingPrice === 0 && <span className="text-brand-800"> · Completo</span>}
                     </p>
                   );
                 })()}
@@ -356,15 +352,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           </div>
         </Card>
       )}
-    </div>
-  );
-}
-
-function StatCard({ value, label, warn }: { value: string; label: string; warn: boolean }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3.5">
-      <p className={`text-xl font-semibold leading-none ${warn ? 'text-amber-600' : 'text-gray-900'}`}>{value}</p>
-      <p className="text-xs text-gray-500 mt-1.5">{label}</p>
     </div>
   );
 }
