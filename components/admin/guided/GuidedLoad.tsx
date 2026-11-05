@@ -50,10 +50,11 @@ function GuidedLoadInner({ project }: { project: GuidedProject }) {
 
   const props: FlowProps = { project, tree, setTree, reload, step, goTo };
   return (
-    // En celular el shell del panel suma su propio p-6 alrededor de cada
-    // pantalla; la carga guiada lo anula para usar el ancho completo (con
-    // su propio margen de 16px) en vez de quedar con 40px por lado.
-    <div className="min-h-full bg-[#f6f5f1] -mx-6 -mt-6 -mb-6 md:mx-0 md:mt-0 md:mb-0">
+    // El shell del panel envuelve cada pantalla en p-6/md:p-8; la carga
+    // guiada lo anula (márgenes negativos) para ocupar todo el área de
+    // contenido como en el diseño. `carga-guiada` aplica la paleta y las
+    // tipografías del diseño (ver globals.css).
+    <div className="carga-guiada min-h-[calc(100vh-1px)] flex flex-col bg-[#F5F3EE] -m-6 md:-m-8">
       {project.projectType === 'edificio' && <EdificioFlow {...props} />}
       {project.projectType === 'duplex' && <DuplexFlow {...props} />}
       {project.projectType === 'casa' && <CasaFlow {...props} />}

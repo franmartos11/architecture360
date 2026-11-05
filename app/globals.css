@@ -780,3 +780,44 @@ html[data-nav-pending] [data-site-nav]::after {
   from { transform: scaleX(var(--lapse-from, 0)); }
   to { transform: scaleX(var(--lapse-to, 1)); }
 }
+
+/* ─── Carga guiada (/admin/carga) y alta de proyecto ─────────────────
+   Paleta y tipografía del diseño de la carga de proyectos: en vez de
+   repetir los hex en cada clase, dentro de este scope se redefinen las
+   escalas gray/brand/amber de Tailwind (las utilities leen estas
+   variables), así bg-gray-900, border-gray-200, text-brand-700, etc.
+   dan exactamente los tonos del diseño sin tocar el resto del panel. */
+.carga-guiada {
+  --color-gray-50: #FBFAF7;
+  --color-gray-100: #F4F2EE;
+  --color-gray-200: #E4E0D8;
+  --color-gray-300: #D6D1C7;
+  --color-gray-400: #9A968D;
+  --color-gray-500: #6B6A65;
+  --color-gray-600: #55544F;
+  --color-gray-700: #3A3B38;
+  --color-gray-800: #2B302D;
+  --color-gray-900: #17191A;
+  --color-brand-50: #F1F4F2;
+  --color-brand-100: #E4ECE7;
+  --color-brand-200: #C9D3CD;
+  --color-brand-300: #8FA899;
+  --color-brand-400: #6E8577;
+  --color-brand-500: #37463F;
+  --color-brand-600: #37463F;
+  --color-brand-700: #37463F;
+  --color-brand-800: #2C4136;
+  --color-brand-900: #1F2D26;
+  --color-amber-50: #FDF9F1;
+  --color-amber-100: #F6E9D3;
+  --color-amber-200: #E3C48F;
+  --color-amber-300: #E3C48F;
+  --color-amber-800: #7A4E12;
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  color: #17191A;
+}
+.carga-guiada h1,
+.carga-guiada .font-display {
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  letter-spacing: -0.025em;
+}

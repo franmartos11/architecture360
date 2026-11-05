@@ -11,8 +11,8 @@ import {
 } from '@/lib/guided-structure';
 import ListoScreen, { PreviewCard } from './ListoScreen';
 import {
-  GuidedHeader, StepIntro, StepFooter, NumberStepper, Segmented, FieldLabel, NumberField, ErrorNote,
-  inputClass, allUnits, allFloors, useGuidedApi, SHAPE_PALETTE,
+  GuidedHeader, SplitLayout, StepIntro, StepFooter, NumberStepper, Segmented, FieldLabel, ErrorNote,
+  inputClass, allUnits, allFloors, useGuidedApi,
   type GBuilding, type GFloor, type GUnit, type GuidedTree, type UnitDot,
 } from './shared';
 import type { FlowProps } from './GuidedLoad';
@@ -41,6 +41,28 @@ function positionsOf(b: GBuilding): number {
 function codeFromModel(modelName: string | null): string | null {
   const m = modelName?.match(/^Tipología\s+(.+)$/);
   return m ? m[1].trim() : null;
+}
+
+/** Colores de cada tipología (chip + caja) — mismos tonos que el diseño (A verde, B azul, C arena…). */
+const TYPO_COLORS: [string, string][] = [
+  ['#E4ECE7', '#2C4136'],
+  ['#E6E9F0', '#2F3A52'],
+  ['#F3E7DA', '#6B4510'],
+  ['#EFE4EC', '#5A2F4E'],
+  ['#E3EEF0', '#1F4A52'],
+  ['#ECE9DC', '#4F4A22'],
+];
+function typoColor(code: string | null | undefined): [string, string] {
+  if (!code) return ['#F4F2EE', '#6B6A65'];
+  if (code === 'P') return ['#17191A', '#FFFFFF'];
+  const i = Math.max(0, code.charCodeAt(0) - 65);
+  return TYPO_COLORS[i % TYPO_COLORS.length];
+}
+/** Relleno semitransparente para las formas dibujadas sobre el plano. */
+const SHAPE_FILLS = ['#6E8577', '#7C88A6', '#B58E5E', '#9A6F8E', '#5E8E96', '#8C8656'];
+
+function Chevron() {
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B6A65" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>;
 }
 
 // ─── Flujo ─────────────────────────────────────────────────────────
@@ -104,135 +126,213 @@ function EstructuraStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
     onCreated({ buildings: res.data.buildings });
   };
 
-  return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex gap-8 flex-wrap items-start">
-      <section aria-label="Estructura" className="flex-[2_1_420px] min-w-0 flex flex-col gap-6">
-        <StepIntro eyebrow="Paso 1 de 4" title="¿Cómo es el edificio?">
-          Contanos cuántas torres, pisos y unidades por piso. Armamos toda la estructura de una vez; después ajustás lo que sea distinto.
-        </StepIntro>
+  const panel = (
+    <>
+      <StepIntro eyebrow="Paso 1 de 4" title="¿Cómo es el edificio?">
+        Contanos cuántas torres, pisos y unidades por piso. Armamos toda la estructura de una vez; después ajustás lo que sea distinto.
+      </StepIntro>
 
-        {towers.map((t, i) => (
-          <div key={i} className="flex flex-col gap-4 p-4 rounded-2xl border border-gray-200 bg-white">
-            <div className="flex items-end gap-3">
-              <label className="flex flex-col gap-1.5 flex-1 min-w-0">
-                <FieldLabel>Nombre</FieldLabel>
-                <input value={t.name} onChange={e => update(i, { name: e.target.value })} className={inputClass} />
-              </label>
+      {towers.map((t, i) => (
+        <div key={i} className="relative flex flex-col gap-3.5 p-4 rounded-[14px] border border-gray-200 bg-white">
+          <label className="flex flex-col gap-1.5 min-w-0">
+            <span className="flex items-center justify-between">
+              <FieldLabel>Nombre</FieldLabel>
               {towers.length > 1 && (
                 <button type="button" onClick={() => setTowers(ts => ts.filter((_, j) => j !== i))}
-                  className="min-h-[44px] px-3 text-[13px] font-medium text-red-600 hover:bg-red-50 rounded-lg">
-                  Quitar
+                  className="min-h-[28px] px-1 text-xs font-medium text-gray-500 hover:text-red-600">
+                  Quitar torre
                 </button>
               )}
-            </div>
-            <div className="flex gap-x-3 gap-y-4 sm:gap-4 flex-wrap">
-              <NumberStepper label="Pisos tipo" value={t.floors} onChange={n => update(i, { floors: n })} min={1} max={200} />
-              <NumberStepper label="Unidades por piso" value={t.perFloor} onChange={n => update(i, { perFloor: n })} min={1} max={60} />
-              <NumberStepper label="Penthouses (último piso distinto)" value={t.penthouses} onChange={n => update(i, { penthouses: n })} min={0} max={20} />
-            </div>
-            <label className="flex flex-col gap-1.5 max-w-[280px]">
-              <FieldLabel>Planta baja</FieldLabel>
-              <select value={t.groundFloor} onChange={e => update(i, { groundFloor: e.target.value as GroundFloorUse })} className={inputClass}>
-                {GROUND_FLOOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </label>
+            </span>
+            <input value={t.name} onChange={e => update(i, { name: e.target.value })} className={`${inputClass} !text-[15px] font-semibold`} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberStepper label="Pisos tipo" value={t.floors} onChange={n => update(i, { floors: n })} min={1} max={200} />
+            <NumberStepper label="Unidades por piso" value={t.perFloor} onChange={n => update(i, { perFloor: n })} min={1} max={60} />
           </div>
-        ))}
-
-        <button type="button"
-          onClick={() => setTowers(ts => [...ts, { name: `Torre ${ts.length + 1}`, floors: ts[ts.length - 1]?.floors ?? 5, perFloor: ts[ts.length - 1]?.perFloor ?? 4, groundFloor: 'none', penthouses: 0 }])}
-          disabled={towers.length >= 12}
-          className="self-start min-h-[44px] px-4 rounded-xl border-[1.5px] border-dashed border-gray-300 text-sm font-semibold text-brand-700 hover:border-brand-500 disabled:opacity-50">
-          + Agregar otra torre
-        </button>
-
-        <div className="flex flex-col gap-2">
-          <FieldLabel>Cómo se numeran las unidades</FieldLabel>
-          <Segmented label="Numeración" value={scheme} options={SCHEME_OPTIONS} onChange={setScheme} />
-          {scheme === 'custom' && (
-            <label className="flex flex-col gap-1.5 max-w-[320px] mt-1">
-              <FieldLabel>Formato</FieldLabel>
-              <input value={template} onChange={e => setTemplate(e.target.value)} className={`${inputClass} font-mono`} />
-              <span className="text-xs text-gray-500">Usá {'{piso}'}, {'{letra}'} y {'{n}'}. Ej: {'{piso}-{n}'} → 5-2</span>
-            </label>
-          )}
-          {towers.length > 1 && <p className="text-xs text-gray-500">Con más de una torre, cada código lleva la inicial de la torre adelante para no repetirse.</p>}
+          <div className="flex gap-2 flex-wrap">
+            <PillSelect
+              on={t.groundFloor !== 'none'}
+              prefix={t.groundFloor !== 'none' ? 'Planta baja:' : ''}
+              label={`Planta baja de ${t.name}`}
+              value={t.groundFloor}
+              onChange={v => update(i, { groundFloor: v as GroundFloorUse })}
+              options={GROUND_FLOOR_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+            />
+            <PillSelect
+              on={t.penthouses > 0}
+              prefix={t.penthouses > 0 ? 'Último piso distinto:' : ''}
+              label={`Último piso distinto de ${t.name}`}
+              value={String(t.penthouses)}
+              onChange={v => update(i, { penthouses: Number(v) })}
+              options={[{ value: '0', label: 'Sin último piso distinto' }, ...Array.from({ length: 8 }, (_, k) => ({ value: String(k + 1), label: `${k + 1} penthouse${k === 0 ? '' : 's'}` }))]}
+            />
+          </div>
         </div>
+      ))}
 
-        {dups.length > 0 && <ErrorNote>Hay códigos repetidos ({dups.slice(0, 5).join(', ')}). Cambiá la numeración o los nombres de las torres.</ErrorNote>}
-        <ErrorNote>{error}</ErrorNote>
+      <button type="button"
+        onClick={() => setTowers(ts => [...ts, { name: `Torre ${ts.length + 1}`, floors: ts[ts.length - 1]?.floors ?? 5, perFloor: ts[ts.length - 1]?.perFloor ?? 4, groundFloor: 'none', penthouses: 0 }])}
+        disabled={towers.length >= 12}
+        className="self-start min-h-[40px] px-1 text-[13px] font-semibold text-brand-700 hover:text-gray-900 disabled:opacity-50">
+        + Agregar otra torre
+      </button>
 
-        <StepFooter
-          summary={`${towers.length} torre${towers.length === 1 ? '' : 's'} · ${levels} niveles · ${total} unidades`}
-          primary={{ label: 'Crear estructura y seguir', onClick: submit, disabled: dups.length > 0 || total === 0, busy, busyLabel: 'Creando...' }}
-        />
-      </section>
+      <div className="flex flex-col gap-2">
+        <FieldLabel>Cómo se numeran las unidades</FieldLabel>
+        <Segmented label="Numeración" value={scheme} options={SCHEME_OPTIONS} onChange={setScheme} />
+        {scheme === 'custom' && (
+          <label className="flex flex-col gap-1.5 mt-1">
+            <FieldLabel>Formato</FieldLabel>
+            <input value={template} onChange={e => setTemplate(e.target.value)} className={`${inputClass} font-mono`} />
+            <span className="text-xs text-gray-500">Usá {'{piso}'}, {'{letra}'} y {'{n}'}. Ej: {'{piso}-{n}'} → 5-2</span>
+          </label>
+        )}
+        {towers.length > 1 && <p className="m-0 text-xs text-gray-500 leading-relaxed">Con más de una torre, cada código lleva la inicial de la torre adelante para no repetirse.</p>}
+      </div>
+    </>
+  );
 
-      <Elevation plan={plan} total={total} levels={levels} towers={towers.length} />
-    </div>
+  return (
+    <SplitLayout panel={panel} panelLabel="Estructura" mainLabel="Vista del edificio">
+      <Elevation plan={plan} />
+      {dups.length > 0 && <ErrorNote>Hay códigos repetidos ({dups.slice(0, 5).join(', ')}). Cambiá la numeración o los nombres de las torres.</ErrorNote>}
+      <ErrorNote>{error}</ErrorNote>
+      <StepFooter
+        title={`${towers.length} torre${towers.length === 1 ? '' : 's'} · ${levels} niveles · ${total} unidades`}
+        summary={`Antes eran ${total} altas de unidad, una por una. Ahora es un clic.`}
+        primary={{ label: 'Crear estructura y seguir', onClick: submit, disabled: dups.length > 0 || total === 0, busy, busyLabel: 'Creando...' }}
+      />
+    </SplitLayout>
   );
 }
 
-function Elevation({ plan, total, levels, towers }: { plan: PlannedBuilding[]; total: number; levels: number; towers: number }) {
+/** Pill verde del diseño ("✓ Planta baja: Amenities") que es un select editable. */
+function PillSelect({ on, prefix, label, value, onChange, options }: {
+  on: boolean; prefix: string; label: string; value: string;
+  onChange: (v: string) => void; options: { value: string; label: string }[];
+}) {
   return (
-    <section aria-label="Vista del edificio" className="flex-[3_1_480px] min-w-0 flex flex-col gap-4 p-5 rounded-2xl bg-white border border-gray-200 lg:sticky lg:top-6">
+    <label className={`relative inline-flex items-center gap-1 min-h-[32px] pl-2.5 pr-7 rounded-full text-xs font-semibold cursor-pointer ${
+      on ? 'bg-brand-100 text-brand-800' : 'border border-dashed border-gray-300 text-gray-600 bg-white'
+    }`}>
+      <span aria-hidden>{on ? '✓' : '+'}</span>
+      {prefix && <span>{prefix}</span>}
+      <select aria-label={label} value={value} onChange={e => onChange(e.target.value)}
+        style={{ fieldSizing: 'content' } as React.CSSProperties}
+        className="appearance-none bg-transparent font-semibold outline-none cursor-pointer max-w-[200px] truncate">
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <span className="absolute right-2.5 pointer-events-none"><Chevron /></span>
+    </label>
+  );
+}
+
+const CELL_W = 50;
+const CELL_GAP = 4;
+
+function groundLabel(f: PlannedBuilding['floors'][number]): string {
+  if (f.floorKindDescription) return f.floorKindDescription;
+  const key = f.floorKind === 'amenity' ? 'amenities' : f.floorKind === 'parking' ? 'cocheras' : 'locales';
+  return GROUND_FLOOR_OPTIONS.find(o => o.value === key)?.label ?? '';
+}
+
+function Elevation({ plan, title = 'Así queda', hint = '— los códigos son los que se van a crear' }: { plan: PlannedBuilding[]; title?: string; hint?: string }) {
+  return (
+    <>
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
-        <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así queda</h2>
+        <h2 className="m-0 text-[15px] font-semibold text-gray-900">{title} <span className="font-normal text-gray-500">{hint}</span></h2>
         <span className="text-xs text-gray-500">Vista frontal</span>
       </div>
-      <div className="flex gap-6 overflow-x-auto pb-2 items-end max-h-[620px] overflow-y-auto">
-        {plan.map(b => (
-          <div key={b.name} className="flex flex-col items-center gap-2 shrink-0">
-            <div className="flex flex-col gap-1 p-2 rounded-lg bg-gray-50 border border-gray-200">
-              {[...b.floors].reverse().map(f => (
-                <div key={f.number} className="flex items-center gap-1">
-                  <span className="w-7 text-[10px] font-semibold text-gray-500 text-right shrink-0">{f.role === 'pb' ? 'PB' : f.role === 'ph' ? 'PH' : f.number}</span>
-                  {f.units.length > 0 ? f.units.map(u => (
-                    <span key={u.code} className={`h-[28px] min-w-[46px] px-1.5 rounded text-[10px] font-semibold flex items-center justify-center whitespace-nowrap ${
-                      f.role === 'ph' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-700'
-                    }`}>{u.code}</span>
-                  )) : (
-                    <span className="h-[28px] px-3 min-w-[100px] flex-1 rounded text-[10px] font-semibold flex items-center justify-center bg-brand-200 text-brand-800">
-                      {f.floorKindDescription ?? GROUND_FLOOR_OPTIONS.find(o => o.value === (f.floorKind === 'amenity' ? 'amenities' : f.floorKind === 'parking' ? 'cocheras' : 'locales'))?.label}
-                    </span>
-                  )}
-                </div>
-              ))}
+      <div className="flex-1 min-h-[360px] md:min-h-[520px] flex gap-10 items-end justify-center flex-wrap p-4 sm:p-6 rounded-[18px] bg-white border border-gray-200 overflow-x-auto">
+        {plan.map(b => {
+          const per = b.floors.reduce((m, f) => Math.max(m, f.role === 'typical' ? f.units.length : 0), 0) || 1;
+          const rowW = per * CELL_W + (per - 1) * CELL_GAP;
+          const units = b.floors.reduce((s, f) => s + f.units.length, 0);
+          return (
+            <div key={b.name} className="flex flex-col items-center gap-2.5 max-w-full">
+              <div className="flex flex-col gap-1 p-2 rounded-t-md bg-gray-100 border border-b-0 border-[#E0DCD3] max-w-full overflow-x-auto">
+                {[...b.floors].reverse().map(f => (
+                  <div key={f.number} className="flex items-center gap-1">
+                    <span className="w-[22px] shrink-0 text-[10px] text-gray-500 text-right">{f.role === 'pb' ? 'PB' : f.role === 'ph' ? 'PH' : f.number}</span>
+                    <div className="flex gap-1 shrink-0" style={{ width: rowW }}>
+                      {f.units.length > 0 ? f.units.map(u => (
+                        <span key={u.code}
+                          className={`h-[30px] rounded text-[10px] font-semibold flex items-center justify-center whitespace-nowrap overflow-hidden px-0.5 ${
+                            f.role === 'ph' ? 'flex-1 bg-gray-900 text-white' : f.role === 'pb' ? 'flex-1 bg-white border border-gray-300 text-gray-700' : 'bg-white border border-gray-300 text-gray-700'
+                          }`}
+                          style={f.role === 'typical' ? { width: CELL_W } : undefined}>
+                          {u.code}
+                        </span>
+                      )) : (
+                        <span className="flex-1 h-[30px] rounded text-[10px] font-semibold flex items-center justify-center bg-brand-200 text-brand-800 truncate px-1">
+                          {groundLabel(f)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="h-2 w-full rounded-sm bg-gray-800" aria-hidden />
+              <span className="text-[13px] font-semibold text-gray-900">{b.name}</span>
+              <span className="-mt-2 text-xs text-gray-500">{units} unidades</span>
             </div>
-            <div className="h-1.5 w-full rounded bg-gray-300" aria-hidden />
-            <span className="text-[13px] font-semibold text-gray-900">{b.name}</span>
-            <span className="text-xs text-gray-500">{b.floors.reduce((s, f) => s + f.units.length, 0)} unidades</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-brand-50 border border-brand-100">
-        <span className="text-sm font-semibold text-gray-900">{towers} torre{towers === 1 ? '' : 's'} · {levels} niveles · {total} unidades</span>
-        <span className="text-xs text-gray-600">Antes eran {total} altas de unidad, una por una. Ahora es un clic.</span>
-      </div>
-    </section>
+    </>
   );
+}
+
+/** El árbol ya creado, en la forma que espera Elevation. */
+function planFromTree(tree: GuidedTree): PlannedBuilding[] {
+  return tree.buildings.map(b => ({
+    name: b.name,
+    floors: [...b.floors].sort((a, c) => a.number - c.number).map(f => ({
+      number: f.number,
+      label: f.label,
+      floorKind: f.floor_kind,
+      floorKindDescription: f.floor_kind_description,
+      role: f.label === 'Penthouse' ? 'ph' as const : f.number === 0 ? 'pb' as const : 'typical' as const,
+      units: [...f.units].sort(byCode).map(u => ({ code: u.code, type: u.type, position: null })),
+    })),
+  }));
 }
 
 function StructureSummary({ tree, onNext }: { tree: GuidedTree; onNext: () => void }) {
   const total = allUnits(tree).length;
+  const levels = allFloors(tree).length;
+  const plan = useMemo(() => planFromTree(tree), [tree]);
   return (
-    <div className="max-w-[900px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
-      <StepIntro eyebrow="Paso 1 de 4" title="La estructura ya está creada">
-        Para sumar o quitar pisos y unidades, o cambiar códigos, usá la pantalla de edificios. Acá seguís con las tipologías y la planta tipo.
-      </StepIntro>
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-        {tree.buildings.map(b => (
-          <div key={b.id} className="p-4 rounded-xl bg-white border border-gray-200 flex flex-col gap-1">
-            <span className="text-sm font-semibold text-gray-900">{b.name}</span>
-            <span className="text-xs text-gray-500">{b.floors.length} niveles · {b.floors.reduce((s, f) => s + f.units.length, 0)} unidades</span>
+    <SplitLayout
+      panelLabel="Estructura"
+      mainLabel="Vista del edificio"
+      panel={
+        <>
+          <StepIntro eyebrow="Paso 1 de 4" title="La estructura ya está creada">
+            Para sumar o quitar pisos y unidades, o cambiar códigos, usá la pantalla de edificios. Acá seguís con las tipologías y la planta tipo.
+          </StepIntro>
+          <div className="flex flex-col gap-2">
+            {tree.buildings.map(b => (
+              <div key={b.id} className="flex items-center justify-between gap-3 min-h-[52px] px-4 rounded-[10px] bg-white border border-gray-200">
+                <span className="text-sm font-semibold text-gray-900">{b.name}</span>
+                <span className="text-xs text-gray-500">{b.floors.length} niveles · {b.floors.reduce((s, f) => s + f.units.length, 0)} unidades</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          <Link href="/admin/edificios" className="self-start min-h-[40px] flex items-center text-[13px] font-semibold text-brand-700 underline underline-offset-2">
+            Cambiar estructura
+          </Link>
+        </>
+      }
+    >
+      <Elevation plan={plan} hint="— la estructura creada" />
       <StepFooter
-        summary={<span>{tree.buildings.length} torre{tree.buildings.length === 1 ? '' : 's'} · {total} unidades · <Link href="/admin/edificios" className="font-semibold text-brand-700 underline underline-offset-2">Cambiar estructura</Link></span>}
+        title={`${tree.buildings.length} torre${tree.buildings.length === 1 ? '' : 's'} · ${levels} niveles · ${total} unidades`}
+        summary="Ya está creada. Seguí con las tipologías."
         primary={{ label: 'Seguir', onClick: onNext }}
       />
-    </div>
+    </SplitLayout>
   );
 }
 
@@ -347,92 +447,140 @@ function TipologiasStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; re
     onNext();
   };
 
-  return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-8">
+  const typoName = (code: string) => typologies.find(t => t.code === code)?.name || (code ? `Tipología ${code}` : 'Sin tipología');
+
+  const panel = (
+    <>
       <StepIntro eyebrow="Paso 2 de 4" title="¿Qué unidades se repiten?">
         Cada posición del piso suele ser la misma unidad en todos los pisos. Decinos cuál es cuál y cargás superficies y planos una sola vez.
       </StepIntro>
-
-      <div className="flex gap-8 flex-wrap items-start">
-        <section aria-label="Posiciones" className="flex-[3_1_480px] min-w-0 flex flex-col gap-5">
-          {towers.length === 0 && <p className="text-sm text-gray-600">No hay pisos tipo con unidades. Podés seguir con el próximo paso.</p>}
-          {towers.map(b => {
-            const floors = typicalFloors(b);
-            return (
-              <div key={b.id} className="flex flex-col gap-3 p-4 rounded-2xl bg-white border border-gray-200">
-                <h2 className="m-0 text-sm font-semibold text-gray-900">Piso tipo · {b.name} <span className="font-normal text-gray-500">— {floors.length} piso{floors.length === 1 ? '' : 's'}</span></h2>
-                <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))' }}>
-                  {Array.from({ length: positionsOf(b) }, (_, p) => {
-                    const sample = [...(floors[0]?.units ?? [])].sort(byCode)[p];
-                    const value = assign[b.id]?.[p] ?? '';
-                    return (
-                      <label key={p} className={`flex flex-col gap-2 p-2.5 sm:p-3 rounded-xl border ${value ? 'border-brand-700 bg-brand-50' : 'border-dashed border-gray-300'}`}>
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="text-[13px] font-semibold text-gray-900">Posición {positionLetter(p)}</span>
-                          <span className="text-[11px] text-gray-500">{sample?.code ?? ''}…</span>
-                        </span>
-                        <select
-                          value={value}
-                          aria-label={`Tipología de la posición ${positionLetter(p)} en ${b.name}`}
-                          onChange={e => setAssign(a => ({ ...a, [b.id]: (a[b.id] ?? []).map((c, j) => (j === p ? e.target.value : c)) }))}
-                          className={inputClass}
-                        >
-                          <option value="">Sin tipología</option>
-                          {typologies.map(t => <option key={t.code} value={t.code}>Tipología {t.code}{t.name ? ` · ${t.name}` : ''}</option>)}
-                        </select>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          <p className="text-xs text-gray-500">¿Algún piso es distinto? Lo cambiás después en Unidades; no frena este paso.</p>
-        </section>
-
-        <section aria-label="Tipologías" className="flex-[2_1_360px] min-w-0 flex flex-col gap-3">
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
-            <h2 className="m-0 text-[15px] font-semibold text-gray-900">
-              {typologies.length} tipología{typologies.length === 1 ? '' : 's'} <span className="font-normal text-gray-500">— completá lo que tengas a mano; nada es obligatorio acá</span>
-            </h2>
-            <button type="button"
-              onClick={() => setTypologies(ts => [...ts, { code: nextTypologyCode(ts), name: '', bedrooms: null, totalArea: null, innerArea: null }])}
-              className="min-h-[40px] px-3 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 rounded-lg">
-              + Tipología
-            </button>
-          </div>
-          {typologies.map(t => (
-            <div key={t.code} className="flex flex-col gap-3 p-4 rounded-xl bg-white border border-gray-200">
-              <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-                <span className="w-9 h-9 rounded-lg bg-gray-900 text-white text-sm font-semibold flex items-center justify-center shrink-0">{t.code}</span>
-                <input
-                  aria-label={`Nombre de la tipología ${t.code}`}
-                  value={t.name}
-                  placeholder="Ej: 2 dormitorios"
-                  onChange={e => updateTypology(t.code, { name: e.target.value })}
-                  className={`${inputClass} flex-1 !w-auto min-w-0`}
-                />
-                <span className="order-last basis-full sm:basis-auto sm:order-none pl-12 sm:pl-0 text-xs text-gray-500 whitespace-nowrap">{unitsPerTypology.get(t.code) ?? 0} unidades</span>
-                <button type="button" aria-label={`Quitar tipología ${t.code}`} onClick={() => removeTypology(t.code)}
-                  className="w-10 h-10 shrink-0 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50">✕</button>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <NumberField label="Dormitorios" value={t.bedrooms} onChange={n => updateTypology(t.code, { bedrooms: n === null ? null : Math.floor(n) })} />
-                <NumberField label="Sup. total" suffix="m²" value={t.totalArea} onChange={n => updateTypology(t.code, { totalArea: n })} />
-                <NumberField label="Cubierta" suffix="m²" value={t.innerArea} onChange={n => updateTypology(t.code, { innerArea: n })} />
+      {towers.length === 0 && <p className="m-0 text-sm text-gray-600">No hay pisos tipo con unidades. Podés seguir con el próximo paso.</p>}
+      {towers.map(b => {
+        const floors = typicalFloors(b);
+        const n = positionsOf(b);
+        const firstSorted = [...(floors[0]?.units ?? [])].sort(byCode);
+        const lastSorted = [...(floors[floors.length - 1]?.units ?? [])].sort(byCode);
+        return (
+          <div key={b.id} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 p-4 rounded-[14px] border border-gray-200 bg-white">
+              <span className="text-xs font-semibold text-gray-700">Piso tipo · {b.name} <span className="font-normal text-gray-500">— {floors.length} piso{floors.length === 1 ? '' : 's'}</span></span>
+              <div className="grid gap-1.5 p-2 border-[3px] border-gray-800 rounded" style={{ gridTemplateColumns: `repeat(${n <= 4 ? Math.min(2, n) : 3}, minmax(0, 1fr))` }}>
+                {Array.from({ length: n }, (_, p) => {
+                  const code = assign[b.id]?.[p] ?? '';
+                  const [bg, fg] = typoColor(code);
+                  return (
+                    <span key={p} className="min-h-[72px] sm:min-h-[84px] rounded flex flex-col items-center justify-center gap-0.5" style={{ background: bg, color: fg }}>
+                      <span className="text-[11px] font-semibold">{positionLetter(p)}</span>
+                      <span className="font-display text-[22px] font-semibold">{code || '—'}</span>
+                    </span>
+                  );
+                })}
               </div>
             </div>
-          ))}
-        </section>
-      </div>
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: n }, (_, p) => {
+                const value = assign[b.id]?.[p] ?? '';
+                const [bg, fg] = typoColor(value);
+                const first = firstSorted[p]?.code;
+                const last = lastSorted[p]?.code;
+                return (
+                  <div key={p} className="flex items-center gap-3 min-h-[48px] px-3 py-1.5 rounded-[10px] border border-gray-200 bg-white">
+                    <span className="shrink-0 whitespace-nowrap text-[13px] font-semibold text-gray-900">Posición {positionLetter(p)}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-500 truncate">{first ? `${first}${last && last !== first ? `…${last}` : ''}` : ''}</span>
+                    <label className="relative shrink-0 flex items-center gap-2 min-h-[36px] pl-2.5 pr-7 rounded-lg border border-gray-300 bg-white text-[13px] font-semibold text-gray-900 cursor-pointer max-w-[60%]">
+                      <span aria-hidden className="w-[22px] h-[22px] shrink-0 rounded-[5px] text-[11px] flex items-center justify-center" style={{ background: bg, color: fg }}>{value || '–'}</span>
+                      <span className="truncate">{typoName(value)}</span>
+                      <select
+                        value={value}
+                        aria-label={`Tipología de la posición ${positionLetter(p)} en ${b.name}`}
+                        onChange={e => setAssign(a => ({ ...a, [b.id]: (a[b.id] ?? []).map((c, j) => (j === p ? e.target.value : c)) }))}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      >
+                        <option value="">Sin tipología</option>
+                        {typologies.map(t => <option key={t.code} value={t.code}>{t.code} · {t.name || `Tipología ${t.code}`}</option>)}
+                      </select>
+                      <span className="absolute right-2.5 pointer-events-none"><Chevron /></span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <p className="m-0 text-xs leading-relaxed text-gray-500">¿Algún piso es distinto? Lo cambiás después en Unidades; no frena este paso.</p>
+    </>
+  );
 
+  return (
+    <SplitLayout panel={panel} panelLabel="Asignar tipologías" mainLabel="Tipologías">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <h2 className="m-0 text-[15px] font-semibold text-gray-900">
+          {typologies.length} tipología{typologies.length === 1 ? '' : 's'} <span className="font-normal text-gray-500">— completá lo que tengas a mano; nada es obligatorio acá</span>
+        </h2>
+        <button type="button"
+          onClick={() => setTypologies(ts => [...ts, { code: nextTypologyCode(ts), name: '', bedrooms: null, totalArea: null, innerArea: null }])}
+          className="min-h-[36px] px-1 text-[13px] font-semibold text-brand-700 hover:text-gray-900">
+          + Tipología
+        </button>
+      </div>
+      <div className="grid gap-3.5 content-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
+        {typologies.map(t => {
+          const [bg, fg] = typoColor(t.code);
+          return (
+            <div key={t.code} className="relative flex flex-col gap-3.5 p-4 rounded-[14px] bg-white border border-gray-200 focus-within:border-[1.5px] focus-within:border-brand-700 focus-within:shadow-[0_0_0_3px_rgba(55,70,63,0.08)]">
+              <div className="flex items-center gap-3 pr-8">
+                <span className="w-10 h-10 shrink-0 rounded-[10px] font-display text-[17px] font-semibold flex items-center justify-center" style={{ background: bg, color: fg }}>{t.code}</span>
+                <span className="flex-1 min-w-0 flex flex-col">
+                  <input
+                    aria-label={`Nombre de la tipología ${t.code}`}
+                    value={t.name}
+                    placeholder="Ej: 2 dormitorios"
+                    onChange={e => updateTypology(t.code, { name: e.target.value })}
+                    className="min-w-0 border-0 p-0 text-base font-semibold text-gray-900 bg-transparent outline-none placeholder:text-gray-400"
+                  />
+                  <span className="text-xs text-gray-500">{unitsPerTypology.get(t.code) ?? 0} unidades</span>
+                </span>
+              </div>
+              <button type="button" aria-label={`Quitar tipología ${t.code}`} onClick={() => removeTypology(t.code)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50">✕</button>
+              <div className="grid grid-cols-3 gap-2">
+                <SmallNumber label="Dormitorios" value={t.bedrooms} onChange={n => updateTypology(t.code, { bedrooms: n === null ? null : Math.floor(n) })} />
+                <SmallNumber label="Sup. total m²" value={t.totalArea} onChange={n => updateTypology(t.code, { totalArea: n })} />
+                <SmallNumber label="Cubierta m²" value={t.innerArea} onChange={n => updateTypology(t.code, { innerArea: n })} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <ErrorNote>{error}</ErrorNote>
-      <StepFooter
-        back={{ label: 'Estructura', onClick: onBack }}
-        summary={<>Esto completa la ficha de <b className="text-gray-900">{coveredUnits} unidades</b> con {usedTypologies} carga{usedTypologies === 1 ? '' : 's'}.</>}
-        primary={{ label: 'Seguir con la planta', onClick: save, busy }}
+      <div className="mt-auto">
+        <StepFooter
+          back={{ label: 'Estructura', onClick: onBack }}
+          summary={<>Esto completa la ficha de <b>{coveredUnits} unidades</b> con {usedTypologies} carga{usedTypologies === 1 ? '' : 's'}.</>}
+          primary={{ label: 'Seguir con la planta', onClick: save, busy }}
+        />
+      </div>
+    </SplitLayout>
+  );
+}
+
+/** Input chico de las tarjetas de tipología (38px, label de 11px). */
+function SmallNumber({ label, value, onChange }: { label: string; value: number | null; onChange: (n: number | null) => void }) {
+  return (
+    <label className="flex flex-col gap-1 min-w-0">
+      <span className="text-[11px] text-gray-500 truncate">{label}</span>
+      <input
+        inputMode="decimal"
+        value={value ?? ''}
+        placeholder="—"
+        onChange={e => {
+          const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
+          onChange(raw === '' ? null : Number(raw));
+        }}
+        className="min-h-[40px] w-full min-w-0 px-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 outline-none focus:border-brand-700 placeholder:text-gray-400"
       />
-    </div>
+    </label>
   );
 }
 
@@ -473,7 +621,7 @@ function PlantaStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload
     id: `pos-${p}`,
     label: positionLetter(p),
     points: points[`pos-${p}`] ?? [],
-    color: SHAPE_PALETTE[p % SHAPE_PALETTE.length],
+    color: SHAPE_FILLS[Math.max(0, (typologyAt(p) ?? positionLetter(p)).charCodeAt(0) - 65) % SHAPE_FILLS.length],
   }));
   const drawn = shapes.filter(s => s.points.length >= 3).length;
   const floorsAffected = selectedTowers.reduce((s, b) => s + typicalFloors(b).length, 0)
@@ -521,100 +669,121 @@ function PlantaStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload
   const activeIndex = activeId ? Number(activeId.replace('pos-', '')) : -1;
   const activeTypo = activeIndex >= 0 ? typologyAt(activeIndex) : null;
 
+  const roundOk = 'w-6 h-6 shrink-0 rounded-full bg-brand-100 text-brand-800 text-xs font-bold flex items-center justify-center';
+  const roundNow = 'w-6 h-6 shrink-0 rounded-full bg-gray-900 text-white text-[11px] font-bold flex items-center justify-center';
+  const roundTodo = 'w-6 h-6 shrink-0 rounded-full border-[1.5px] border-gray-300 text-gray-500 text-[11px] font-bold flex items-center justify-center';
+
+  const panel = (
+    <>
+      <StepIntro eyebrow="Paso 3 de 4" title="Marcá la planta tipo una vez">
+        Subí el plano del piso tipo y dibujá cada posición. Lo aplicamos a todos los pisos iguales; así el comprador toca su unidad en el plano del sitio.
+      </StepIntro>
+
+      <ol className="m-0 p-0 list-none flex flex-col gap-2.5">
+        <li className="flex items-center gap-3 min-h-[48px] px-3 rounded-[10px] bg-white border border-gray-200">
+          <span className={planImage ? roundOk : roundNow} aria-hidden>{planImage ? '✓' : '•'}</span>
+          <span className="flex-1 text-[13px] font-medium text-gray-900">Subir el plano del piso tipo</span>
+          {planImage
+            ? <button type="button" onClick={() => setPlanImage('')} className="min-h-[32px] text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900">Cambiar</button>
+            : <span className="text-xs text-gray-500">Ahora</span>}
+        </li>
+        {shapes.map((sh, p) => {
+          const typo = typologyAt(p);
+          const on = activeId === sh.id;
+          const done = sh.points.length >= 3;
+          return (
+            <li key={sh.id}>
+              <button type="button" onClick={() => setActiveId(sh.id)} aria-pressed={on} disabled={!planImage}
+                className={`w-full flex items-center gap-3 min-h-[48px] px-3 rounded-[10px] bg-white text-left disabled:cursor-not-allowed ${on && planImage ? 'border-[1.5px] border-gray-900' : 'border border-gray-200 hover:border-gray-300'}`}>
+                <span className={done ? roundOk : on && planImage ? roundNow : roundTodo} aria-hidden>{done ? '✓' : '•'}</span>
+                <span className="flex-1 text-[13px] font-medium text-gray-900">Posición {sh.label}{typo ? ` · Tipología ${typo}` : ''}</span>
+                <span className="text-xs text-gray-500">{done ? 'Dibujada' : on && planImage ? 'Ahora' : 'Sin dibujar'}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <fieldset className="m-0 flex flex-col gap-1 p-3.5 rounded-xl border border-gray-200 bg-white">
+        <legend className="float-left w-full mb-1.5 text-xs font-semibold text-gray-900">Aplicar a</legend>
+        {towers.map(b => {
+          const floors = typicalFloors(b);
+          return (
+            <label key={b.id} className="flex items-center gap-2.5 min-h-[36px] text-[13px] text-gray-900 cursor-pointer">
+              <input type="checkbox" checked={!!selected[b.id]} onChange={e => setSelected(s => ({ ...s, [b.id]: e.target.checked }))} className="w-4 h-4 accent-brand-700" />
+              {b.name} · pisos {floors[0]?.number ?? 1} a {floors[floors.length - 1]?.number ?? 1}
+            </label>
+          );
+        })}
+        {hasPh && (
+          <label className="flex items-center gap-2.5 min-h-[36px] text-[13px] text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={includePh} onChange={e => setIncludePh(e.target.checked)} className="w-4 h-4 accent-brand-700" />
+            Penthouses (tienen otra planta: solo la imagen)
+          </label>
+        )}
+      </fieldset>
+
+      <button type="button" onClick={onNext} className="self-start min-h-[40px] text-[13px] font-semibold text-gray-900 underline underline-offset-2 hover:text-brand-700">
+        Saltear por ahora — lo hago después
+      </button>
+    </>
+  );
+
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-8">
-      <div className="flex gap-8 flex-wrap items-start">
-        <section aria-label="Planta tipo" className="flex-[2_1_340px] min-w-0 flex flex-col gap-6">
-          <StepIntro eyebrow="Paso 3 de 4" title="Marcá la planta tipo una vez">
-            Subí el plano del piso tipo y dibujá cada posición. Lo aplicamos a todos los pisos iguales; así el comprador toca su unidad en el plano del sitio.
-          </StepIntro>
-
-          <ImageUploader value={planImage} onChange={setPlanImage} folder="floorplans" label="Plano del piso tipo" />
-
-          {positions > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel>Posiciones</FieldLabel>
-              {shapes.map((s, p) => {
-                const typo = typologyAt(p);
-                const on = activeId === s.id;
-                const done = s.points.length >= 3;
-                return (
-                  <button key={s.id} type="button" onClick={() => setActiveId(s.id)} aria-pressed={on}
-                    className={`flex items-center gap-3 min-h-[48px] px-3 rounded-xl border text-left ${on ? 'border-[1.5px] border-brand-700 bg-brand-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                    <span className="w-6 h-6 rounded-md shrink-0" style={{ background: s.color }} aria-hidden />
-                    <span className="flex-1 text-sm font-medium text-gray-900">Posición {s.label}{typo ? ` · Tipología ${typo}` : ''}</span>
-                    <span className={`text-xs ${done ? 'text-brand-700 font-semibold' : 'text-gray-500'}`}>{done ? 'Dibujada' : 'Sin dibujar'}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
-            <legend className="text-xs font-medium text-gray-700 mb-1">Aplicar a</legend>
-            {towers.map(b => {
-              const floors = typicalFloors(b);
-              return (
-                <label key={b.id} className="flex items-center gap-3 min-h-[44px] px-3 rounded-xl bg-white border border-gray-200 cursor-pointer">
-                  <input type="checkbox" checked={!!selected[b.id]} onChange={e => setSelected(s => ({ ...s, [b.id]: e.target.checked }))} className="w-4 h-4 accent-brand-700" />
-                  <span className="text-sm text-gray-900">{b.name} · pisos {floors[0]?.number ?? 1} a {floors[floors.length - 1]?.number ?? 1}</span>
-                </label>
-              );
-            })}
-            {hasPh && (
-              <label className="flex items-center gap-3 min-h-[44px] px-3 rounded-xl bg-white border border-gray-200 cursor-pointer">
-                <input type="checkbox" checked={includePh} onChange={e => setIncludePh(e.target.checked)} className="w-4 h-4 accent-brand-700" />
-                <span className="text-sm text-gray-900">Penthouses <span className="text-gray-500">(tienen otra planta: solo se les asigna la imagen)</span></span>
-              </label>
-            )}
-          </fieldset>
-
-          <button type="button" onClick={onNext} className="self-start min-h-[44px] text-sm font-medium text-gray-600 hover:text-gray-900 underline underline-offset-2">
-            Saltear por ahora — lo hago después
-          </button>
-        </section>
-
-        <section aria-label="Dibujo" className="flex-[3_1_520px] min-w-0 flex flex-col gap-3 p-4 rounded-2xl bg-white border border-gray-200">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-sm text-gray-700">
-              {activeIndex >= 0 && activeIndex < positions
-                ? <>Dibujando <b className="text-gray-900">Posición {positionLetter(activeIndex)}{activeTypo ? ` · Tipología ${activeTypo}` : ''}</b></>
-                : 'Elegí una posición para dibujar'}
-            </span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Segmented label="Modo de dibujo" value={mode} onChange={setMode} options={[{ value: 'rectangle', label: 'Rectángulo' }, { value: 'point', label: 'Forma libre' }]} />
+    <SplitLayout panel={panel} panelLabel="Planta tipo" mainLabel="Plano">
+      <div className="flex-1 min-h-[420px] md:min-h-[600px] relative flex flex-col gap-3 p-3 sm:p-4 rounded-[18px] border border-gray-200 bg-white"
+        style={{ backgroundImage: 'radial-gradient(#E4E0D8 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        {planImage ? (
+          <>
+            <div role="toolbar" aria-label="Herramientas" className="self-center flex items-center gap-0.5 p-1 rounded-xl bg-gray-900 shadow-[0_8px_24px_rgba(23,25,26,0.25)] max-w-full overflow-x-auto">
+              <span className="min-h-[36px] flex items-center px-3 text-xs text-[#C9C6BE] shrink-0">Dibujando</span>
+              {activeIndex >= 0 && activeIndex < positions && (
+                <span className="min-h-[36px] flex items-center gap-1.5 px-3 rounded-lg bg-[#3A3D3B] text-white text-xs font-semibold shrink-0 whitespace-nowrap">
+                  <span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: typoColor(activeTypo)[0] }} />
+                  Posición {positionLetter(activeIndex)}{activeTypo ? ` · Tipología ${activeTypo}` : ''}
+                </span>
+              )}
+              {(['rectangle', 'point'] as const).map(m => (
+                <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
+                  className={`min-h-[36px] px-3 rounded-lg text-xs shrink-0 ${mode === m ? 'text-white font-semibold bg-[#2B302D]' : 'text-[#C9C6BE] hover:text-white'}`}>
+                  {m === 'rectangle' ? 'Rectángulo' : 'Forma libre'}
+                </button>
+              ))}
               {activeId && (points[activeId]?.length ?? 0) > 0 && (
                 <button type="button" onClick={() => setPoints(prev => ({ ...prev, [activeId]: [] }))}
-                  className="min-h-[36px] px-3 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100">
+                  className="min-h-[36px] px-3 rounded-lg text-xs text-[#C9C6BE] hover:text-white shrink-0">
                   Borrar forma
                 </button>
               )}
             </div>
-          </div>
-          {planImage ? (
-            <PolygonCanvas
-              imageUrl={planImage}
-              shapes={shapes}
-              activeId={activeId}
-              mode={mode}
-              onPointsChange={(id, pts) => setPoints(prev => ({ ...prev, [id]: pts }))}
-              onComplete={advanceActive}
-            />
-          ) : (
-            <div className="aspect-[4/3] rounded-xl border-[1.5px] border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-500 text-center px-6">
-              Subí el plano del piso tipo para empezar a marcar las posiciones.
+            <div className="rounded-xl overflow-hidden bg-white">
+              <PolygonCanvas
+                imageUrl={planImage}
+                shapes={shapes}
+                activeId={activeId}
+                mode={mode}
+                onPointsChange={(id, pts) => setPoints(prev => ({ ...prev, [id]: pts }))}
+                onComplete={advanceActive}
+              />
             </div>
-          )}
-        </section>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="w-full max-w-[460px] flex flex-col gap-3 p-5 rounded-2xl bg-white border border-gray-200 shadow-[0_8px_24px_-12px_rgba(23,25,26,0.18)]">
+              <span className="text-sm font-semibold text-gray-900">Subí el plano del piso tipo</span>
+              <span className="text-xs text-gray-500">PNG o JPG. Después marcás cada posición encima.</span>
+              <ImageUploader value={planImage} onChange={setPlanImage} folder="floorplans" />
+            </div>
+          </div>
+        )}
       </div>
-
       <ErrorNote>{error}</ErrorNote>
       <StepFooter
         back={{ label: 'Tipologías', onClick: onBack }}
-        summary={<>{drawn} de {positions} posiciones · se aplica a <b className="text-gray-900">{floorsAffected} pisos</b> en una sola vez</>}
+        summary={<>{drawn} de {positions} posiciones · se aplica a <b>{floorsAffected} pisos</b> en una sola vez</>}
         primary={{ label: 'Aplicar y terminar', onClick: apply, disabled: !planImage || selectedTowers.length + (includePh ? 1 : 0) === 0, busy, busyLabel: 'Aplicando...' }}
       />
-    </div>
+    </SplitLayout>
   );
 }
 
@@ -633,7 +802,6 @@ function ListoStep({ project, tree, onBackToStart }: Pick<FlowProps, 'project' |
         eyebrow="Paso 4 de 4"
         title="Listo para mostrarse."
         text={`${n} unidades${typologies ? ` en ${typologies} tipologías` : ''}${plans ? ', con su planta interactiva' : ''}. Sin precios ni estados: acá lo que vende es cómo contás el proyecto.`}
-        stats={[{ value: String(n), label: 'unidades' }, { value: String(typologies), label: 'tipologías' }, { value: String(plans), label: 'plantas marcadas' }]}
         optionalTitle="Lo que hace lucir un proyecto de estudio"
         optional={[
           { label: 'Relato', text: 'La idea, el lugar, las decisiones.', href: '/admin/sitio', tag: 'Recomendado' },
@@ -660,12 +828,12 @@ function ListoStep({ project, tree, onBackToStart }: Pick<FlowProps, 'project' |
       stats={[{ value: String(n), label: 'unidades' }, { value: String(typologies), label: 'tipologías' }, { value: String(plans), label: 'plantas marcadas' }]}
       required={[{ key: 'precios', title: 'Precios y estados', text: priced ? 'Listos' : 'Pegalos desde tu Excel en la tabla', href: '/admin/inventory', done: priced }]}
       optional={[
-        { label: 'Soltá todos los medios', text: 'Renders, fotos y 360°: se ordenan solos.', href: '/admin/proyecto' },
-        { label: 'Relato', text: 'Un texto corto y tres atributos.', href: '/admin/sitio' },
-        { label: 'Entorno', text: 'Ubicación y amenidades en una pantalla.', href: '/admin/proyecto/ubicacion' },
-        { label: 'Recorrido 360°', text: 'Escenas de espacios comunes.', href: '/admin/proyecto/recorrido' },
-        { label: 'Avance de obra', text: 'Primera entrada de la bitácora.', href: '/admin/proyecto/avance' },
-        { label: 'Equipo', text: 'Quién hizo el proyecto.', href: '/admin/sitio' },
+        { label: 'Soltá todos los medios', text: 'Renders, fotos y 360°: se ordenan solos.', href: '/admin/proyecto', time: '5 min' },
+        { label: 'Relato', text: 'Un texto corto y tres atributos.', href: '/admin/sitio', time: '5 min' },
+        { label: 'Entorno', text: 'Ubicación y amenidades en una pantalla.', href: '/admin/proyecto/ubicacion', time: '3 min' },
+        { label: 'Recorrido 360°', text: 'Escenas de espacios comunes.', href: '/admin/proyecto/recorrido', time: '10 min' },
+        { label: 'Avance de obra', text: 'Primera entrada de la bitácora.', href: '/admin/proyecto/avance', time: '2 min' },
+        { label: 'Equipo', text: 'Quién hizo el proyecto.', href: '/admin/sitio', time: '2 min' },
       ]}
       onBackToStart={onBackToStart}
     />

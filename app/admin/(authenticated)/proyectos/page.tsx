@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 import { getProjectHref, getProjectPreviewHref } from '@/lib/project-url';
 import { slugify } from '@/lib/slug';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE } from '@/lib/project-types';
+import { pluralize } from '@/lib/units';
 import type { ProjectType, ProjectSaleMode } from '@/types';
 
 interface ProjectRow {
@@ -22,20 +23,27 @@ interface ProjectRow {
   updated_at: string;
   pendingLeadsCount: number;
   commentsCount: number;
+  unitsCount?: number;
   progress: { done: number; total: number };
+  /** Lo que falta cargar, en el orden en que conviene hacerlo — ver GET /api/admin/projects. */
+  missing?: string[];
 }
 
-type Filter = 'all' | ProjectSaleMode | 'draft';
-type Sort = 'recent' | 'name' | 'progress';
-const SORT_LABELS: Record<Sort, string> = { recent: 'Más recientes', name: 'Nombre A-Z', progress: 'Más completos' };
-const SORT_CYCLE: Sort[] = ['recent', 'name', 'progress'];
+type Filter = 'all' | 'published' | 'draft';
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'published', label: 'Publicados' },
+  { value: 'draft', label: 'Borradores' },
+];
+
+// Rayas del diseño para portadas vacías / de muestra.
+const STRIPES = 'repeating-linear-gradient(135deg, #EFECE6 0 12px, #F5F3EE 12px 24px)';
 
 export default function MisProyectosPage() {
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-  const [sort, setSort] = useState<Sort>('recent');
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
@@ -105,82 +113,62 @@ export default function MisProyectosPage() {
   };
 
   const q = query.trim().toLowerCase();
-  const visible = useMemo(() => {
-    let list = (projects ?? []).filter(p => {
-      if (q && !`${p.name} ${p.location ?? ''}`.toLowerCase().includes(q)) return false;
-      if (filter === 'draft') return !p.published;
-      if (filter === 'venta' || filter === 'showcase') return p.sale_mode === filter;
-      return true;
-    });
-    if (sort === 'name') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    if (sort === 'progress') list = [...list].sort((a, b) => (b.progress.done / (b.progress.total || 1)) - (a.progress.done / (a.progress.total || 1)));
-    return list;
-  }, [projects, q, filter, sort]);
-
-  const chips: { key: Filter; label: string }[] = [
-    { key: 'all', label: 'Todos' },
-    { key: 'venta', label: PROJECT_SALE_MODES.venta.label },
-    { key: 'showcase', label: PROJECT_SALE_MODES.showcase.label },
-    { key: 'draft', label: 'Sin publicar' },
-  ];
+  const visible = useMemo(() => (projects ?? []).filter(p => {
+    if (q && !`${p.name} ${p.location ?? ''}`.toLowerCase().includes(q)) return false;
+    if (filter === 'draft') return !p.published;
+    if (filter === 'published') return p.published;
+    return true;
+  }), [projects, q, filter]);
 
   if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
 
+  const total = projects?.length ?? 0;
+  const publishedCount = (projects ?? []).filter(p => p.published).length;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1400px] mx-auto px-4 py-10 sm:py-12 flex gap-8 flex-wrap items-start">
-      <div className="flex-[999_1_640px] min-w-0">
-        <div className="flex items-end justify-between gap-6 flex-wrap">
+    <div className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
+      <main className="flex-[999_1_640px] min-w-0 px-4 py-8 sm:px-10 sm:py-10 flex flex-col gap-6">
+        <div className="flex items-end justify-between gap-x-6 gap-y-4 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Mis proyectos</h1>
-            <p className="text-sm text-gray-500 mt-1.5">
-              {projects && projects.length > 0
-                ? `${projects.length} proyecto${projects.length === 1 ? '' : 's'} · seguí cargando el que quedó a medias o creá uno nuevo.`
-                : 'Todavía no tenés proyectos.'}
+            <h1 className="m-0 text-[36px] sm:text-[44px] leading-none font-semibold text-gray-900">Mis proyectos</h1>
+            <p className="m-0 mt-2 text-sm text-gray-600">
+              {total > 0 ? `${total} proyecto${total === 1 ? '' : 's'} · ${publishedCount} publicado${publishedCount === 1 ? '' : 's'}` : 'Todavía no tenés proyectos. Creá el primero con el panel.'}
             </p>
           </div>
-          <button
-            type="button" onClick={focusNewProject}
-            className="shrink-0 h-[38px] px-4 flex items-center gap-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
-          >
-            <span className="text-base leading-none">+</span> Nuevo proyecto
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap mt-5">
-          <div className="relative w-64 shrink-0">
-            <input
-              value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar en mis proyectos"
-              className="h-[34px] w-full pl-8 pr-3 text-xs rounded-lg border border-gray-200 bg-white outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-            />
-            <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">⌕</span>
-          </div>
-          {chips.map(c => (
-            <button
-              key={c.key} type="button" onClick={() => setFilter(c.key)}
-              className={`h-[30px] px-3 rounded-lg text-[11.5px] font-medium border transition-colors whitespace-nowrap ${
-                filter === c.key ? 'bg-brand-50 border-brand-500 text-brand-800' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-              }`}
-            >
-              {c.label}
+          <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+            <label className="flex-1 sm:flex-none sm:w-[264px] flex items-center gap-2.5 min-h-[44px] px-3.5 rounded-[10px] border border-gray-200 bg-white focus-within:border-brand-700">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6A65" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar en mis proyectos" aria-label="Buscar en mis proyectos"
+                className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-500" />
+            </label>
+            <div role="radiogroup" aria-label="Filtrar" className="inline-flex p-[3px] rounded-[10px] bg-[#EAE7E0]">
+              {FILTERS.map(f => (
+                <button key={f.value} type="button" role="radio" aria-checked={filter === f.value} onClick={() => setFilter(f.value)}
+                  className={`min-h-[38px] px-3 rounded-lg text-[13px] ${filter === f.value ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={focusNewProject}
+              className="lg:hidden ml-auto sm:ml-0 min-h-[44px] px-4 rounded-[10px] bg-gray-900 text-white text-sm font-semibold">
+              + Nuevo
             </button>
-          ))}
-          <div className="flex-1" />
-          <button
-            type="button" onClick={() => setSort(SORT_CYCLE[(SORT_CYCLE.indexOf(sort) + 1) % SORT_CYCLE.length])}
-            className="h-[30px] px-3 flex items-center gap-1.5 border border-gray-200 rounded-lg text-[11.5px] text-gray-600 bg-white hover:border-gray-300 transition-colors whitespace-nowrap"
-          >
-            {SORT_LABELS[sort]}
-          </button>
+          </div>
         </div>
 
-        <div className="grid gap-4 mt-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
           {visible.map(p => {
             const isActive = p.id === activeProjectId;
             const isBusy = selectingId !== null || deleteTarget !== null || duplicatingId !== null;
             const pct = p.progress.total > 0 ? Math.round((p.progress.done / p.progress.total) * 100) : 0;
-            const config = PROJECT_STRUCTURES[p.project_type];
+            const structure = PROJECT_STRUCTURES[p.project_type];
+            const units = p.unitsCount ?? 0;
+            const meta = [
+              structure?.label ?? p.project_type,
+              structure?.hasUnitStep && units > 0 ? `${units} ${units === 1 ? structure.unitLabel.toLowerCase() : pluralize(structure.unitLabel.toLowerCase())}` : null,
+              p.location,
+            ].filter(Boolean).join(' · ');
+            const missing = p.missing ?? [];
             return (
               <div
                 key={p.id}
@@ -188,102 +176,79 @@ export default function MisProyectosPage() {
                 onClick={() => { if (!isBusy) enterProject(p.id); }}
                 onKeyDown={e => { if (!isBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); enterProject(p.id); } }}
                 aria-disabled={isBusy}
-                className={`relative text-left bg-white rounded-2xl overflow-visible cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 border ${
-                  isBusy ? 'opacity-50 pointer-events-none' : ''
-                } ${isActive ? 'border-brand-400' : 'border-gray-200'}`}
+                aria-label={`${p.name} — ${p.published ? 'publicado' : 'borrador'}, ${pct}% cargado`}
+                className={`group relative flex flex-col rounded-2xl bg-white overflow-visible cursor-pointer transition-shadow hover:shadow-[0_12px_32px_-14px_rgba(23,25,26,0.25)] border ${
+                  isActive ? 'border-brand-700' : 'border-gray-200'
+                } ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}
               >
-                <div className="relative h-[132px] rounded-t-[15px] overflow-hidden bg-gray-100">
+                <div className="relative aspect-[16/9] rounded-t-[15px] overflow-hidden flex items-center justify-center" style={p.masterplan_image ? undefined : { background: STRIPES }}>
                   {p.masterplan_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.masterplan_image} alt="" className="w-full h-full object-cover" />
+                    <img src={p.masterplan_image} alt="" className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
-                      <span className="text-2xl">🏗️</span>
-                      <span className="text-[9.5px] text-gray-400">Sin portada — subila para publicar</span>
-                    </div>
+                    <span className="text-[13px] text-gray-700 bg-white px-2.5 py-1.5 rounded-lg">Sin portada — subila para publicar</span>
                   )}
-                  <div className="absolute top-2.5 left-2.5 flex gap-1.5">
-                    <span className={`h-[21px] px-2 flex items-center rounded-md text-[10px] font-medium ${
-                      p.published ? 'bg-gray-900/85 text-white' : 'bg-white/95 text-gray-700 border border-gray-200'
-                    }`}>
+                  <div className="absolute left-3 top-3 flex gap-1.5">
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${p.published ? 'bg-gray-900 text-white' : 'bg-white text-amber-800'}`}>
                       {p.published ? 'Publicado' : 'Borrador'}
                     </span>
-                    {isActive && (
-                      <span className="h-[21px] px-2 flex items-center gap-1 rounded-md bg-brand-500 text-[10px] font-medium text-white">
-                        <span className="w-[5px] h-[5px] rounded-full bg-white" /> Activo
-                      </span>
-                    )}
                     {p.pendingLeadsCount > 0 && (
-                      <span className="h-[21px] px-2 flex items-center rounded-md bg-red-500 text-[10px] font-bold text-white">
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-brand-700 text-white">
                         {p.pendingLeadsCount} lead{p.pendingLeadsCount === 1 ? '' : 's'}
                       </span>
                     )}
                   </div>
                   <button
-                    type="button" onClick={e => { e.stopPropagation(); setMenuOpenId(m => (m === p.id ? null : p.id)); }}
+                    type="button" aria-label={`Opciones de ${p.name}`} aria-expanded={menuOpenId === p.id}
+                    onClick={e => { e.stopPropagation(); setMenuOpenId(m => (m === p.id ? null : p.id)); }}
                     disabled={isBusy}
-                    className="absolute top-2 right-2.5 w-[26px] h-[26px] rounded-lg bg-white/90 border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-white hover:text-gray-900 transition-colors"
+                    className={`absolute top-2.5 right-2.5 w-9 h-9 rounded-lg bg-white/95 text-gray-700 flex items-center justify-center hover:text-gray-900 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 ${menuOpenId === p.id ? 'lg:opacity-100' : ''}`}
                   >
-                    ⋯
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
                   </button>
-                  {menuOpenId === p.id && (
-                    <div
-                      onClick={e => e.stopPropagation()}
-                      className="absolute top-10 right-2.5 w-[172px] bg-white border border-gray-200 rounded-xl shadow-[0_16px_34px_-14px_rgba(16,24,40,.3)] p-1.5 z-10"
-                    >
-                      <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">Seguir cargando</button>
-                      <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="block w-full text-left h-[30px] leading-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
-                      <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-gray-900 hover:bg-gray-100">Duplicar</button>
-                      <div className="h-px bg-gray-100 my-1 mx-1.5" />
-                      <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left h-[30px] px-2.5 rounded-lg text-xs text-red-600 hover:bg-red-50">Eliminar proyecto</button>
-                    </div>
-                  )}
                 </div>
+                {menuOpenId === p.id && (
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    className="absolute top-12 right-2.5 w-[188px] bg-white border border-gray-200 rounded-xl shadow-[0_16px_34px_-14px_rgba(23,25,26,.3)] p-1.5 z-10"
+                  >
+                    <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Seguir cargando</button>
+                    <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
+                    <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Duplicar</button>
+                    <div className="h-px bg-gray-200 my-1 mx-1.5" />
+                    <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-red-700 hover:bg-red-50">Eliminar proyecto</button>
+                  </div>
+                )}
 
-                <div className="p-4 flex flex-col gap-2.5">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 text-[15px] truncate">{p.name}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">{p.location || 'Sin ubicación cargada'}</p>
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    <span className="h-[22px] px-2.5 flex items-center rounded-md bg-gray-100 text-[10.5px] font-medium text-gray-700">{config?.label ?? p.project_type}</span>
-                    <span className={`h-[22px] px-2.5 flex items-center rounded-md text-[10.5px] font-medium ${
-                      p.sale_mode === 'venta' ? 'bg-brand-50 text-brand-800' : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {PROJECT_SALE_MODES[p.sale_mode]?.label ?? p.sale_mode}
-                    </span>
-                  </div>
-                  {p.progress.total > 0 && (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex justify-between gap-2">
-                        <span className="text-[10.5px] text-gray-500">{p.progress.done} de {p.progress.total} secciones listas</span>
-                        <span className="text-[10.5px] font-medium text-gray-400">{pct}%</span>
-                      </div>
-                      <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
-                        <div className={`h-full rounded-full ${pct === 100 ? 'bg-brand-500' : 'bg-gray-400'}`} style={{ width: `${pct}%` }} />
-                      </div>
+                <div className="p-[18px] flex flex-col gap-3 flex-1">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="m-0 font-display text-[19px] font-semibold tracking-[-0.02em] text-gray-900 truncate">{p.name}</p>
+                      <p className="m-0 mt-0.5 text-xs text-gray-600 truncate">{meta || 'Sin ubicación cargada'}</p>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                    <span className="text-[10.5px] text-gray-400">Editado {formatRelativeTime(p.updated_at)}</span>
-                    <span className="text-[11px] font-medium text-brand-600">{p.progress.done === p.progress.total ? 'Abrir' : 'Seguir cargando'} →</span>
+                    {p.progress.total > 0 && <ProgressRing pct={pct} />}
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-gray-200 flex items-center justify-between gap-3">
+                    <span className="text-xs text-gray-600 truncate">
+                      {missing.length > 0 ? `Falta: ${missing.slice(0, 2).join(' y ')}` : `Editado ${formatRelativeTime(p.updated_at)}`}
+                    </span>
+                    <span className="shrink-0 text-[13px] font-semibold text-gray-900">{missing.length > 0 ? 'Seguir cargando' : 'Abrir'} →</span>
                   </div>
                 </div>
               </div>
             );
           })}
-
         </div>
 
-        {visible.length === 0 && (projects ?? []).length > 0 && (
-          <div className="mt-4 p-11 bg-white border border-gray-200 rounded-2xl flex flex-col items-center gap-2">
-            <p className="text-sm font-medium text-gray-900">Ningún proyecto coincide con esa búsqueda</p>
-            <button type="button" onClick={() => { setQuery(''); setFilter('all'); }} className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        {visible.length === 0 && total > 0 && (
+          <div className="p-10 bg-white border border-gray-200 rounded-2xl flex flex-col items-center gap-2">
+            <p className="m-0 text-sm font-semibold text-gray-900">Ningún proyecto coincide con esa búsqueda</p>
+            <button type="button" onClick={() => { setQuery(''); setFilter('all'); }} className="min-h-[40px] text-sm font-semibold text-brand-700 underline underline-offset-2">
               Ver todos mis proyectos
             </button>
           </div>
         )}
-      </div>
+      </main>
 
       <NewProjectPanel
         inputRef={newPanelRef}
@@ -293,7 +258,6 @@ export default function MisProyectosPage() {
           window.location.href = '/admin/carga'; // fuerza reload para que las rutas API lean la cookie nueva
         }}
       />
-      </div>
 
       <DeleteProjectModal
         project={deleteTarget}
@@ -301,6 +265,20 @@ export default function MisProyectosPage() {
         onDeleted={() => { setDeleteTarget(null); load(); }}
       />
     </div>
+  );
+}
+
+/** Anillo de progreso de la tarjeta (diseño: 34px, trazo #37463F sobre #EAE7E0, % en el centro). */
+function ProgressRing({ pct }: { pct: number }) {
+  const C = 2 * Math.PI * 15;
+  return (
+    <span className="relative w-[38px] h-[38px] shrink-0" aria-hidden="true">
+      <svg width="38" height="38" viewBox="0 0 38 38" className="-rotate-90">
+        <circle cx="19" cy="19" r="15" fill="none" stroke="#EAE7E0" strokeWidth="3" />
+        <circle cx="19" cy="19" r="15" fill="none" stroke="#37463F" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(C * pct) / 100} ${C}`} />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-gray-900">{pct}</span>
+    </span>
   );
 }
 
@@ -312,6 +290,9 @@ const FORM_ICONS: Record<ProjectType, string> = {
   loteo: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18',
   unico: 'M12 3 3 8l9 5 9-5zM3 8v8l9 5 9-5V8',
 };
+
+/** Orden del diseño: de lo más común a lo más particular. */
+const FORM_ORDER: ProjectType[] = ['edificio', 'duplex', 'casa', 'loteo', 'unico'];
 
 const FORM_HINTS: Record<ProjectType, string> = {
   edificio: 'Pisos y unidades',
@@ -366,16 +347,16 @@ function NewProjectPanel({ onCreated, inputRef }: { onCreated: (id: string) => v
   };
 
   return (
-    <aside aria-label="Nuevo proyecto" className="flex-[1_1_340px] max-w-[420px] min-w-0 lg:sticky lg:top-6 bg-white border border-gray-200 rounded-2xl p-6 flex flex-col gap-6">
+    <aside aria-label="Nuevo proyecto" className="flex-[1_1_340px] lg:max-w-[380px] min-w-0 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 px-4 py-8 sm:p-7 flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="m-0 text-xl font-semibold text-gray-900 tracking-tight">Nuevo proyecto</h2>
-        <p className="m-0 text-[13px] text-gray-500">Dos decisiones y el nombre. Todo lo demás se edita después.</p>
+        <h2 className="m-0 font-display text-[26px] leading-tight font-semibold text-gray-900">Nuevo proyecto</h2>
+        <p className="m-0 text-[13px] leading-snug text-gray-600">Dos decisiones y el nombre. Todo lo demás se edita después.</p>
       </div>
 
       <div className="flex flex-col gap-2.5">
         <span className="text-xs font-semibold text-gray-900">1 · ¿Qué forma tiene el desarrollo?</span>
         <div className="grid grid-cols-2 gap-2">
-          {(Object.entries(PROJECT_STRUCTURES) as [ProjectType, typeof PROJECT_STRUCTURES[ProjectType]][]).map(([key, config]) => {
+          {FORM_ORDER.map(key => [key, PROJECT_STRUCTURES[key]] as const).map(([key, config]) => {
             const on = form.projectType === key;
             return (
               <button
@@ -426,15 +407,15 @@ function NewProjectPanel({ onCreated, inputRef }: { onCreated: (id: string) => v
           value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
           onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
           placeholder="Ej: Loteo Zona Sur"
-          className="w-full h-11 px-3 rounded-[10px] border border-gray-300 text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+          className="w-full min-h-[48px] px-3.5 rounded-[10px] border border-gray-300 text-[15px] outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-700 placeholder:text-gray-500"
         />
         <span className="text-[11px] text-gray-500">
           Tu link: <span className="font-medium text-brand-700 font-mono">arq360.com/{slugify(form.name) || 'mi-proyecto'}</span>
         </span>
       </label>
 
-      <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 leading-relaxed">
-        <span className="font-semibold text-gray-900">Vas a cargar: </span>
+      <div className="rounded-xl bg-gray-100 p-3.5 text-xs text-gray-600 leading-relaxed flex flex-col gap-1.5">
+        <span className="font-semibold text-gray-900">Vas a cargar:</span>
         {willLoad(form.projectType, form.saleMode)}
       </div>
 
@@ -442,7 +423,7 @@ function NewProjectPanel({ onCreated, inputRef }: { onCreated: (id: string) => v
 
       <button
         type="button" onClick={handleCreate} disabled={!ready || creating}
-        className="min-h-[48px] rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+        className="min-h-[52px] rounded-xl text-[15px] font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
       >
         {creating ? 'Creando...' : ready ? 'Crear y empezar' : 'Poné un nombre para empezar'}
       </button>

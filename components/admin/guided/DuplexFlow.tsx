@@ -7,10 +7,10 @@ import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanv
 import { useToast } from '@/components/ui/ToastProvider';
 import { planDuplex, positionLetter, centroid, type DuplexModel, type Pt } from '@/lib/guided-structure';
 import type { FlowProps } from './GuidedLoad';
-import ListoScreen, { PreviewCard } from './ListoScreen';
+import ListoScreen from './ListoScreen';
 import {
-  GuidedHeader, StepIntro, StepFooter, NumberStepper, ChoiceCard, Segmented, NumberField, FieldLabel, ErrorNote,
-  inputClass, allUnits, allFloors, formatNumber, useGuidedApi, SHAPE_PALETTE, type GuidedTree,
+  GuidedHeader, SplitLayout, StepIntro, StepFooter, NumberStepper, ChoiceCard, Segmented, FieldLabel, ErrorNote,
+  allUnits, allFloors, formatNumber, useGuidedApi, type GuidedTree,
 } from './shared';
 
 const STEPS = [{ label: 'Conjunto' }, { label: 'Plano del conjunto' }, { label: 'Listo' }];
@@ -44,6 +44,62 @@ export default function DuplexFlow({ project, tree, setTree, reload, step, goTo 
 const emptyModel = (name: string): DuplexModel => ({
   name, bedrooms: 2, bathrooms: 1, floorsCount: 2, innerArea: null, lotSize: null, garageSpaces: 0,
 });
+
+/** Campo chico del "Modelo de unidad" (diseño: grilla de 3, label gris de 11px, input de 38px). */
+function SmallField({ label, value, onChange, integer }: { label: string; value: number | null; onChange: (n: number | null) => void; integer?: boolean }) {
+  return (
+    <label className="flex flex-col gap-1 min-w-0">
+      <span className="text-[11px] text-gray-500">{label}</span>
+      <input
+        inputMode={integer ? 'numeric' : 'decimal'}
+        value={value ?? ''}
+        placeholder="—"
+        onChange={e => {
+          const raw = e.target.value.replace(integer ? /\D/g : /[^\d.,]/g, '').replace(',', '.');
+          onChange(raw === '' ? null : Number(raw));
+        }}
+        className="min-h-[40px] px-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 min-w-0 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-500/30 placeholder:text-gray-400"
+      />
+    </label>
+  );
+}
+
+interface HouseHalf { code: string; meta: string; highlight?: boolean }
+
+/** Vista "Así queda": cada dúplex como casita con techo a dos aguas partida en sus mitades. */
+function DuplexHouses({ duplexes }: { duplexes: { name: string; halves: HouseHalf[] }[] }) {
+  return (
+    <div className="flex-1 flex gap-x-6 2xl:gap-x-9 gap-y-8 items-end justify-center flex-wrap px-4 sm:px-6 pt-12 pb-8 rounded-[18px] bg-white border border-gray-200 min-h-[320px] sm:min-h-[480px]">
+      {duplexes.map(d => (
+        <div key={d.name} className="flex flex-col items-center gap-3">
+          <div className="flex gap-[3px] items-end">
+            {d.halves.map((h, i) => {
+              const last = d.halves.length - 1;
+              const clip = d.halves.length === 1
+                ? 'polygon(0 100%, 50% 0, 100% 100%)'
+                : i === 0 ? 'polygon(0 100%, 100% 0, 100% 100%)'
+                : i === last ? 'polygon(0 0, 100% 100%, 0 100%)'
+                : 'polygon(0 100%, 0 0, 100% 0, 100% 100%)';
+              return (
+                <div key={h.code} className="flex flex-col items-center">
+                  <span aria-hidden className="w-[92px] 2xl:w-[110px] h-[44px] bg-gray-800" style={{ clipPath: clip }} />
+                  <span className={`w-[92px] 2xl:w-[110px] h-[120px] box-border flex flex-col items-center justify-center gap-0.5 ${
+                    h.highlight ? 'bg-[#F3E7DA] text-[#6B4510] outline outline-2 outline-gray-900 outline-offset-2' : 'bg-gray-100 border border-gray-300 text-gray-900'
+                  }`}>
+                    <span className="font-display text-lg font-semibold">{h.code}</span>
+                    <span className="text-[10px]">{h.meta}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div aria-hidden className="w-full h-1.5 rounded-sm bg-gray-800" />
+          <span className="text-[13px] font-semibold text-gray-900">{d.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
   const { create } = useGuidedApi();
@@ -82,108 +138,111 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
     onCreated(res.data);
   };
 
+  const duplexes = plan.map(b => ({
+    name: b.name,
+    halves: b.floors[0].units.map(u => ({
+      code: u.code,
+      meta: !same && u.modelName ? u.modelName : `${u.bedrooms} dorm.`,
+      highlight: !same && (u.position ?? 0) === activeIdx,
+    })),
+  }));
+  const numbering = `${plan[0]?.floors[0]?.units.slice(0, 2).map(u => u.code).join(', ')}${plan.length > 1 ? `, ${plan[1].floors[0].units[0]?.code}…` : ''}`;
+  const fieldsCls = 'grid grid-cols-3 gap-2';
+
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex gap-8 flex-wrap items-start">
-      <section aria-label="Conjunto" className="flex-[1_1_440px] min-w-0 max-w-[560px] flex flex-col gap-6">
-        <StepIntro eyebrow="Paso 1 de 3" title="¿Cuántos dúplex son?">
-          Cada dúplex tiene sus mitades. Si todas las unidades son iguales, las cargás una vez y se copian a todas.
-        </StepIntro>
+    <SplitLayout
+      panelLabel="Conjunto"
+      mainLabel="Vista del conjunto"
+      panel={
+        <>
+          <StepIntro eyebrow="Paso 1 de 3" title="¿Cuántos dúplex son?">
+            Cada dúplex tiene sus mitades. Si todas las unidades son iguales, las cargás una vez y se copian a todas.
+          </StepIntro>
 
-        <div className="flex gap-x-3 gap-y-4 sm:gap-6 flex-wrap">
-          <NumberStepper label="Dúplex" value={count} onChange={setCount} min={1} max={100} />
-          <NumberStepper label="Unidades por dúplex" value={per} onChange={setPer} min={1} max={8} />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <FieldLabel>Las unidades son</FieldLabel>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <ChoiceCard on={same} onClick={() => { setSame(true); setActive(0); }} title="Todas iguales (espejadas)" hint={`Un solo modelo para las ${totalUnits} unidades`} />
-            <ChoiceCard on={!same} onClick={() => setSame(false)} title="Hay modelos distintos" hint="Ej: frente y fondo, o con y sin piscina" />
+          <div className="grid grid-cols-2 gap-3">
+            <NumberStepper label="Dúplex" value={count} onChange={setCount} min={1} max={100} />
+            <NumberStepper label="Unidades por dúplex" value={per} onChange={setPer} min={1} max={8} />
           </div>
-        </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900">
-              Modelo de unidad <span className="font-normal text-gray-500">
-                — {same ? `se copia a las ${totalUnits}` : `posición ${positionLetter(activeIdx)} de cada dúplex · ${count} unidades`}
-              </span>
-            </span>
-            {!same && (
-              <Segmented
-                label="Modelo"
-                value={String(activeIdx)}
-                options={effectiveModels.map((m, i) => ({ value: String(i), label: `${positionLetter(i)} · ${m.name || 'Sin nombre'}` }))}
-                onChange={v => setActive(Number(v))}
-              />
-            )}
+          <div role="radiogroup" aria-label="Las unidades son" className="flex flex-col gap-2">
+            <FieldLabel>Las unidades son</FieldLabel>
+            <ChoiceCard on={same} onClick={() => { setSame(true); setActive(0); }} title="Todas iguales (espejadas)" hint={`Un solo modelo para las ${totalUnits} unidades`} className="!min-h-[58px] !py-2.5 !rounded-[10px]" />
+            <ChoiceCard on={!same} onClick={() => setSame(false)} title="Hay modelos distintos" hint="Ej: frente y fondo, o con y sin piscina" className="!min-h-[58px] !py-2.5 !rounded-[10px]" />
           </div>
-          <label className="flex flex-col gap-1.5">
-            <FieldLabel>Nombre del modelo</FieldLabel>
-            <input value={model.name} onChange={e => updateModel({ name: e.target.value })} className={inputClass} placeholder="Ej: Frente" />
-          </label>
-          <div className="flex gap-x-3 gap-y-4 sm:gap-4 flex-wrap">
-            <NumberStepper label="Dormitorios" value={model.bedrooms} onChange={n => updateModel({ bedrooms: n })} max={20} />
-            <NumberStepper label="Baños" value={model.bathrooms} onChange={n => updateModel({ bathrooms: n })} max={20} />
-            <NumberStepper label="Plantas" value={model.floorsCount} onChange={n => updateModel({ floorsCount: n })} min={1} max={6} />
-            <NumberStepper label="Cocheras" value={model.garageSpaces} onChange={n => updateModel({ garageSpaces: n })} max={10} />
-          </div>
-          <div className="grid gap-3 grid-cols-2">
-            <NumberField label="Cubierta" suffix="m²" value={model.innerArea} onChange={n => updateModel({ innerArea: n })} />
-            <NumberField label="Terreno" suffix="m²" value={model.lotSize} onChange={n => updateModel({ lotSize: n })} />
-          </div>
-        </div>
 
-        <ErrorNote>{error}</ErrorNote>
-        <StepFooter
-          summary={<>Numeración: {plan[0]?.floors[0]?.units.slice(0, 2).map(u => u.code).join(', ')}{plan.length > 1 ? `, ${plan[1].floors[0].units[0]?.code}…` : ''}</>}
-          primary={{ label: 'Crear y seguir →', onClick: submit, busy, busyLabel: 'Creando...' }}
-        />
-      </section>
-
-      <main aria-label="Vista del conjunto" className="flex-[1_1_480px] min-w-0 rounded-2xl border border-gray-200 bg-[#efece6] p-5 flex flex-col gap-4">
-        <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así queda <span className="font-normal text-gray-500">— después podés cambiar una unidad si es distinta</span></h2>
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-          {plan.map(b => (
-            <div key={b.name} className="flex flex-col gap-2">
-              <div className="flex gap-1 rounded-xl bg-white border border-gray-300 p-1.5">
-                {b.floors[0].units.map(u => (
-                  <div key={u.code} className="flex-1 min-w-0 flex flex-col gap-0.5 rounded-lg bg-brand-50 border border-brand-200 px-2 py-3">
-                    <span className="text-[13px] font-semibold text-gray-900">{u.code}</span>
-                    <span className="text-[10.5px] text-gray-600 truncate">{u.bedrooms} dorm.{u.innerArea ? ` · ${formatNumber(u.innerArea)} m²` : ''}</span>
-                  </div>
-                ))}
-              </div>
-              <span className="text-xs font-medium text-gray-700">{b.name}</span>
+          <div className="rounded-[14px] border border-gray-200 bg-white p-4 flex flex-col gap-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-semibold text-gray-900">Modelo de unidad</span>
+              <span className="text-xs text-gray-500">{same ? `se copia a las ${totalUnits}` : `posición ${positionLetter(activeIdx)} · ${count} unidades`}</span>
             </div>
-          ))}
-        </div>
-        <p className="m-0 text-[13px] text-gray-700 font-medium pt-3 border-t border-gray-300">
-          {count} dúplex · {totalUnits} unidades · {effectiveModels.length} modelo{effectiveModels.length === 1 ? '' : 's'}
-        </p>
-      </main>
-    </div>
+            {!same && (
+              <>
+                <Segmented
+                  label="Modelo"
+                  value={String(activeIdx)}
+                  options={effectiveModels.map((m, i) => ({ value: String(i), label: `${positionLetter(i)} · ${m.name || 'Sin nombre'}` }))}
+                  onChange={v => setActive(Number(v))}
+                />
+                <label className="flex flex-col gap-1 min-w-0">
+                  <span className="text-[11px] text-gray-500">Nombre del modelo</span>
+                  <input value={model.name} onChange={e => updateModel({ name: e.target.value })} placeholder="Ej: Frente"
+                    className="min-h-[40px] px-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-500/30" />
+                </label>
+              </>
+            )}
+            <div className={fieldsCls}>
+              <SmallField label="Dormitorios" integer value={model.bedrooms} onChange={n => updateModel({ bedrooms: Math.min(20, n ?? 0) })} />
+              <SmallField label="Baños" integer value={model.bathrooms} onChange={n => updateModel({ bathrooms: Math.min(20, n ?? 0) })} />
+              <SmallField label="Plantas" integer value={model.floorsCount} onChange={n => updateModel({ floorsCount: Math.min(6, Math.max(1, n ?? 1)) })} />
+              <SmallField label="Cubierta m²" value={model.innerArea} onChange={n => updateModel({ innerArea: n })} />
+              <SmallField label="Terreno m²" value={model.lotSize} onChange={n => updateModel({ lotSize: n })} />
+              <SmallField label="Cocheras" integer value={model.garageSpaces} onChange={n => updateModel({ garageSpaces: Math.min(10, n ?? 0) })} />
+            </div>
+          </div>
+          <ErrorNote>{error}</ErrorNote>
+        </>
+      }
+    >
+      <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así queda <span className="font-normal text-gray-500">— después podés cambiar una unidad si es distinta</span></h2>
+      <DuplexHouses duplexes={duplexes} />
+      <StepFooter
+        title={<>{count} dúplex · {totalUnits} unidades · {effectiveModels.length} modelo{effectiveModels.length === 1 ? '' : 's'}</>}
+        summary={<>Numeración: {numbering}</>}
+        primary={{ label: 'Crear y seguir', onClick: submit, busy, busyLabel: 'Creando...' }}
+      />
+    </SplitLayout>
   );
 }
 
 function ConjuntoExistente({ tree, onNext }: { tree: GuidedTree; onNext: () => void }) {
   const units = allUnits(tree);
   const models = new Set(units.map(u => u.model_name ?? '—'));
+  const duplexes = tree.buildings.map(b => ({
+    name: b.name,
+    halves: b.floors.flatMap(f => f.units).map(u => ({ code: u.code, meta: u.model_name && models.size > 1 ? u.model_name : `${u.bedrooms} dorm.` })),
+  }));
   return (
-    <div className="max-w-[760px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
-      <StepIntro eyebrow="Paso 1 de 3" title="El conjunto ya está creado.">
-        {tree.buildings.length} dúplex · {units.length} unidades · {models.size} modelo{models.size === 1 ? '' : 's'}. Para sumar dúplex o cambiar una unidad, usá la pantalla de estructura.
-      </StepIntro>
-      <div className="flex flex-wrap gap-2">
-        {units.map(u => (
-          <span key={u.id} className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-800">{u.code}{u.model_name ? ` · ${u.model_name}` : ''}</span>
-        ))}
-      </div>
-      <div className="flex items-center justify-between gap-4 flex-wrap pt-6 border-t border-gray-200">
-        <Link href="/admin/edificios" className="min-h-[44px] flex items-center text-sm font-medium text-gray-700 hover:text-gray-900">Editar la estructura →</Link>
-        <button type="button" onClick={onNext} className="min-h-[48px] px-5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800">Seguir</button>
-      </div>
-    </div>
+    <SplitLayout
+      panelLabel="Conjunto"
+      mainLabel="Vista del conjunto"
+      panel={
+        <>
+          <StepIntro eyebrow="Paso 1 de 3" title="El conjunto ya está creado.">
+            {tree.buildings.length} dúplex · {units.length} unidades · {models.size} modelo{models.size === 1 ? '' : 's'}. Para sumar dúplex o cambiar una unidad, usá la pantalla de estructura.
+          </StepIntro>
+          <Link href="/admin/edificios" className="self-start min-h-[40px] flex items-center text-[13px] font-semibold text-brand-700 underline underline-offset-2">
+            Editar la estructura
+          </Link>
+        </>
+      }
+    >
+      <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así quedó</h2>
+      <DuplexHouses duplexes={duplexes} />
+      <StepFooter
+        title={<>{tree.buildings.length} dúplex · {units.length} unidades · {models.size} modelo{models.size === 1 ? '' : 's'}</>}
+        primary={{ label: 'Seguir', onClick: onNext }}
+      />
+    </SplitLayout>
   );
 }
 
@@ -204,7 +263,8 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
 
   const isMarked = (id: string) => (points[id]?.length ?? 0) >= 3;
   const marked = units.filter(u => isMarked(u.id)).length;
-  const shapes: PolygonShape[] = units.map((u, i) => ({ id: u.id, label: u.code, points: points[u.id] ?? [], color: SHAPE_PALETTE[i % SHAPE_PALETTE.length] }));
+  // Todas las formas en el verde del diseño; la activa la resalta el canvas.
+  const shapes: PolygonShape[] = units.map(u => ({ id: u.id, label: u.code, points: points[u.id] ?? [], color: '#37463F' }));
 
   const onComplete = (id: string) => {
     const idx = units.findIndex(u => u.id === id);
@@ -237,51 +297,58 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
   const activeUnit = units.find(u => u.id === activeId);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex gap-8 flex-wrap items-start">
-      <section className="flex-[1_1_320px] min-w-0 max-w-[400px] flex flex-col gap-6">
-        <StepIntro eyebrow="Paso 2 de 3" title="Ubicá cada unidad en el conjunto">
-          Subí la implantación o una vista aérea y marcá cada mitad. En el sitio, el comprador toca la unidad y ve su ficha.
-        </StepIntro>
-        <div className="flex flex-col gap-2">
-          <FieldLabel>Sobre qué imagen</FieldLabel>
-          <div className="grid gap-2 grid-cols-2">
-            <ChoiceCard on={source === 'implantacion'} onClick={() => setSource('implantacion')} title="Implantación" hint="Plano visto desde arriba" />
-            <ChoiceCard on={source === 'aerea'} onClick={() => setSource('aerea')} title="Vista aérea" hint="Render o foto de dron" />
+    <SplitLayout
+      panel={
+        <>
+          <StepIntro eyebrow="Paso 2 de 3" title="Ubicá cada unidad en el conjunto">
+            Subí la implantación o una vista aérea y marcá cada mitad. En el sitio, el comprador toca la unidad y ve su ficha.
+          </StepIntro>
+          <div className="flex flex-col gap-2">
+            <FieldLabel>Sobre qué imagen</FieldLabel>
+            <div className="grid gap-2 grid-cols-2">
+              <ChoiceCard on={source === 'implantacion'} onClick={() => setSource('implantacion')} title="Implantación" hint="Plano visto desde arriba" className="!min-h-[58px] !py-2.5 !px-3 !rounded-[10px]" />
+              <ChoiceCard on={source === 'aerea'} onClick={() => setSource('aerea')} title="Vista aérea" hint="Render o foto de dron" className="!min-h-[58px] !py-2.5 !px-3 !rounded-[10px]" />
+            </div>
           </div>
-        </div>
-        <ImageUploader value={image} onChange={setImage} folder="floorplans" label={source === 'implantacion' ? 'Implantación' : 'Vista aérea'} />
-        <ul className="m-0 p-0 list-none flex flex-col gap-1.5" aria-label="Unidades">
-          {units.map((u, i) => {
-            const on = u.id === activeId;
-            return (
-              <li key={u.id}>
-                <button type="button" onClick={() => setActiveId(u.id)} aria-pressed={on}
-                  className={`w-full flex items-center gap-3 min-h-[48px] px-3 rounded-[10px] text-left border transition-colors ${on ? 'border-[1.5px] border-brand-700 bg-brand-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                  <span aria-hidden className="w-2.5 h-2.5 rounded-[3px]" style={{ background: SHAPE_PALETTE[i % SHAPE_PALETTE.length] }} />
-                  <span className="flex-1 min-w-0 flex flex-col">
-                    <span className="text-sm font-semibold text-gray-900">{u.code}</span>
-                    <span className="text-[11px] text-gray-500 truncate">{u.model_name ?? u.type}</span>
-                  </span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isMarked(u.id) ? 'bg-brand-100 text-brand-800' : 'bg-gray-100 text-gray-600'}`}>
-                    {isMarked(u.id) ? 'Marcada' : 'Sin marcar'}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <button type="button" onClick={onNext} className="self-start min-h-[44px] text-sm font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900">
-          Saltear por ahora
-        </button>
-      </section>
-
-      <main className="flex-[2_1_520px] min-w-0 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-sm font-semibold text-gray-900">{activeUnit ? `Marcando ${activeUnit.code}` : 'Elegí una unidad'}</span>
-          <Segmented label="Modo de dibujo" value={mode} onChange={setMode} options={[{ value: 'rectangle', label: 'Rectángulo' }, { value: 'point', label: 'Forma libre' }]} />
+          <ImageUploader value={image} onChange={setImage} folder="floorplans" label={source === 'implantacion' ? 'Implantación' : 'Vista aérea'} />
+          <ul className="m-0 p-0 list-none flex flex-col gap-1.5" aria-label="Unidades">
+            {units.map(u => {
+              const on = u.id === activeId;
+              const done = isMarked(u.id);
+              return (
+                <li key={u.id}>
+                  <button type="button" onClick={() => setActiveId(u.id)} aria-pressed={on}
+                    className={`w-full flex items-center gap-2.5 min-h-[44px] px-3 rounded-[9px] bg-white text-left ${
+                      on ? 'border-[1.5px] border-gray-900' : done ? 'border border-gray-200 hover:border-gray-300' : 'border-[1.5px] border-dashed border-[#C9C3B7] hover:border-gray-400'
+                    }`}>
+                    <span aria-hidden className={`w-2.5 h-2.5 rounded-[3px] shrink-0 ${on ? 'bg-gray-900' : done ? 'bg-brand-700' : 'bg-[#E0DCD3]'}`} />
+                    <span className="flex-1 min-w-0 text-[13px] font-semibold text-gray-900 truncate">{u.code}</span>
+                    <span className="text-xs text-gray-500">{on ? 'Ahora' : done ? 'Marcada' : 'Pendiente'}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <button type="button" onClick={onNext} className="self-start min-h-[40px] text-[13px] font-semibold text-brand-700 underline underline-offset-2">
+            Saltear por ahora
+          </button>
+        </>
+      }
+    >
+      <div className="flex-1 flex flex-col gap-4 min-h-[360px] sm:min-h-[600px] rounded-[18px] border border-gray-200 bg-[#E9E6DC] p-3 sm:p-4">
+        <div role="toolbar" aria-label="Herramientas" className="self-center flex flex-wrap gap-0.5 p-1 rounded-xl bg-gray-900 shadow-[0_8px_24px_rgba(23,25,26,0.25)]">
+          <span className="min-h-[36px] flex items-center px-3 rounded-lg bg-[#3A3D3B] text-white text-xs font-semibold">
+            {activeUnit ? `Marcando ${activeUnit.code}` : 'Elegí una unidad'}
+          </span>
+          {([['rectangle', 'Rectángulo'], ['point', 'Forma libre']] as const).map(([v, l]) => (
+            <button key={v} type="button" aria-pressed={mode === v} onClick={() => setMode(v)}
+              className={`min-h-[36px] px-3 rounded-lg text-xs ${mode === v ? 'text-white font-semibold' : 'text-[#C9C6BE] hover:text-white'}`}>
+              {l}
+            </button>
+          ))}
         </div>
         {image ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-2">
+          <div className="rounded-xl overflow-hidden bg-white">
             <PolygonCanvas
               imageUrl={image}
               shapes={shapes}
@@ -292,18 +359,18 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
             />
           </div>
         ) : (
-          <div className="min-h-[360px] rounded-2xl border-[1.5px] border-dashed border-gray-300 bg-white flex items-center justify-center p-6 text-center text-sm text-gray-500">
+          <div className="flex-1 flex items-center justify-center p-6 text-center text-sm text-gray-600">
             Subí la implantación o la vista aérea para empezar a marcar las unidades.
           </div>
         )}
-        <ErrorNote>{error}</ErrorNote>
-        <StepFooter
-          back={{ label: 'Conjunto', onClick: onBack }}
-          summary={<>{marked} de {units.length} unidades marcadas</>}
-          primary={{ label: 'Terminar →', onClick: save, busy, disabled: !image }}
-        />
-      </main>
-    </div>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+      <StepFooter
+        back={{ label: 'Conjunto', onClick: onBack }}
+        summary={<>{marked} de {units.length} unidades marcadas</>}
+        primary={{ label: 'Terminar', onClick: save, busy, disabled: !image }}
+      />
+    </SplitLayout>
   );
 }
 
@@ -332,13 +399,12 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
         ]}
         optionalTitle="Lo que hace lucir el proyecto"
         optional={[
-          { label: 'Relato', text: 'Por qué dúplex y no casas aisladas.', href: '/admin/sitio' },
-          { label: 'Fotos y renders del modelo', text: `Se cargan una vez y se ven en las ${units.length}.`, href: '/admin/edificios' },
-          { label: 'Equipo', text: 'Aparece en el portfolio de cada persona.', href: '/admin/sitio' },
-          { label: 'Proceso y antes / después', text: 'Del terreno a la obra terminada.', href: '/admin/proyecto' },
+          { label: 'Relato', text: 'Por qué dúplex y no casas aisladas.', href: '/admin/sitio', tag: 'Recomendado' },
+          { label: 'Fotos y renders del modelo', text: `Se cargan una vez y se ven en las ${units.length}.`, href: '/admin/edificios', tag: 'Recomendado' },
+          { label: 'Equipo', text: 'Aparece en el portfolio de cada persona.', href: '/admin/sitio', tag: 'Recomendado' },
+          { label: 'Proceso y antes / después', text: 'Del terreno a la obra terminada.', href: '/admin/proyecto', tag: 'Suma' },
         ]}
-        hiddenInShowcase="Precios, estados, leads ni calculadora."
-        aside={<PreviewCard project={project} meta={`Dúplex · ${units.length} unidades${project.location ? ` · ${project.location}` : ''}`} />}
+        hiddenInShowcase="No se muestran precios, estados, leads ni calculadora."
         onBackToStart={onBackToStart}
       />
     );

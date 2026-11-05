@@ -68,8 +68,8 @@ describe('GET /api/admin/projects', () => {
     // typologies/location; before_after/process quedan afuera por no ser showcase).
     expect(await res.json()).toEqual({
       projects: [
-        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0, progress: { done: 0, total: 6 } },
-        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1, progress: { done: 0, total: 6 } },
+        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
+        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
       ],
       activeProjectId: 'project-1',
     });

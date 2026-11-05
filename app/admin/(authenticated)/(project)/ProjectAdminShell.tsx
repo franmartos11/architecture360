@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useEffect, useState } from 'react';
 import { useNewLeadsCount } from '@/hooks/useNewLeadsCount';
-import SitePublishStatus from '@/components/admin/SitePublishStatus';
+import SitePublishStatus, { PublishReadinessCard } from '@/components/admin/SitePublishStatus';
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
@@ -111,27 +111,40 @@ export default function ProjectAdminShell({
     { label: 'Configuración', href: '/admin/settings' },
   ];
 
+  // Estilo del menú: el del diseño de la carga de proyectos (fondo claro,
+  // ícono de trazo + label, activo en gris cálido). Mismos ítems y rutas
+  // que antes — solo cambia la presentación.
+  const itemClass = (active: boolean) =>
+    `flex items-center gap-2.5 min-h-[40px] px-2.5 rounded-lg text-sm transition-colors ${
+      active ? 'bg-[#EAE7E0] text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+    }`;
+  const subClass = (active: boolean) =>
+    `flex items-center min-h-[34px] px-2.5 rounded-lg text-[13px] transition-colors ${
+      active ? 'bg-white text-gray-900 font-semibold shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'
+    }`;
+
   return (
     <ProjectTypeProvider projectType={project.project_type} saleMode={project.sale_mode}>
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-gray-900 text-white flex-shrink-0 md:min-h-screen flex flex-col">
-        <div className="p-6 flex items-start justify-between gap-3 md:block border-b border-gray-800">
+      <aside className="carga-guiada w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex-shrink-0 md:min-h-screen flex flex-col">
+        <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3 md:block">
           <div className="min-w-0">
-            <Link href="/admin/proyectos" className="text-xs text-gray-400 hover:text-white transition-colors inline-flex items-center gap-1">
-              ← Cambiar de proyecto
+            <Link href="/admin/proyectos" className="text-xs text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-1.5 min-h-[28px]">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+              Todos los proyectos
             </Link>
-            <h1 className="text-lg font-bold tracking-wide mt-1.5 truncate" title={project.name}>{project.name}</h1>
+            <p className="font-display text-lg font-semibold tracking-[-0.02em] text-gray-900 mt-1.5 truncate" title={project.name}>{project.name}</p>
             {userEmail && <p className="text-gray-500 text-xs mt-0.5 truncate">{userEmail}</p>}
             <SitePublishStatus shareUrl={shareUrl} shareText={`Mirá el proyecto ${project.name}`} />
           </div>
           <button
             onClick={() => setMobileNavOpen(open => !open)}
-            className="md:hidden p-2 -mr-2 -mt-1 text-gray-300 hover:text-white rounded-lg hover:bg-gray-800 transition-colors shrink-0"
+            className="md:hidden w-11 h-11 -mr-2 -mt-1 flex items-center justify-center text-gray-700 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
             aria-label={mobileNavOpen ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={mobileNavOpen}
           >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               {mobileNavOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -141,120 +154,77 @@ export default function ProjectAdminShell({
           </button>
         </div>
 
-        <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-4 py-4 flex-col gap-2`}>
+        <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-3 pb-5 flex-col gap-1`}>
+          <p className="px-2.5 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Proyecto</p>
           {/* El dashboard (métricas del proyecto) no aplica cuando el
               proyecto ES una sola cosa: una casa, o un loteo de una etapa. */}
           {hasUnitStep && !typeConfig.singleBuilding && (
-            <Link
-              href="/admin"
-              className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-                pathname === '/admin' ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              Dashboard
+            <Link href="/admin" className={itemClass(pathname === '/admin')}>
+              <NavIcon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+              <span className="flex-1">Dashboard</span>
             </Link>
           )}
 
           <div>
-            <Link
-              href="/admin/sitio"
-              className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-                isSitioSection ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              Sitio web
+            <Link href="/admin/proyecto" className={itemClass(isProjectSection)}>
+              <NavIcon d="M4 4h16v16H4zM4 9h16M9 9v11" />
+              <span className="flex-1">Proyecto</span>
             </Link>
-            {isSitioSection && (
-              <div className="mt-1 ml-4 pl-3 border-l border-gray-800 flex flex-col gap-1">
-                {sitioSubItems.map(sub => {
+            {isProjectSection && (
+              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
+                {projectSubItems.map(sub => {
                   const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        isSubActive ? 'text-white font-medium' : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {sub.label}
-                    </Link>
-                  );
+                  return <Link key={sub.href} href={sub.href} className={subClass(isSubActive)}>{sub.label}</Link>;
                 })}
               </div>
             )}
           </div>
 
           <div>
-            <Link
-              href="/admin/proyecto"
-              className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-                isProjectSection ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              Proyecto
+            <Link href="/admin/sitio" className={itemClass(isSitioSection)}>
+              <NavIcon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
+              <span className="flex-1">Sitio web</span>
             </Link>
-            {isProjectSection && (
-              <div className="mt-1 ml-4 pl-3 border-l border-gray-800 flex flex-col gap-1">
-                {projectSubItems.map(sub => {
+            {isSitioSection && (
+              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
+                {sitioSubItems.map(sub => {
                   const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        isSubActive ? 'text-white font-medium' : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {sub.label}
-                    </Link>
-                  );
+                  return <Link key={sub.href} href={sub.href} className={subClass(isSubActive)}>{sub.label}</Link>;
                 })}
               </div>
             )}
           </div>
 
           {operacionItems.length > 0 && (
-          <div className="pt-2">
-            <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Operación</p>
-            <div className="mt-1 flex flex-col gap-1">
+            <>
+              <p className="px-2.5 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Operación</p>
               {operacionItems.map(item => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 const showBadge = item.href === '/admin/leads' && newLeadsCount > 0;
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-                      isActive ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-                    }`}
-                  >
-                    {item.label}
+                  <Link key={item.href} href={item.href} className={itemClass(isActive)}>
+                    <NavIcon d={item.href === '/admin/leads' ? 'M3 12h5l2 3h4l2-3h5M5 5h14l2 7v7H3v-7z' : 'M5 3h14v18H5zM9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2'} />
+                    <span className="flex-1">{item.label}</span>
                     {showBadge && (
-                      <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                      <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-700 text-white text-[11px] font-semibold flex items-center justify-center">
                         {newLeadsCount}
                       </span>
                     )}
                   </Link>
                 );
               })}
-            </div>
-          </div>
+            </>
           )}
 
-          {navItems.map(item => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${
-                  isActive ? 'bg-brand-500 text-white' : 'text-gray-300 hover:bg-gray-800'
-                }`}
-              >
-                {item.label}
+          <div className="mt-auto pt-6 flex flex-col gap-2">
+            <PublishReadinessCard />
+            {navItems.map(item => (
+              <Link key={item.href} href={item.href} className={itemClass(pathname === item.href)}>
+                <NavIcon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+                <span className="flex-1">{item.label}</span>
               </Link>
-            );
-          })}
+            ))}
+          </div>
         </nav>
       </aside>
 
@@ -281,5 +251,13 @@ export default function ProjectAdminShell({
       </main>
     </div>
     </ProjectTypeProvider>
+  );
+}
+
+function NavIcon({ d }: { d: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d={d} />
+    </svg>
   );
 }

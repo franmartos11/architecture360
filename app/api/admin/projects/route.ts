@@ -119,13 +119,24 @@ export async function GET() {
       aerialSlides: aerialByProject.has(p.id) ? [{}] : [],
     });
     const total = availableContentKeys.length;
-    const done = total - availableContentKeys.filter(key => emptyKeys.has(key)).length;
+    const missingKeys = availableContentKeys.filter(key => emptyKeys.has(key));
+    const done = total - missingKeys.length;
+    // "Falta: Portada y Equipo" en la tarjeta: la portada (lo único que
+    // bloquea publicar además del nombre) primero, después las secciones vacías.
+    const sectionLabel = (key: SectionKey) =>
+      key === 'masterplan' && !typeConfig.hasUnitStep ? 'Vista frontal' : (SECTION_REGISTRY.find(s => s.key === key)?.label ?? key);
+    const missing = [
+      ...(p.masterplan_image ? [] : ['Portada']),
+      ...missingKeys.map(sectionLabel),
+    ];
 
     return {
       ...p,
       pendingLeadsCount: pendingLeadsByProject.get(p.id) ?? 0,
       commentsCount: commentsByProject.get(p.id) ?? 0,
+      unitsCount: unitsByProject.get(p.id) ?? 0,
       progress: { done, total },
+      missing,
     };
   });
 
