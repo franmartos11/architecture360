@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, startTransition } from 'react';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import TourEditor from '@/components/admin/TourEditor';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
-import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
+import { ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
+import { InmersivoHeader, InmersivoSummary } from '@/components/admin/inmersivo/InmersivoChrome';
 import type { TourData } from '@/types';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
@@ -58,15 +59,12 @@ export default function AdminCommonAreasTourPage() {
     setSavingOrientation(false);
   }, [activeProjectId]);
 
-  if (loading) return <LoadingSpinner text="Cargando recorrido..." tone="light" />;
-  if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;
+  if (loading) return <div className="flex flex-col gap-7"><InmersivoHeader /><LoadingSpinner text="Cargando recorrido..." tone="light" /></div>;
+  if (loadError) return <div className="flex flex-col gap-7"><InmersivoHeader /><ErrorState message="No se pudo cargar el recorrido." onRetry={load} /></div>;
 
   return (
     <div className="flex flex-col gap-7">
-      <ChapterHeader
-        title="Inmersivo"
-        description="Recorrido 360°, modelo BIM y vista 3D en un mismo lugar. Acá van los espacios comunes: pasillos, pileta, parrilla, gimnasio — lo que se ve en “Recorrer el edificio” desde la vista aérea."
-      />
+      <InmersivoHeader />
 
       <TourEditor initialTourData={tourData} onPersist={handlePersist} />
 
@@ -82,6 +80,8 @@ export default function AdminCommonAreasTourPage() {
           disabled={savingOrientation}
         />
       </section>
+
+      <InmersivoSummary />
 
       <ChapterFooter />
     </div>

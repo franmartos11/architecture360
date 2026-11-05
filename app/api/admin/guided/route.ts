@@ -79,6 +79,18 @@ const num = (v: unknown): number | null => {
 const str = (v: unknown, max: number) => sanitizeText(typeof v === 'string' ? v : '', max);
 const url = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 2000) : null);
 
+/** { "5": 2 } → { 5: 2 }: claves = número de piso/posición, valores = cantidad; descarta lo inválido. */
+function parseOverrides(v: unknown, maxKey: number, maxVal: number): Record<number, number> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: Record<number, number> = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>).slice(0, 500)) {
+    const key = Math.floor(Number(k));
+    const val = Math.floor(Number(raw));
+    if (Number.isFinite(key) && key >= 0 && key <= maxKey && Number.isFinite(val) && val >= 1 && val <= maxVal) out[key] = val;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 const GROUND: GroundFloorUse[] = ['none', 'amenities', 'locales', 'cocheras', 'unidades'];
 const SCHEMES: NumberingScheme[] = ['letter', 'number', 'custom'];
 
@@ -92,6 +104,7 @@ function parsePlan(body: Record<string, unknown>, projectName: string): PlannedB
         perFloor: int(t?.perFloor, 1, 60, 1),
         groundFloor: isValidEnum(t?.groundFloor, GROUND) ? t.groundFloor as GroundFloorUse : 'none',
         penthouses: int(t?.penthouses, 0, 20, 0),
+        floorOverrides: parseOverrides(t?.floorOverrides, 200, 60),
       }));
       const scheme = isValidEnum(body.scheme, SCHEMES) ? body.scheme as NumberingScheme : 'letter';
       return planEdificio(towers, scheme, str(body.template, 40) || undefined);
@@ -108,7 +121,14 @@ function parsePlan(body: Record<string, unknown>, projectName: string): PlannedB
         garageSpaces: int(m?.garageSpaces, 0, 10, 0),
       }));
       if (models.length === 0) return 'Falta el modelo de unidad.';
-      return planDuplex(int(body.count, 1, 100, 1), int(body.perDuplex, 1, 8, 2), models);
+      const unitModels: Record<string, number> = {};
+      if (body.unitModels && typeof body.unitModels === 'object' && !Array.isArray(body.unitModels)) {
+        for (const [code, idx] of Object.entries(body.unitModels as Record<string, unknown>).slice(0, 800)) {
+          const n = Math.floor(Number(idx));
+          if (/^D\d{1,3}-[A-Z]{1,2}$/.test(code) && Number.isFinite(n) && n >= 0 && n < models.length) unitModels[code] = n;
+        }
+      }
+      return planDuplex(int(body.count, 1, 100, 1), int(body.perDuplex, 1, 8, 2), models, unitModels);
     }
     case 'loteo': {
       const mode = body.mode === 'sequential' ? 'sequential' : 'blocks';
@@ -278,6 +298,7 @@ const UNIT_FIELDS: Record<string, { column: string; kind: 'text' | 'number' | 'i
   price: { column: 'price', kind: 'number' },
   status: { column: 'status', kind: 'status' },
   condition: { column: 'condition', kind: 'condition' },
+  orientation: { column: 'orientation', kind: 'text' },
   features: { column: 'features', kind: 'textArray' },
   galleryImages: { column: 'gallery_images', kind: 'textArray' },
   interiorImageUrl: { column: 'interior_image_url', kind: 'text' },
@@ -301,7 +322,7 @@ function buildUnitUpdate(input: Record<string, unknown>): Record<string, unknown
     }
     switch (spec.kind) {
       case 'text': {
-        const s = sanitizeText(v, spec.column === 'interior_image_url' ? 2000 : 150);
+        const s = sanitizeText(v, spec.column === 'interior_image_url' ? 2000 : spec.column === 'orientation' ? 10 : 150);
         if (!s && NOT_NULL.has(spec.column)) return `${key} no puede quedar vacío`;
         out[spec.column] = s || null;
         break;

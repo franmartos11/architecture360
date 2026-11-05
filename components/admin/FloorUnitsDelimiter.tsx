@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, startTransition } from 'react';
-import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
+import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import PolygonCanvas, { type PolygonShape, type PolygonCanvasApi } from '@/components/admin/PolygonCanvas';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -10,7 +11,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
-type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'> & Partial<Pick<DbUnitRow, 'type' | 'total_area'>>;
+type UnitRow = Pick<DbUnitRow, 'id' | 'code' | 'status' | 'polygon'> & Partial<Pick<DbUnitRow, 'type' | 'total_area' | 'bedrooms'>>;
 type UnitDot = { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' };
 type SiblingFloor = { id: string; number: number; label: string };
 
@@ -50,6 +51,11 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   const [copySourceFloorId, setCopySourceFloorId] = useState('');
   const [copyingDelimitation, setCopyingDelimitation] = useState(false);
   const toast = useToast();
+  // Deshacer desde la barra de herramientas propia (el canvas expone su historial).
+  const canvasApi = useRef<PolygonCanvasApi | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  // Opciones del pin (color/estilo) plegadas: la lista queda compacta como en el diseño.
+  const [pinOpenId, setPinOpenId] = useState<string | null>(null);
 
   const load = () => {
     startTransition(() => {
@@ -90,6 +96,8 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     () => units.map((u, i) => ({
       id: u.id,
       label: u.code,
+      // Adentro de cada forma: "3 dorm. · 112 m²" (lo que haya cargado).
+      sublabel: [u.bedrooms ? `${u.bedrooms} dorm.` : null, u.total_area ? `${u.total_area} m²` : null].filter(Boolean).join(' · ') || undefined,
       points: points[u.id] ?? [],
       color: PALETTE[i % PALETTE.length],
     })),
@@ -188,6 +196,23 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     }
   };
 
+  // Atajos (diseño): R rectángulo · F forma libre · Supr/Backspace borra la
+  // forma activa. ⌘/Ctrl+Z ya lo maneja el canvas. Nada de esto corre
+  // mientras se escribe en un campo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'r') { e.preventDefault(); setMode('rectangle'); }
+      else if (k === 'f') { e.preventDefault(); setMode('point'); }
+      else if ((k === 'delete' || k === 'backspace') && activeId) { e.preventDefault(); setPoints(prev => ({ ...prev, [activeId]: [] })); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeId]);
+
   if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano." onRetry={load} />;
 
@@ -211,7 +236,11 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
 
   const drawnCount = units.filter(u => (points[u.id]?.length ?? 0) >= 3).length;
   const activeUnit = units.find(u => u.id === activeId) ?? null;
-  const activeUndrawn = activeUnit && (points[activeUnit.id]?.length ?? 0) < 3;
+  // El aviso apunta a la primera que falta (la activa si es una de ellas).
+  const firstUndrawn = activeUnit && (points[activeUnit.id]?.length ?? 0) < 3
+    ? activeUnit
+    : units.find(u => (points[u.id]?.length ?? 0) < 3) ?? null;
+  const planFileName = decodeURIComponent((planImage.split('?')[0].split('/').pop() ?? 'plano')).slice(-40);
   const toolBtn = (on: boolean) => `min-h-[36px] px-3.5 rounded-lg text-[13px] transition-colors ${on ? 'bg-white/15 text-white font-semibold' : 'text-[#C9C6BE] hover:text-white'}`;
   const STATUS_LABEL: Record<string, string> = { available: 'Disponible', reserved: 'Reservada', sold: 'Vendida' };
 
@@ -253,6 +282,14 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
             <button type="button" onClick={() => setMode('rectangle')} aria-pressed={mode === 'rectangle'} className={toolBtn(mode === 'rectangle')}>Rectángulo</button>
             <button type="button" onClick={() => setMode('point')} aria-pressed={mode === 'point'} className={toolBtn(mode === 'point')}>Forma libre</button>
             <button type="button" onClick={() => setMode('pin')} aria-pressed={mode === 'pin'} className={toolBtn(mode === 'pin')}>Mover pin</button>
+            <span aria-hidden className="w-px my-1.5 bg-white/15" />
+            <button type="button" onClick={() => canvasApi.current?.undo()} disabled={!canUndo} className={`${toolBtn(false)} disabled:opacity-40 disabled:hover:text-[#C9C6BE]`} title="Deshacer (⌘Z)">Deshacer</button>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} title="Reemplazar el plano"
+              className="inline-flex items-center gap-1.5 min-h-[30px] px-2.5 rounded-full bg-white border border-gray-200 text-[11px] text-gray-700 hover:border-gray-300 max-w-full">
+              <span className="truncate">{planFileName}</span><span className="text-gray-400">·</span><span className="font-semibold text-gray-900">reemplazar</span>
+            </Link>
           </div>
           <PolygonCanvas
             imageUrl={planImage}
@@ -264,6 +301,9 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
             pinPoint={activeId ? (pinOverrides[activeId] ?? (points[activeId]?.length >= 3 ? centroid(points[activeId]) : null)) : null}
             onPinPlace={point => activeId && setPinOverrides(prev => ({ ...prev, [activeId]: point }))}
             pinColor={activeId ? (pinColors[activeId] || getStatusColor(units.find(u => u.id === activeId)?.status ?? '')) : undefined}
+            showLabels
+            apiRef={canvasApi}
+            onCanUndoChange={setCanUndo}
           />
         </div>
       </div>
@@ -297,7 +337,12 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
                 </button>
                 {isActive && (
                   <div className="px-3.5 pb-3.5 pt-1 flex flex-col gap-3 border-t border-gray-200">
-                    <div className="pt-2.5">
+                    <button type="button" onClick={() => setPinOpenId(o => (o === u.id ? null : u.id))} aria-expanded={pinOpenId === u.id}
+                      className="self-start mt-2 min-h-[30px] inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-900">
+                      <span aria-hidden className={`transition-transform ${pinOpenId === u.id ? 'rotate-90' : ''}`}>›</span> Pin
+                    </button>
+                    {pinOpenId === u.id && (<>
+                    <div>
                       <p className="m-0 text-[11px] font-medium text-gray-600 mb-1.5">Color del pin</p>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <button
@@ -349,6 +394,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
                         </button>
                       </div>
                     </div>
+                    </>)}
 
                     <div className="flex items-center gap-2">
                       <button
@@ -373,16 +419,32 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
           })}
         </div>
 
-        {activeUnit && activeUndrawn && (
-          <p className="m-0 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs leading-relaxed text-amber-800">
-            <b>{activeUnit.code}</b> todavía no tiene forma. Dibujala sobre el plano con la herramienta de arriba.
-          </p>
+        {firstUndrawn && (
+          <div className="px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col gap-2">
+            <p className="m-0 text-xs leading-relaxed text-amber-800">
+              <b>{firstUndrawn.code}</b> todavía no tiene forma. Sin ella, el comprador no la puede tocar en el plano del sitio.
+            </p>
+            {firstUndrawn.id !== activeId || mode === 'pin' ? (
+              <button type="button" onClick={() => { setActiveId(firstUndrawn.id); setMode('rectangle'); }}
+                className="self-start min-h-[34px] px-3 rounded-lg bg-white border border-amber-200 text-xs font-semibold text-amber-800 hover:border-amber-300">
+                Dibujar {firstUndrawn.code}
+              </button>
+            ) : (
+              <span className="text-[11px] text-amber-800">Dibujala sobre el plano con la herramienta de arriba.</span>
+            )}
+          </div>
         )}
 
         <div className="px-3.5 py-3 rounded-xl border border-gray-200 bg-white flex flex-col gap-1">
           <span className="text-[13px] font-semibold text-gray-900">Cómo se dibuja</span>
           <span className="text-xs leading-relaxed text-gray-600">
-            Rectángulo: arrastrá de una esquina a la otra. Forma libre: click en cada esquina y Listo (o Escape). Doble click borra un punto · Ctrl/⌘+Z deshace.
+            Rectángulo: arrastrá de una esquina a la otra. Forma libre: click en cada esquina y Listo (o Escape). Doble click borra un punto.
+          </span>
+          <span className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[11px] text-gray-600">
+            <span><kbd className="font-sans px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-900">R</kbd> rectángulo</span>
+            <span><kbd className="font-sans px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-900">F</kbd> forma libre</span>
+            <span><kbd className="font-sans px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-900">⌘Z</kbd> deshacer</span>
+            <span><kbd className="font-sans px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-900">Supr</kbd> borrar forma</span>
           </span>
         </div>
       </div>

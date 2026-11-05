@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TourData, TourNode, TourView } from '@/types';
 import ImageUploader from './ImageUploader';
@@ -37,61 +37,41 @@ function uniqueId(base: string, taken: Set<string>): string {
   return id;
 }
 
-interface NodeRowProps {
+interface SceneCardProps {
   node: TourNode;
   index: number;
   count: number;
   isActive: boolean;
   isInitial: boolean;
-  isOrphan: boolean;
+  isUnreachable: boolean;
   onSelect: () => void;
   onMove: (dir: -1 | 1) => void;
 }
 
-function NodeRow({ node, index, count, isActive, isInitial, isOrphan, onSelect, onMove }: NodeRowProps) {
-  const linkCount = node.linkHotspots?.length ?? 0;
+// Tarjeta de escena (columna "Escenas" del diseño): miniatura, nombre y
+// "★ Inicial · N puntos" o "Sin conexión" si no llega nadie.
+function SceneCard({ node, index, count, isActive, isInitial, isUnreachable, onSelect, onMove }: SceneCardProps) {
+  const points = (node.linkHotspots?.length ?? 0) + (node.infoHotspots?.length ?? 0);
   return (
-    <div
-      onClick={onSelect}
-      className={`flex items-center gap-2.5 rounded-xl px-2 py-2 cursor-pointer transition-colors ${
-        isActive ? 'bg-brand-50 shadow-[inset_2px_0_0_var(--color-brand-500)]' : 'hover:bg-gray-50'
-      }`}
-    >
-      <div className="relative w-[52px] h-[33px] shrink-0 rounded-md overflow-hidden border border-gray-200 bg-gray-100">
-        {node.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={node.imageUrl} alt="" className="w-full h-full object-cover" />
-        ) : null}
-        {isInitial && (
-          <span className="absolute left-1 top-1 h-3.5 px-1 flex items-center rounded bg-gray-900 text-[8px] font-semibold text-white tracking-wide">
-            INICIO
+    <div className={`group relative shrink-0 w-[200px] lg:w-auto flex items-center gap-2.5 p-2 rounded-xl bg-white transition-colors ${isActive ? 'border-[1.5px] border-gray-900' : 'border border-gray-200 hover:border-gray-300'}`}>
+      <button type="button" onClick={onSelect} aria-pressed={isActive} className="flex-1 min-w-0 flex items-center gap-2.5 text-left min-h-[44px]">
+        <span className="w-14 h-10 shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+          {node.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={node.imageUrl} alt="" className="w-full h-full object-cover" />
+          ) : null}
+        </span>
+        <span className="flex-1 min-w-0 flex flex-col">
+          <span className="text-[13px] font-semibold text-gray-900 truncate">{node.name}</span>
+          <span className={`text-[11px] leading-snug ${isUnreachable ? 'text-amber-800 font-semibold' : 'text-gray-500'}`}>
+            {isInitial ? `★ Inicial · ${points} punto${points === 1 ? '' : 's'}` : isUnreachable ? 'Sin conexión' : `${points} punto${points === 1 ? '' : 's'}`}
           </span>
-        )}
-      </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <p className="text-[12.5px] font-medium text-gray-900 truncate leading-tight">{node.name}</p>
-        <p className={`text-[10px] leading-none ${isOrphan ? 'text-amber-700' : 'text-gray-400'}`}>
-          {isOrphan ? 'sin salidas' : `${linkCount} salida${linkCount === 1 ? '' : 's'}`}
-        </p>
-      </div>
-      <div className="flex flex-col gap-0.5 shrink-0">
-        <button
-          onClick={e => { e.stopPropagation(); onMove(-1); }}
-          disabled={index === 0}
-          title="Subir"
-          className="w-5 h-4 flex items-center justify-center rounded text-[9px] text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-25 disabled:hover:bg-transparent"
-        >
-          ▲
-        </button>
-        <button
-          onClick={e => { e.stopPropagation(); onMove(1); }}
-          disabled={index === count - 1}
-          title="Bajar"
-          className="w-5 h-4 flex items-center justify-center rounded text-[9px] text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-25 disabled:hover:bg-transparent"
-        >
-          ▼
-        </button>
-      </div>
+        </span>
+      </button>
+      <span className="flex flex-col opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
+        <button type="button" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Subir ${node.name}`} className="w-9 h-8 sm:w-6 sm:h-5 text-[10px] sm:text-[9px] text-gray-500 hover:text-gray-900 disabled:opacity-25">▲</button>
+        <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Bajar ${node.name}`} className="w-9 h-8 sm:w-6 sm:h-5 text-[10px] sm:text-[9px] text-gray-500 hover:text-gray-900 disabled:opacity-25">▼</button>
+      </span>
     </div>
   );
 }
@@ -116,6 +96,9 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
   const [selName, setSelName] = useState(() => tour.nodes.find(n => n.id === activeNodeId)?.name ?? '');
   const [selNote, setSelNote] = useState(() => tour.nodes.find(n => n.id === activeNodeId)?.note ?? '');
   const [replacingImage, setReplacingImage] = useState(false);
+  const [selectedLinkIndex, setSelectedLinkIndex] = useState<number | null>(null);
+  const [autoReturn, setAutoReturn] = useState(true);
+  const captureRef = useRef<(() => void) | null>(null);
 
   // La vista previa es un overlay propio (no pasa por CommonAreasTour, que
   // ya maneja Escape del lado público) — antes la única salida era la X.
@@ -143,6 +126,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     setSelName(activeNode?.name ?? '');
     setSelNote(activeNode?.note ?? '');
     setReplacingImage(false);
+    setSelectedLinkIndex(null);
   }
 
   // Memoizados por referencia de activeNode (que solo cambia cuando tour
@@ -164,13 +148,7 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     [activeNode]
   );
 
-  // Un nodo está "conectado" si es origen o destino de al menos un link hotspot.
-  // Con un solo nodo no aplica: es el único ambiente, no necesita conexión.
-  const connectedIds = new Set<string>();
-  tour.nodes.forEach(n => (n.linkHotspots ?? []).forEach(h => { connectedIds.add(n.id); connectedIds.add(h.targetNodeId); }));
-  const orphanIds = new Set(tour.nodes.length > 1 ? tour.nodes.filter(n => !connectedIds.has(n.id)).map(n => n.id) : []);
   const hasStart = tour.nodes.some(n => n.id === tour.initialNodeId);
-  const totalLinks = tour.nodes.reduce((a, n) => a + (n.linkHotspots?.length ?? 0), 0) / 2;
 
   const flash = (text: string) => {
     setMessage(text);
@@ -291,16 +269,6 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     setInfoDesc('');
   };
 
-  const confirmAddLink = async () => {
-    if (!activeNode || !pendingPoint || !linkTarget) return;
-    const hotspot = { yaw: pendingPoint.yaw, pitch: pendingPoint.pitch, targetNodeId: linkTarget, label: linkLabel || undefined };
-    const nextNodes = tour.nodes.map(n =>
-      n.id === activeNode.id ? { ...n, linkHotspots: [...(n.linkHotspots ?? []), hotspot] } : n
-    );
-    const ok = await persist({ ...tour, nodes: nextNodes });
-    if (ok) cancelPending();
-  };
-
   const confirmAddInfo = async () => {
     if (!activeNode || !pendingPoint || !infoTitle) return;
     const hotspot = { yaw: pendingPoint.yaw, pitch: pendingPoint.pitch, title: infoTitle, description: infoDesc || undefined };
@@ -354,62 +322,72 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
     ? tour.nodes.filter(n => n.id !== activeNode.id)
     : [];
 
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-brand-100 overflow-hidden">
-      {/* Encabezado — fuente fija en 16px: a 18px (la base del resto del
-          admin) los chips se apretujan entre sí. */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between gap-4 flex-wrap" style={{ fontSize: '16px' }}>
-        <div className="min-w-0">
-          <div className="flex items-baseline gap-2.5 flex-wrap">
-            <h3 className="text-lg font-semibold text-gray-900">Ambientes del recorrido</h3>
-            <span className="text-xs text-gray-400">
-              {tour.nodes.length} ambiente{tour.nodes.length === 1 ? '' : 's'} · {totalLinks} conexion{totalLinks === 1 ? '' : 'es'}
-            </span>
-          </div>
-          <div className="flex gap-1.5 mt-2 flex-wrap">
-            {orphanIds.size > 0 && (
-              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                {orphanIds.size} ambiente{orphanIds.size === 1 ? '' : 's'} sin salidas
-              </span>
-            )}
-            {!hasStart && tour.nodes.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                Falta elegir el ambiente de inicio
-              </span>
-            )}
-            {orphanIds.size === 0 && hasStart && tour.nodes.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg text-[11px] font-medium bg-brand-50 text-brand-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" />
-                Recorrido completo y listo para publicar
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {message && <span className="text-sm font-medium text-green-600">{message}</span>}
-          <button
-            onClick={() => setShowGraph(s => !s)}
-            disabled={tour.nodes.length === 0}
-            className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap disabled:opacity-40 ${
-              showGraph ? 'bg-gray-900 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            Ver mapa de conexiones
-          </button>
-          <button
-            onClick={() => setPreviewing(true)}
-            disabled={tour.nodes.length === 0}
-            className="text-sm px-3 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg font-medium transition-colors whitespace-nowrap"
-          >
-            ▶ Probar recorrido
-          </button>
-        </div>
-      </div>
+  // ── Punto seleccionado / nuevo (panel derecho del diseño) ──
+  // Escenas a las que no llega ningún punto (salvo la inicial, que es la entrada).
+  const incoming = new Set<string>();
+  tour.nodes.forEach(n => (n.linkHotspots ?? []).forEach(h => incoming.add(h.targetNodeId)));
+  const unreachable = tour.nodes.length > 1 ? tour.nodes.filter(n => n.id !== tour.initialNodeId && !incoming.has(n.id)) : [];
+  const nodeName = (id: string) => tour.nodes.find(n => n.id === id)?.name ?? id;
 
+  const selectedLink = activeNode && selectedLinkIndex !== null ? (activeNode.linkHotspots ?? [])[selectedLinkIndex] ?? null : null;
+
+  const handleUpdateLinkHotspot = async (index: number, patch: { label?: string; targetNodeId?: string }) => {
+    if (!activeNode) return;
+    const nextNodes = tour.nodes.map(n =>
+      n.id === activeNode.id
+        ? { ...n, linkHotspots: (n.linkHotspots ?? []).map((h, i) => (i === index ? { ...h, ...patch, label: patch.label !== undefined ? (patch.label || undefined) : h.label } : h)) }
+        : n
+    );
+    await persist({ ...tour, nodes: nextNodes });
+  };
+
+  // "Crear la vuelta automáticamente": además del punto en esta escena,
+  // agrega uno en la escena destino que vuelve acá, ubicado "de espaldas"
+  // (yaw + 180°) — se puede mover después arrastrándolo.
+  const confirmAddLinkWithReturn = async () => {
+    if (!activeNode || !pendingPoint || !linkTarget) return;
+    const hotspot = { yaw: pendingPoint.yaw, pitch: pendingPoint.pitch, targetNodeId: linkTarget, label: linkLabel || undefined };
+    const backYaw = Math.atan2(Math.sin(pendingPoint.yaw + Math.PI), Math.cos(pendingPoint.yaw + Math.PI));
+    const nextNodes = tour.nodes.map(n => {
+      if (n.id === activeNode.id) return { ...n, linkHotspots: [...(n.linkHotspots ?? []), hotspot] };
+      if (autoReturn && n.id === linkTarget && !(n.linkHotspots ?? []).some(h => h.targetNodeId === activeNode.id)) {
+        return { ...n, linkHotspots: [...(n.linkHotspots ?? []), { yaw: backYaw, pitch: 0, targetNodeId: activeNode.id }] };
+      }
+      return n;
+    });
+    const ok = await persist({ ...tour, nodes: nextNodes });
+    if (ok) cancelPending();
+  };
+
+  const connectScene = (targetId: string) => {
+    setSelectedLinkIndex(null);
+    setLinkTarget(targetId);
+    setLinkLabel(nodeName(targetId));
+    setPlacing('link');
+    setPendingPoint(null);
+  };
+
+  const sideLabel = 'text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500';
+  const field = 'w-full min-h-[44px] px-3 rounded-[10px] border border-gray-300 bg-white text-sm text-gray-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-500/30';
+  const toolBtn = (on: boolean) => `min-h-[40px] px-3.5 rounded-[10px] text-[13px] font-semibold border transition-colors ${on ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'}`;
+
+  const orphanWarning = unreachable.length > 0 && (
+    <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs leading-relaxed text-amber-800">
+      <b>{unreachable[0].name}</b> no tiene ningún punto que llegue a ella{unreachable.length > 1 ? ` (y ${unreachable.length - 1} más)` : ''}.{' '}
+      {activeNode && activeNode.id !== unreachable[0].id && (
+        <button type="button" onClick={() => connectScene(unreachable[0].id)} className="inline-flex items-center min-h-[36px] px-1 font-semibold underline underline-offset-2">Conectarla</button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
       {tour.nodes.length === 0 ? (
-        <div className="p-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h3 className="m-0 text-[15px] font-semibold text-gray-900">Escenas del recorrido</h3>
+            <p className="m-0 text-[13px] text-gray-600">Subí las panorámicas 2:1 (una por ambiente). El nombre de cada escena sale del archivo.</p>
+          </div>
           <AddNodePanel
             newNodeName={newNodeName}
             setNewNodeName={setNewNodeName}
@@ -423,81 +401,69 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
           />
         </div>
       ) : (
-        <div className="flex flex-col lg:flex-row items-stretch" style={{ minHeight: 420 }}>
-          {/* Panel izquierdo — lista de ambientes */}
-          <div className="lg:w-[260px] shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col">
-            <div className="px-3 pt-3 pb-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Ambientes</span>
-              <span className="text-[10px] text-gray-400">orden del recorrido</span>
+        <>
+        {!hasStart && (
+          <p role="status" className="m-0 px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800">
+            Falta elegir la escena inicial: abrí una escena y tocá “Marcar como inicial”.
+          </p>
+        )}
+        <div className="grid gap-4 items-start grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1fr)_280px]">
+          {/* Escenas */}
+          <aside aria-label="Escenas" className="flex flex-col gap-2 min-w-0">
+            <div className="flex items-baseline justify-between px-0.5">
+              <span className="text-sm font-semibold text-gray-900">Escenas</span>
+              <span className="text-xs text-gray-500">{tour.nodes.length}</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 max-h-[50vh] lg:max-h-none">
+            <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible -mx-1 px-1 pb-1 lg:pb-0">
               {tour.nodes.map((n, i) => (
-                <NodeRow
+                <SceneCard
                   key={n.id}
                   node={n}
                   index={i}
                   count={tour.nodes.length}
                   isActive={activeNodeId === n.id}
                   isInitial={tour.initialNodeId === n.id}
-                  isOrphan={orphanIds.has(n.id)}
-                  onSelect={() => { setActiveNodeId(n.id); cancelPending(); }}
+                  isUnreachable={unreachable.some(u => u.id === n.id)}
+                  onSelect={() => { setActiveNodeId(n.id); cancelPending(); setSelectedLinkIndex(null); }}
                   onMove={dir => handleMoveNode(n.id, dir)}
                 />
               ))}
             </div>
-            <div className="border-t border-gray-200 p-3">
-              <AddNodePanel
-                newNodeName={newNodeName}
-                setNewNodeName={setNewNodeName}
-                newNodeImage={newNodeImage}
-                setNewNodeImage={setNewNodeImage}
-                onAdd={handleAddNode}
-                onBulkAdd={handleBulkAdd}
-                open={addNodeOpen}
-                onToggle={() => setAddNodeOpen(o => !o)}
-              />
-            </div>
-          </div>
+            <AddNodePanel
+              newNodeName={newNodeName}
+              setNewNodeName={setNewNodeName}
+              newNodeImage={newNodeImage}
+              setNewNodeImage={setNewNodeImage}
+              onAdd={handleAddNode}
+              onBulkAdd={handleBulkAdd}
+              open={addNodeOpen}
+              onToggle={() => setAddNodeOpen(o => !o)}
+            />
+          </aside>
 
-          {/* Panel central — panorámica o mapa de conexiones */}
-          <div className="flex-1 min-w-0 bg-gray-50/60 flex flex-col">
+          {/* Visor */}
+          <div className="flex flex-col gap-3 min-w-0">
             {showGraph ? (
-              <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-wrap content-start gap-2">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-wrap content-start gap-2 min-h-[320px]">
                 {tour.nodes.map(n => (
                   <button
                     key={n.id}
                     onClick={() => { setActiveNodeId(n.id); setShowGraph(false); }}
                     className={`text-left max-w-[240px] px-3 py-2 rounded-xl border transition-colors ${
-                      (n.linkHotspots ?? []).length ? 'border-gray-200 bg-white hover:border-gray-300' : 'border-amber-300 bg-amber-50/60 hover:border-amber-400'
+                      (n.linkHotspots ?? []).length ? 'border-gray-200 bg-white hover:border-gray-300' : 'border-amber-300 bg-amber-50 hover:border-amber-400'
                     }`}
                   >
-                    <p className="text-[13px] font-semibold text-gray-900 truncate">{n.name}</p>
-                    <p className="text-[11px] text-gray-500 truncate">
+                    <p className="m-0 text-[13px] font-semibold text-gray-900 truncate">{n.name}</p>
+                    <p className="m-0 text-[11px] text-gray-600 truncate">
                       {(n.linkHotspots ?? []).length
-                        ? (n.linkHotspots ?? []).map(h => tour.nodes.find(t => t.id === h.targetNodeId)?.name ?? '?').join(' · ')
+                        ? (n.linkHotspots ?? []).map(h => nodeName(h.targetNodeId)).join(' · ')
                         : 'sin salidas'}
                     </p>
                   </button>
                 ))}
               </div>
             ) : activeNode ? (
-              <div className="flex-1 min-h-0 p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => { setPlacing(placing === 'link' ? null : 'link'); setPendingPoint(null); }}
-                    className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${placing === 'link' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    + Ir a otro ambiente
-                  </button>
-                  <button
-                    onClick={() => { setPlacing(placing === 'info' ? null : 'info'); setPendingPoint(null); }}
-                    className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${placing === 'info' ? 'bg-amber-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    + Punto de info
-                  </button>
-                  {placing && <span className="text-xs text-gray-500">Arrastrá sobre la panorámica para ubicarlo — llevalo a un borde para rotar la cámara</span>}
-                </div>
-
+              <div className="relative">
                 <TourNodeViewer
                   imageUrl={activeNode.imageUrl}
                   linkHotspots={linkHotspotMarkers}
@@ -510,210 +476,202 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
                   onMoveInfo={handleMoveInfoHotspot}
                   initialView={activeNode.initialView}
                   onCaptureView={v => handleSetInitialView(activeNode.id, v)}
+                  captureRef={captureRef}
+                  hideCaptureButton
                 />
-
-                {pendingPoint && placing === 'link' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-end">
-                    <div className="flex-1 w-full">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Destino</label>
-                      <select value={linkTarget} onChange={e => setLinkTarget(e.target.value)} className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-                        <option value="">Elegir ambiente...</option>
-                        {addLinkTargetOptions.map(n => (
-                          <option key={n.id} value={n.id}>{n.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex-1 w-full">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Etiqueta (opcional)</label>
-                      <input value={linkLabel} onChange={e => setLinkLabel(e.target.value)} placeholder="Ir al Living" className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={confirmAddLink} disabled={!linkTarget || saving} className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">Agregar</button>
-                      <button onClick={cancelPending} className="text-sm px-4 py-2 text-gray-600 hover:text-gray-900">Cancelar</button>
-                    </div>
-                  </div>
-                )}
-
-                {pendingPoint && placing === 'info' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-end">
-                    <div className="flex-1 w-full">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Título</label>
-                      <input value={infoTitle} onChange={e => setInfoTitle(e.target.value)} placeholder="Terminaciones" className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
-                    </div>
-                    <div className="flex-1 w-full">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Descripción (opcional)</label>
-                      <input value={infoDesc} onChange={e => setInfoDesc(e.target.value)} placeholder="Piso de porcelanato" className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={confirmAddInfo} disabled={!infoTitle || saving} className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">Agregar</button>
-                      <button onClick={cancelPending} className="text-sm px-4 py-2 text-gray-600 hover:text-gray-900">Cancelar</button>
-                    </div>
-                  </div>
-                )}
+                <div className="absolute left-3 top-3 right-3 flex gap-2 flex-wrap pointer-events-none">
+                  <span className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gray-900/80 text-white">
+                    {activeNode.name}{tour.initialNodeId === activeNode.id ? ' · escena inicial' : ''}
+                  </span>
+                  <span className="hidden sm:inline text-xs px-2.5 py-1.5 rounded-lg bg-gray-900/70 text-white">
+                    {placing ? 'Clic donde va el punto · llevalo a un borde para girar' : 'Arrastrá para mirar · elegí "+ Punto" para agregar'}
+                  </span>
+                </div>
               </div>
             ) : null}
+
+            {activeNode && !showGraph && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" onClick={() => captureRef.current?.()} disabled={!!placing} className={toolBtn(false)}>Fijar vista inicial</button>
+                <button type="button" onClick={() => { setPlacing(placing === 'link' ? null : 'link'); setPendingPoint(null); setSelectedLinkIndex(null); }} className={toolBtn(placing === 'link')}>+ Punto de paso</button>
+                <button type="button" onClick={() => { setPlacing(placing === 'info' ? null : 'info'); setPendingPoint(null); setSelectedLinkIndex(null); }} className={toolBtn(placing === 'info')}>+ Punto de info</button>
+                <span className="flex-1" />
+                {message && <span role="status" className="text-[13px] font-medium text-brand-700">{message}</span>}
+                <button type="button" onClick={() => setShowGraph(g => !g)} className="min-h-[40px] px-3 text-[13px] font-medium text-gray-700 underline underline-offset-2">
+                  {showGraph ? 'Volver al visor' : 'Mapa de conexiones'}
+                </button>
+                <button type="button" onClick={() => setPreviewing(true)} className="min-h-[40px] px-4 rounded-[10px] bg-gray-900 text-white text-[13px] font-semibold hover:bg-black">Probar recorrido</button>
+              </div>
+            )}
           </div>
 
-          {/* Panel derecho — detalle del ambiente seleccionado */}
+          {/* Panel del punto / de la escena */}
           {activeNode && !showGraph && (
-            <div className="lg:w-[320px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col">
-              <div className="px-4 py-3 border-b border-gray-200 flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  Ambiente {tour.nodes.findIndex(n => n.id === activeNode.id) + 1} de {tour.nodes.length}
-                </span>
-                <input
-                  value={selName}
-                  onChange={e => setSelName(e.target.value)}
-                  onBlur={() => { if (selName.trim() && selName !== activeNode.name) handleRenameNode(activeNode.id, selName.trim()); else setSelName(activeNode.name); }}
-                  onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                  className="text-[13.5px] font-medium text-gray-900 h-9 px-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-                />
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3.5 flex flex-col gap-4 max-h-[70vh] lg:max-h-none">
-                {/* Salidas */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Salidas desde acá</span>
-                    <span className="text-[10px] text-gray-400">{(activeNode.linkHotspots ?? []).length} salida(s)</span>
+            <aside aria-label="Detalle" className="lg:col-span-2 xl:col-span-1 rounded-2xl border border-gray-200 bg-white p-5 flex flex-col gap-4 min-w-0">
+              {pendingPoint && placing === 'link' ? (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className={sideLabel}>Punto de paso nuevo</span>
+                    <span className="font-display text-lg font-semibold text-gray-900">{activeNode.name} → {linkTarget ? nodeName(linkTarget) : '…'}</span>
+                  </div>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Lleva a</span>
+                    <select value={linkTarget} onChange={e => { setLinkTarget(e.target.value); if (!linkLabel) setLinkLabel(nodeName(e.target.value)); }} className={field}>
+                      <option value="">Elegir escena…</option>
+                      {addLinkTargetOptions.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Etiqueta</span>
+                    <input value={linkLabel} onChange={e => setLinkLabel(e.target.value)} placeholder="Piscina" className={field} />
+                  </label>
+                  <label className="flex items-center gap-2.5 text-[13px] text-gray-900 min-h-[32px]">
+                    <input type="checkbox" checked={autoReturn} onChange={e => setAutoReturn(e.target.checked)} className="w-4 h-4 accent-brand-700" />
+                    Crear la vuelta automáticamente
+                  </label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={confirmAddLinkWithReturn} disabled={!linkTarget || saving} className="flex-1 min-h-[44px] rounded-[10px] bg-gray-900 text-white text-sm font-semibold disabled:bg-gray-200 disabled:text-gray-400">Agregar punto</button>
+                    <button type="button" onClick={cancelPending} className="min-h-[44px] px-3 text-sm text-gray-700">Cancelar</button>
+                  </div>
+                </>
+              ) : pendingPoint && placing === 'info' ? (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className={sideLabel}>Punto de info nuevo</span>
+                    <span className="font-display text-lg font-semibold text-gray-900">{activeNode.name}</span>
+                  </div>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Título</span>
+                    <input value={infoTitle} onChange={e => setInfoTitle(e.target.value)} placeholder="Terminaciones" className={field} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Descripción (opcional)</span>
+                    <input value={infoDesc} onChange={e => setInfoDesc(e.target.value)} placeholder="Piso de porcelanato" className={field} />
+                  </label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={confirmAddInfo} disabled={!infoTitle || saving} className="flex-1 min-h-[44px] rounded-[10px] bg-gray-900 text-white text-sm font-semibold disabled:bg-gray-200 disabled:text-gray-400">Agregar punto</button>
+                    <button type="button" onClick={cancelPending} className="min-h-[44px] px-3 text-sm text-gray-700">Cancelar</button>
+                  </div>
+                </>
+              ) : selectedLink && selectedLinkIndex !== null ? (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className={sideLabel}>Punto de paso</span>
+                      <span className="font-display text-lg font-semibold text-gray-900 truncate">{activeNode.name} → {nodeName(selectedLink.targetNodeId)}</span>
+                    </div>
+                    <button type="button" onClick={() => setSelectedLinkIndex(null)} aria-label="Volver a la escena" className="w-9 h-9 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100">✕</button>
+                  </div>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Etiqueta</span>
+                    <input key={`label-${activeNode.id}-${selectedLinkIndex}`} defaultValue={selectedLink.label ?? ''} placeholder={nodeName(selectedLink.targetNodeId)}
+                      onBlur={e => { if (e.target.value !== (selectedLink.label ?? '')) handleUpdateLinkHotspot(selectedLinkIndex, { label: e.target.value }); }}
+                      className={field} />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-gray-700">Lleva a</span>
+                    <select value={selectedLink.targetNodeId} onChange={e => handleUpdateLinkHotspot(selectedLinkIndex, { targetNodeId: e.target.value })} className={field}>
+                      {addLinkTargetOptions.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    </select>
+                  </label>
+                  {orphanWarning}
+                  <button type="button" onClick={async () => { await handleDeleteLinkHotspot(selectedLinkIndex); setSelectedLinkIndex(null); }}
+                    className="self-start min-h-[40px] text-[13px] font-semibold text-red-700 hover:text-red-800">Borrar punto</button>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <span className={sideLabel}>Escena {tour.nodes.findIndex(n => n.id === activeNode.id) + 1} de {tour.nodes.length}</span>
+                    <input
+                      aria-label="Nombre de la escena"
+                      value={selName}
+                      onChange={e => setSelName(e.target.value)}
+                      onBlur={() => { if (selName.trim() && selName !== activeNode.name) handleRenameNode(activeNode.id, selName.trim()); else setSelName(activeNode.name); }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                      className={`${field} font-semibold`}
+                    />
                   </div>
 
-                  {(activeNode.linkHotspots ?? []).length === 0 ? (
-                    <div className="p-3 border border-dashed border-amber-300 rounded-xl bg-amber-50/60 flex flex-col gap-1">
-                      <p className="text-[11.5px] font-medium text-amber-800">Este ambiente no tiene salidas</p>
-                      <p className="text-[10.5px] text-gray-500 leading-relaxed">Nadie puede llegar ni salir de acá en el visor. Agregá al menos una salida.</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
-                      {(activeNode.linkHotspots ?? []).map((h, i) => (
-                        <div key={`link-${i}`} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white">
-                          <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-medium text-gray-900 truncate">→ {tour.nodes.find(n => n.id === h.targetNodeId)?.name ?? h.targetNodeId}</p>
-                            {h.label && <p className="text-[10px] text-gray-400 truncate">&quot;{h.label}&quot;</p>}
-                          </div>
-                          <button
-                            onClick={() => handleDeleteLinkHotspot(i)}
-                            title="Quitar salida"
-                            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 transition-colors"
-                          >
-                            ×
+                  <div className="flex flex-col gap-2">
+                    <span className={sideLabel}>Puntos de paso · {(activeNode.linkHotspots ?? []).length}</span>
+                    {(activeNode.linkHotspots ?? []).length === 0 ? (
+                      <p className="m-0 text-xs text-gray-600">Todavía no hay salidas desde acá. Usá “+ Punto de paso” y tocá la puerta en la panorámica.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {(activeNode.linkHotspots ?? []).map((h, i) => (
+                          <button key={`link-${i}`} type="button" onClick={() => { setSelectedLinkIndex(i); cancelPending(); }}
+                            className="flex items-center gap-2.5 min-h-[44px] px-3 rounded-[10px] border border-gray-200 bg-white text-left hover:border-gray-300">
+                            <span aria-hidden className="w-6 h-6 rounded-full border-2 border-gray-900 flex items-center justify-center text-[11px]">→</span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-[13px] font-semibold text-gray-900 truncate">{nodeName(h.targetNodeId)}</span>
+                              {h.label && h.label !== nodeName(h.targetNodeId) && <span className="block text-[11px] text-gray-500 truncate">“{h.label}”</span>}
+                            </span>
+                            <span className="text-[11px] text-gray-500">Editar</span>
                           </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {(activeNode.infoHotspots ?? []).length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <span className={sideLabel}>Puntos de info · {(activeNode.infoHotspots ?? []).length}</span>
+                      {(activeNode.infoHotspots ?? []).map((h, i) => (
+                        <div key={`info-${i}`} className="flex items-center gap-2.5 min-h-[44px] px-3 rounded-[10px] border border-gray-200 bg-white">
+                          <span aria-hidden className="w-6 h-6 rounded-full bg-gray-900 text-white text-[11px] font-semibold flex items-center justify-center">i</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-[13px] font-semibold text-gray-900 truncate">{h.title}</span>
+                            {h.description && <span className="block text-[11px] text-gray-500 truncate">{h.description}</span>}
+                          </span>
+                          <button type="button" onClick={() => handleDeleteInfoHotspot(i)} aria-label={`Quitar ${h.title}`} className="w-8 h-8 rounded-lg text-gray-500 hover:text-red-700 hover:bg-red-50">✕</button>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <div className="flex gap-1.5">
-                    <select value={linkTarget && placing === 'link' ? linkTarget : ''} onChange={e => { setLinkTarget(e.target.value); }} className="flex-1 min-w-0 h-[33px] px-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
-                      <option value="">Elegí un ambiente…</option>
-                      {addLinkTargetOptions.filter(n => !(activeNode.linkHotspots ?? []).some(l => l.targetNodeId === n.id)).map(n => (
-                        <option key={n.id} value={n.id}>{n.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => { setPlacing('link'); setPendingPoint(null); }}
-                      disabled={!linkTarget}
-                      className="shrink-0 h-[33px] px-3 flex items-center rounded-lg text-xs font-medium bg-gray-900 text-white disabled:opacity-30 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-                    >
-                      Ubicar en la foto
-                    </button>
+                  {orphanWarning}
+
+                  <div className="flex flex-col gap-2">
+                    <span className={sideLabel}>Panorámica</span>
+                    {replacingImage ? (
+                      <div className="flex flex-col gap-2">
+                        <ImageUploader value={activeNode.imageUrl} onChange={url => handleReplaceImage(activeNode.id, url)} folder="tours" />
+                        <button type="button" onClick={() => setReplacingImage(false)} className="self-start min-h-[32px] text-xs text-gray-600 hover:text-gray-900">Cancelar</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setReplacingImage(true)} className="self-start min-h-[36px] text-[13px] font-semibold text-gray-900 underline underline-offset-2">Reemplazar panorámica</button>
+                    )}
                   </div>
-                  <p className="text-[10px] text-gray-400 leading-relaxed">Elegí un destino y después clickeá dónde está la puerta o el paso en la panorámica.</p>
-                </div>
 
-                <div className="h-px bg-gray-100" />
+                  <label className="flex flex-col gap-1.5">
+                    <span className={sideLabel}>Texto en el visor</span>
+                    <textarea
+                      value={selNote}
+                      onChange={e => setSelNote(e.target.value)}
+                      onBlur={() => { if (selNote !== (activeNode.note ?? '')) handleSetNote(activeNode.id, selNote); }}
+                      rows={2}
+                      placeholder="Opcional — cartel corto que aparece al entrar."
+                      className={`${field} py-2.5 resize-y`}
+                    />
+                  </label>
 
-                {/* Puntos de info */}
-                {(activeNode.infoHotspots ?? []).length > 0 && (
-                  <>
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Puntos de info</span>
-                      <div className="flex flex-col gap-1.5">
-                        {(activeNode.infoHotspots ?? []).map((h, i) => (
-                          <div key={`info-${i}`} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white">
-                            <span className="w-6 h-6 rounded-full bg-amber-600 text-white font-serif font-bold flex items-center justify-center shrink-0 text-xs">i</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[12px] font-medium text-gray-900 truncate">{h.title}</p>
-                              {h.description && <p className="text-[10px] text-gray-400 truncate">{h.description}</p>}
-                            </div>
-                            <button
-                              onClick={() => handleDeleteInfoHotspot(i)}
-                              title="Quitar punto de info"
-                              className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 transition-colors"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="h-px bg-gray-100" />
-                  </>
-                )}
-
-                {/* Foto panorámica */}
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Foto panorámica</span>
-                  {replacingImage ? (
-                    <div className="flex flex-col gap-2">
-                      <ImageUploader value={activeNode.imageUrl} onChange={url => handleReplaceImage(activeNode.id, url)} folder="tours" />
-                      <button onClick={() => setReplacingImage(false)} className="self-start text-[11px] text-gray-400 hover:text-gray-700">Cancelar</button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2.5 items-start">
-                      <div className="w-[76px] h-[38px] shrink-0 rounded-md border border-gray-200 overflow-hidden bg-gray-100">
-                        {activeNode.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={activeNode.imageUrl} alt="" className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <p className="text-[11px] font-medium text-gray-900 truncate">{activeNode.name}</p>
-                        <button onClick={() => setReplacingImage(true)} className="text-[10.5px] text-brand-600 hover:text-brand-800 text-left">Reemplazar panorámica</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="h-px bg-gray-100" />
-
-                {/* Texto en el visor */}
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Texto en el visor</span>
-                  <textarea
-                    value={selNote}
-                    onChange={e => setSelNote(e.target.value)}
-                    onBlur={() => { if (selNote !== (activeNode.note ?? '')) handleSetNote(activeNode.id, selNote); }}
-                    rows={2}
-                    placeholder="Opcional — cartel corto que aparece al entrar al ambiente."
-                    className="text-xs leading-relaxed p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none resize-y"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 px-4 py-2.5 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => handleSetInitial(activeNode.id)}
-                  disabled={tour.initialNodeId === activeNode.id}
-                  className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                    tour.initialNodeId === activeNode.id
-                      ? 'bg-brand-50 text-brand-700'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {tour.initialNodeId === activeNode.id ? '✓ Es el ambiente de inicio' : 'Marcar como inicio'}
-                </button>
-                <button
-                  onClick={() => handleDeleteNode(activeNode.id)}
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
-                >
-                  Borrar
-                </button>
-              </div>
-            </div>
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => handleSetInitial(activeNode.id)}
+                      disabled={tour.initialNodeId === activeNode.id}
+                      className={`min-h-[40px] px-3 rounded-[10px] text-[13px] font-semibold whitespace-nowrap ${tour.initialNodeId === activeNode.id ? 'bg-brand-100 text-brand-800' : 'border border-gray-300 bg-white text-gray-900 hover:border-gray-400'}`}
+                    >
+                      {tour.initialNodeId === activeNode.id ? '★ Escena inicial' : 'Marcar como inicial'}
+                    </button>
+                    <button type="button" onClick={() => handleDeleteNode(activeNode.id)} className="min-h-[40px] px-3 text-[13px] font-semibold whitespace-nowrap text-red-700 hover:text-red-800">Borrar escena</button>
+                  </div>
+                </>
+              )}
+            </aside>
           )}
         </div>
+        </>
       )}
 
       {previewing && (
@@ -721,9 +679,9 @@ export default function TourEditor({ initialTourData, onPersist }: TourEditorPro
           <button
             onClick={() => setPreviewing(false)}
             aria-label="Cerrar vista previa"
-            className="absolute top-4 right-4 z-[210] w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur transition-colors"
+            className="absolute top-4 right-4 z-[210] w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -751,9 +709,9 @@ function AddNodePanel({ newNodeName, setNewNodeName, newNodeImage, setNewNodeIma
     return (
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 border border-dashed border-gray-300 text-sm font-medium text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+        className="w-full min-h-[52px] flex items-center justify-center gap-1.5 rounded-xl px-3 border border-dashed border-gray-300 text-[13px] font-medium text-gray-700 hover:border-gray-400 hover:text-gray-900 transition-colors"
       >
-        + Agregar ambiente
+        + Panorámicas 2:1
       </button>
     );
   }

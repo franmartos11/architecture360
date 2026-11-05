@@ -28,8 +28,34 @@ interface SectionRow {
 }
 
 type Status = 'ok' | 'empty' | 'hidden' | 'locked';
-type Filter = 'all' | 'pending' | 'hidden' | 'locked';
+type Filter = 'all' | 'pending' | 'hidden';
 type Selected = 'portada' | SectionKey;
+
+// De dónde sale el contenido de cada sección (diseño: "Ficha › Relato").
+// Sitio decide orden y visibilidad; el contenido se carga en su capítulo.
+const SECTION_ORIGIN: Record<SectionKey, { label: string; href: string | null }> = {
+  about: { label: 'Ficha › Relato', href: '/admin/proyecto/relato' },
+  gallery: { label: 'Ficha › Galería', href: '/admin/proyecto/galeria' },
+  stats: { label: 'Automático · Unidades', href: '/admin/inventory' },
+  before_after: { label: 'Ficha › Obra', href: '/admin/proyecto/avance' },
+  process: { label: 'Ficha › Galería', href: '/admin/proyecto/galeria' },
+  team: { label: 'Ficha › Equipo', href: '/admin/proyecto/equipo' },
+  amenities: { label: 'Ficha › Entorno', href: '/admin/proyecto/entorno' },
+  masterplan: { label: 'Ficha › Galería', href: '/admin/proyecto/galeria' },
+  bim: { label: 'Ficha › Inmersivo', href: '/admin/proyecto/bim' },
+  typologies: { label: 'Unidades', href: '/admin/inventory' },
+  progress: { label: 'Ficha › Obra', href: '/admin/proyecto/avance' },
+  calculator: { label: 'Configuración', href: '/admin/settings' },
+  location: { label: 'Ficha › Entorno', href: '/admin/proyecto/entorno' },
+  contact: { label: 'Automático · formulario de leads', href: '/admin/leads' },
+};
+
+function originSub(key: SectionKey, status: Status): string {
+  const base = SECTION_ORIGIN[key]?.label ?? '';
+  if (status === 'empty') return `${base} · vacía`;
+  if (status === 'hidden') return `${base} · oculta`;
+  return base;
+}
 
 const STATUS_DOT: Record<Status, string> = {
   ok: 'bg-brand-700', empty: 'bg-[#E0B060]', hidden: 'bg-gray-300', locked: 'bg-gray-200',
@@ -101,13 +127,19 @@ export default function AdminSitioPage() {
     persist(sections.map(s => (s.key === key ? { ...s, enabled: !s.enabled } : s)));
   };
 
-  const moveSection = (index: number, direction: -1 | 1) => {
+  // Las secciones que no aplican al tipo de proyecto no se listan (como en
+  // el diseño); mover/arrastrar opera sobre las visibles y las otras quedan
+  // al final de la lista guardada, donde no afectan el orden de la página.
+  const withHiddenLocked = (visible: SectionRow[]) => [...visible, ...(sections ?? []).filter(s => !s.available)];
+  const moveSection = (key: SectionKey, direction: -1 | 1) => {
     if (!sections) return;
+    const visible = sections.filter(s => s.available);
+    const index = visible.findIndex(s => s.key === key);
     const target = index + direction;
-    if (target < 0 || target >= sections.length) return;
-    const next = [...sections];
+    if (index < 0 || target < 0 || target >= visible.length) return;
+    const next = [...visible];
     [next[index], next[target]] = [next[target], next[index]];
-    persist(next);
+    persist(withHiddenLocked(next));
   };
 
   // Reorder.Group dispara onReorder en cada paso del arrastre — reordenar
@@ -127,25 +159,26 @@ export default function AdminSitioPage() {
     return 'ok';
   };
   const statuses = new Map(sections.map(s => [s.key, statusOf(s)]));
+  const available = sections.filter(s => s.available);
+  const lockedCount = sections.length - available.length;
   const counts = {
-    all: sections.length,
-    pending: sections.filter(s => statuses.get(s.key) === 'empty').length,
-    hidden: sections.filter(s => statuses.get(s.key) === 'hidden').length,
-    locked: sections.filter(s => statuses.get(s.key) === 'locked').length,
+    all: available.length,
+    pending: available.filter(s => statuses.get(s.key) === 'empty').length,
+    hidden: available.filter(s => statuses.get(s.key) === 'hidden').length,
   };
-  const okCount = sections.filter(s => statuses.get(s.key) === 'ok').length;
-  const publishable = sections.length - counts.locked;
+  const okCount = available.filter(s => statuses.get(s.key) === 'ok').length;
+  const publishable = available.length;
 
   // Arrastrar solo tiene sentido reordenando la lista COMPLETA — filtrada,
   // los vecinos visuales no son vecinos reales, así que el handle de
   // arrastre se deshabilita (los botones ↑↓ siguen andando: operan sobre
   // el índice real, no el filtrado).
-  const filteredSections = filter === 'all' ? sections : sections.filter(s => {
+  const filteredSections = filter === 'all' ? available : available.filter(s => {
     const st = statuses.get(s.key);
-    return (filter === 'pending' && st === 'empty') || (filter === 'hidden' && st === 'hidden') || (filter === 'locked' && st === 'locked');
+    return (filter === 'pending' && st === 'empty') || (filter === 'hidden' && st === 'hidden');
   });
 
-  const navOrder: Selected[] = ['portada', ...sections.map(s => s.key)];
+  const navOrder: Selected[] = ['portada', ...available.map(s => s.key)];
   const selIndex = navOrder.indexOf(selected);
   const goStep = (dir: 1 | -1) => setSelected(navOrder[Math.min(navOrder.length - 1, Math.max(0, selIndex + dir))]);
 
@@ -153,9 +186,9 @@ export default function AdminSitioPage() {
   const selStatus = selRow ? statuses.get(selRow.key)! : 'ok';
   const panelTitle = selected === 'portada' ? 'Portada' : selRow?.label ?? '';
   const panelMeta = selected === 'portada'
-    ? 'Fija — siempre es la primera sección'
+    ? `Sección 1 de ${available.length + 1} · fija, siempre primera`
     : selRow
-    ? `Sección ${sections.indexOf(selRow) + 1} de ${sections.length} · ${selStatus === 'hidden' ? 'oculta del sitio' : selStatus === 'locked' ? 'no disponible' : 'visible en el sitio'}`
+    ? `Sección ${available.indexOf(selRow) + 2} de ${available.length + 1} · ${selStatus === 'hidden' ? 'oculta del sitio' : selStatus === 'empty' ? 'vacía' : 'visible en el sitio'}`
     : '';
 
   const selectedSectionComponent = selRow && selStatus !== 'locked' ? SECTION_COMPONENTS[selRow.key] : null;
@@ -184,7 +217,7 @@ export default function AdminSitioPage() {
           <span className="flex-1 text-xs leading-snug text-gray-600">secciones con contenido</span>
           {counts.pending > 0 && (
             <button type="button" onClick={() => setFilter(filter === 'pending' ? 'all' : 'pending')}
-              className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200">
+              className="shrink-0 min-h-[32px] text-[11px] font-semibold px-3 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200">
               {counts.pending} vacía{counts.pending === 1 ? '' : 's'}
             </button>
           )}
@@ -195,7 +228,6 @@ export default function AdminSitioPage() {
             ['all', `Todas ${counts.all}`],
             ['pending', `Vacías ${counts.pending}`],
             ['hidden', `Ocultas ${counts.hidden}`],
-            ['locked', `No disponibles ${counts.locked}`],
           ] as [Filter, string][]).filter(([key]) => key === 'all' || counts[key] > 0).map(([key, label]) => (
             <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}
               className={`min-h-[32px] px-2.5 rounded-lg text-xs transition-colors ${filter === key ? 'bg-[#EAE7E0] font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}>
@@ -216,7 +248,7 @@ export default function AdminSitioPage() {
             <span className="w-2 h-2 rounded-full shrink-0 bg-gray-900" />
             <span className="flex-1 min-w-0 flex flex-col">
               <span className="text-sm font-semibold text-gray-900">Portada</span>
-              <span className="text-[11px] text-gray-500 truncate">Fija · nombre, bajada y foto</span>
+              <span className="text-[11px] text-gray-500 truncate">Ficha › Esencial</span>
             </span>
           </button>
         )}
@@ -229,9 +261,9 @@ export default function AdminSitioPage() {
             </button>
           </div>
         ) : (
-          <Reorder.Group as="ul" axis="y" values={filteredSections} onReorder={next => { if (filter === 'all') setSections(next); }} className="flex flex-col gap-2 m-0 p-0 list-none">
+          <Reorder.Group as="ul" axis="y" values={filteredSections} onReorder={next => { if (filter === 'all') setSections(withHiddenLocked(next)); }} className="flex flex-col gap-2 m-0 p-0 list-none">
             {filteredSections.map(s => {
-              const i = sections.indexOf(s);
+              const i = available.indexOf(s);
               return (
                 <SectionRowItem
                   key={s.key}
@@ -240,23 +272,38 @@ export default function AdminSitioPage() {
                   isSelected={selected === s.key}
                   saving={saving}
                   isFirst={i === 0}
-                  isLast={i === sections.length - 1}
+                  isLast={i === available.length - 1}
                   draggableEnabled={filter === 'all'}
                   onSelect={() => setSelected(s.key)}
                   onToggle={() => toggleSection(s.key)}
-                  onMoveUp={() => moveSection(i, -1)}
-                  onMoveDown={() => moveSection(i, 1)}
+                  onMoveUp={() => moveSection(s.key, -1)}
+                  onMoveDown={() => moveSection(s.key, 1)}
                   onDragEnd={handleDragEnd}
                 />
               );
             })}
           </Reorder.Group>
         )}
+        {lockedCount > 0 && (
+          <p className="m-0 px-1 text-[11px] leading-relaxed text-gray-500">
+            {lockedCount} sección{lockedCount === 1 ? '' : 'es'} no aplica{lockedCount === 1 ? '' : 'n'} a este tipo de proyecto y no se muestra{lockedCount === 1 ? '' : 'n'}.
+          </p>
+        )}
       </section>
 
       {/* ── Vista ─────────────────────────────────────────────── */}
       <section aria-label="Vista previa" className="flex-1 min-w-0 px-4 sm:px-8 py-8 bg-[#EFECE6] flex flex-col gap-4 xl:overflow-y-auto">
         <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-[13px] font-semibold text-gray-900">Así se lee la página</span>
+        </div>
+        <PageSchematic
+          projectName={project.name}
+          sections={available.filter(s => s.enabled)}
+          statuses={statuses}
+          selected={selected}
+          onSelect={setSelected}
+        />
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
           <span className="text-[13px] font-semibold text-gray-900">Así se ve · {panelTitle}</span>
           <a href={publishState.siteHref} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 min-h-[36px] text-[13px] font-semibold text-gray-900 underline underline-offset-2">
@@ -303,6 +350,18 @@ export default function AdminSitioPage() {
         </div>
 
         <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
+          {(() => {
+            const origin = selected === 'portada' ? { label: 'Ficha › Esencial', href: '/admin/proyecto' } : SECTION_ORIGIN[selected];
+            if (!origin?.href || selStatus === 'locked') return null;
+            return (
+              <div className="px-6 pb-4">
+                <Link href={origin.href} className="flex items-center justify-between gap-3 min-h-[44px] px-3.5 rounded-[12px] border border-gray-200 bg-white hover:border-gray-300">
+                  <span className="text-xs text-gray-600">El contenido sale de <b className="font-semibold text-gray-900">{origin.label}</b></span>
+                  <span className="text-[13px] font-semibold text-gray-900 underline underline-offset-2 shrink-0">Editar →</span>
+                </Link>
+              </div>
+            );
+          })()}
           {selected === 'portada' ? (
             <PortadaEditor onSaved={load} />
           ) : selRow ? (
@@ -344,8 +403,66 @@ export default function AdminSitioPage() {
 // hay que darles el padding nosotros — sin tocar el componente compartido
 // y arriesgar duplicar el padding en su página propia.
 const EDITOR_NEEDS_PADDING: Partial<Record<SectionKey, true>> = {
-  before_after: true, team: true, amenities: true, location: true, progress: true,
+  before_after: true, team: true, amenities: true, location: true, progress: true, calculator: true,
 };
+
+// Esquema de la página entera ("Así se lee la página"): un bloque por
+// sección visible, en orden, con la seleccionada resaltada. Tocar un
+// bloque la selecciona. No es la sección real — eso va abajo.
+function PageSchematic({ projectName, sections, statuses, selected, onSelect }: {
+  projectName: string;
+  sections: SectionRow[];
+  statuses: Map<SectionKey, Status>;
+  selected: Selected;
+  onSelect: (s: Selected) => void;
+}) {
+  const bar = (w: string, dark = false) => <span className={`block h-2 rounded-full ${dark ? 'bg-gray-900' : 'bg-[#E4E0D8]'}`} style={{ width: w }} />;
+  const tiles = (n: number, cls = 'h-14') => (
+    <span className="grid gap-2" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
+      {Array.from({ length: n }, (_, i) => <span key={i} className={`${cls} rounded-md bg-[#EAE7E0]`} />)}
+    </span>
+  );
+  const body = (key: SectionKey) => {
+    switch (key) {
+      case 'gallery': case 'process': return tiles(4, 'h-16');
+      case 'typologies': case 'amenities': case 'team': return tiles(3);
+      case 'stats': return tiles(4, 'h-9');
+      case 'location': case 'masterplan': case 'bim': return <span className="block h-24 rounded-md bg-[#EAE7E0] bg-[linear-gradient(#E4E0D8_1px,transparent_1px),linear-gradient(90deg,#E4E0D8_1px,transparent_1px)] bg-[size:16px_16px]" />;
+      default: return <span className="flex gap-3 items-start"><span className="flex-1 flex flex-col gap-1.5">{bar('70%', true)}{bar('90%')}{bar('60%')}</span><span className="w-1/3 h-12 rounded-md bg-[#EAE7E0]" /></span>;
+    }
+  };
+  return (
+    <div className="rounded-2xl overflow-hidden bg-white shadow-[0_1px_2px_rgba(23,25,26,0.06),0_16px_40px_-16px_rgba(23,25,26,0.22)]">
+      <button type="button" onClick={() => onSelect('portada')} aria-pressed={selected === 'portada'}
+        className={`w-full text-left h-28 flex items-end p-4 bg-[repeating-linear-gradient(135deg,#3D4741_0_14px,#39433D_14px_28px)] ${selected === 'portada' ? 'outline outline-2 -outline-offset-2 outline-white' : ''}`}>
+        <span className="flex flex-col text-white">
+          <span className="font-display text-lg font-semibold leading-tight">{projectName}</span>
+          <span className="text-[11px] opacity-80">Portada · fija</span>
+        </span>
+      </button>
+      {sections.map(s => {
+        const on = selected === s.key;
+        const empty = statuses.get(s.key) === 'empty';
+        return (
+          <button key={s.key} type="button" onClick={() => onSelect(s.key)} aria-pressed={on}
+            className={`relative w-full text-left px-4 py-4 flex flex-col gap-2.5 border-t border-gray-200 transition-colors ${on ? 'bg-brand-50 outline outline-2 -outline-offset-2 outline-gray-900' : 'hover:bg-gray-50'} ${empty ? 'opacity-50' : ''}`}>
+            <span className="flex items-center justify-between gap-2">
+              {bar('38%', true)}
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${on ? 'bg-gray-900 text-white' : 'text-gray-500'}`}>
+                {s.label}{on ? ' · seleccionada' : empty ? ' · vacía' : ''}
+              </span>
+            </span>
+            {body(s.key)}
+          </button>
+        );
+      })}
+      <span className="flex items-center justify-between px-4 py-3 bg-gray-900">
+        <span className="block h-1.5 w-1/4 rounded-full bg-gray-600" />
+        <span className="text-[10px] text-white border border-gray-600 rounded-full px-2.5 py-1">Contacto</span>
+      </span>
+    </div>
+  );
+}
 
 function SectionPanelBody({
   row, status, typeConfig, onSaved,
@@ -394,12 +511,6 @@ function SectionPanelBody({
   );
 }
 
-const STATUS_SUB: Record<Status, string> = {
-  ok: 'Con contenido',
-  empty: 'Vacía · no se muestra',
-  hidden: 'Oculta',
-  locked: 'No disponible',
-};
 
 function SectionRowItem({
   section: s, status, isSelected, saving, isFirst, isLast, draggableEnabled,
@@ -451,16 +562,16 @@ function SectionRowItem({
 
       <span className="flex-1 min-w-0 flex flex-col">
         <span className={`text-sm font-semibold truncate ${muted ? 'text-gray-500' : 'text-gray-900'}`}>{s.label}</span>
-        <span className={`text-[11px] truncate ${status === 'empty' ? 'text-amber-800' : 'text-gray-500'}`}>{STATUS_SUB[status]}</span>
+        <span className={`text-[11px] truncate ${status === 'empty' ? 'text-amber-800' : 'text-gray-500'}`}>{originSub(s.key, status)}</span>
       </span>
 
-      <span className="shrink-0 flex xl:hidden xl:group-hover:flex xl:group-focus-within:flex flex-col">
+      <span className="shrink-0 flex xl:hidden xl:group-hover:flex xl:group-focus-within:flex flex-row xl:flex-col">
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onMoveUp(); }}
           disabled={isFirst || saving}
           aria-label={`Subir ${s.label}`}
-          className="w-7 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
+          className="w-9 h-10 xl:w-7 xl:h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
@@ -469,7 +580,7 @@ function SectionRowItem({
           onClick={e => { e.stopPropagation(); onMoveDown(); }}
           disabled={isLast || saving}
           aria-label={`Bajar ${s.label}`}
-          className="w-7 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
+          className="w-9 h-10 xl:w-7 xl:h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 disabled:opacity-25"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>

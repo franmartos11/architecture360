@@ -57,9 +57,17 @@ export default function SitePublishStatus({ shareUrl, shareText }: { shareUrl: s
   );
 }
 
+// Dónde se completa cada requisito de publicación.
+const READINESS_HREF: Record<string, string> = {
+  name: '/admin/proyecto',
+  main_image: '/admin/proyecto',
+  units: '/admin/carga',
+  house: '/admin/carga',
+};
+
 /** Bloque "Listo para publicar" del sidebar (diseño): progreso, qué falta y publicar. */
 export function PublishReadinessCard() {
-  const { published, requiredItems, canPublish, missingRequired, missingSections, loading, setPublished } = usePublishState();
+  const { published, requiredItems, canPublish, missingSections, loading, setPublished } = usePublishState();
   const toast = useToast();
   const [publishing, setPublishing] = useState(false);
 
@@ -93,7 +101,17 @@ export function PublishReadinessCard() {
       )}
       {!published && (
         <p className="m-0 text-xs leading-snug text-gray-600">
-          {canPublish ? 'Ya tiene lo mínimo. Publicalo para que el link funcione para todos.' : <>Falta: {missingRequired.join(' y ')}.</>}
+          {canPublish ? 'Ya tiene lo mínimo. Publicalo para que el link funcione para todos.' : (
+            <>
+              Falta:{' '}
+              {requiredItems.filter(i => !i.ok).map((i, n, arr) => (
+                <span key={i.key}>
+                  <Link href={READINESS_HREF[i.key]} className="underline underline-offset-2 text-gray-900 hover:text-brand-700">{i.label.charAt(0).toLowerCase() + i.label.slice(1)}</Link>
+                  {n < arr.length - 2 ? ', ' : n === arr.length - 2 ? ' y ' : ''}
+                </span>
+              ))}.
+            </>
+          )}
         </p>
       )}
       {!published && (

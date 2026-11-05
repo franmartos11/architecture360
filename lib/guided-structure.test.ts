@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   planEdificio, planDuplex, planLoteo, planUnico, countUnits, duplicateCodes,
   positionLetter, towerPrefixes, unitCode, splitQuad, polygonAreaM2, priceForLot, parsePastedPrices, blockOfCode,
+  matchRoomByFilename, defaultRoomGroup,
 } from './guided-structure';
 
 describe('positionLetter', () => {
@@ -53,12 +54,26 @@ describe('planEdificio', () => {
   });
 });
 
+describe('planEdificio · pisos distintos', () => {
+  it('un piso tipo con otra cantidad de unidades', () => {
+    const plan = planEdificio([{ name: 'T', floors: 3, perFloor: 4, groundFloor: 'none', penthouses: 0, floorOverrides: { 2: 2 } }], 'letter');
+    expect(plan[0].floors.map(f => f.units.length)).toEqual([4, 2, 4]);
+    expect(plan[0].floors[1].units.map(u => u.code)).toEqual(['2A', '2B']);
+  });
+});
+
 describe('planDuplex', () => {
   it('un modelo para todas', () => {
     const plan = planDuplex(3, 2, [{ name: 'Modelo único', bedrooms: 3, bathrooms: 2, floorsCount: 2, innerArea: 142, lotSize: 260, garageSpaces: 1 }]);
     expect(plan).toHaveLength(3);
     expect(plan[2].floors[0].units.map(u => u.code)).toEqual(['D3-A', 'D3-B']);
     expect(plan[0].floors[0].units[1]).toMatchObject({ bedrooms: 3, innerArea: 142, modelName: 'Modelo único' });
+  });
+  it('una unidad puntual con otro modelo', () => {
+    const m = (name: string, bedrooms: number) => ({ name, bedrooms, bathrooms: 1, floorsCount: 2, innerArea: null, lotSize: null, garageSpaces: 0 });
+    const plan = planDuplex(2, 2, [m('Frente', 3), m('Fondo', 2)], { 'D2-A': 1 });
+    expect(plan[1].floors[0].units.map(u => u.modelName)).toEqual(['Fondo', 'Fondo']);
+    expect(plan[0].floors[0].units.map(u => u.modelName)).toEqual(['Frente', 'Fondo']);
   });
   it('modelo por posición', () => {
     const m = (name: string, bedrooms: number) => ({ name, bedrooms, bathrooms: 1, floorsCount: 2, innerArea: null, lotSize: null, garageSpaces: 0 });
@@ -134,5 +149,39 @@ describe('parsePastedPrices', () => {
     expect(m.get('Mz1-L01')).toBe(25500);
     expect(m.get('Mz1-L02')).toBe(26500);
     expect(m.size).toBe(2);
+  });
+});
+
+describe('fotos por ambiente', () => {
+  const rooms = [
+    { id: 'l', name: 'Living', kind: 'living' },
+    { id: 'k', name: 'Cocina', kind: 'kitchen' },
+    { id: 'd1', name: 'Dormitorio 1', kind: 'bedroom' },
+    { id: 'd2', name: 'Dormitorio 2', kind: 'bedroom' },
+    { id: 'b1', name: 'Baño 1', kind: 'bathroom' },
+    { id: 'e', name: 'Exterior', kind: 'other' },
+  ];
+  it('asigna por nombre y por palabra clave con número', () => {
+    expect(matchRoomByFilename('Cocina final.jpg', rooms)).toBe('k');
+    expect(matchRoomByFilename('dorm2_noche.JPG', rooms)).toBe('d2');
+    expect(matchRoomByFilename('dormitorio-1.png', rooms)).toBe('d1');
+    expect(matchRoomByFilename('bano.jpg', rooms)).toBe('b1');
+    expect(matchRoomByFilename('pileta-atardecer.jpg', rooms)).toBe('e');
+  });
+  it('el nombre se compara como palabra completa', () => {
+    // "dormitorio 12" no es "Dormitorio 1": cae a la regla por número y, como no hay 12, queda a mano.
+    expect(matchRoomByFilename('dormitorio 12.jpg', rooms)).toBeNull();
+    expect(matchRoomByFilename('salamandra.jpg', [{ id: 's', name: 'Sala', kind: 'other' }])).toBeNull();
+    expect(matchRoomByFilename('sala-principal.jpg', [{ id: 's', name: 'Sala', kind: 'other' }])).toBe('s');
+  });
+  it('sin match claro queda para asignar a mano', () => {
+    expect(matchRoomByFilename('IMG_4471.jpg', rooms)).toBeNull();
+    expect(matchRoomByFilename('dorm.jpg', rooms)).toBeNull();
+  });
+  it('planta por defecto', () => {
+    expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 2)).toBe('pa');
+    expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 1)).toBe('pb');
+    expect(defaultRoomGroup({ name: 'Jardín', kind: 'other' }, 2)).toBe('ext');
+    expect(defaultRoomGroup({ name: 'Baño 2', kind: 'bathroom' }, 2, 1)).toBe('pa');
   });
 });

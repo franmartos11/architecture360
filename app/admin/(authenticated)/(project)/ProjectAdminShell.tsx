@@ -26,12 +26,15 @@ export default function ProjectAdminShell({
   project,
   userEmail,
   singleBuildingHref,
+  unitsCount = 0,
   children,
 }: {
   project: ActiveProject;
   userEmail: string | null;
   /** Casa / loteo: link directo al editor de datos, resuelto en el server. */
   singleBuildingHref?: string | null;
+  /** Unidades cargadas (contado en el layout del servidor) — para "Unidades 48" en el menú. */
+  unitsCount?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -59,53 +62,45 @@ export default function ProjectAdminShell({
     setMobileNavOpen(false);
   }
 
-  // "Proyecto" agrupa varias sub-pantallas que antes solo se llegaba a
-  // ellas por links sueltos dentro de /admin/proyecto (Amenidades,
-  // Ubicación, Recorrido 360°) — nunca aparecían en este menú, así que
-  // era fácil ni enterarse de que existían. Se expande solo mientras se
-  // está navegando algo bajo /admin/proyecto — Edificios vive ahí adentro
-  // también, aunque su URL sea propia (/admin/edificios).
-  // Ítem que entra a la estructura del proyecto:
+  // "Ficha": el contenido del proyecto en 7 capítulos (diseño de la carga
+  // de proyectos). Se expande mientras se navega cualquiera de ellos.
+  const fichaChapters = [
+    { label: 'Esencial', href: '/admin/proyecto', exact: true },
+    { label: 'Relato', href: '/admin/proyecto/relato' },
+    { label: 'Galería', href: '/admin/proyecto/galeria' },
+    { label: 'Entorno', href: '/admin/proyecto/entorno', also: ['/admin/proyecto/ubicacion', '/admin/proyecto/amenities'] },
+    { label: 'Obra', href: '/admin/proyecto/avance' },
+    { label: 'Inmersivo', href: '/admin/proyecto/recorrido', also: ['/admin/proyecto/bim'] },
+    { label: 'Equipo', href: '/admin/proyecto/equipo' },
+  ];
+  const chapterActive = (c: { href: string; exact?: boolean; also?: string[] }) =>
+    (c.exact ? pathname === c.href : pathname === c.href || pathname.startsWith(`${c.href}/`))
+    || (c.also ?? []).some(a => pathname === a || pathname.startsWith(`${a}/`));
+  const isFichaSection = pathname === '/admin/proyecto' || pathname.startsWith('/admin/proyecto/');
+
+  // "Unidades": la estructura (edificios/pisos/plantas) y el inventario.
   //  - loteo (1 etapa): "Lotes" → directo al editor de lotes (singleBuildingHref)
   //  - casa (1 building = 1 unidad): "Casa" → directo a sus datos
-  //  - edificio/dúplex/único (varios): "Edificios" / "Dúplexs" / … → la lista
+  //  - edificio/dúplex/único: "Unidades" → inventario, con la estructura adentro
   const structureItemLabel = singleBuildingHref
     ? (unitIsLand ? `${pluralize(unitLabel)}` : buildingLabel)
-    : hasFloorStep ? 'Edificios' : hasUnitStep ? `${pluralize(buildingLabel)}` : buildingLabel;
-  const projectSubItems = [
-    { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
-    { label: 'Amenidades', href: '/admin/proyecto/amenities' },
-    { label: 'Ubicación', href: '/admin/proyecto/ubicacion' },
-    { label: 'Avance de obra', href: '/admin/proyecto/avance' },
-    { label: 'Recorrido 360°', href: '/admin/proyecto/recorrido' },
-    { label: 'Modelo BIM', href: '/admin/proyecto/bim' },
-  ];
-  const isProjectSection = pathname === '/admin/proyecto' || pathname.startsWith('/admin/proyecto/') || pathname.startsWith('/admin/edificios');
+    : hasFloorStep ? 'Edificios y plantas' : `${pluralize(buildingLabel)}`;
+  const unidadesHref = hasUnitStep ? '/admin/inventory' : (singleBuildingHref ?? '/admin/edificios');
+  const unidadesLabel = hasUnitStep ? pluralize(unitLabel) : buildingLabel;
+  const unidadesSubItems = hasUnitStep
+    ? [
+        { label: hasFloorStep ? 'Inventario' : `Precios y estados`, href: '/admin/inventory' },
+        { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
+      ]
+    : [];
+  const isUnidadesSection = pathname.startsWith('/admin/inventory') || pathname.startsWith('/admin/edificios');
 
-  // "Sitio web" agrupa edición de contenido y presentación — "Secciones"
-  // es la lista + panel de edición de cada bloque de la landing (orden,
-  // mostrar/ocultar y contenido, todo en una sola pantalla — ver
-  // lib/project-sections.ts) y "Estilo" la paleta/tipografía. Mismo
-  // mecanismo de expandirse que "Proyecto".
+  // "Sitio web": orden y diseño de las secciones + estilo.
   const sitioSubItems = [
     { label: 'Secciones', href: '/admin/sitio' },
     { label: 'Estilo', href: '/admin/estilo' },
   ];
   const isSitioSection = pathname === '/admin/sitio' || pathname.startsWith('/admin/sitio/') || pathname.startsWith('/admin/estilo');
-
-  // "Operación" agrupa lo operativo del día a día (Inventario, Leads). A
-  // diferencia de Proyecto y Sitio web no tiene pantalla propia, así que
-  // no es un link que expande — es un encabezado de sección con sus
-  // hijos siempre visibles, para no esconderlos detrás de un click a una
-  // página que no existe.
-  //
-  // La pantalla de inventario (precio/estado en lote) solo tiene sentido
-  // con varias unidades — una casa es UNA sola, su precio y estado se
-  // editan en su propia ficha (paso "Datos"), así que acá no aparece.
-  const operacionItems = [
-    ...(hasUnitStep ? [{ label: hasFloorStep ? 'Inventario' : `${pluralize(unitLabel)}`, href: '/admin/inventory' }] : []),
-    ...(showLeads ? [{ label: 'Leads', href: '/admin/leads' }] : []),
-  ];
 
   const navItems = [
     { label: 'Configuración', href: '/admin/settings' },
@@ -130,7 +125,7 @@ export default function ProjectAdminShell({
       <aside className="carga-guiada w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex-shrink-0 md:min-h-screen flex flex-col">
         <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3 md:block">
           <div className="min-w-0">
-            <Link href="/admin/proyectos" className="text-xs text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-1.5 min-h-[28px]">
+            <Link href="/admin/proyectos" className="text-xs text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-1.5 min-h-[36px]">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
               Todos los proyectos
             </Link>
@@ -156,23 +151,30 @@ export default function ProjectAdminShell({
 
         <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-3 pb-5 flex-col gap-1`}>
           <p className="px-2.5 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Proyecto</p>
-          {/* El dashboard (métricas del proyecto) no aplica cuando el
-              proyecto ES una sola cosa: una casa, o un loteo de una etapa. */}
-          {hasUnitStep && !typeConfig.singleBuilding && (
-            <Link href="/admin" className={itemClass(pathname === '/admin')}>
-              <NavIcon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-              <span className="flex-1">Dashboard</span>
-            </Link>
-          )}
 
           <div>
-            <Link href="/admin/proyecto" className={itemClass(isProjectSection)}>
+            <Link href="/admin/proyecto" className={itemClass(isFichaSection)}>
               <NavIcon d="M4 4h16v16H4zM4 9h16M9 9v11" />
-              <span className="flex-1">Proyecto</span>
+              <span className="flex-1">Ficha</span>
             </Link>
-            {isProjectSection && (
+            {isFichaSection && (
               <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
-                {projectSubItems.map(sub => {
+                {fichaChapters.map(c => (
+                  <Link key={c.href} href={c.href} className={subClass(chapterActive(c))}>{c.label}</Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Link href={unidadesHref} className={itemClass(isUnidadesSection)}>
+              <NavIcon d="M5 3h14v18H5zM9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" />
+              <span className="flex-1">{unidadesLabel}</span>
+              {hasUnitStep && unitsCount > 0 && <span className="text-xs text-gray-500 font-normal">{unitsCount}</span>}
+            </Link>
+            {isUnidadesSection && unidadesSubItems.length > 0 && (
+              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
+                {unidadesSubItems.map(sub => {
                   const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
                   return <Link key={sub.href} href={sub.href} className={subClass(isSubActive)}>{sub.label}</Link>;
                 })}
@@ -184,6 +186,7 @@ export default function ProjectAdminShell({
             <Link href="/admin/sitio" className={itemClass(isSitioSection)}>
               <NavIcon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
               <span className="flex-1">Sitio web</span>
+              {!isSitioSection && <span className="text-[11px] text-gray-500 font-normal">Secciones · Estilo</span>}
             </Link>
             {isSitioSection && (
               <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
@@ -195,25 +198,27 @@ export default function ProjectAdminShell({
             )}
           </div>
 
-          {operacionItems.length > 0 && (
-            <>
-              <p className="px-2.5 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Operación</p>
-              {operacionItems.map(item => {
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const showBadge = item.href === '/admin/leads' && newLeadsCount > 0;
-                return (
-                  <Link key={item.href} href={item.href} className={itemClass(isActive)}>
-                    <NavIcon d={item.href === '/admin/leads' ? 'M3 12h5l2 3h4l2-3h5M5 5h14l2 7v7H3v-7z' : 'M5 3h14v18H5zM9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2'} />
-                    <span className="flex-1">{item.label}</span>
-                    {showBadge && (
-                      <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-700 text-white text-[11px] font-semibold flex items-center justify-center">
-                        {newLeadsCount}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </>
+          {/* Operación: Leads primero (lo que hay que atender), después el
+              Dashboard — que no aplica cuando el proyecto ES una sola cosa. */}
+          {(showLeads || (hasUnitStep && !typeConfig.singleBuilding)) && (
+            <p className="px-2.5 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Operación</p>
+          )}
+          {showLeads && (
+            <Link href="/admin/leads" className={itemClass(pathname === '/admin/leads' || pathname.startsWith('/admin/leads/'))}>
+              <NavIcon d="M3 12h5l2 3h4l2-3h5M5 5h14l2 7v7H3v-7z" />
+              <span className="flex-1">Leads</span>
+              {newLeadsCount > 0 && (
+                <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-700 text-white text-[11px] font-semibold flex items-center justify-center">
+                  {newLeadsCount}
+                </span>
+              )}
+            </Link>
+          )}
+          {hasUnitStep && !typeConfig.singleBuilding && (
+            <Link href="/admin" className={itemClass(pathname === '/admin')}>
+              <NavIcon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+              <span className="flex-1">Dashboard</span>
+            </Link>
           )}
 
           <div className="mt-auto pt-6 flex flex-col gap-2">

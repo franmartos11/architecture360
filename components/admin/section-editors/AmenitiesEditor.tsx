@@ -43,7 +43,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
-  const [view, setView] = useState<View>('list');
+  const [view, setView] = useState<View>('grid');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -387,36 +387,47 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
               </div>
             </Card>
           ) : (
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            // Grilla del diseño (Ficha · Entorno): cada amenidad es una tarjeta
+            // con ícono, nombre y cuántas fotos tiene. Activa = visible en el
+            // sitio (borde verde); el ojo la oculta sin borrarla.
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))' }}>
               {filtered.map(a => {
                 const building = buildings.find(b => b.id === a.building_id);
                 const isSel = editingId === a.id;
+                const photoCount = a.images?.length ?? 0;
                 return (
-                  <button
-                    key={a.id} type="button" onClick={() => startEdit(a)}
-                    className={`text-left rounded-xl overflow-hidden bg-white transition-colors ${
-                      isSel ? 'border-2 border-brand-500 shadow-[0_0_0_3px_rgba(92,122,88,.12)]' : 'border border-gray-200 hover:border-gray-300'
-                    } ${a.visible ? '' : 'opacity-55'}`}
-                  >
-                    <div className="relative h-28 bg-gray-100">
-                      {a.images?.[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={a.images[0]} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-gray-400">sin foto</span>
-                      )}
-                    </div>
-                    <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{a.name || 'Amenidad sin nombre'}</p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Pill>{building ? building.name : 'Todo el complejo'}</Pill>
-                        {a.category && <Pill>{a.category}</Pill>}
-                        {!a.visible && <Pill tone="warn">oculta</Pill>}
-                      </div>
-                    </div>
-                  </button>
+                  <div key={a.id} className={`relative rounded-xl transition-colors ${
+                    isSel ? 'border-2 border-brand-700 bg-white' : a.visible ? 'border-[1.5px] border-brand-700 bg-white' : 'border border-dashed border-gray-300 bg-transparent'
+                  }`}>
+                    <button type="button" onClick={() => startEdit(a)} className="w-full text-left flex flex-col items-start gap-1 min-h-[108px] p-3">
+                      <span className={`w-9 h-9 mb-1.5 rounded-[9px] flex items-center justify-center ${a.visible ? 'bg-brand-700 text-white' : 'bg-[#EAE7E0] text-gray-600'}`}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={amenityIcon(a.name)} /></svg>
+                      </span>
+                      <span className="text-[13px] font-semibold text-gray-900 truncate max-w-full">{a.name || 'Amenidad sin nombre'}</span>
+                      <span className="text-[11px] text-gray-600 truncate max-w-full">
+                        {photoCount ? `${photoCount} foto${photoCount === 1 ? '' : 's'}` : 'Sin foto'}{building ? ` · ${building.name}` : ''}
+                      </span>
+                    </button>
+                    <button
+                      type="button" onClick={() => setVisible(a.id, !a.visible)}
+                      aria-label={a.visible ? `Ocultar ${a.name} del sitio` : `Mostrar ${a.name} en el sitio`} aria-pressed={a.visible}
+                      className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                        {a.visible
+                          ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>
+                          : <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.9M6.1 6.1C3.6 7.8 2 12 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.2-.9" />}
+                      </svg>
+                    </button>
+                  </div>
                 );
               })}
+              <button type="button" onClick={startCreate}
+                className="flex flex-col items-start justify-center gap-1 min-h-[108px] p-3 rounded-xl border border-dashed border-gray-300 text-left hover:border-gray-400">
+                <span className="w-9 h-9 mb-1.5 rounded-[9px] flex items-center justify-center bg-[#EAE7E0] text-gray-700 text-lg">+</span>
+                <span className="text-[13px] font-semibold text-gray-900">Personalizada</span>
+                <span className="text-[11px] text-gray-600">Nombre propio</span>
+              </button>
             </div>
           )}
         </div>
@@ -661,4 +672,21 @@ function ScopeChip({ children, active, onClick }: { children: React.ReactNode; a
       {children}
     </button>
   );
+}
+
+// Ícono de trazo según el nombre de la amenidad (mismos dibujos que el diseño);
+// cualquier otra cae a un genérico.
+const AMENITY_ICONS: [RegExp, string][] = [
+  [/pileta|piscina|pool/i, 'M2 18c2 0 2-1.5 4-1.5S8 18 10 18s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5M8 14V5a2 2 0 0 1 4 0M16 14V5a2 2 0 0 0-4 0M8 9h8'],
+  [/gim|gym|fitness/i, 'M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12'],
+  [/sum|salón|salon|usos múltiples/i, 'M4 20V9l8-5 8 5v11M9 20v-6h6v6'],
+  [/cochera|garage|estacionamiento|parking/i, 'M5 17h14l-1.5-6h-11zM7 17v2M17 17v2M8 14h.01M16 14h.01'],
+  [/seguridad|vigilancia/i, 'M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z'],
+  [/parrill|quincho|asador|bbq/i, 'M4 10h16a8 8 0 0 1-16 0zM8 20l1-3M16 20l-1-3M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2'],
+  [/cowork|oficina/i, 'M3 7h18v10H3zM8 21h8M12 17v4'],
+  [/laundry|lavander|lavadero/i, 'M5 3h14v18H5zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 6h.01'],
+  [/spa|sauna/i, 'M12 20c-4 0-8-3-8-8 4 0 8 3 8 8zm0 0c4 0 8-3 8-8-4 0-8 3-8 8zm0 0V9M9 6a3 3 0 0 1 6 0c0 2-3 3-3 3s-3-1-3-3z'],
+];
+function amenityIcon(name: string): string {
+  return AMENITY_ICONS.find(([re]) => re.test(name))?.[1] ?? 'M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z';
 }

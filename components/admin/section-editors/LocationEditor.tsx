@@ -326,7 +326,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
             <div className="pointer-events-auto flex flex-wrap gap-1.5">
               <button
                 onClick={() => setFilter('todos')}
-                className={`h-[29px] px-2.5 flex items-center gap-1.5 rounded-lg text-[11px] font-medium shadow whitespace-nowrap transition-colors ${
+                className={`h-9 sm:h-[29px] px-2.5 flex items-center gap-1.5 rounded-lg text-[11px] font-medium shadow whitespace-nowrap transition-colors ${
                   filter === 'todos' ? 'bg-gray-900 text-white' : 'bg-white/95 text-gray-900 border border-gray-200'
                 }`}
               >
@@ -339,7 +339,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                   <button
                     key={c}
                     onClick={() => setFilter(active ? 'todos' : c)}
-                    className={`h-[29px] px-2.5 flex items-center gap-1.5 rounded-lg text-[11px] font-medium shadow whitespace-nowrap transition-colors ${
+                    className={`h-9 sm:h-[29px] px-2.5 flex items-center gap-1.5 rounded-lg text-[11px] font-medium shadow whitespace-nowrap transition-colors ${
                       active ? 'bg-gray-900 text-white' : 'bg-white/95 text-gray-900 border border-gray-200'
                     }`}
                   >

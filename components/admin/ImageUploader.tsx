@@ -118,7 +118,7 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
             <button
               type="button"
               onClick={() => setShowUrlInput(true)}
-              className="text-[11px] text-gray-400 hover:text-gray-600 underline underline-offset-2"
+              className="min-h-[32px] text-[11px] text-gray-500 hover:text-gray-700 underline underline-offset-2"
             >
               ...o pegar una URL en cambio
             </button>

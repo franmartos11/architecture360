@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState, startTransition, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, startTransition, type ReactNode } from 'react';
+import type { PolygonCanvasApi } from '@/components/admin/PolygonCanvas';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import type { FloorKind, ProjectType, ProjectSaleMode, Room, TourData, UnitStatus } from '@/types';
@@ -55,8 +56,8 @@ export interface GUnit {
   interior_image_url: string | null;
 }
 
-/** Room + las fotos de ese ambiente (rooms es jsonb: el campo extra no requiere migración). */
-export type GRoom = Room & { images?: string[] };
+/** Room + las fotos de ese ambiente y su planta (rooms es jsonb: los campos extra no requieren migración). */
+export type GRoom = Room & { images?: string[]; group?: 'pb' | 'pa' | 'ext' };
 
 export interface UnitDot { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' }
 
@@ -180,7 +181,7 @@ export function GuidedHeader({ project, kindLabel, steps, current, onStep, canGo
               {kindLabel}{project.saleMode === 'showcase' ? ' · solo para mostrar' : ''} · carga guiada
             </span>
           </div>
-          <Link href="/admin" className="sm:hidden shrink-0 text-xs font-medium text-gray-900 min-h-[40px] flex items-center px-3 rounded-[10px] border border-gray-300 bg-white">
+          <Link href="/admin/proyecto" className="sm:hidden shrink-0 text-xs font-medium text-gray-900 min-h-[40px] flex items-center px-3 rounded-[10px] border border-gray-300 bg-white">
             Guardar y salir
           </Link>
         </div>
@@ -215,7 +216,7 @@ export function GuidedHeader({ project, kindLabel, steps, current, onStep, canGo
             );
           })}
         </ol>
-        <Link href="/admin" className="hidden sm:flex min-h-[40px] items-center px-3.5 rounded-[10px] border border-gray-300 bg-white text-[13px] font-medium text-gray-900 hover:border-gray-400">
+        <Link href="/admin/proyecto" className="hidden sm:flex min-h-[40px] items-center px-3.5 rounded-[10px] border border-gray-300 bg-white text-[13px] font-medium text-gray-900 hover:border-gray-400">
           Guardar y seguir después
         </Link>
       </div>
@@ -489,3 +490,25 @@ export function formatMoney(n: number | null | undefined, currency = 'USD'): str
 
 /** Color estable por índice — mismo criterio que los delimitadores existentes. */
 export const SHAPE_PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
+
+// ─── Deshacer desde la barra de herramientas ───────────────────────
+
+/** Conecta un PolygonCanvas con un botón "Deshacer" propio: pasá `canvasProps` al canvas y renderizá <ToolbarUndo {...undo} />. */
+export function useCanvasUndo() {
+  const apiRef = useRef<PolygonCanvasApi | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const onCanUndoChange = useCallback((v: boolean) => setCanUndo(v), []);
+  const undo = useCallback(() => apiRef.current?.undo(), []);
+  return { canUndo, undo, canvasProps: { apiRef, onCanUndoChange } };
+}
+
+/** Botón "Deshacer" para las barras oscuras flotantes de dibujo. */
+export function ToolbarUndo({ canUndo, undo }: { canUndo: boolean; undo: () => void }) {
+  return (
+    <button type="button" onClick={undo} disabled={!canUndo} title="Deshacer el último cambio (Ctrl/Cmd+Z)"
+      className="min-h-[36px] px-3 rounded-lg text-xs text-[#C9C6BE] hover:text-white disabled:opacity-40 disabled:hover:text-[#C9C6BE] shrink-0 inline-flex items-center gap-1.5">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 15 4 10l5-5M4 10h11a5 5 0 0 1 0 10h-1" /></svg>
+      Deshacer
+    </button>
+  );
+}

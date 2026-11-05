@@ -1,3 +1,4 @@
+import { revalidateProjectBySlug } from '@/lib/revalidate-project';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
@@ -7,6 +8,7 @@ import { PROJECT_SALE_MODES, isValidTypeCombo, getProjectTypeConfig } from '@/li
 import { getPublishReadiness, describeMissing } from '@/lib/publish-readiness';
 import { getProjectBySlug } from '@/data/project-repository';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { slugify } from '@/lib/slug';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
@@ -17,6 +19,9 @@ const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 // es todo el texto libre que termina en la ficha pública del proyecto.
 const projectPatchSchema = z.object({
   name: z.string().max(200).optional(),
+  // Link público (/proyecto/[slug]) — editable desde Configuración. Se
+  // normaliza con slugify y tiene que ser único entre TODOS los proyectos.
+  slug: z.string().min(1).max(120).optional(),
   // Propósito del desarrollo (para vender / solo mostrar) — editable desde
   // Configuración. La FORMA (project_type: edificio/casa/loteo…) NO se
   // toca acá: se fija al crear el proyecto y define toda la jerarquía.
@@ -159,6 +164,22 @@ export async function PATCH(request: Request) {
     }
     updates.sale_mode = body.saleMode;
   }
+  // Slug anterior, para invalidar también su caché si cambia (la
+  // revalidación automática de requireProjectAccess lee el slug DESPUÉS del
+  // update, así que solo limpiaría el nuevo).
+  let previousSlug: string | null = null;
+  if (body.slug !== undefined) {
+    // 63 = máximo de una etiqueta DNS: el slug también es subdominio
+    // cuando NEXT_PUBLIC_ROOT_DOMAIN está configurado. Sin guiones colgando
+    // después de cortar.
+    const slug = slugify(body.slug).slice(0, 63).replace(/-+$/, '');
+    if (!slug) return NextResponse.json({ error: 'El link tiene que tener al menos una letra o un número.' }, { status: 400 });
+    const { data: taken } = await supabase.from('projects').select('id').eq('slug', slug).neq('id', projectId).maybeSingle();
+    if (taken) return NextResponse.json({ error: 'Ese link ya lo usa otro proyecto. Probá con otro.' }, { status: 409 });
+    const { data: current } = await supabase.from('projects').select('slug').eq('id', projectId).maybeSingle();
+    previousSlug = current?.slug && current.slug !== slug ? current.slug : null;
+    updates.slug = slug;
+  }
   if (body.description !== undefined) updates.description = sanitizeMultiline(body.description, 5000);
   if (body.tagline !== undefined) updates.tagline = sanitizeText(body.tagline, 300);
   if (body.sectionConfig !== undefined) updates.section_config = body.sectionConfig;
@@ -209,6 +230,9 @@ export async function PATCH(request: Request) {
     .select()
     .single();
 
+  // Carrera entre el chequeo de arriba y el update: la constraint unique decide.
+  if (error?.code === '23505' && body.slug !== undefined) return NextResponse.json({ error: 'Ese link ya lo usa otro proyecto. Probá con otro.' }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (previousSlug) revalidateProjectBySlug(previousSlug);
   return NextResponse.json(data);
 }

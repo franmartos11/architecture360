@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { slugify } from '@/lib/slug';
 import { PageHeader, SegmentedTabs, btnSecondary } from '@/components/admin/panel-ui';
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
@@ -21,6 +22,8 @@ export default function SettingsPage() {
   const [savingMode, setSavingMode] = useState(false);
   const [savingPublished, setSavingPublished] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [slugDraft, setSlugDraft] = useState<string | null>(null);
+  const [savingSlug, setSavingSlug] = useState(false);
 
   useEffect(() => {
     fetch(withActiveProject('/api/admin/project', activeProjectId))
@@ -77,7 +80,36 @@ export default function SettingsPage() {
     }
   };
 
-  const publicUrl = project ? getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '') : '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const publicUrl = project ? getProjectDisplayUrl(project.slug, origin) : '';
+  // El link se arma alrededor del slug: /proyecto/[slug] o [slug].dominio.
+  const [urlPrefix, urlSuffix] = getProjectDisplayUrl('__SLUG__', origin).replace(/^https?:\/\//, '').split('__SLUG__');
+  const slugValue = slugDraft ?? project?.slug ?? '';
+  const slugChanged = !!project && slugify(slugValue) !== project.slug;
+
+  const handleSaveSlug = async () => {
+    if (!project) return;
+    const next = slugify(slugValue);
+    if (!next) { toast('El link tiene que tener al menos una letra o un número.', 'error'); return; }
+    setSavingSlug(true);
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: next }),
+    });
+    setSavingSlug(false);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setProject(p => (p ? { ...p, slug: data.slug ?? next } : p));
+      setSlugDraft(null);
+      toast('Link actualizado. El anterior ya no funciona.');
+      // El sidebar (Vista previa, compartir) lee el slug del layout del servidor.
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error ?? 'No se pudo cambiar el link.', 'error');
+    }
+  };
   const visibilityOption = (on: boolean) =>
     `text-left flex flex-col gap-1 min-h-[76px] px-4 py-3.5 rounded-xl transition-colors disabled:cursor-not-allowed ${
       on ? 'border-[1.5px] border-gray-900 bg-brand-50' : 'border border-gray-200 bg-white hover:border-gray-300 disabled:opacity-60'
@@ -111,14 +143,31 @@ export default function SettingsPage() {
                 <span className="text-xs text-gray-600">Solo vos lo ves, como vista previa. Los demás ven &quot;no disponible&quot;.</span>
               </button>
             </div>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-gray-700">Dirección pública</span>
-              <span className="flex items-center gap-2 min-h-[46px] px-3.5 rounded-[10px] border border-gray-300 bg-white">
-                <span className="flex-1 min-w-0 font-mono text-[13px] text-gray-900 truncate">{publicUrl.replace(/^https?:\/\//, '')}</span>
-                <button type="button" onClick={() => { navigator.clipboard?.writeText(publicUrl); toast('Link copiado.'); }}
-                  className="shrink-0 min-h-[36px] px-3 rounded-lg text-[13px] font-semibold text-gray-900 hover:bg-gray-100">Copiar</button>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="project-slug" className="text-xs font-medium text-gray-700">Dirección pública</label>
+              <span className="flex items-center gap-2 min-h-[46px] pl-3.5 pr-1.5 rounded-[10px] border border-gray-300 bg-white focus-within:border-brand-700 focus-within:ring-2 focus-within:ring-brand-500/30">
+                <span className="flex-1 min-w-0 flex items-center font-mono text-[13px]">
+                  <span className="text-gray-500 truncate shrink">{urlPrefix}</span>
+                  <input id="project-slug" value={slugValue} onChange={e => setSlugDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && slugChanged) handleSaveSlug(); if (e.key === 'Escape') setSlugDraft(null); }}
+                    spellCheck={false} autoComplete="off"
+                    className="min-w-[80px] flex-1 bg-transparent text-gray-900 outline-none" />
+                  {urlSuffix && <span className="text-gray-500 shrink-0">{urlSuffix}</span>}
+                </span>
+                {slugChanged ? (
+                  <button type="button" onClick={handleSaveSlug} disabled={savingSlug}
+                    className="shrink-0 min-h-[36px] px-3 rounded-lg bg-gray-900 text-white text-[13px] font-semibold hover:bg-black disabled:opacity-60">
+                    {savingSlug ? 'Guardando…' : 'Guardar'}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(publicUrl); toast('Link copiado.'); }}
+                    className="shrink-0 min-h-[36px] px-3 rounded-lg text-[13px] font-semibold text-gray-900 hover:bg-gray-100">Copiar</button>
+                )}
               </span>
-            </label>
+              {slugChanged && (
+                <span className="text-xs text-amber-800">Va a quedar <span className="font-mono">{slugify(slugValue) || '—'}</span>. El link anterior deja de funcionar para quien ya lo tenga.</span>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -141,10 +190,8 @@ export default function SettingsPage() {
             </p>
             {savingMode && <p className="m-0 text-sm text-gray-600">Guardando…</p>}
             {showCalculator && (
-              <div className="flex flex-col gap-1 pt-4 border-t border-gray-100">
-                <span className="text-sm font-semibold text-gray-900">Calculadora financiera</span>
-                <span className="text-xs text-gray-600">Estos valores se usan para proyectar las cuotas que ve el comprador.</span>
-                <div className="-mx-5 sm:-mx-6 -mb-5"><CalculatorEditor /></div>
+              <div className="pt-4 border-t border-gray-200">
+                <CalculatorEditor showSiteToggle />
               </div>
             )}
           </div>

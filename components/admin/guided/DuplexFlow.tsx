@@ -10,10 +10,23 @@ import type { FlowProps } from './GuidedLoad';
 import ListoScreen from './ListoScreen';
 import {
   GuidedHeader, SplitLayout, StepIntro, StepFooter, NumberStepper, ChoiceCard, Segmented, FieldLabel, ErrorNote,
-  allUnits, allFloors, formatNumber, useGuidedApi, type GuidedTree,
+  allUnits, allFloors, formatNumber, useGuidedApi, useCanvasUndo, ToolbarUndo, type GuidedTree,
 } from './shared';
 
 const STEPS = [{ label: 'Conjunto' }, { label: 'Plano del conjunto' }, { label: 'Listo' }];
+
+/** Elecciones de modelo por unidad (D3-B → índice) que siguen dentro de las cantidades actuales. */
+function validOverrides(src: Record<string, number>, n: number, p: number, models: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [code, idx] of Object.entries(src)) {
+    const m = code.match(/^D(\d+)-([A-Z]+)$/);
+    if (!m) continue;
+    const d = Number(m[1]);
+    const pos = m[2].split('').reduce((t, ch) => t * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+    if (d >= 1 && d <= n && pos < p && idx < models) out[code] = idx;
+  }
+  return out;
+}
 
 export default function DuplexFlow({ project, tree, setTree, reload, step, goTo }: FlowProps) {
   const hasStructure = tree.buildings.length > 0;
@@ -64,7 +77,7 @@ function SmallField({ label, value, onChange, integer }: { label: string; value:
   );
 }
 
-interface HouseHalf { code: string; meta: string; highlight?: boolean }
+interface HouseHalf { code: string; meta: string; highlight?: boolean; overridden?: boolean; onClick?: () => void }
 
 /** Vista "Así queda": cada dúplex como casita con techo a dos aguas partida en sus mitades. */
 function DuplexHouses({ duplexes }: { duplexes: { name: string; halves: HouseHalf[] }[] }) {
@@ -83,12 +96,21 @@ function DuplexHouses({ duplexes }: { duplexes: { name: string; halves: HouseHal
               return (
                 <div key={h.code} className="flex flex-col items-center">
                   <span aria-hidden className="w-[92px] 2xl:w-[110px] h-[44px] bg-gray-800" style={{ clipPath: clip }} />
-                  <span className={`w-[92px] 2xl:w-[110px] h-[120px] box-border flex flex-col items-center justify-center gap-0.5 ${
-                    h.highlight ? 'bg-[#F3E7DA] text-[#6B4510] outline outline-2 outline-gray-900 outline-offset-2' : 'bg-gray-100 border border-gray-300 text-gray-900'
-                  }`}>
-                    <span className="font-display text-lg font-semibold">{h.code}</span>
-                    <span className="text-[10px]">{h.meta}</span>
-                  </span>
+                  {(() => {
+                    const cls = `w-[92px] 2xl:w-[110px] h-[120px] box-border flex flex-col items-center justify-center gap-0.5 ${
+                      h.highlight ? 'bg-[#F3E7DA] text-[#6B4510] outline outline-2 outline-gray-900 outline-offset-2' : 'bg-gray-100 border border-gray-300 text-gray-900'
+                    } ${h.overridden ? '!border-dashed !border-2 !border-gray-900' : ''}`;
+                    const inner = (
+                      <>
+                        <span className="font-display text-lg font-semibold">{h.code}</span>
+                        <span className="text-[10px]">{h.meta}</span>
+                        {h.overridden && <span className="text-[9px] font-semibold uppercase tracking-wide">distinta</span>}
+                      </>
+                    );
+                    return h.onClick
+                      ? <button type="button" onClick={h.onClick} aria-label={`${h.code}: ${h.meta}. Tocá para cambiar el modelo`} className={`${cls} cursor-pointer hover:bg-[#EAE7E0]`}>{inner}</button>
+                      : <span className={cls}>{inner}</span>;
+                  })()}
                 </div>
               );
             })}
@@ -108,6 +130,8 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
   const [same, setSame] = useState(true);
   const [models, setModels] = useState<DuplexModel[]>([emptyModel('Modelo único')]);
   const [active, setActive] = useState(0);
+  // Unidades puntuales con otro modelo que el de su posición (código → índice de modelo).
+  const [unitModels, setUnitModels] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -118,7 +142,26 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
   }, [same, per, models]);
   const activeIdx = Math.min(active, effectiveModels.length - 1);
   const model = effectiveModels[activeIdx];
-  const plan = useMemo(() => planDuplex(count, per, effectiveModels), [count, per, effectiveModels]);
+  // Solo cuentan las elecciones que siguen siendo válidas: si se achicó la
+  // cantidad de unidades por dúplex (y con eso de modelos) o de dúplex, una
+  // elección vieja queda afuera en vez de mostrarse como "distinta" sin
+  // aplicarse. Al cambiar las cantidades además se poda el estado, así no
+  // reaparece si se vuelve a agrandar.
+
+  const overrides = useMemo(
+    () => (same ? {} : validOverrides(unitModels, count, per, effectiveModels.length)),
+    [same, unitModels, count, per, effectiveModels.length],
+  );
+  const plan = useMemo(() => planDuplex(count, per, effectiveModels, overrides), [count, per, effectiveModels, overrides]);
+  const cycleModel = (code: string, position: number) => setUnitModels(prev => {
+    const currentIdx = overrides[code] ?? position % effectiveModels.length;
+    const nextIdx = (currentIdx + 1) % effectiveModels.length;
+    void prev;
+    const next = { ...overrides };
+    if (nextIdx === position % effectiveModels.length) delete next[code]; else next[code] = nextIdx;
+    return next;
+  });
+  const overriddenCount = Object.keys(overrides).filter(code => plan.some(b => b.floors[0].units.some(u => u.code === code))).length;
   const totalUnits = count * per;
 
   const updateModel = (patch: Partial<DuplexModel>) => {
@@ -132,7 +175,7 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
   const submit = async () => {
     setBusy(true);
     setError('');
-    const res = await create({ kind: 'duplex', count, perDuplex: per, models: effectiveModels });
+    const res = await create({ kind: 'duplex', count, perDuplex: per, models: effectiveModels, unitModels: overrides });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
     onCreated(res.data);
@@ -143,7 +186,9 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
     halves: b.floors[0].units.map(u => ({
       code: u.code,
       meta: !same && u.modelName ? u.modelName : `${u.bedrooms} dorm.`,
-      highlight: !same && (u.position ?? 0) === activeIdx,
+      highlight: !same && effectiveModels[activeIdx]?.name === u.modelName,
+      overridden: !same && u.code in overrides,
+      onClick: same ? undefined : () => cycleModel(u.code, u.position ?? 0),
     })),
   }));
   const numbering = `${plan[0]?.floors[0]?.units.slice(0, 2).map(u => u.code).join(', ')}${plan.length > 1 ? `, ${plan[1].floors[0].units[0]?.code}…` : ''}`;
@@ -160,8 +205,9 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
           </StepIntro>
 
           <div className="grid grid-cols-2 gap-3">
-            <NumberStepper label="Dúplex" value={count} onChange={setCount} min={1} max={100} />
-            <NumberStepper label="Unidades por dúplex" value={per} onChange={setPer} min={1} max={8} />
+            {/* Al cambiar las cantidades se descartan las elecciones que quedaron afuera (no vuelven si se agranda). */}
+            <NumberStepper label="Dúplex" value={count} onChange={n => { setCount(n); setUnitModels(prev => validOverrides(prev, n, per, effectiveModels.length)); }} min={1} max={100} />
+            <NumberStepper label="Unidades por dúplex" value={per} onChange={n => { setPer(n); setUnitModels(prev => validOverrides(prev, count, n, same ? 1 : n)); }} min={1} max={8} />
           </div>
 
           <div role="radiogroup" aria-label="Las unidades son" className="flex flex-col gap-2">
@@ -203,10 +249,10 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
         </>
       }
     >
-      <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así queda <span className="font-normal text-gray-500">— después podés cambiar una unidad si es distinta</span></h2>
+      <h2 className="m-0 text-[15px] font-semibold text-gray-900">Así queda <span className="font-normal text-gray-500">{same ? '— después podés cambiar una unidad si es distinta' : '— tocá una unidad si es distinta'}</span></h2>
       <DuplexHouses duplexes={duplexes} />
       <StepFooter
-        title={<>{count} dúplex · {totalUnits} unidades · {effectiveModels.length} modelo{effectiveModels.length === 1 ? '' : 's'}</>}
+        title={<>{count} dúplex · {totalUnits} unidades · {effectiveModels.length} modelo{effectiveModels.length === 1 ? '' : 's'}{overriddenCount > 0 ? ` · ${overriddenCount} distinta${overriddenCount === 1 ? '' : 's'}` : ''}</>}
         summary={<>Numeración: {numbering}</>}
         primary={{ label: 'Crear y seguir', onClick: submit, busy, busyLabel: 'Creando...' }}
       />
@@ -258,6 +304,7 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
   const [points, setPoints] = useState<Record<string, Pt[]>>(() => Object.fromEntries(units.map(u => [u.id, u.polygon ?? []])));
   const [activeId, setActiveId] = useState<string | null>(units.find(u => !(u.polygon && u.polygon.length >= 3))?.id ?? units[0]?.id ?? null);
   const [mode, setMode] = useState<'rectangle' | 'point'>('rectangle');
+  const undoCtl = useCanvasUndo();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -346,6 +393,7 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
               {l}
             </button>
           ))}
+          <ToolbarUndo canUndo={undoCtl.canUndo} undo={undoCtl.undo} />
         </div>
         {image ? (
           <div className="rounded-xl overflow-hidden bg-white">
@@ -356,6 +404,7 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
               mode={mode}
               onPointsChange={(id, pts) => setPoints(prev => ({ ...prev, [id]: pts }))}
               onComplete={onComplete}
+              {...undoCtl.canvasProps}
             />
           </div>
         ) : (
@@ -399,10 +448,10 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
         ]}
         optionalTitle="Lo que hace lucir el proyecto"
         optional={[
-          { label: 'Relato', text: 'Por qué dúplex y no casas aisladas.', href: '/admin/sitio', tag: 'Recomendado' },
+          { label: 'Relato', text: 'Por qué dúplex y no casas aisladas.', href: '/admin/proyecto/relato', tag: 'Recomendado' },
           { label: 'Fotos y renders del modelo', text: `Se cargan una vez y se ven en las ${units.length}.`, href: '/admin/edificios', tag: 'Recomendado' },
-          { label: 'Equipo', text: 'Aparece en el portfolio de cada persona.', href: '/admin/sitio', tag: 'Recomendado' },
-          { label: 'Proceso y antes / después', text: 'Del terreno a la obra terminada.', href: '/admin/proyecto', tag: 'Suma' },
+          { label: 'Equipo', text: 'Aparece en el portfolio de cada persona.', href: '/admin/proyecto/equipo', tag: 'Recomendado' },
+          { label: 'Proceso y antes / después', text: 'Del terreno a la obra terminada.', href: '/admin/proyecto/avance', tag: 'Suma' },
         ]}
         hiddenInShowcase="No se muestran precios, estados, leads ni calculadora."
         onBackToStart={onBackToStart}
@@ -431,8 +480,8 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
       optional={[
         { label: 'Ambientes y recorrido 360°', text: `Cargalos en una unidad y copialos a las otras ${Math.max(0, units.length - 1)}.`, href: '/admin/edificios' },
         { label: 'Renders y planos', text: 'Van al modelo y se ven en todas.', href: '/admin/edificios' },
-        { label: 'Entorno', text: 'Ubicación y amenidades.', href: '/admin/proyecto/ubicacion' },
-        { label: 'Relato', text: 'Texto, atributos y cifras.', href: '/admin/sitio' },
+        { label: 'Entorno', text: 'Ubicación y amenidades.', href: '/admin/proyecto/entorno' },
+        { label: 'Relato', text: 'Texto, atributos y cifras.', href: '/admin/proyecto/relato' },
       ]}
       onBackToStart={onBackToStart}
     />

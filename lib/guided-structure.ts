@@ -53,6 +53,8 @@ export interface TowerInput {
   groundFloor: GroundFloorUse;
   /** Penthouses en un último piso distinto — 0 = no hay último piso distinto. */
   penthouses: number;
+  /** Pisos tipo con otra cantidad de unidades: número de piso → unidades. */
+  floorOverrides?: Record<number, number>;
 }
 
 export const GROUND_FLOOR_OPTIONS: { value: GroundFloorUse; label: string }[] = [
@@ -131,9 +133,11 @@ export function planEdificio(towers: TowerInput[], scheme: NumberingScheme, temp
     }
 
     for (let f = 1; f <= Math.max(0, Math.floor(t.floors)); f++) {
+      const override = t.floorOverrides?.[f];
+      const count = override !== undefined && override >= 1 ? Math.floor(override) : per;
       floors.push({
         number: f, label: `Piso ${f}`, role: 'typical', floorKind: 'units',
-        units: Array.from({ length: per }, (_, p) => ({ code: prefix + unitCode(scheme, String(f), f, p, template), type: 'Unidad', position: p })),
+        units: Array.from({ length: count }, (_, p) => ({ code: prefix + unitCode(scheme, String(f), f, p, template), type: 'Unidad', position: p })),
       });
     }
 
@@ -165,7 +169,7 @@ export interface DuplexModel {
  * models.length === 1 → todas las unidades iguales. Si hay más, el modelo
  * va por posición dentro del dúplex (ej. A = frente, B = fondo).
  */
-export function planDuplex(count: number, perDuplex: number, models: DuplexModel[]): PlannedBuilding[] {
+export function planDuplex(count: number, perDuplex: number, models: DuplexModel[], unitModels?: Record<string, number>): PlannedBuilding[] {
   const n = Math.max(1, Math.floor(count));
   const per = Math.max(1, Math.floor(perDuplex));
   return Array.from({ length: n }, (_, d) => ({
@@ -173,9 +177,15 @@ export function planDuplex(count: number, perDuplex: number, models: DuplexModel
     floors: [{
       number: 1, label: 'Plano', role: 'single' as const, floorKind: 'units' as FloorKind,
       units: Array.from({ length: per }, (_, p) => {
-        const m = models[models.length === 1 ? 0 : p % Math.max(1, models.length)];
+        // Una unidad puntual puede tener otro modelo que el de su posición (unitModels: código → índice).
+        const code = `D${d + 1}-${positionLetter(p)}`;
+        const forced = unitModels?.[code];
+        const idx = forced !== undefined && forced >= 0 && forced < models.length
+          ? forced
+          : models.length === 1 ? 0 : p % Math.max(1, models.length);
+        const m = models[idx];
         return {
-          code: `D${d + 1}-${positionLetter(p)}`,
+          code,
           type: m ? `${m.bedrooms} dormitorio${m.bedrooms === 1 ? '' : 's'}` : 'Unidad',
           position: p,
           modelName: m?.name || null,
@@ -393,4 +403,63 @@ export function parsePastedPrices(text: string): Map<string, number> {
     if (code && Number.isFinite(n) && n > 0) out.set(code, Math.round(n));
   }
   return out;
+}
+
+// ─── Casa: fotos por ambiente ──────────────────────────────────────
+
+export type RoomGroup = 'pb' | 'pa' | 'ext';
+
+const EXTERIOR_RE = /exterior|jard[ií]n|pileta|piscina|terraza|patio|quincho|galer[ií]a|parrill|fachada|frente|deck/i;
+
+/** En qué planta va un ambiente si todavía no tiene una asignada. */
+export function defaultRoomGroup(room: { name: string; kind?: string }, floorsCount: number, bathIndex = 0): RoomGroup {
+  if (EXTERIOR_RE.test(room.name)) return 'ext';
+  if (floorsCount <= 1) return 'pb';
+  if (room.kind === 'bedroom') return 'pa';
+  if (room.kind === 'bathroom') return bathIndex === 0 ? 'pb' : 'pa';
+  return 'pb';
+}
+
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * A qué ambiente va una foto según el nombre del archivo ("dorm2.jpg",
+ * "Baño 1 - final.png", "living_noche.jpg"). Devuelve el id o null si no
+ * hay un match claro (la foto queda para asignar a mano).
+ */
+export function matchRoomByFilename(filename: string, rooms: { id: string; name: string; kind?: string }[]): string | null {
+  const f = norm(filename.replace(/\.[a-z0-9]+$/i, '')).replace(/[_\-.]+/g, ' ');
+  // 1. Nombre exacto del ambiente contenido en el archivo ("cocina", "dormitorio 2"),
+  //    como palabra completa: "dormitorio 12" no es "Dormitorio 1" y
+  //    "salamandra" no es "Sala".
+  const asWord = (name: string) => {
+    const n = norm(name).trim().replace(/[_\-.]+/g, ' ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${n}($|[^a-z0-9])`);
+  };
+  const byName = [...rooms].sort((a, b) => b.name.length - a.name.length).find(r => r.name.trim() && asWord(r.name).test(f));
+  if (byName) return byName.id;
+  // 2. Palabras clave por tipo, con número opcional ("dorm2", "bano 3").
+  const rules: { re: RegExp; kind: string }[] = [
+    { re: /\b(?:dorm(?:itorio)?|habitaci[oó]n|cuarto|suite)\s*(\d+)?/, kind: 'bedroom' },
+    { re: /\bba(?:n|ñ)o\s*(\d+)?|\btoilette?\b/, kind: 'bathroom' },
+    { re: /\bcocina\s*(\d+)?|\bkitchen\b/, kind: 'kitchen' },
+    { re: /\bliving\s*(\d+)?|\bestar\b|\bsala\b/, kind: 'living' },
+    { re: /\bcomedor\s*(\d+)?/, kind: 'dining' },
+    { re: /\blavadero\s*(\d+)?|\blaundry\b/, kind: 'laundry' },
+    { re: /\bestudio\s*(\d+)?|\boficina\b/, kind: 'studio' },
+  ];
+  for (const { re, kind } of rules) {
+    const m = f.match(re);
+    if (!m) continue;
+    const ofKind = rooms.filter(r => r.kind === kind);
+    if (ofKind.length === 0) continue;
+    const n = m[1] ? Number(m[1]) : null;
+    if (n !== null) return ofKind[n - 1]?.id ?? null;
+    return ofKind.length === 1 ? ofKind[0].id : null;
+  }
+  if (EXTERIOR_RE.test(f)) {
+    const ext = rooms.find(r => EXTERIOR_RE.test(r.name));
+    if (ext) return ext.id;
+  }
+  return null;
 }

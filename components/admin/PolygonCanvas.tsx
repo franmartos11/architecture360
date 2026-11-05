@@ -5,6 +5,8 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 export interface PolygonShape {
   id: string;
   label: string;
+  /** Línea chica debajo del código cuando showLabels está activo (ej. "3 dorm. · 112 m²"). */
+  sublabel?: string;
   points: { x: number; y: number }[];
   color: string;
 }
@@ -29,6 +31,20 @@ interface PolygonCanvasProps {
   onPinPlace?: (point: Point | null) => void;
   /** Color del ícono del pin — si no está, usa el color de la forma activa (shape.color) */
   pinColor?: string;
+  /** Dibuja el código (y sublabel) de cada forma cerrada en su centro. */
+  showLabels?: boolean;
+  /**
+   * Control desde afuera (ej. un botón "Deshacer" en una barra de
+   * herramientas propia): el canvas deja acá `undo()` y si hay algo para deshacer.
+   */
+  apiRef?: React.MutableRefObject<PolygonCanvasApi | null>;
+  /** Avisa cuando cambia si la forma activa tiene algo para deshacer. */
+  onCanUndoChange?: (canUndo: boolean) => void;
+}
+
+export interface PolygonCanvasApi {
+  undo: () => void;
+  canUndo: boolean;
 }
 
 interface HistoryEntry {
@@ -51,7 +67,7 @@ function distance(a: Point, b: Point) {
 //   "point" para agregarle más esquinas si el ambiente no es un rectángulo.
 // En ambos modos: arrastrar un punto existente lo mueve, doble click
 // sobre un punto lo borra.
-export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, pinPoint, onPinPlace, pinColor }: PolygonCanvasProps) {
+export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'point', onPointsChange, onComplete, pinPoint, onPinPlace, pinColor, showLabels, apiRef, onCanUndoChange }: PolygonCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [draggingPin, setDraggingPin] = useState(false);
@@ -80,6 +96,20 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
     onPointsChange(activeShape.id, entry.points);
     onPinPlace?.(entry.pin);
   }, [activeShape, undoStack, onPointsChange, onPinPlace]);
+
+  // Expone deshacer hacia afuera (barras de herramientas propias de cada pantalla).
+  useEffect(() => {
+    if (apiRef) apiRef.current = { undo: handleUndo, canUndo };
+  }, [apiRef, handleUndo, canUndo]);
+  useEffect(() => {
+    onCanUndoChange?.(canUndo);
+  }, [canUndo, onCanUndoChange]);
+  // Al desmontarse el canvas (cambio de paso/pestaña), la barra de afuera no
+  // puede quedar con un "Deshacer" habilitado apuntando a un closure viejo.
+  useEffect(() => () => {
+    if (apiRef) apiRef.current = null;
+    onCanUndoChange?.(false);
+  }, [apiRef, onCanUndoChange]);
 
   const toPercent = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -348,6 +378,19 @@ export default function PolygonCanvas({ imageUrl, shapes, activeId, mode = 'poin
                 boxShadow: '0 0 0 1.5px white',
               }}
             />
+          );
+        })}
+
+        {/* Código + sublabel en el centro de cada forma cerrada (opcional). */}
+        {showLabels && shapes.filter(sh => sh.points.length >= 3).map(sh => {
+          const cx = sh.points.reduce((t, p) => t + p.x, 0) / sh.points.length;
+          const cy = sh.points.reduce((t, p) => t + p.y, 0) / sh.points.length;
+          return (
+            <div key={`label-${sh.id}`} className="absolute pointer-events-none flex flex-col items-center text-center leading-tight"
+              style={{ left: `${cx}%`, top: `${cy}%`, transform: 'translate(-50%, -50%)', opacity: sh.id === activeId || !activeId ? 1 : 0.6 }}>
+              <span className="font-display text-[15px] sm:text-[18px] font-semibold text-gray-900 [text-shadow:0_0_6px_rgba(255,255,255,0.9)]">{sh.label}</span>
+              {sh.sublabel && <span className="text-[10px] sm:text-[11px] text-gray-700 [text-shadow:0_0_6px_rgba(255,255,255,0.9)] whitespace-nowrap">{sh.sublabel}</span>}
+            </div>
           );
         })}
 

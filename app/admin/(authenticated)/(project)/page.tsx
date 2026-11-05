@@ -9,8 +9,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
-import { usePublishState } from '@/lib/publish-state-context';
-import PublishCallout from '@/components/admin/PublishCallout';
+import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import { PageHeader, Card, CardHeader, StatStrip, Pill, SegmentedTabs, btnPrimary } from '@/components/admin/panel-ui';
@@ -18,6 +17,7 @@ import { PageHeader, Card, CardHeader, StatStrip, Pill, SegmentedTabs, btnPrimar
 import { pluralize } from '@/lib/units';
 interface ProjectSummary {
   slug: string;
+  name: string;
   buildingCount: number;
 }
 
@@ -34,8 +34,8 @@ export default function AdminDashboard() {
   const agree = buildingAgreement(typeConfig);
   const uAgree = unitAgreement(typeConfig);
   const shareLink = useShareLink();
+  const toast = useToast();
   const activeProjectId = useActiveProjectId();
-  const { siteHref } = usePublishState();
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [project, setProject] = useState<ProjectSummary | null>(null);
@@ -58,7 +58,7 @@ export default function AdminDashboard() {
       setUnits(Array.isArray(unitsData) ? unitsData : []);
       setLeads(Array.isArray(leadsData) ? leadsData : []);
       setLoadedAt(Date.now());
-      setProject({ slug: projectData.project.slug, buildingCount: (projectData.buildings ?? []).length });
+      setProject({ slug: projectData.project.slug, name: projectData.project.name ?? '', buildingCount: (projectData.buildings ?? []).length });
       setLoading(false);
     }).catch((err) => {
       // If unauthorized, redirect to login
@@ -83,7 +83,16 @@ export default function AdminDashboard() {
   const sold = units.filter(u => u.status === 'sold').length;
   const unitWord = (count: number) => count === 1 ? typeConfig.unitLabel.toLowerCase() : `${pluralize(typeConfig.unitLabel.toLowerCase())}`;
   const displayUrl = getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '');
-  const share = () => shareLink(getProjectDisplayUrl(project.slug, window.location.origin), 'Mi proyecto', 'Mirá mi proyecto');
+  const shareUrl = () => getProjectDisplayUrl(project.slug, window.location.origin);
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl());
+      toast('Link copiado al portapapeles');
+    } catch {
+      shareLink(shareUrl(), project.name || 'Mi proyecto', 'Mirá mi proyecto');
+    }
+  };
+  const whatsappHref = () => `https://wa.me/?text=${encodeURIComponent(`${project.name ? `Mirá ${project.name}` : 'Mirá mi proyecto'}: ${shareUrl()}`)}`;
 
   // Un proyecto showcase no tiene precio/estado/leads comerciales — mostrar
   // ese dashboard ahí sería 3 métricas en 0 para siempre. Una casa (1 unidad)
@@ -99,8 +108,8 @@ export default function AdminDashboard() {
         <span className="font-mono text-xs text-[#C9C6BE] truncate">{displayUrl.replace(/^https?:\/\//, '')}</span>
       </span>
       <div className="flex gap-2 flex-wrap">
-        <button type="button" onClick={share} className="min-h-[40px] px-3.5 rounded-[10px] bg-white text-gray-900 text-[13px] font-semibold hover:bg-gray-100">Copiar link</button>
-        <a href={siteHref} target="_blank" rel="noopener noreferrer" className="min-h-[40px] px-3.5 rounded-[10px] border border-gray-600 text-white text-[13px] font-semibold flex items-center hover:border-gray-400">Ver sitio ↗</a>
+        <button type="button" onClick={copyLink} className="min-h-[40px] px-3.5 rounded-[10px] bg-white text-gray-900 text-[13px] font-semibold hover:bg-gray-100">Copiar link</button>
+        <a href={whatsappHref()} target="_blank" rel="noopener noreferrer" className="min-h-[40px] px-3.5 rounded-[10px] border border-gray-600 text-white text-[13px] font-semibold flex items-center hover:border-gray-400">WhatsApp</a>
       </div>
     </section>
   );
@@ -130,7 +139,6 @@ export default function AdminDashboard() {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader eyebrow="Visión general" title="Dashboard" />
-        <PublishCallout />
         {/* Para "casa" (una sola unidad) el conteo no aporta — se va directo
             al link para compartir. Para el resto, las cifras. */}
         {hasUnitStep && (
@@ -186,7 +194,6 @@ export default function AdminDashboard() {
         actions={<SegmentedTabs label="Período de los leads" value={range} onChange={setRange} options={[{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: 'all', label: 'Todo' }]} />}
       />
 
-      <PublishCallout />
 
       <StatStrip stats={[
         { label: 'Valor listado total', value: usd(totalValue), hint: `${withPrice} ${unitWord(withPrice)} con precio` },

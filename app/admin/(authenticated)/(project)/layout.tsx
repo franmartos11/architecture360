@@ -41,6 +41,13 @@ export default async function ProjectAdminLayout({ children }: { children: React
     }
   }
 
+  // Conteo de unidades para el menú ("Unidades 48") — una sola consulta
+  // con join, igual que /api/admin/project.
+  const { count: unitsCount } = await access.supabase
+    .from('units')
+    .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
+    .eq('floors.buildings.project_id', projectId);
+
   return (
     <ActiveProjectIdProvider projectId={project.id}>
       <PublishStateProvider
@@ -50,7 +57,7 @@ export default async function ProjectAdminLayout({ children }: { children: React
         projectType={project.project_type}
         saleMode={project.sale_mode}
       >
-        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref}>
+        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref} unitsCount={unitsCount ?? 0}>
           {children}
         </ProjectAdminShell>
       </PublishStateProvider>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, startTransition } from 'react';
+import { useState, useEffect, startTransition, createContext, useContext } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -21,6 +21,43 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import type { Lead } from '@/types';
 import { downloadCsv } from '@/lib/csv';
 import { PageHeader, Card, SegmentedTabs, btnSecondary } from '@/components/admin/panel-ui';
+
+// Unidades del proyecto, por código — para mostrar "6B · 2 dorm." y la
+// ficha (estado, m², precio) de la unidad por la que preguntó cada lead.
+// leads.unit_name guarda el código de la unidad tal como se ve en el sitio.
+interface UnitInfo {
+  id: string;
+  code: string;
+  floor_id: string;
+  building_id: string | null;
+  model_name: string | null;
+  type: string | null;
+  bedrooms: number | null;
+  total_area: number | null;
+  inner_area: number | null;
+  price: number | null;
+  currency: string | null;
+  status: 'available' | 'reserved' | 'sold';
+}
+const UnitsContext = createContext<Map<string, UnitInfo>>(new Map());
+
+function useLeadUnit(unitName: string | null | undefined): UnitInfo | undefined {
+  const units = useContext(UnitsContext);
+  if (!unitName) return undefined;
+  const key = unitName.trim();
+  return units.get(key) ?? units.get(key.replace(/^unidad\s+/i, ''));
+}
+
+function unitTypology(u: UnitInfo): string | null {
+  if (u.bedrooms && u.bedrooms > 0) return `${u.bedrooms} dorm.`;
+  return u.model_name || u.type || null;
+}
+
+const STATUS_PILL: Record<UnitInfo['status'], { label: string; cls: string }> = {
+  available: { label: 'Disponible', cls: 'bg-brand-100 text-brand-800' },
+  reserved: { label: 'Reservada', cls: 'bg-amber-100 text-amber-800' },
+  sold: { label: 'Vendida', cls: 'bg-gray-900 text-white' },
+};
 
 const COLUMNS = [
   { id: 'nuevo', label: 'Nuevos', dot: '#37463F', next: 'Marcar como contactado' },
@@ -84,6 +121,8 @@ function LeadCard({
 }) {
   const draggable = Boolean(dragListeners);
   const tags = leadTags(lead);
+  const unit = useLeadUnit(lead.unit_name);
+  const typology = unit ? unitTypology(unit) : null;
   return (
     <div
       ref={dragRef}
@@ -107,7 +146,7 @@ function LeadCard({
         <span className="text-sm font-semibold text-gray-900 truncate">{lead.name ?? 'Sin nombre'}</span>
         <span className="text-[11px] text-gray-500 shrink-0">{ago(lead.created_at)}</span>
       </div>
-      <span className="text-xs text-gray-600 truncate">{lead.unit_name ?? 'Consulta general'}</span>
+      <span className="text-xs text-gray-600 truncate">{lead.unit_name ? `${unit?.code ?? lead.unit_name}${typology ? ` · ${typology}` : ''}` : 'Consulta general'}</span>
       {tags.length > 0 && (
         <div className="flex gap-1 flex-wrap">
           {tags.map(t => <span key={t} className="text-[11px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-700">{t}</span>)}
@@ -159,6 +198,18 @@ export default function AdminLeads() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [unitsByCode, setUnitsByCode] = useState<Map<string, UnitInfo>>(() => new Map());
+
+  // Las unidades son un extra (tipología, estado, m², precio): si fallan,
+  // los leads se ven igual con el código que dejaron.
+  useEffect(() => {
+    fetch(withActiveProject('/api/admin/units', activeProjectId))
+      .then(res => (res.ok ? res.json() : []))
+      .then((list: UnitInfo[]) => {
+        if (Array.isArray(list)) setUnitsByCode(new Map(list.map(u => [u.code, u])));
+      })
+      .catch(() => {});
+  }, [activeProjectId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -249,6 +300,7 @@ export default function AdminLeads() {
   };
 
   return (
+    <UnitsContext.Provider value={unitsByCode}>
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Operación"
@@ -325,6 +377,7 @@ export default function AdminLeads() {
       </div>
       )}
     </div>
+    </UnitsContext.Provider>
   );
 }
 
@@ -337,6 +390,10 @@ function LeadDetail({ lead, onWhatsApp, onMove, tone }: {
 }) {
   const ci = Math.max(0, COLUMNS.findIndex(c => c.id === (lead.status || 'nuevo')));
   const column = COLUMNS[ci];
+  const unit = useLeadUnit(lead.unit_name);
+  const typology = unit ? unitTypology(unit) : null;
+  const area = unit ? (unit.total_area ?? unit.inner_area) : null;
+  const unitHref = unit?.building_id ? `/admin/edificios/${unit.building_id}/pisos/${unit.floor_id}/unidades/${unit.id}` : '/admin/inventory';
   const contactBtn = 'flex-1 min-h-[44px] px-3 rounded-[10px] text-[13px] font-semibold flex items-center justify-center';
   return (
     <aside aria-label="Detalle del lead" className="flex-[1_1_300px] lg:max-w-[340px] min-w-0 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 flex flex-col gap-5 lg:sticky lg:top-6">
@@ -376,10 +433,18 @@ function LeadDetail({ lead, onWhatsApp, onMove, tone }: {
       {(lead.unit_name || lead.message) && (
         <div className="rounded-[14px] border border-gray-200 overflow-hidden">
           {lead.unit_name && (
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span aria-hidden="true" className="w-10 h-10 rounded-lg shrink-0" style={{ background: 'repeating-linear-gradient(135deg, #C9D3CD 0 6px, #DDE3DF 6px 12px)' }} />
-              <span className="flex-1 min-w-0 text-[13px] font-semibold text-gray-900 truncate">Unidad {lead.unit_name}</span>
-              <Link href="/admin/inventory" className="text-[13px] font-semibold text-gray-900 underline underline-offset-2">Abrir</Link>
+            <div className="flex flex-col gap-2 px-3.5 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0 text-[13px] font-semibold text-gray-900">Unidad {unit?.code ?? lead.unit_name}{typology ? ` · ${typology}` : ''}</span>
+                <Link href={unitHref} className="shrink-0 text-[13px] font-semibold text-gray-900 underline underline-offset-2">Abrir</Link>
+              </div>
+              {unit && (
+                <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-xs text-gray-600">
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_PILL[unit.status].cls}`}>{STATUS_PILL[unit.status].label}</span>
+                  {area ? <span>{Math.round(area)} m²</span> : null}
+                  {unit.price ? <span className="font-semibold text-gray-900">{unit.currency ?? 'USD'} {new Intl.NumberFormat('es-AR').format(unit.price)}</span> : null}
+                </div>
+              )}
             </div>
           )}
           {lead.message && (

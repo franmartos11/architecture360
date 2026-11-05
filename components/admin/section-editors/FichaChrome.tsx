@@ -1,21 +1,25 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { PageHeader } from '@/components/admin/panel-ui';
 
-// Navegación entre las pantallas de la ficha (/admin/proyecto/*), con la
-// forma de los capítulos del diseño: pestañas cuando un capítulo agrupa
-// dos pantallas (Entorno = Ubicación + Amenidades; Inmersivo = Recorrido
-// 360° + Modelo BIM) y un pie "← anterior · Siguiente →". Solo enlaza
-// pantallas que existen — no inventa capítulos.
+// Navegación entre los 7 capítulos de la ficha (/admin/proyecto/*), con
+// la forma del diseño: pestañas cuando un capítulo agrupa dos pantallas
+// (Inmersivo = Recorrido 360° + Modelo BIM) y un pie "← anterior ·
+// Siguiente →". Las rutas viejas /ubicacion y /amenities redirigen a Entorno.
 
-const CHAPTERS: { title: string; pages: { label: string; href: string }[] }[] = [
+export const FICHA_CHAPTERS: { title: string; pages: { label: string; href: string }[] }[] = [
   { title: 'Esencial', pages: [{ label: 'Esencial', href: '/admin/proyecto' }] },
-  { title: 'Entorno', pages: [{ label: 'Ubicación', href: '/admin/proyecto/ubicacion' }, { label: 'Amenidades', href: '/admin/proyecto/amenities' }] },
+  { title: 'Relato', pages: [{ label: 'Relato', href: '/admin/proyecto/relato' }] },
+  { title: 'Galería', pages: [{ label: 'Galería', href: '/admin/proyecto/galeria' }] },
+  { title: 'Entorno', pages: [{ label: 'Entorno', href: '/admin/proyecto/entorno' }] },
   { title: 'Obra', pages: [{ label: 'Avance de obra', href: '/admin/proyecto/avance' }] },
   { title: 'Inmersivo', pages: [{ label: 'Recorrido 360° · espacios comunes', href: '/admin/proyecto/recorrido' }, { label: 'Modelo BIM', href: '/admin/proyecto/bim' }] },
+  { title: 'Equipo', pages: [{ label: 'Equipo', href: '/admin/proyecto/equipo' }] },
 ];
+const CHAPTERS = FICHA_CHAPTERS;
 
 function chapterIndexOf(pathname: string) {
   return CHAPTERS.findIndex(c => c.pages.some(p => p.href === pathname));
@@ -72,17 +76,40 @@ export function ChapterFooter() {
   );
 }
 
-/** Encabezado de una pantalla de la ficha: eyebrow del capítulo, título, bajada y pestañas. */
-export function ChapterHeader({ title, description }: { title: string; description: string }) {
+/** Tira con los 7 capítulos (el actual resaltado) — para moverse entre ellos sin volver al menú. */
+export function ChapterStrip() {
+  const pathname = usePathname();
+  const current = chapterIndexOf(pathname);
+  return (
+    <nav aria-label="Capítulos de la ficha" className="flex gap-1.5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 sm:pb-0">
+      {CHAPTERS.map((c, i) => {
+        const on = i === current;
+        return (
+          <Link key={c.title} href={c.pages[0].href} aria-current={on ? 'page' : undefined}
+            className={`shrink-0 min-h-[36px] px-3 flex items-center gap-2 rounded-full text-[13px] border transition-colors ${
+              on ? 'bg-gray-900 border-gray-900 text-white font-semibold' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+            }`}>
+            <span className={`text-[11px] ${on ? 'text-white/70' : 'text-gray-400'}`}>{i + 1}</span>{c.title}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Encabezado de una pantalla de la ficha: eyebrow del capítulo, título, bajada, pestañas y la tira de capítulos. */
+export function ChapterHeader({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   const pathname = usePathname();
   const eyebrow = useChapterEyebrow();
   return (
-    <PageHeader
-      back={<Link href="/admin/proyecto" className="inline-flex items-center min-h-[28px] hover:text-gray-900">← Ficha del proyecto</Link>}
-      eyebrow={eyebrow}
-      title={title}
-      description={description}
-      actions={<ChapterTabs current={pathname} />}
-    />
+    <div className="flex flex-col gap-5">
+      <ChapterStrip />
+      <PageHeader
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        actions={actions ?? <ChapterTabs current={pathname} />}
+      />
+    </div>
   );
 }

@@ -14,7 +14,7 @@ import type { FlowProps } from './GuidedLoad';
 import ListoScreen, { PreviewCard } from './ListoScreen';
 import {
   ChoiceCard, ErrorNote, FieldLabel, GuidedHeader, NumberField, NumberStepper, Segmented, StepFooter, StepIntro,
-  formatMoney, formatNumber, useGuidedApi,
+  formatMoney, formatNumber, useGuidedApi, useCanvasUndo, ToolbarUndo,
   type GFloor, type GUnit, type GuidedTree, type UnitDot,
 } from './shared';
 
@@ -300,7 +300,9 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
   const sequential = groups.length === 1 && groups[0].tag === null;
 
   const [blockTag, setBlockTag] = useState<string | null>(groups[0]?.tag ?? null);
-  const [tool, setTool] = useState<'manzana' | 'lote'>('manzana');
+  // manzana = contorno + dividir; lote = dibujar un lote suelto; vertices = retocar uno ya dibujado.
+  const [tool, setTool] = useState<'manzana' | 'lote' | 'vertices'>('manzana');
+  const undoCtl = useCanvasUndo();
   const [drawMode, setDrawMode] = useState<'rectangle' | 'point'>('rectangle');
   const [quad, setQuad] = useState<Pt[]>([]);
   const [rows, setRows] = useState(2);
@@ -338,7 +340,7 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
       ? split.slice(0, targetLots.length).map((s, i) => ({ id: `preview-${i}`, label: targetLots[i]?.code.replace(/^Mz\d+-/, '') ?? '', points: s.points, color: '#6B6A65' }))
       : []),
     ...(tool === 'manzana' ? [{ id: MZ_SHAPE, label: blockTag ?? 'Manzana', points: quad, color: '#17191A' }] : []),
-    ...(tool === 'lote' && editId ? [{ id: editId, label: lots.find(l => l.id === editId)?.code ?? '', points: editPoints, color: '#37463F' }] : []),
+    ...(tool !== 'manzana' && editId ? [{ id: editId, label: lots.find(l => l.id === editId)?.code ?? '', points: editPoints, color: '#37463F' }] : []),
   ];
 
   const mergedDots = (changed: { code: string; points: Pt[] }[]): UnitDot[] => {
@@ -388,7 +390,8 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
 
   const selectLot = (id: string) => {
     setEditId(id || null);
-    setEditPoints(lots.find(l => l.id === id)?.polygon ?? []);
+    // "Lote suelto" arranca de cero; "Editar vértices" parte de la forma guardada.
+    setEditPoints(tool === 'lote' ? [] : (lots.find(l => l.id === id)?.polygon ?? []));
   };
 
   const saveLot = async () => {
@@ -448,24 +451,28 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
         {/* Barra de herramientas flotante (oscura, centrada) */}
         <div className="relative z-10 mx-auto mt-3.5 max-w-[calc(100%-24px)] flex flex-wrap sm:flex-nowrap justify-center sm:w-fit gap-0.5 p-1 rounded-xl bg-gray-900 shadow-[0_8px_24px_rgba(23,25,26,0.25)] sm:overflow-x-auto">
           <button type="button" aria-pressed={tool === 'manzana'} onClick={() => { setTool('manzana'); setEditId(null); }} className={toolBtn(tool === 'manzana')}>Manzana</button>
-          <button type="button" aria-pressed={tool === 'lote'} onClick={() => { setTool('lote'); setEditId(null); }} className={toolBtn(tool === 'lote')}>Lote suelto</button>
-          {tool === 'manzana' && (
+          <button type="button" aria-pressed={tool === 'lote'} onClick={() => { setTool('lote'); setEditId(null); setEditPoints([]); }} className={toolBtn(tool === 'lote')}>Lote suelto</button>
+          <button type="button" aria-pressed={tool === 'vertices'} onClick={() => { setTool('vertices'); setEditId(null); setEditPoints([]); }} className={toolBtn(tool === 'vertices')}>Editar vértices</button>
+          {tool !== 'vertices' && (
             <>
               <span aria-hidden className="w-px my-2 mx-1 bg-[#3A3D3B] shrink-0" />
-              <button type="button" aria-pressed={drawMode === 'rectangle'} onClick={() => { setDrawMode('rectangle'); setQuad([]); }} className={toolBtn(drawMode === 'rectangle')}>Rectángulo</button>
-              <button type="button" aria-pressed={drawMode === 'point'} onClick={() => { setDrawMode('point'); setQuad([]); }} className={toolBtn(drawMode === 'point')}>4 esquinas</button>
+              <button type="button" aria-pressed={drawMode === 'rectangle'} onClick={() => { setDrawMode('rectangle'); if (tool === 'manzana') setQuad([]); else setEditPoints([]); }} className={toolBtn(drawMode === 'rectangle')}>Rectángulo</button>
+              <button type="button" aria-pressed={drawMode === 'point'} onClick={() => { setDrawMode('point'); if (tool === 'manzana') setQuad([]); else setEditPoints([]); }} className={toolBtn(drawMode === 'point')}>{tool === 'manzana' ? '4 esquinas' : 'Forma libre'}</button>
             </>
           )}
-          {tool === 'lote' && (
+          {tool !== 'manzana' && (
             <label className="shrink-0 flex items-center">
-              <span className="sr-only">Lote a editar</span>
+              <span className="sr-only">{tool === 'lote' ? 'Lote a dibujar' : 'Lote a editar'}</span>
               <select value={editId ?? ''} onChange={e => selectLot(e.target.value)}
                 className="min-h-[36px] px-2 rounded-lg bg-[#3A3D3B] text-white text-xs outline-none">
                 <option value="">Elegí un lote</option>
-                {blockLots.map(l => <option key={l.id} value={l.id}>{l.code}{(l.polygon?.length ?? 0) >= 3 ? '' : ' (sin dibujar)'}</option>)}
+                {blockLots
+                  .filter(l => tool === 'lote' || (l.polygon?.length ?? 0) >= 3)
+                  .map(l => <option key={l.id} value={l.id}>{l.code}{(l.polygon?.length ?? 0) >= 3 ? (tool === 'lote' ? ' (redibujar)' : '') : ' (sin dibujar)'}</option>)}
               </select>
             </label>
           )}
+          <ToolbarUndo canUndo={undoCtl.canUndo} undo={undoCtl.undo} />
         </div>
 
         <div className="flex-1 flex flex-col lg:block gap-3 p-3 sm:p-5 lg:pr-[276px]">
@@ -476,7 +483,8 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
                 imageUrl={floor.plan_image}
                 shapes={shapes}
                 activeId={tool === 'manzana' ? MZ_SHAPE : editId}
-                mode={tool === 'manzana' ? drawMode : 'point'}
+                mode={tool === 'vertices' ? 'point' : drawMode}
+                {...undoCtl.canvasProps}
                 onPointsChange={(id, pts) => {
                   if (id === MZ_SHAPE) setQuad(pts);
                   else if (id === editId) setEditPoints(pts);
@@ -534,8 +542,12 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
               </>
             ) : (
               <>
-                <h2 className="m-0 text-sm font-semibold text-gray-900">Editar vértices</h2>
-                <p className="m-0 text-xs text-gray-600 leading-relaxed">Arrastrá un vértice para moverlo; tocá el plano para agregar uno; doble clic sobre un vértice lo borra.</p>
+                <h2 className="m-0 text-sm font-semibold text-gray-900">{tool === 'lote' ? 'Lote suelto' : 'Editar vértices'}</h2>
+                <p className="m-0 text-xs text-gray-600 leading-relaxed">
+                  {tool === 'lote'
+                    ? 'Elegí el lote arriba y dibujalo sobre el plano, como rectángulo o punto por punto.'
+                    : 'Elegí un lote dibujado: arrastrá un vértice para moverlo, tocá el plano para agregar uno, doble clic sobre un vértice lo borra.'}
+                </p>
                 <NumberField label="Escala: ancho real del plano" suffix="m" value={scale} onChange={setScale} placeholder="Ej: 600" />
                 {editId && editPoints.length >= 3 && areaOf(editPoints) && (
                   <p className="m-0 text-xs text-gray-700">Superficie: {formatNumber(areaOf(editPoints))} m²</p>
@@ -561,6 +573,9 @@ function DrawStep({ tree, reload, goTo, total }: { tree: GuidedTree; reload: () 
 
 // ─── Paso 3 · Precios ──────────────────────────────────────────────
 
+/** Ajuste de precio con su check de prendido/apagado (solo los prendidos se aplican). */
+type RuleRow = PriceRule & { on: boolean };
+
 const RULE_TARGETS: { value: PriceRule['target']; label: string }[] = [
   { value: 'corner', label: 'Lotes en esquina' },
   { value: 'blocks', label: 'Manzanas' },
@@ -575,7 +590,15 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
   const blockTags = groups.map(g => g.tag).filter((t): t is string => !!t);
 
   const [base, setBase] = useState<number | null>(null);
-  const [rules, setRules] = useState<PriceRule[]>([{ id: 'r1', label: 'Lotes en esquina', pct: 10, target: 'corner' }]);
+  // Los 3 ejemplos del diseño vienen cargados; solo "esquina" arranca prendido.
+  const [rules, setRules] = useState<RuleRow[]>(() => [
+    { id: 'r1', label: 'Lotes en esquina', pct: 10, target: 'corner', on: true },
+    ...(blockTags.length >= 2
+      ? [{ id: 'r2', label: `Frente a la laguna (${blockTags.slice(-2).join(' y ')})`, pct: 18, target: 'blocks' as const, blocks: blockTags.slice(-2), on: false }]
+      : []),
+    { id: 'r3', label: 'Lanzamiento · primeros 20', pct: -5, target: 'first', first: 20, on: false },
+  ]);
+  const activeRules = rules.filter(r => r.on);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState('');
   const [overrides, setOverrides] = useState<Record<string, number | null>>({});
@@ -589,7 +612,7 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
 
   const rowsAll = lots.map((u, index) => {
     const area = u.id in areas ? areas[u.id] : lotArea(u);
-    const priced = priceForLot({ id: u.id, code: u.code, area, corner: u.features.includes('esquina'), block: blockOfCode(u.code), index }, base ?? 0, rules);
+    const priced = priceForLot({ id: u.id, code: u.code, area, corner: u.features.includes('esquina'), block: blockOfCode(u.code), index }, base ?? 0, activeRules);
     const override = overrides[u.id];
     const price = override !== undefined && override !== null ? override
       : pastedMap.get(u.code) ?? priced.price ?? u.price;
@@ -600,7 +623,7 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
   const minPrice = withPrice.length ? Math.min(...withPrice.map(r => r.price as number)) : null;
   const blockTotal = visible.reduce((s, r) => s + (r.price ?? 0), 0);
 
-  const updateRule = (id: string, patch: Partial<PriceRule>) => setRules(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)));
+  const updateRule = (id: string, patch: Partial<RuleRow>) => setRules(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)));
 
   const apply = async () => {
     setError('');
@@ -643,8 +666,10 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
         <div className="flex flex-col gap-2">
           <FieldLabel>Ajustes</FieldLabel>
           {rules.map(r => (
-            <div key={r.id} className="flex flex-col gap-2 px-3 py-2 rounded-[10px] bg-white border border-gray-200">
+            <div key={r.id} className={`flex flex-col gap-2 px-3 py-2 rounded-[10px] bg-white border ${r.on ? 'border-gray-200' : 'border-gray-200 opacity-70'}`}>
               <div className="flex items-center gap-2 min-h-[32px]">
+                <input type="checkbox" checked={r.on} onChange={e => updateRule(r.id, { on: e.target.checked })}
+                  aria-label={`Aplicar ${r.label}`} className="w-[18px] h-[18px] shrink-0 accent-[#37463F]" />
                 <input aria-label="Nombre del ajuste" value={r.label} onChange={e => updateRule(r.id, { label: e.target.value })}
                   className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-gray-900 rounded px-1 -mx-1 focus:bg-gray-50" />
                 <label className="flex items-center gap-0.5">
@@ -681,7 +706,7 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
               </div>
             </div>
           ))}
-          <button type="button" onClick={() => setRules(rs => [...rs, { id: `r${Date.now()}`, label: 'Ajuste', pct: 5, target: 'first', first: 20 }])}
+          <button type="button" onClick={() => setRules(rs => [...rs, { id: `r${Date.now()}`, label: 'Ajuste', pct: 5, target: 'first', first: 20, on: true }])}
             className="self-start min-h-[36px] px-1 text-[13px] font-semibold text-brand-700">+ Ajuste</button>
         </div>
 
@@ -709,7 +734,7 @@ function PricesStep({ tree, reload, goTo }: { tree: GuidedTree; reload: () => Pr
           <div role="tablist" aria-label="Manzana" className="flex gap-1.5 max-w-full overflow-x-auto pb-1">
             {blockTags.map(t => (
               <button key={t} type="button" role="tab" aria-selected={t === tab} onClick={() => setTab(t)}
-                className={`shrink-0 min-h-[32px] px-2.5 rounded-full text-xs ${t === tab ? 'bg-gray-900 text-white font-semibold' : 'bg-white border border-gray-200 text-gray-900 hover:border-gray-300'}`}>{t}</button>
+                className={`shrink-0 min-h-[36px] px-3 rounded-full text-xs ${t === tab ? 'bg-gray-900 text-white font-semibold' : 'bg-white border border-gray-200 text-gray-900 hover:border-gray-300'}`}>{t}</button>
             ))}
           </div>
         )}
@@ -800,14 +825,14 @@ function LoteoListo({ project, tree, goTo, total }: { project: FlowProps['projec
       ]}
       // En el diseño la vista aérea va al lado de la portada, en la fila destacada.
       required={[{
-        key: 'aerea', title: 'Vista aérea con el loteo encima', text: 'Foto de dron + manzanas clicables', href: '/admin/proyecto',
+        key: 'aerea', title: 'Vista aérea con el loteo encima', text: 'Foto de dron + manzanas clicables', href: '/admin/proyecto/galeria',
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" /></svg>,
       }]}
       optional={[
         { label: 'Una foto por lote', text: 'Nombrá los archivos "Mz1-L05" y se asignan solos.', href: '/admin/inventory' },
-        { label: 'Entorno y servicios', text: 'Luz, agua, accesos y lugares cercanos.', href: '/admin/proyecto/ubicacion' },
+        { label: 'Entorno y servicios', text: 'Luz, agua, accesos y lugares cercanos.', href: '/admin/proyecto/entorno' },
         { label: 'Avance de infraestructura', text: 'Calles, redes, alumbrado.', href: '/admin/proyecto/avance' },
-        { label: 'Relato', text: 'Por qué vivir o invertir acá.', href: '/admin/sitio' },
+        { label: 'Relato', text: 'Por qué vivir o invertir acá.', href: '/admin/proyecto/relato' },
       ]}
       hiddenInShowcase="Precios · Estado de venta · Formulario de contacto y leads"
       onBackToStart={() => goTo(2)}

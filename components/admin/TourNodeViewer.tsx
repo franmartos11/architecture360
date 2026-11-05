@@ -24,6 +24,10 @@ interface TourNodeViewerProps {
   initialView?: TourView;
   /** Si viene, se muestra el botón para fijar la vista actual como inicio. */
   onCaptureView?: (view: TourView) => void;
+  /** Para disparar la captura desde un botón propio (ej. "Fijar vista inicial" fuera del visor). */
+  captureRef?: React.MutableRefObject<(() => void) | null>;
+  /** Oculta el botón flotante "Usar esta vista como inicio" (cuando el padre pone el suyo). */
+  hideCaptureButton?: boolean;
 }
 
 // "create" ubica un hotspot que todavía no existe — no hay nada real que
@@ -58,7 +62,7 @@ const MAX_PITCH_SPEED = 0.9; // rad/s
 // público), son clickeables para borrarlos ahí mismo, y se pueden agarrar
 // del ícono y arrastrar a un nuevo lugar para corregir la posición sin
 // borrar y recrear.
-export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, placing, onPlace, onDeleteLink, onDeleteInfo, onMoveLink, onMoveInfo, initialView, onCaptureView }: TourNodeViewerProps) {
+export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, placing, onPlace, onDeleteLink, onDeleteInfo, onMoveLink, onMoveInfo, initialView, onCaptureView, captureRef, hideCaptureButton }: TourNodeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
@@ -395,6 +399,15 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
     // eslint-disable-next-line react-hooks/exhaustive-deps -- listeners de limpieza al desmontar, no hace falta re-sincronizar
   }, []);
 
+  useEffect(() => {
+    if (!captureRef) return;
+    captureRef.current = () => {
+      const view = viewRef.current;
+      if (view && onCaptureView) onCaptureView({ yaw: view.yaw(), pitch: view.pitch(), fov: view.fov() });
+    };
+    return () => { captureRef.current = null; };
+  }, [captureRef, onCaptureView]);
+
   return (
     <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden">
       <div
@@ -407,7 +420,7 @@ export default function TourNodeViewer({ imageUrl, linkHotspots, infoHotspots, p
         style={{ cursor: placing ? 'crosshair' : 'grab', touchAction: 'none' }}
       />
       <div ref={ghostRef} className="admin-tour-ghost-pin" style={{ display: 'none' }} />
-      {onCaptureView && placing === null && (
+      {onCaptureView && placing === null && !hideCaptureButton && (
         <button
           type="button"
           onClick={() => {

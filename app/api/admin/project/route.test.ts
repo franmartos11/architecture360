@@ -6,9 +6,11 @@ vi.mock('@/lib/supabase/require-project-access', () => ({
   resolveRequestedProjectId: vi.fn(),
 }));
 vi.mock('@/data/project-repository', () => ({ getProjectBySlug: vi.fn() }));
+vi.mock('@/lib/revalidate-project', () => ({ revalidateProjectBySlug: vi.fn(), revalidateProjectById: vi.fn() }));
 
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { getProjectBySlug } from '@/data/project-repository';
+import { revalidateProjectBySlug } from '@/lib/revalidate-project';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, PATCH } from './route';
 
@@ -215,6 +217,72 @@ describe('PATCH /api/admin/project', () => {
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'Nuevo nombre' }));
     expect(res.status).toBe(200);
     expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('slug: se normaliza y, si está libre, se guarda', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: null },                                   // ¿lo usa otro proyecto?
+      { data: { slug: 'viejo-link' } },                 // slug anterior
+      { data: { id: 'project-1', slug: 'torre-del-mar' }, error: null },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: '  Torre del Mar! ' }));
+    expect(res.status).toBe(200);
+    const update = supabase.from.mock.results[2].value.update.mock.calls[0][0];
+    expect(update.slug).toBe('torre-del-mar');
+    // El link viejo deja de servirse desde la caché.
+    expect(vi.mocked(revalidateProjectBySlug)).toHaveBeenCalledWith('viejo-link');
+  });
+
+  it('slug largo: se corta a 63 (etiqueta DNS) sin guion final', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: null }, { data: { slug: 'x' } }, { data: { id: 'project-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: `${'a'.repeat(62)} b` }));
+    expect(res.status).toBe(200);
+    const update = supabase.from.mock.results[2].value.update.mock.calls[0][0];
+    expect(update.slug).toBe('a'.repeat(62));
+  });
+
+  it('23505 sin cambio de slug: no se informa como conflicto de link', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: null, error: { code: '23505', message: 'duplicate' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'Otro nombre' }));
+    expect(res.status).toBe(500);
+  });
+
+  it('slug que ya usa otro proyecto: 409, no actualiza', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-2' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: 'torre-del-mar' }));
+    expect(res.status).toBe(409);
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('slug sin letras ni números: 400', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: '!!!' }));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('carrera con otro proyecto al guardar el slug: 409 por la constraint unique', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: null }, { data: { slug: 'viejo' } }, { data: null, error: { code: '23505', message: 'duplicate' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: 'torre-del-mar' }));
+    expect(res.status).toBe(409);
   });
 
   it('constructionProgress: se guarda saneado (sin HTML, sin fotos que no sean http, sin etapas huérfanas)', async () => {

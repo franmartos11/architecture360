@@ -12,6 +12,8 @@ import { THEME_PRESETS, RADIUS_OPTIONS } from '@/lib/theme-presets';
 import { CURATED_FONTS, ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { resolveTheme, getContrastWarnings } from '@/lib/resolve-theme';
 import { getProjectDisplayUrl } from '@/lib/project-url';
+import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { pluralize } from '@/lib/units';
 import type { ThemeConfig, ThemeColorOverrides, CustomFont, SavedTheme, Project } from '@/types';
 
 // Mismo orden en el que se usan los tokens en la landing real — de fondo
@@ -43,6 +45,7 @@ type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 // se toca (mismo autosave que el resto del admin). El preview de abajo
 // muestra exactamente lo que ya está guardado, no un borrador aparte.
 export default function AdminEstiloPage() {
+  const typeConfig = useProjectTypeConfig();
   const [project, setProject] = useState<Project | null>(null);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig | null>(null);
   const [ownerFonts, setOwnerFonts] = useState<CustomFont[]>([]);
@@ -169,6 +172,28 @@ export default function AdminEstiloPage() {
     : `${project.slug}.arq360.com`;
 
   const presetLabel = preset.label;
+  // Vista previa con datos reales: el comienzo de "Sobre el proyecto" y las
+  // tipologías (unidades agrupadas por modelo), como en el sitio público.
+  const aboutExcerpt = (() => {
+    const text = (project.description ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return text.length > 180 ? `${text.slice(0, 180).replace(/\s+\S*$/, '')}…` : text;
+  })();
+  const typologyCards = (() => {
+    const groups = new Map<string, { name: string; count: number; bedrooms: number; minArea: number }>();
+    for (const u of project.units ?? []) {
+      const name = (u.modelName || u.type || '').trim();
+      if (!name) continue;
+      const g = groups.get(name) ?? { name, count: 0, bedrooms: u.bedrooms ?? 0, minArea: Infinity };
+      g.count += 1;
+      if (u.totalArea) g.minArea = Math.min(g.minArea, u.totalArea);
+      groups.set(name, g);
+    }
+    return [...groups.values()].map(g => ({
+      name: g.name,
+      count: g.count,
+      meta: [g.bedrooms ? `${g.bedrooms} dorm.` : null, Number.isFinite(g.minArea) ? `desde ${Math.round(g.minArea)} m²` : null].filter(Boolean).join(' · ') || `${g.count} disponibles`,
+    }));
+  })();
   const label = 'text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500';
   const fontFamilyOf = (key: string | undefined, fallback: typeof preset.headingFont) => {
     if (key?.startsWith('custom:')) return resolved.cssVars[key === themeConfig.headingFont ? '--theme-font-heading' : '--theme-font-body'];
@@ -453,72 +478,73 @@ export default function AdminEstiloPage() {
             <div className={ALL_FONT_CLASSNAMES} style={resolved.cssVars as React.CSSProperties}>
               {resolved.fontFaceCss && <style dangerouslySetInnerHTML={{ __html: resolved.fontFaceCss }} />}
 
-              <div
-                className="relative flex flex-col items-center justify-center gap-2.5 text-center px-6 overflow-hidden bg-[var(--theme-bg-alt)]"
-                style={{ height: device === 'mobile' ? 240 : 300 }}
-              >
-                <div className="absolute inset-0 opacity-70" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0 10px, rgba(255,255,255,0) 10px 20px)' }} />
-                <div className="relative flex flex-col items-center gap-2">
-                  <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-75" style={{ fontSize: 9, letterSpacing: '0.22em' }}>
+              {/* Hero real del proyecto: portada, nav del sitio, nombre, bajada y llamados. */}
+              <div className="relative flex flex-col overflow-hidden bg-[var(--theme-bg-alt)]" style={{ minHeight: device === 'mobile' ? 300 : 360 }}>
+                {project.masterplanImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={project.masterplanImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 opacity-70" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0 10px, rgba(255,255,255,0) 10px 20px)' }} />
+                )}
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,.05) 40%, rgba(0,0,0,.55) 100%)' }} aria-hidden="true" />
+                <div className="relative flex items-start justify-between gap-4" style={{ padding: device === 'mobile' ? '16px 18px' : '20px 28px' }}>
+                  <span className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text-on-dark)] leading-tight max-w-[40%]" style={{ fontSize: device === 'mobile' ? 13 : 15 }}>{project.name}</span>
+                  {device === 'desktop' && (
+                    <span className="font-[family-name:var(--theme-font-body)] font-medium text-[var(--theme-text-on-dark)]" style={{ fontSize: 9, letterSpacing: '0.16em' }}>
+                      {(typeConfig.hasUnitStep ? `${pluralize(typeConfig.unitLabel)} · ` : '').toUpperCase()}UBICACIÓN · CONTACTO
+                    </span>
+                  )}
+                </div>
+                <div className="relative mt-auto flex flex-col gap-2" style={{ padding: device === 'mobile' ? '0 18px 22px' : '0 28px 30px' }}>
+                  <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-85" style={{ fontSize: 9, letterSpacing: '0.22em' }}>
                     {(project.location || 'UBICACIÓN').toUpperCase()}
                   </p>
-                  <p className="font-[family-name:var(--theme-font-heading)] font-normal text-[var(--theme-text-on-dark)] max-w-[80%]" style={{ fontSize: device === 'mobile' ? 22 : 32, lineHeight: 1.15 }}>
+                  <p className="font-[family-name:var(--theme-font-heading)] font-normal text-[var(--theme-text-on-dark)] max-w-[85%]" style={{ fontSize: device === 'mobile' ? 26 : 38, lineHeight: 1.08 }}>
                     {project.name}
                   </p>
                   {project.tagline && (
-                    <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-80 text-xs">{project.tagline}</p>
+                    <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-90 max-w-[520px]" style={{ fontSize: device === 'mobile' ? 12 : 13 }}>{project.tagline}</p>
                   )}
-                  <button
-                    type="button"
-                    className="mt-2 font-[family-name:var(--theme-font-body)] font-medium"
-                    style={{
-                      fontSize: 9, letterSpacing: '0.16em', padding: device === 'mobile' ? '8px 16px' : '10px 22px',
-                      border: '1px solid var(--theme-text-on-dark)', color: 'var(--theme-text-on-dark)', borderRadius: `min(var(--theme-radius), 22px)`,
-                    }}
-                  >
-                    VER MASTERPLAN
-                  </button>
+                  <div className="flex gap-2 flex-wrap mt-2">
+                    {typeConfig.hasUnitStep && (
+                      <span className="font-[family-name:var(--theme-font-body)] font-semibold"
+                        style={{ fontSize: 11, padding: '9px 16px', background: 'var(--theme-text-on-dark)', color: 'var(--theme-bg-alt)', borderRadius: `min(var(--theme-radius), 22px)` }}>
+                        Ver {pluralize(typeConfig.unitLabel).toLowerCase()}
+                      </span>
+                    )}
+                    {typeConfig.showLeads && (
+                      <span className="font-[family-name:var(--theme-font-body)] font-semibold"
+                        style={{ fontSize: 11, padding: '9px 16px', border: '1px solid var(--theme-text-on-dark)', color: 'var(--theme-text-on-dark)', borderRadius: `min(var(--theme-radius), 22px)` }}>
+                        Consultar
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 bg-[var(--theme-bg)]" style={{ padding: device === 'mobile' ? '28px 22px' : '46px 56px' }}>
+              {/* "Sobre el proyecto" + tipologías reales (agrupadas por modelo). */}
+              <div className="flex flex-col gap-3 bg-[var(--theme-bg)]" style={{ padding: device === 'mobile' ? '26px 20px' : '40px 48px' }}>
                 <p className="font-[family-name:var(--theme-font-body)] font-medium text-[var(--theme-accent)]" style={{ fontSize: 9, letterSpacing: '0.2em' }}>SOBRE EL PROYECTO</p>
-                <p className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text)]" style={{ fontSize: device === 'mobile' ? 20 : 27, lineHeight: 1.2 }}>
-                  Tu proyecto, con esta combinación
+                <p className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text)]" style={{ fontSize: device === 'mobile' ? 20 : 26, lineHeight: 1.2 }}>
+                  {project.tagline || project.name}
                 </p>
-                <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-muted)] text-sm leading-relaxed max-w-[560px]">
-                  Así se ven los títulos y el cuerpo de texto en la landing pública.
+                <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-muted)] text-sm leading-relaxed max-w-[600px]">
+                  {aboutExcerpt || 'Acá va el texto de "Sobre el proyecto" que cargás en la Ficha › Relato.'}
                 </p>
-                <div className="flex gap-3 flex-wrap mt-1">
-                  <span
-                    className="font-[family-name:var(--theme-font-body)] font-medium"
-                    style={{ fontSize: 9, letterSpacing: '0.14em', padding: '10px 20px', background: 'var(--theme-accent)', color: 'var(--theme-text-on-dark)', borderRadius: `min(var(--theme-radius), 22px)` }}
-                  >
-                    VER LOTES
-                  </span>
-                  <span
-                    className="font-[family-name:var(--theme-font-body)] font-medium"
-                    style={{ fontSize: 9, letterSpacing: '0.14em', padding: '10px 20px', border: '1px solid var(--theme-text)', color: 'var(--theme-text)', borderRadius: `min(var(--theme-radius), 22px)` }}
-                  >
-                    TOUR 360°
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 items-start bg-[var(--theme-bg-alt)]" style={{ padding: device === 'mobile' ? '28px 22px' : '46px 56px' }}>
-                <p className="font-[family-name:var(--theme-font-body)] font-medium text-[var(--theme-text-on-dark)] opacity-60" style={{ fontSize: 9, letterSpacing: '0.2em' }}>MASTERPLAN INTERACTIVO</p>
-                <p className="font-[family-name:var(--theme-font-heading)] font-normal text-[var(--theme-text-on-dark)]" style={{ fontSize: device === 'mobile' ? 19 : 24 }}>
-                  Sección oscura / de contraste
-                </p>
-                <p className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-70 text-xs leading-relaxed max-w-[460px]">
-                  Se usa para el masterplan, las tipologías y el cierre de la página.
-                </p>
-                <span
-                  className="mt-1 font-[family-name:var(--theme-font-body)] font-medium"
-                  style={{ fontSize: 9, letterSpacing: '0.14em', padding: '9px 18px', background: 'var(--theme-bg-accent)', color: 'var(--theme-text-on-dark)', borderRadius: `min(var(--theme-radius), 22px)` }}
-                >
-                  ENTRAR AL MASTERPLAN
-                </span>
+                {typologyCards.length > 0 && (
+                  <div className="grid gap-3 mt-2" style={{ gridTemplateColumns: `repeat(${device === 'mobile' ? 1 : Math.min(3, typologyCards.length)}, minmax(0, 1fr))` }}>
+                    {typologyCards.slice(0, device === 'mobile' ? 2 : 3).map(t => (
+                      <div key={t.name} className="flex flex-col gap-1.5 p-4 bg-[var(--theme-bg-alt)]" style={{ borderRadius: 'var(--theme-radius)' }}>
+                        <span className="font-[family-name:var(--theme-font-heading)] text-[var(--theme-text-on-dark)]" style={{ fontSize: 16 }}>{t.name}</span>
+                        <span className="font-[family-name:var(--theme-font-body)] text-[var(--theme-text-on-dark)] opacity-75" style={{ fontSize: 11 }}>{t.meta}</span>
+                        <span className="mt-1 self-start font-[family-name:var(--theme-font-body)] font-semibold"
+                          style={{ fontSize: 10, padding: '6px 12px', background: 'var(--theme-accent)', color: 'var(--theme-text-on-dark)', borderRadius: `min(var(--theme-radius), 22px)` }}>
+                          Ver {t.count} {t.count === 1 ? typeConfig.unitLabel.toLowerCase() : pluralize(typeConfig.unitLabel).toLowerCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -85,6 +85,37 @@ describe('POST /api/admin/guided', () => {
     expect(unitsInsert.map(u => [u.floor_id, u.code])).toEqual([['f1', '1A'], ['f1', '1B'], ['f2', '2A'], ['f2', '2B']]);
   });
 
+  it('respeta un piso con otra cantidad de unidades', async () => {
+    const supabase = withAccess([
+      { data: { name: 'P', project_type: 'edificio', sale_mode: 'venta' } },
+      { count: 0 },
+      { data: { id: 'b1' } },
+      { data: [{ id: 'f1', number: 1 }, { id: 'f2', number: 2 }] },
+      { error: null },
+      { data: [] },
+    ]);
+    const res = await POST(jsonRequest(URL, { kind: 'edificio', scheme: 'letter', towers: [{ name: 'Torre', floors: 2, perFloor: 3, groundFloor: 'none', penthouses: 0, floorOverrides: { '2': 1, '9': 5, x: 2 } }] }));
+    expect(res.status).toBe(201);
+    const rows = supabase.from.mock.results[4].value.insert.mock.calls[0][0] as { code: string }[];
+    expect(rows.map(r => r.code)).toEqual(['1A', '1B', '1C', '2A']);
+  });
+
+  it('dúplex con una unidad de otro modelo', async () => {
+    const supabase = withAccess([
+      { data: { name: 'P', project_type: 'duplex', sale_mode: 'venta' } },
+      { count: 0 },
+      { data: { id: 'b1' } },
+      { data: [{ id: 'f1', number: 1 }] },
+      { error: null },
+      { data: [] },
+    ]);
+    const models = [{ name: 'Frente', bedrooms: 3 }, { name: 'Fondo', bedrooms: 2 }];
+    const res = await POST(jsonRequest(URL, { kind: 'duplex', count: 1, perDuplex: 2, models, unitModels: { 'D1-A': 1, 'X-9': 0 } }));
+    expect(res.status).toBe(201);
+    const rows = supabase.from.mock.results[4].value.insert.mock.calls[0][0] as { model_name: string }[];
+    expect(rows.map(r => r.model_name)).toEqual(['Fondo', 'Fondo']);
+  });
+
   it('si falla a mitad de camino borra lo creado', async () => {
     const supabase = withAccess([
       { data: { name: 'P', project_type: 'edificio', sale_mode: 'venta' } },
@@ -120,6 +151,18 @@ describe('PATCH /api/admin/guided', () => {
     ]);
     const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', price: 10 }] }, { method: 'PATCH' }));
     expect(res.status).toBe(400);
+  });
+
+  it('acepta precio, superficie, estado y orientación (pegado desde Excel en Unidades)', async () => {
+    const supabase = withAccess([
+      { data: [{ id: 'b1' }] },
+      { data: [{ id: 'f1' }] },
+      { data: [{ id: 'u1', floor_id: 'f1' }] },
+      { error: null },
+    ]);
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', price: 185000, totalArea: 74, status: 'reserved', orientation: 'NE' }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[3].value.update.mock.calls[0][0]).toMatchObject({ price: 185000, total_area: 74, status: 'reserved', orientation: 'NE' });
   });
 
   it('actualiza unidades y pisos propios', async () => {

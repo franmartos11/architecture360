@@ -1,6 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import BulkImageUploader from '@/components/admin/BulkImageUploader';
@@ -81,11 +84,38 @@ function SectionPreview({ levels }: { levels: { key: string; name: string; use: 
   );
 }
 
+function LevelsDnd({ ids, onDragEnd, children }: { ids: string[]; onDragEnd: (e: DragEndEvent) => void; children: ReactNode }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    </DndContext>
+  );
+}
+
+/** Fila de nivel arrastrable: el asa de 6 puntos (diseño) mueve la fila. */
+function SortableLevel({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`group relative rounded-xl border bg-white pl-6 ${isDragging ? 'border-brand-700 shadow-[0_12px_28px_-12px_rgba(23,25,26,0.35)] z-10' : 'border-gray-200'}`}>
+      <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label={`Arrastrar ${label} para reordenar`}
+        className="absolute left-1 top-1/2 -translate-y-1/2 w-5 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing touch-none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" /></svg>
+      </button>
+      {children}
+    </div>
+  );
+}
+
 function LevelsStep({ tree, setTree, goTo }: { tree: GuidedTree; setTree: (t: GuidedTree) => void; goTo: (n: number) => void }) {
   const api = useGuidedApi();
   const existing = levelsOf(tree);
   const [levels, setLevels] = useState<LevelDraft[]>(() =>
-    ['Terraza', 'Nivel 2', 'Nivel 1', 'Planta baja'].map(name => ({ key: newKey(), name, use: '', planImage: '' })));
+    ['Terraza', 'Nivel 2', 'Nivel 1', 'Planta baja', 'Subsuelo'].map(name => ({ key: newKey(), name, use: '', planImage: '' })));
   const [openPlan, setOpenPlan] = useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -139,6 +169,14 @@ function LevelsStep({ tree, setTree, goTo }: { tree: GuidedTree; setTree: (t: Gu
     return next;
   });
   const withPlan = levels.filter(l => l.planImage).length;
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    setLevels(ls => {
+      const from = ls.findIndex(l => l.key === active.id);
+      const to = ls.findIndex(l => l.key === over.id);
+      return from < 0 || to < 0 ? ls : arrayMove(ls, from, to);
+    });
+  };
 
   const create = async () => {
     setError('');
@@ -163,11 +201,12 @@ function LevelsStep({ tree, setTree, goTo }: { tree: GuidedTree; setTree: (t: Gu
         </StepIntro>
 
         <div className="flex flex-col gap-2">
+          <LevelsDnd ids={levels.map(l => l.key)} onDragEnd={onDragEnd}>
           {levels.map((l, i) => (
-            <div key={l.key} className="group rounded-xl border border-gray-200 bg-white">
+            <SortableLevel key={l.key} id={l.key} label={l.name}>
               <div className="flex items-center gap-2.5 min-h-[60px] py-2 pl-1.5 pr-2.5 flex-wrap sm:flex-nowrap">
-                {/* Reordenar (en el diseño es un asa de arrastre). */}
-                <span className="flex flex-col shrink-0">
+                {/* ▲▼ solo para teclado (aparecen con foco); con el mouse se arrastra el asa. */}
+                <span className="sr-only focus-within:not-sr-only flex flex-col shrink-0">
                   <button type="button" aria-label={`Subir ${l.name}`} disabled={i === 0} onClick={() => move(i, -1)} className={orderBtn}>▲</button>
                   <button type="button" aria-label={`Bajar ${l.name}`} disabled={i === levels.length - 1} onClick={() => move(i, 1)} className={orderBtn}>▼</button>
                 </span>
@@ -196,8 +235,9 @@ function LevelsStep({ tree, setTree, goTo }: { tree: GuidedTree; setTree: (t: Gu
                   <ImageUploader value={l.planImage} onChange={url => update(l.key, { planImage: url })} folder="floorplans" label={`Planta de ${l.name}`} />
                 </div>
               )}
-            </div>
+            </SortableLevel>
           ))}
+          </LevelsDnd>
           <button type="button" onClick={() => setLevels(ls => [{ key: newKey(), name: `Nivel ${ls.length}`, use: '', planImage: '' }, ...ls])}
             className="self-start min-h-[36px] px-1 text-[13px] font-semibold text-brand-700">+ Nivel</button>
         </div>
@@ -421,12 +461,12 @@ function UnicoListo({ project, tree, goTo }: { project: FlowProps['project']; tr
       title="El edificio ya se puede recorrer."
       text={`${levels.length} niveles y ${spaces} espacios. Al ser un proyecto para mostrar, lo que más pesa ahora es el relato, el equipo y las imágenes.`}
       stats={[{ value: String(levels.length), label: 'niveles' }, { value: String(spaces), label: 'espacios' }]}
-      required={[{ key: 'equipo', title: 'Equipo y ficha académica', text: 'Aparece en el portfolio de cada persona', href: '/admin/proyecto' }]}
+      required={[{ key: 'equipo', title: 'Equipo y ficha académica', text: 'Aparece en el portfolio de cada persona', href: '/admin/proyecto/equipo' }]}
       optional={[
-        { label: 'Relato', text: 'La idea, el programa, el lugar.', href: '/admin/sitio' },
-        { label: 'Proceso y antes / después', text: 'Maquetas, bocetos y obra.', href: '/admin/proyecto' },
+        { label: 'Relato', text: 'La idea, el programa, el lugar.', href: '/admin/proyecto/relato' },
+        { label: 'Proceso y antes / después', text: 'Maquetas, bocetos y obra.', href: '/admin/proyecto/avance' },
         { label: 'Recorrido 360° y BIM', text: 'Escenas por espacio y modelo IFC.', href: '/admin/proyecto/recorrido' },
-        { label: 'Ubicación', text: 'El edificio en su contexto.', href: '/admin/proyecto/ubicacion' },
+        { label: 'Ubicación', text: 'El edificio en su contexto.', href: '/admin/proyecto/entorno' },
       ]}
       hiddenInShowcase="Precios, estados y leads"
       onBackToStart={() => goTo(2)}

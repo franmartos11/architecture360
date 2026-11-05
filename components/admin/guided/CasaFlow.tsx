@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
+import { defaultRoomGroup, matchRoomByFilename, type RoomGroup } from '@/lib/guided-structure';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -73,6 +75,8 @@ function DatosStep({ project, unit, reload, onNext }: { project: GuidedProject; 
     lotSize: unit.lot_size,
     innerArea: unit.inner_area,
     balconyArea: unit.balcony_area || null as number | null,
+    // Balcón va en external_area: balcony_area ya es la semicubierta.
+    externalArea: unit.external_area || null as number | null,
     price: unit.price,
     hoaFee: unit.hoa_fee,
     status: unit.status,
@@ -100,6 +104,7 @@ function DatosStep({ project, unit, reload, onNext }: { project: GuidedProject; 
       lotSize: f.lotSize,
       innerArea: f.innerArea,
       balconyArea: f.balconyArea ?? 0,
+      externalArea: f.externalArea ?? 0,
       totalArea: total > 0 ? total : null,
       features: f.features,
     };
@@ -213,10 +218,11 @@ function DatosStep({ project, unit, reload, onNext }: { project: GuidedProject; 
       </FormSection>
 
       <FormSection title="Superficies">
-        <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-4">
           <NumberField label="Terreno" suffix="m²" value={f.lotSize} onChange={n => set('lotSize', n)} />
           <NumberField label="Cubierta" suffix="m²" value={f.innerArea} onChange={n => set('innerArea', n)} />
           <NumberField label="Semicubierta" suffix="m²" value={f.balconyArea} onChange={n => set('balconyArea', n)} />
+          <NumberField label="Balcón" suffix="m²" value={f.externalArea} onChange={n => set('externalArea', n)} />
         </div>
         {total > 0 && <p className="m-0 text-xs text-gray-500">Superficie total construida: {formatNumber(total)} m²</p>}
       </FormSection>
@@ -268,7 +274,11 @@ const newRoomId = () => `room-${Date.now().toString(36)}-${(roomSeq++).toString(
 
 function roomsFromCounts(unit: GUnit): GRoom[] {
   const rooms: GRoom[] = [];
-  const add = (kind: RoomKind, name: string) => rooms.push({ id: newRoomId(), name, kind, images: [] });
+  let baths = 0;
+  const add = (kind: RoomKind, name: string) => {
+    const group = defaultRoomGroup({ name, kind }, unit.floors_count, kind === 'bathroom' ? baths++ : 0);
+    rooms.push({ id: newRoomId(), name, kind, images: [], group });
+  };
   for (let i = 1; i <= Math.max(1, unit.living_rooms); i++) add('living', unit.living_rooms > 1 ? `Living ${i}` : 'Living');
   add('kitchen', 'Cocina');
   for (let i = 1; i <= unit.bedrooms; i++) add('bedroom', unit.bedrooms > 1 ? `Dormitorio ${i}` : 'Dormitorio');
@@ -283,7 +293,23 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const { patch } = useGuidedApi();
   const toast = useToast();
   const existingNodes = useMemo(() => unit.tour_data?.nodes ?? [], [unit.tour_data]);
-  const [rooms, setRooms] = useState<GRoom[]>(() => (unit.rooms && unit.rooms.length > 0 ? unit.rooms.map(r => ({ ...r, images: r.images ?? [] })) : roomsFromCounts(unit)));
+  const [rooms, setRooms] = useState<GRoom[]>(() => {
+    if (!unit.rooms || unit.rooms.length === 0) return roomsFromCounts(unit);
+    let baths = 0;
+    return unit.rooms.map(r => ({
+      ...r,
+      images: r.images ?? [],
+      group: r.group ?? defaultRoomGroup(r, unit.floors_count, r.kind === 'bathroom' ? baths++ : 0),
+    }));
+  });
+  const roomsRef = useRef(rooms);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
+  // Planta que se está viendo (chips "Planta baja · 6 / Planta alta · 6 / Exterior · 3").
+  const [tab, setTab] = useState<RoomGroup>('pb');
+  // Carga masiva: fotos que no se pudieron asignar solas por el nombre.
+  const [unassigned, setUnassigned] = useState<{ url: string; name: string }[]>([]);
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+  const bulkInput = useRef<HTMLInputElement>(null);
   const [panos, setPanos] = useState<Record<string, string>>(() => Object.fromEntries(
     (unit.rooms ?? []).filter(r => r.tourNodeId).map(r => [r.id, existingNodes.find(n => n.id === r.tourNodeId)?.imageUrl ?? '']),
   ));
@@ -322,7 +348,8 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
     const tourData: TourData | null = nodes.length
       ? { initialNodeId: nodes.some(n => n.id === unit.tour_data?.initialNodeId) ? unit.tour_data!.initialNodeId : nodes[0].id, nodes }
       : null;
-    const gallery = [...new Set([...(unit.gallery_images ?? []), ...rooms.flatMap(r => r.images ?? [])].filter(Boolean))];
+    // Las fotos sin ambiente igual van a la galería, para no perderlas.
+    const gallery = [...new Set([...(unit.gallery_images ?? []), ...rooms.flatMap(r => r.images ?? []), ...unassigned.map(p => p.url)].filter(Boolean))];
     const res = await patch({ units: [{ id: unit.id, rooms: nextRooms, tourData, galleryImages: gallery }] });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
@@ -334,7 +361,48 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const TINTS = [['#CFCAC0', '#DAD5CB'], ['#C9D3CD', '#D6DED9'], ['#D7CFC2', '#E0D9CD'], ['#C9CFD6', '#D5DAE0']];
   const counts = `${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'}, ${Math.round(unit.bathrooms)} baño${Math.round(unit.bathrooms) === 1 ? '' : 's'}, living…`;
   const selected = rooms.find(r => r.id === openId) ?? null;
-  const addRoom = () => { const id = newRoomId(); setRooms(prev => [...prev, { id, name: 'Ambiente', kind: 'other', images: [] }]); setOpenId(id); };
+  const addRoom = () => { const id = newRoomId(); setRooms(prev => [...prev, { id, name: 'Ambiente', kind: 'other', images: [], group: tab }]); setOpenId(id); };
+  const GROUPS: { value: RoomGroup; label: string }[] = [
+    { value: 'pb', label: unit.floors_count > 1 ? 'Planta baja' : 'Interior' },
+    ...(unit.floors_count > 1 || rooms.some(r => r.group === 'pa') ? [{ value: 'pa' as const, label: 'Planta alta' }] : []),
+    { value: 'ext', label: 'Exterior' },
+  ];
+  const visibleRooms = rooms.filter(r => (r.group ?? 'pb') === tab);
+
+  const uploadAll = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = [...files].filter(f => f.type.startsWith('image/'));
+    setBulk({ done: 0, total: list.length });
+    const uploaded: { url: string; name: string }[] = [];
+    let failed = 0;
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
+      const res = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', file, { folder: 'units' });
+      if (res.ok) uploaded.push({ url: res.data.url, name: file.name });
+      else failed++;
+      setBulk({ done: i + 1, total: list.length });
+    }
+    // Se asigna recién al terminar y contra los ambientes ACTUALES: si
+    // alguien borró o renombró un ambiente durante la subida, sus fotos van
+    // a "para asignar a mano" en vez de perderse.
+    const current = roomsRef.current;
+    const assigned: Record<string, string[]> = {};
+    const loose: { url: string; name: string }[] = [];
+    for (const u of uploaded) {
+      const roomId = matchRoomByFilename(u.name, current);
+      if (roomId) (assigned[roomId] ??= []).push(u.url);
+      else loose.push(u);
+    }
+    setRooms(prev => prev.map(r => (assigned[r.id] ? { ...r, images: [...(r.images ?? []), ...assigned[r.id]] } : r)));
+    setUnassigned(prev => [...prev, ...loose]);
+    setBulk(null);
+    const ok = list.length - failed - loose.length;
+    toast(`${ok} foto${ok === 1 ? '' : 's'} asignada${ok === 1 ? '' : 's'} sola${ok === 1 ? '' : 's'}${loose.length ? ` · ${loose.length} para asignar a mano` : ''}${failed ? ` · ${failed} no se pudieron subir` : ''}.`, failed ? 'error' : undefined);
+  };
+  const assignLoose = (url: string, roomId: string) => {
+    setRooms(prev => prev.map(r => (r.id === roomId ? { ...r, images: [...(r.images ?? []), url] } : r)));
+    setUnassigned(prev => prev.filter(p => p.url !== url));
+  };
 
   // Editor de un ambiente: nombre, tipo, m², fotos y panorámica. En desktop
   // aparece debajo de la grilla al tocar una tarjeta; en celular, adentro
@@ -350,6 +418,12 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
           <FieldLabel>Tipo</FieldLabel>
           <select value={r.kind ?? 'other'} onChange={e => update(r.id, { kind: e.target.value as RoomKind })} className={inputClass}>
             {KIND_OPTIONS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5 w-[130px] max-sm:flex-1">
+          <FieldLabel>Planta</FieldLabel>
+          <select value={r.group ?? 'pb'} onChange={e => update(r.id, { group: e.target.value as RoomGroup })} className={inputClass}>
+            {GROUPS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1.5 w-[110px] max-sm:flex-1">
@@ -377,13 +451,56 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   return (
     <main className="flex-1 px-4 py-8 sm:px-10 sm:pt-10 sm:pb-12">
       <div className="max-w-[1160px] mx-auto flex flex-col gap-6">
-        <StepIntro eyebrow="Paso 2 de 3" title="Recorré la casa por ambientes">
-          Armamos la lista con lo que cargaste: {counts} Soltá las fotos de cada ambiente; si tenés panorámicas, se arma el recorrido 360°.
-        </StepIntro>
+        <div className="flex items-end justify-between gap-6 flex-wrap">
+          <StepIntro eyebrow="Paso 2 de 3" title="Recorré la casa por ambientes">
+            Armamos la lista con lo que cargaste: {counts} Soltá las fotos de cada ambiente; si tenés panorámicas, se arma el recorrido 360°.
+          </StepIntro>
+          <input ref={bulkInput} type="file" accept="image/*" multiple className="sr-only" tabIndex={-1}
+            onChange={e => { uploadAll(e.target.files); e.target.value = ''; }} />
+          <button type="button" onClick={() => bulkInput.current?.click()} disabled={!!bulk}
+            onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); uploadAll(e.dataTransfer.files); }}
+            className="max-sm:w-full flex items-center justify-center gap-2.5 min-h-[52px] px-[18px] rounded-xl border-[1.5px] border-dashed border-[#C9C3B7] bg-gray-50 text-[13px] font-semibold text-gray-900 hover:border-gray-400 disabled:opacity-70">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
+            {bulk ? `Subiendo ${bulk.done} de ${bulk.total}…` : 'Soltar todas las fotos juntas'}
+          </button>
+        </div>
+        <p className="m-0 -mt-3 text-xs text-gray-500">Si el archivo se llama como el ambiente (&quot;cocina.jpg&quot;, &quot;dorm2.jpg&quot;, &quot;baño 1.png&quot;) se asigna solo.</p>
+
+        <div role="tablist" aria-label="Plantas" className="flex gap-2 flex-wrap">
+          {GROUPS.map(g => {
+            const n = rooms.filter(r => (r.group ?? 'pb') === g.value).length;
+            const on = tab === g.value;
+            return (
+              <button key={g.value} type="button" role="tab" aria-selected={on} onClick={() => { setTab(g.value); setOpenId(null); }}
+                className={`min-h-[36px] px-3 rounded-full text-xs ${on ? 'bg-gray-900 text-white font-semibold' : 'bg-white border border-gray-200 text-gray-900 font-medium hover:border-gray-300'}`}>
+                {g.label} · {n}
+              </button>
+            );
+          })}
+        </div>
+
+        {unassigned.length > 0 && (
+          <section aria-label="Fotos sin asignar" className="p-4 rounded-[14px] bg-amber-50 border border-amber-200 flex flex-col gap-3">
+            <span className="text-[13px] font-semibold text-amber-800">{unassigned.length} foto{unassigned.length === 1 ? '' : 's'} sin ambiente — elegí a cuál va cada una</span>
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))' }}>
+              {unassigned.map(p => (
+                <div key={p.url} className="flex flex-col gap-1.5 p-2 rounded-xl bg-white border border-gray-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt="" className="w-full aspect-[4/3] object-cover rounded-lg" />
+                  <span className="text-[11px] text-gray-500 truncate" title={p.name}>{p.name}</span>
+                  <select aria-label={`Ambiente para ${p.name}`} value="" onChange={e => e.target.value && assignLoose(p.url, e.target.value)} className={`${inputClass} !min-h-[38px] !text-xs`}>
+                    <option value="">Asignar a…</option>
+                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Desktop: grilla de tarjetas como en el diseño; tocar una abre su editor abajo. */}
         <div className="max-sm:hidden grid gap-3.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          {rooms.map((r, i) => {
+          {visibleRooms.map((r, i) => {
             const photos = r.images?.length ?? 0;
             const empty = photos === 0;
             const on = openId === r.id;
@@ -427,7 +544,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
 
         {/* Celular: un ambiente abierto por vez. */}
         <div className="sm:hidden flex flex-col gap-2">
-          {rooms.map(r => {
+          {visibleRooms.map(r => {
             const open = openId === r.id;
             const photos = r.images?.length ?? 0;
             return (
@@ -488,9 +605,9 @@ function CasaListo({ project, unit, onBackToStart }: { project: GuidedProject; u
         text={`${lead}. Falta la portada y el texto que la cuenta.`}
         optionalTitle="Para que luzca en tu portfolio"
         optional={[
-          { label: 'Relato', text: 'Idea, sitio y materiales', href: '/admin/sitio', tag: 'Recomendado' },
-          { label: 'Equipo y créditos', text: 'Estudio, colaboradores, fotografía', href: '/admin/sitio', tag: 'Recomendado' },
-          { label: 'Proceso y antes / después', text: 'Bocetos, maqueta, obra', href: '/admin/proyecto', tag: 'Suma' },
+          { label: 'Relato', text: 'Idea, sitio y materiales', href: '/admin/proyecto/relato', tag: 'Recomendado' },
+          { label: 'Equipo y créditos', text: 'Estudio, colaboradores, fotografía', href: '/admin/proyecto/equipo', tag: 'Recomendado' },
+          { label: 'Proceso y antes / después', text: 'Bocetos, maqueta, obra', href: '/admin/proyecto/avance', tag: 'Suma' },
           { label: 'Planos y modelo BIM', text: 'Planta, corte, IFC', href: '/admin/proyecto/bim', tag: 'Suma' },
         ]}
         hiddenInShowcase="No se muestran precio, estado, consulta ni calculadora."
@@ -509,10 +626,10 @@ function CasaListo({ project, unit, onBackToStart }: { project: GuidedProject; u
       optionalTitle="Suma, pero no bloquea"
       optionalLayout="rows"
       optional={[
-        { label: 'Vista frontal', text: 'Una foto de la fachada con puntos de interés', href: '/admin/proyecto' },
-        { label: 'Entorno', text: 'Ubicación y lugares cercanos', href: '/admin/proyecto/ubicacion' },
+        { label: 'Vista frontal', text: 'Una foto de la fachada con puntos de interés', href: '/admin/proyecto/galeria' },
+        { label: 'Entorno', text: 'Ubicación y lugares cercanos', href: '/admin/proyecto/entorno' },
         { label: 'Planos y modelo BIM', text: 'Planta 3D, plano técnico, IFC', href: '/admin/proyecto/bim' },
-        { label: 'Relato y equipo', text: 'Quién la diseñó y por qué', href: '/admin/sitio' },
+        { label: 'Relato y equipo', text: 'Quién la diseñó y por qué', href: '/admin/proyecto/relato' },
       ]}
       aside={
         <PreviewCard
