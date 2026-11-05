@@ -1,4 +1,4 @@
-/* Montserrat NO se importa de Google: la auto-hostea next/font/google en
+/* Montserrat NO se importa de Google: la auto-hostea next/font/local en
    lib/fonts.ts y el layout raíz expone su variable (--font-montserrat).
    El @import que había acá la volvía a bajar de fonts.googleapis.com con
    los 9 pesos, y esa cadena (CSS → googleapis → gstatic) era el camino

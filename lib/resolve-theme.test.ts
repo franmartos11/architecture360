@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// resolve-theme.ts importa lib/fonts.ts, que a su vez importa next/font/google
+// resolve-theme.ts importa lib/fonts.ts, que a su vez importa next/font/local
 // — ese paquete depende del compiler de Next.js y no corre en el entorno
 // plano de Vitest. Se mockea con un catálogo mínimo que cubre las mismas
 // keys que usan los presets de theme-presets.ts.

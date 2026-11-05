@@ -1,18 +1,19 @@
-import { Montserrat, Inter, Inter_Tight, Space_Grotesk, Fraunces, Source_Serif_4, Karla, Manrope } from 'next/font/google';
+import localFont from 'next/font/local';
 
-// Tipografía curada para el sistema de temas (ver lib/theme-presets.ts) —
-// auto-hosteada vía next/font/google, cero requests externos en runtime.
-// Cada una se carga UNA sola vez acá y se referencia por variable CSS
-// (--font-<key>) desde los presets — así "cambiar de tema" es solo
-// cambiar qué variable usa font-family, sin recargar nada.
-const montserrat = Montserrat({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'], variable: '--font-montserrat' });
-const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter-theme' });
-const interTight = Inter_Tight({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter-tight' });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-space-grotesk' });
-const fraunces = Fraunces({ subsets: ['latin'], weight: ['300', '400', '500', '600'], variable: '--font-fraunces' });
-const sourceSerif = Source_Serif_4({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-source-serif' });
-const karla = Karla({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-karla' });
-const manrope = Manrope({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-manrope' });
+// Tipografía curada para el sistema de temas (ver lib/theme-presets.ts).
+// Los archivos viven en app/fonts (subset latin, fuentes variables) en vez
+// de bajarse de Google Fonts en cada build: esa descarga fallaba de forma
+// intermitente y tiraba el deploy. Cada una se carga UNA sola vez acá y se
+// referencia por variable CSS (--font-<key>) desde los presets — así
+// "cambiar de tema" es solo cambiar qué variable usa font-family.
+const montserrat = localFont({ src: '../app/fonts/montserrat.woff2', weight: '300 700', variable: '--font-montserrat' });
+const inter = localFont({ src: '../app/fonts/inter.woff2', weight: '300 800', variable: '--font-inter-theme' });
+const interTight = localFont({ src: '../app/fonts/inter-tight.woff2', weight: '400 700', variable: '--font-inter-tight' });
+const spaceGrotesk = localFont({ src: '../app/fonts/space-grotesk.woff2', weight: '400 700', variable: '--font-space-grotesk' });
+const fraunces = localFont({ src: '../app/fonts/fraunces.woff2', weight: '300 600', variable: '--font-fraunces' });
+const sourceSerif = localFont({ src: '../app/fonts/source-serif-4.woff2', weight: '400 600', variable: '--font-source-serif' });
+const karla = localFont({ src: '../app/fonts/karla.woff2', weight: '400 700', variable: '--font-karla' });
+const manrope = localFont({ src: '../app/fonts/manrope.woff2', weight: '400 700', variable: '--font-manrope' });
 
 export type FontKey = 'montserrat' | 'inter' | 'inter-tight' | 'space-grotesk' | 'fraunces' | 'source-serif' | 'karla' | 'manrope';
 

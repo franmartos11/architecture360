@@ -1,11 +1,20 @@
-import { Poppins } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { CSSProperties } from 'react';
 
 // Tipografía y paleta del panel comercial (dashboard/inventario/leads) —
 // portadas 1:1 desde el diseño de Claude Design ("Panel comercial.dc.html")
 // en vez de reusar la escala tipográfica/color del resto del admin, para
 // que las tres pantallas se vean idénticas a lo que se mandó.
-export const poppins = Poppins({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'], display: 'swap' });
+export const poppins = localFont({
+  src: [
+    { path: '../app/fonts/poppins-300.woff2', weight: '300' },
+    { path: '../app/fonts/poppins-400.woff2', weight: '400' },
+    { path: '../app/fonts/poppins-500.woff2', weight: '500' },
+    { path: '../app/fonts/poppins-600.woff2', weight: '600' },
+    { path: '../app/fonts/poppins-700.woff2', weight: '700' },
+  ],
+  display: 'swap',
+});
 
 export const ACCENT = '#5c7a58';
 export const ACCENT_DARK = '#3f5a3c';

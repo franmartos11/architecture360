@@ -1,25 +1,26 @@
 import type { Metadata } from "next";
-import { Inter, Archivo } from "next/font/google";
+import localFont from "next/font/local";
 import { CURATED_FONTS } from "@/lib/fonts";
 import "./globals.css";
 import MotionProvider from '@/components/ui/MotionProvider';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { REVEAL_BOOT, REVEAL_SCRIPT } from '@/lib/reveal-script';
 
-const inter = Inter({
+// Fuentes auto-hosteadas desde app/fonts (no se bajan de Google en el build).
+const inter = localFont({
+  src: "./fonts/inter.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: "300 800",
 });
 
 // Tipografía de marca de Atrium (landing, auth, red social) — se expone acá
 // como variable CSS pero no se aplica global: el resto del sitio (admin,
 // microsite de cada proyecto con su propio tema) sigue con Montserrat.
 // Se usa vía la utility `font-display` (ver --font-display en globals.css).
-const archivo = Archivo({
+const archivo = localFont({
+  src: "./fonts/archivo.woff2",
   variable: "--font-archivo",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800", "900"],
+  weight: "500 900",
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
