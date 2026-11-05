@@ -97,11 +97,35 @@ export default function AerialView({ project }: AerialViewProps) {
     setMediaLoaded(true);
   }, []);
 
-  const handleVideoLoad = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
+  const markVideoLoaded = useCallback((video: HTMLVideoElement) => {
     setNaturalSize({ w: video.videoWidth, h: video.videoHeight });
     setMediaLoaded(true);
   }, []);
+
+  const handleVideoLoad = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    markVideoLoaded(e.currentTarget);
+  }, [markVideoLoaded]);
+
+  // Al entrar navegando desde el menú (sin recargar), a veces el video ya
+  // tiene la metadata cuando React engancha onLoadedMetadata y el evento
+  // no llega nunca; tampoco el onAnimationComplete de la entrada. Los
+  // hotspots quedaban con pointer-events: none para siempre. Por eso se
+  // revisa el estado del video al montarlo y, como respaldo, poco después
+  // de cada cambio de slide.
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const attachVideo = useCallback((video: HTMLVideoElement | null) => {
+    videoRef.current = video;
+    if (video && video.readyState >= 1) markVideoLoaded(video);
+  }, [markVideoLoaded]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const video = videoRef.current;
+      if (video && video.readyState >= 1) markVideoLoaded(video);
+      setAnimationDone(true);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [currentSlide, markVideoLoaded]);
 
   const mapPoint = useCallback((px: number, py: number) => {
     const { w: cw, h: ch } = containerSize;
@@ -246,6 +270,7 @@ export default function AerialView({ project }: AerialViewProps) {
           {slide.videoUrl ? (
             <video
               key={slide.videoUrl}
+              ref={attachVideo}
               src={slide.videoUrl}
               poster={slide.imageUrl}
               className="absolute inset-0 w-full h-full object-cover"
