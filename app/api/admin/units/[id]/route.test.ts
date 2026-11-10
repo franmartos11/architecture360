@@ -221,6 +221,53 @@ describe('PATCH /api/admin/units/[id]', () => {
   });
 });
 
+describe('PATCH /api/admin/units/[id]: validación de forma y topes', () => {
+  function asOwner() {
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'unit-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    return supabase;
+  }
+  const patch = (body: unknown) =>
+    PATCH(jsonRequest('http://localhost/api/admin/units/unit-1', body, { method: 'PATCH' }), ctx('unit-1'));
+
+  it.each([
+    ['price negativo', { price: -1 }],
+    ['price como texto', { price: '100' }],
+    ['área absurda', { totalArea: 1e12 }],
+    ['javascript: en una URL', { technicalPlanUrl: 'javascript:alert(1)' }],
+    ['polígono con más de 500 puntos', { polygon: Array(501).fill({ x: 1, y: 1 }) }],
+    ['tour demasiado grande', { tourData: { initialNodeId: 'n', nodes: [{ id: 'n', name: 'x', imageUrl: 'https://a.com/x.jpg', note: 'x'.repeat(600_000) }] } }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    const supabase = asOwner();
+    const res = await patch(body);
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es un objeto: 400 (antes era un 500)', async () => {
+    const supabase = asOwner();
+    expect((await patch([1, 2])).status).toBe(400);
+    expect((await patch('hola')).status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400', async () => {
+    asOwner();
+    const res = await PATCH(new Request('http://localhost/api/admin/units/unit-1', { method: 'PATCH', body: '{no es json' }), ctx('unit-1'));
+    expect(res.status).toBe(400);
+  });
+
+  it('las claves desconocidas no llegan al update', async () => {
+    const supabase = mockSupabase({ results: [{ data: { id: 'unit-1' } }] });
+    vi.mocked(resolveProjectIdFromUnit).mockResolvedValue('project-1');
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    await patch({ price: 100, floorId: 'otro-piso', id: 'otro', owner_id: 'x' });
+    const sent = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(Object.keys(sent).sort()).toEqual(['price', 'updated_at']);
+  });
+});
+
 describe('DELETE /api/admin/units/[id]', () => {
   beforeEach(() => {
     vi.mocked(requireProjectAccess).mockReset();

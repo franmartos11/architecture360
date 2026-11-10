@@ -3,6 +3,8 @@ import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjec
 import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { unitCreateSchema } from '@/lib/unit-schema';
 
 // GET /api/admin/units            → todas las unidades del proyecto activo,
 //                                    con edificio/piso resueltos (para el
@@ -65,16 +67,22 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  if (!body.floorId || !body.code || typeof body.code !== 'string' || !body.type) {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const rawBody = raw.data;
+  // Mensajes puntuales primero; después la forma y los topes con zod.
+  if (!rawBody.floorId || !rawBody.code || typeof rawBody.code !== 'string' || !rawBody.type) {
     return NextResponse.json({ error: 'Faltan floorId, code y/o type' }, { status: 400 });
   }
-  if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
+  if (rawBody.status !== undefined && !isValidEnum(rawBody.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
-  if (body.category !== undefined && !isValidEnum(body.category, UNIT_CATEGORIES)) {
+  if (rawBody.category !== undefined && !isValidEnum(rawBody.category, UNIT_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${UNIT_CATEGORIES.join(', ')}` }, { status: 400 });
   }
+  const parsed = validateJson(rawBody, unitCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const projectId = await resolveProjectIdFromFloor(body.floorId);
   if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });

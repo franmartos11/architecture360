@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromUnit } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { unitPatchSchema } from '@/lib/unit-schema';
 
 // Longitud máxima de los campos de texto libre del FIELD_MAP de abajo —
 // el resto (números, booleanos, jsonb de polígonos/tour) no pasa por acá.
@@ -105,18 +107,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  const nullField = NOT_NULL_FIELDS.find(campo => body[campo] === null);
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const rawBody = raw.data;
+
+  // Primero los mensajes puntuales (en criollo) para null y enums; después la
+  // forma y los topes de todo el body con zod.
+  const nullField = NOT_NULL_FIELDS.find(campo => rawBody[campo] === null);
   if (nullField) {
     return NextResponse.json({ error: `${NOT_NULL_LABELS[nullField] ?? nullField} no puede quedar vacío.` }, { status: 400 });
   }
 
-  if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
+  if (rawBody.status !== undefined && !isValidEnum(rawBody.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
-  if (body.category !== undefined && !isValidEnum(body.category, UNIT_CATEGORIES)) {
+  if (rawBody.category !== undefined && !isValidEnum(rawBody.category, UNIT_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${UNIT_CATEGORIES.join(', ')}` }, { status: 400 });
   }
+
+  const parsed = validateJson(rawBody, unitPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body: Record<string, unknown> = parsed.data;
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [camel, column] of Object.entries(FIELD_MAP)) {
