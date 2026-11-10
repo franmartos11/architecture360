@@ -166,7 +166,11 @@ export default function FloorPlanViewer({
   // El piso de la URL manda sobre el de la página: al volver con "atrás",
   // Next puede restaurar la página con el ?piso= con que se entró, pero la
   // URL ya tiene el último piso visto (ver el replaceState de más abajo).
+  // Se renderiza también en el servidor (la planta y las unidades salen en el
+  // HTML inicial, para buscadores y para no esperar el bundle): ahí no hay
+  // `window`, y el servidor ya recibió el ?piso= de la request como initialFloor.
   const [startFloor] = useState(() => {
+    if (typeof window === 'undefined') return initialFloor;
     const q = Number(new URLSearchParams(window.location.search).get('piso'));
     return building.floors.some(f => f.number === q) && window.location.search.includes('piso=') ? q : initialFloor;
   });

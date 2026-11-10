@@ -27,6 +27,7 @@ import AmenitiesTab from './tabs/AmenitiesTab';
 import UbicacionTab from './tabs/UbicacionTab';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
+import { useCurrentUrl } from '@/hooks/useCurrentUrl';
 import UnitMobileView, { type MobileMediaTab } from './UnitMobileView';
 
 // Pantalla ancha (escritorio/tablet) — el mismo corte que el visor de
@@ -292,7 +293,7 @@ export default function UnitViewer({
   const shareText = hasUnitStep
     ? `Mirá esta unidad: ${unit.name}${unit.modelName ? ` (${unit.modelName})` : ''} — ${projectSlug}`
     : `Mirá ${unit.name} — ${projectSlug}`;
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareUrl = useCurrentUrl();
 
   const handleSelectRoom = useCallback((room: Room) => {
     if (!room.tourNodeId) return;

@@ -421,12 +421,3 @@ async function fetchProjectBySlug(
   return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
 }
 
-export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {
-  const project = await getProjectBySlug(slug);
-  return project?.buildings.find(b => b.id === buildingId);
-});
-
-export const getUnitById = cache(async (slug: string, unitId: string): Promise<Unit | undefined> => {
-  const project = await getProjectBySlug(slug);
-  return project?.units.find(u => u.id === unitId);
-});

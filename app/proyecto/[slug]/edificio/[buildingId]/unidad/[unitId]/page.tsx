@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
-import { getSiteProjectBySlug, getUnitById } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
@@ -16,7 +16,9 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, unitId } = await params;
-  const unit = await getUnitById(slug, decodeURIComponent(unitId));
+  // Misma lectura (cacheada) que usa la página: no se pide el proyecto dos veces.
+  const project = await getSiteProjectBySlug(slug);
+  const unit = project?.units.find(u => u.id === decodeURIComponent(unitId));
   if (!unit) return { title: 'Unidad no encontrada' };
 
   const title = `Unidad ${unit.name} | Interior`;
@@ -40,7 +42,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
 
   const project = await getSiteProjectBySlug(slug);
   const building = project?.buildings.find(b => b.id === buildingId);
-  const unit = await getUnitById(slug, decodeURIComponent(unitId));
+  const unit = project?.units.find(u => u.id === decodeURIComponent(unitId));
 
   if (!project || !building || !unit) notFound();
 
