@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromAmenity, resolveProjectIdFromBuilding, resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { amenityPatchSchema } from '@/lib/structure-schemas';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const projectId = await resolveProjectIdFromAmenity(id);
   if (!projectId) return NextResponse.json({ error: 'Amenity no encontrada' }, { status: 404 });
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, amenityPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   if (body.buildingId) {
     const buildingProjectId = await resolveProjectIdFromBuilding(body.buildingId);
     if (buildingProjectId !== projectId) {

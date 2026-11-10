@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
+import { finite, nullable, safeUrl, polygon, bounded, tourData } from '@/lib/schema-parts';
 
 // Forma y topes de lo que el panel manda al crear o editar una unidad
 // (POST /api/admin/units y PATCH /api/admin/units/[id]).
@@ -14,30 +15,12 @@ import { UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 // Las claves que no están acá se descartan (zod las saca del resultado): coincide
 // con el FIELD_MAP de la ruta, que ya ignoraba lo desconocido.
 
-const finite = (min: number, max: number) => z.number().min(min).max(max);
-const nullable = <T extends z.ZodType>(schema: T) => schema.nullable();
-
-// Una URL que termina en src=/href= no puede ser javascript:. No se exige
-// https:// ni un formato de URL estricto a propósito: el panel reenvía en cada
-// guardado lo que ya estaba cargado, y un dato viejo con otro formato dejaría la
-// unidad sin poder guardarse.
-const DANGEROUS_SCHEME = /^\s*(javascript|vbscript):/i;
-const safeUrl = z.string().max(2000).refine(v => !DANGEROUS_SCHEME.test(v), 'URL no permitida');
-
-const point = z.object({ x: finite(-1000, 1000), y: finite(-1000, 1000) });
-const polygon = z.array(point).max(500);
-
 const room = z.looseObject({ id: z.string().max(100), name: z.string().max(200) });
 const level = z.looseObject({ id: z.string().max(100), label: z.string().max(200), rooms: z.array(room).max(200) });
 const parkingSpot = z.looseObject({ floorId: z.string().max(100), polygon });
-const tourNode = z.looseObject({ id: z.string().max(100), name: z.string().max(200), imageUrl: safeUrl });
-const tourData = z.looseObject({ initialNodeId: z.string().max(100), nodes: z.array(tourNode).max(200) });
 
-// Tope de tamaño total de los jsonb grandes (bytes de su JSON): la forma ya está
-// acotada arriba, esto frena el relleno dentro de los campos libres.
-const MAX_BYTES = { rooms: 200_000, levels: 400_000, parkingSpots: 200_000, tourData: 500_000 } as const;
-const bounded = <T extends z.ZodType>(schema: T, key: keyof typeof MAX_BYTES) =>
-  schema.refine(v => JSON.stringify(v).length <= MAX_BYTES[key], 'Es demasiado grande');
+// Tope de tamaño de los jsonb grandes de la unidad (el del tour está en schema-parts).
+const MAX_BYTES = { rooms: 200_000, levels: 400_000, parkingSpots: 200_000 } as const;
 
 export const unitFieldsSchema = z.object({
   code: z.string().min(1).max(200),
@@ -76,11 +59,11 @@ export const unitFieldsSchema = z.object({
   technicalPlanUrl: nullable(safeUrl),
   roomPlanImage: nullable(safeUrl),
   polygon: nullable(polygon),
-  parkingSpots: bounded(z.array(parkingSpot).max(200), 'parkingSpots'),
-  rooms: nullable(bounded(z.array(room).max(200), 'rooms')),
-  levels: nullable(bounded(z.array(level).max(20), 'levels')),
+  parkingSpots: bounded(z.array(parkingSpot).max(200), MAX_BYTES.parkingSpots),
+  rooms: nullable(bounded(z.array(room).max(200), MAX_BYTES.rooms)),
+  levels: nullable(bounded(z.array(level).max(20), MAX_BYTES.levels)),
   tourImageUrl: nullable(safeUrl),
-  tourData: nullable(bounded(tourData, 'tourData')),
+  tourData: nullable(tourData),
 }).partial();
 
 /** PATCH /api/admin/units/[id]: cualquier subconjunto de campos. */

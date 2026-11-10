@@ -219,3 +219,24 @@ describe('POST /api/admin/buildings', () => {
     expect(json.unit_id).toBe('unit-1');
   });
 });
+
+describe('POST /api/admin/buildings: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['totalFloors negativo', { name: 'Torre', totalFloors: -3 }],
+    ['planImage con javascript:', { name: 'Torre', planImage: 'javascript:alert(1)' }],
+    ['nombre gigante', { name: 'x'.repeat(301) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await POST(jsonRequest('http://localhost/api/admin/buildings', body));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});

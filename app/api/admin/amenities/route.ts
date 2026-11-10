@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import { resolveRequestedProjectId, resolveProjectIdFromBuilding, resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { amenityCreateSchema } from '@/lib/structure-schemas';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const body = await request.json();
-  if (!body.name || typeof body.name !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.name || typeof raw.data.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, amenityCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   if (body.buildingId) {
     const buildingProjectId = await resolveProjectIdFromBuilding(body.buildingId);
     if (buildingProjectId !== projectId) {

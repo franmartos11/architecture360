@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { buildingPatchSchema } from '@/lib/structure-schemas';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,7 +42,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, buildingPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   // slug queda afuera a propósito: es inmutable después de creado (ver
   // lib/slug.ts) para no romper links ya compartidos si renombran el edificio.

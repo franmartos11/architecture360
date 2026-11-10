@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { buildingCreateSchema } from '@/lib/structure-schemas';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 export async function GET(request: Request) {
@@ -77,10 +79,14 @@ export async function POST(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (!body.name || typeof body.name !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.name || typeof raw.data.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, buildingCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const name = sanitizeText(body.name, 150);
 
   const { data: project } = await supabase

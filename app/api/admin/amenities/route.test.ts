@@ -114,3 +114,23 @@ describe('POST /api/admin/amenities', () => {
     expect((await res.json()).error).toBe('insert failed');
   });
 });
+
+describe('POST /api/admin/amenities: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['imagen con javascript:', { name: 'Pileta', images: ['https://a.com/ok.jpg', 'javascript:alert(1)'] }],
+    ['más de 50 imágenes', { name: 'Pileta', images: Array(51).fill('https://a.com/x.jpg') }],
+    ['sortOrder como texto', { name: 'Pileta', sortOrder: 'primero' }],
+    ['visible como texto', { name: 'Pileta', visible: 'si' }],
+    ['tour3dUrl con javascript:', { name: 'Pileta', tour3dUrl: 'javascript:alert(1)' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const res = await POST(jsonRequest('http://localhost/api/admin/amenities', body));
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
+  });
+});

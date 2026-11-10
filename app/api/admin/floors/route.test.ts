@@ -60,3 +60,20 @@ describe('POST /api/admin/floors', () => {
     expect(await res.json()).toEqual({ id: 'floor-1', number: 3, label: 'Piso 3' });
   });
 });
+
+describe('POST /api/admin/floors: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+
+  it.each([
+    ['number como texto', { buildingId: 'building-1', number: '3', label: 'Piso 3' }],
+    ['floorKind inventado', { buildingId: 'building-1', number: 3, label: 'Piso 3', floorKind: 'sotano' }],
+    ['label gigante', { buildingId: 'building-1', number: 3, label: 'x'.repeat(301) }],
+  ])('400 con %s, antes de resolver el proyecto', async (_n, body) => {
+    const res = await POST(jsonRequest('http://localhost/api/admin/floors', body));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromBuilding).not.toHaveBeenCalled();
+  });
+});
