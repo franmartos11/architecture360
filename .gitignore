@@ -41,3 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .worktrees/
+
+# worktrees de Claude Code
+.claude/worktrees/
+
+# el gestor del proyecto es pnpm (ver pnpm-lock.yaml y .github/workflows/ci.yml)
+package-lock.json

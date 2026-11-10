@@ -1,7 +1,10 @@
 {
-  "name": "my-app",
+  "name": "architecture360",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "dev": "next dev",
