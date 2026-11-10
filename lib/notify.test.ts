@@ -1,24 +1,34 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
+
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notify } from './notify';
 
-function mockSupabase(insertResult: { error: unknown } = { error: null }) {
+function mockAdmin(insertResult: { error: unknown } = { error: null }) {
   const insert = vi.fn().mockResolvedValue(insertResult);
   const from = vi.fn(() => ({ insert }));
-  return { from, insert } as unknown as { from: typeof from; insert: typeof insert };
+  vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+  return { from, insert };
 }
+
+beforeEach(() => {
+  vi.mocked(createAdminClient).mockReset();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+});
 
 describe('notify', () => {
   it('nunca notifica a uno mismo — ni siquiera intenta el insert', async () => {
-    const supabase = mockSupabase();
-    await notify(supabase as never, { recipientId: 'user-1', actorId: 'user-1', type: 'like' });
-    expect(supabase.from).not.toHaveBeenCalled();
+    await notify({ recipientId: 'user-1', actorId: 'user-1', type: 'like' });
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
-  it('inserta la notificación con los campos correctos', async () => {
-    const supabase = mockSupabase();
-    await notify(supabase as never, { recipientId: 'user-1', actorId: 'user-2', type: 'follow', entityId: 'post-1' });
-    expect(supabase.from).toHaveBeenCalledWith('notifications');
-    expect(supabase.insert).toHaveBeenCalledWith({
+  it('inserta la notificación con los campos correctos (con service-role)', async () => {
+    const admin = mockAdmin();
+    await notify({ recipientId: 'user-1', actorId: 'user-2', type: 'follow', entityId: 'post-1' });
+    expect(admin.from).toHaveBeenCalledWith('notifications');
+    expect(admin.insert).toHaveBeenCalledWith({
       recipient_id: 'user-1',
       actor_id: 'user-2',
       type: 'follow',
@@ -27,23 +37,24 @@ describe('notify', () => {
   });
 
   it('entityId omitido se guarda como null, no undefined', async () => {
-    const supabase = mockSupabase();
-    await notify(supabase as never, { recipientId: 'user-1', actorId: 'user-2', type: 'comment' });
-    expect(supabase.insert).toHaveBeenCalledWith(expect.objectContaining({ entity_id: null }));
+    const admin = mockAdmin();
+    await notify({ recipientId: 'user-1', actorId: 'user-2', type: 'comment' });
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({ entity_id: null }));
   });
 
-  it('un insert rechazado (RLS/constraint) no tira — best-effort', async () => {
-    const supabase = mockSupabase({ error: new Error('constraint violado') });
-    await expect(
-      notify(supabase as never, { recipientId: 'user-1', actorId: 'user-2', type: 'mention' })
-    ).resolves.toBeUndefined();
+  it('un insert rechazado (constraint/FK) no tira — best-effort', async () => {
+    mockAdmin({ error: new Error('constraint violado') });
+    await expect(notify({ recipientId: 'user-1', actorId: 'user-2', type: 'mention' })).resolves.toBeUndefined();
   });
 
   it('una excepción al insertar tampoco tira — best-effort', async () => {
     const insert = vi.fn().mockRejectedValue(new Error('network down'));
-    const supabase = { from: vi.fn(() => ({ insert })) };
-    await expect(
-      notify(supabase as never, { recipientId: 'user-1', actorId: 'user-2', type: 'message' })
-    ).resolves.toBeUndefined();
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn(() => ({ insert })) } as never);
+    await expect(notify({ recipientId: 'user-1', actorId: 'user-2', type: 'message' })).resolves.toBeUndefined();
+  });
+
+  it('si no se puede crear el cliente admin tampoco tira', async () => {
+    vi.mocked(createAdminClient).mockImplementation(() => { throw new Error('falta la service key'); });
+    await expect(notify({ recipientId: 'user-1', actorId: 'user-2', type: 'like' })).resolves.toBeUndefined();
   });
 });

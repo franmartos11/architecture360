@@ -4,18 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
 import { sanitizeText } from '@/lib/sanitize';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
-const RATE_LIMIT_WINDOW_MINUTES = 10;
-const RATE_LIMIT_MAX_INVITES = 10;
 
 async function notifyInvitee(
-  supabase: SupabaseClient,
   { profileId, actorId, projectId, projectName }: { profileId: string; actorId: string; projectId: string; projectName: string }
 ) {
   // Dos canales, cada uno best-effort por separado — que falle el mail no
   // debe tapar la notificación in-app, ni al revés.
-  await notify(supabase, { recipientId: profileId, actorId, type: 'collaboration_invite', entityId: projectId });
+  await notify({ recipientId: profileId, actorId, type: 'collaboration_invite', entityId: projectId });
   try {
     const { data: { user: invitee } } = await createAdminClient().auth.admin.getUserById(profileId);
     if (!invitee?.email) return;
@@ -72,19 +69,17 @@ export async function POST(request: Request) {
       .select('*, profile:profiles(handle, display_name, avatar_image)')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (project?.name) await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
+    if (project?.name) await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
     return NextResponse.json(data, { status: 201 });
   }
 
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
-  const { count: recentCount } = await supabase
-    .from('project_collaborators')
-    .select('id', { count: 'exact', head: true })
-    .eq('invited_by', user.id)
-    .gte('created_at', since);
-  if ((recentCount ?? 0) >= RATE_LIMIT_MAX_INVITES) {
-    return NextResponse.json({ error: 'Mandaste muchas invitaciones seguidas — esperá unos minutos.' }, { status: 429 });
-  }
+  // Atómico en Postgres (check_rate_limit): contar filas y después insertar dejaba
+  // pasar varios pedidos simultáneos por debajo del tope.
+  const limited = await rateLimitOrRespond(
+    { key: `collaborators-invite:user:${user.id}`, windowSeconds: 600, max: 10 },
+    'Mandaste muchas invitaciones seguidas — esperá unos minutos.'
+  );
+  if (limited) return limited;
 
   const { data, error } = await supabase
     .from('project_collaborators')
@@ -101,6 +96,6 @@ export async function POST(request: Request) {
     if (error.code === '23505') return NextResponse.json({ error: 'Esa persona ya está acreditada en este proyecto.' }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  if (project?.name) await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
+  if (project?.name) await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
   return NextResponse.json(data, { status: 201 });
 }

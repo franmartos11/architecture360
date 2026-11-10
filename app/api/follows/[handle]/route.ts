@@ -80,7 +80,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
 
   if (error && error.code !== '23505') return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await notify(supabase, { recipientId: target.id, actorId: me.id, type: 'follow' });
+  await notify({ recipientId: target.id, actorId: me.id, type: 'follow' });
 
   const { count } = await supabase
     .from('follows').select('*', { count: 'exact', head: true }).eq('following_id', target.id);

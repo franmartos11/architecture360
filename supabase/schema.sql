@@ -841,8 +841,13 @@ create policy "public read points_of_interest" on points_of_interest for select 
 drop policy if exists "public read calculator_settings" on calculator_settings;
 create policy "public read calculator_settings" on calculator_settings for select to anon, authenticated using (true);
 
+-- Sin policy de INSERT para anon/authenticated a propósito: los leads se
+-- crean solo desde POST /api/leads con service-role, que es donde viven la
+-- validación, el sanitizado y el rate limit. Con una policy `with check (true)`
+-- cualquiera con la anon key (que viaja en el bundle) podría insertar directo
+-- en /rest/v1/leads salteándose todo eso. Esta línea también retira la policy
+-- en bases donde ya se había creado.
 drop policy if exists "public insert leads" on leads;
-create policy "public insert leads" on leads for insert to anon, authenticated with check (true);
 -- Nota: a propósito NO hay policy de SELECT en leads para "anon" —
 -- así nadie puede leer los leads de otros desde el navegador.
 
@@ -980,9 +985,12 @@ create policy "owner delete leads" on leads for delete to authenticated
 -- (usado por el uploader del admin y por los editores de polígonos/tours)
 -- ═══════════════════════════════════════════════════════════════════
 
-insert into storage.buckets (id, name, public)
-values ('project-media', 'project-media', true)
-on conflict (id) do nothing;
+-- file_size_limit es el tope DURO (lo aplica Storage sobre el archivo real);
+-- los chequeos de peso de las rutas API solo ven lo que declara el cliente.
+-- 100MB = el máximo de video de app/api/admin/upload.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('project-media', 'project-media', true, 104857600)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 drop policy if exists "public read project-media" on storage.objects;
 create policy "public read project-media"
@@ -1001,18 +1009,20 @@ create policy "public read project-media"
 -- de corta duración (ver POST/GET de app/api/conversations/[id]/attachments
 -- y app/api/conversations/[id]/messages), nunca por URL pública — por eso
 -- no hay policy de "public read" acá, a propósito.
-insert into storage.buckets (id, name, public)
-values ('message-attachments', 'message-attachments', false)
-on conflict (id) do nothing;
+-- 20MB = el máximo de audio/documento de los adjuntos.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('message-attachments', 'message-attachments', false, 20971520)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 -- Bucket aparte para piezas BIM (ver bim_models más arriba) — público en
 -- lectura como project-media, pero separado porque no lo toca
 -- deleteProjectStorageFiles() al borrar un proyecto: una pieza BIM vive
 -- en el portfolio del autor y sobrevive al proyecto salvo que el autor
 -- elija borrarla también (ver DeleteProjectModal).
-insert into storage.buckets (id, name, public)
-values ('bim-models', 'bim-models', true)
-on conflict (id) do nothing;
+-- 50MB = MAX_GEOMETRY_BYTES de lib/bim.ts.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('bim-models', 'bim-models', true, 52428800)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 drop policy if exists "public read bim-models" on storage.objects;
 create policy "public read bim-models"
@@ -1079,12 +1089,13 @@ create index if not exists notifications_recipient_idx on notifications(recipien
 
 alter table notifications enable row level security;
 
--- Quien dispara el evento (el que sigue, el que da like, el que comenta) es
--- quien inserta la notificación — no el destinatario — por eso el check es
--- sobre actor_id, no recipient_id.
+-- Sin policy de INSERT para usuarios a propósito: las notificaciones las crea
+-- lib/notify.ts con service-role, desde las rutas que ya validaron la acción
+-- (seguir, likear, comentar, mensaje, invitación). Con una policy
+-- `actor_id = auth.uid()`, cualquier cuenta logueada podía insertar a mano en
+-- /rest/v1/notifications y llenarle la bandeja a cualquier otra persona. Esta
+-- línea también retira la policy en bases donde ya existía.
 drop policy if exists "insert as actor notifications" on notifications;
-create policy "insert as actor notifications" on notifications for insert to authenticated
-  with check (actor_id = auth.uid());
 
 drop policy if exists "read own notifications" on notifications;
 create policy "read own notifications" on notifications for select to authenticated

@@ -3,13 +3,12 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
 // Sin infraestructura de rate-limit dedicada — alcanza con contar contra
 // la propia tabla, dado el volumen esperado de esta app.
-const RATE_LIMIT_WINDOW_MINUTES = 5;
-const RATE_LIMIT_MAX_COMMENTS = 5;
 
 // No hay una relación de foreign key entre project_comments.author_id y
 // profiles (profiles es opt-in — no todo el que comenta tiene uno), así
@@ -71,15 +70,13 @@ export async function POST(request: Request) {
   const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
   if (!text) return NextResponse.json({ error: 'Falta el comentario' }, { status: 400 });
 
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
-  const { count: recentCount } = await supabase
-    .from('project_comments')
-    .select('id', { count: 'exact', head: true })
-    .eq('author_id', user.id)
-    .gte('created_at', since);
-  if ((recentCount ?? 0) >= RATE_LIMIT_MAX_COMMENTS) {
-    return NextResponse.json({ error: 'Estás comentando muy rápido — esperá unos minutos.' }, { status: 429 });
-  }
+  // Atómico en Postgres (check_rate_limit): contar filas y después insertar dejaba
+  // pasar varios pedidos simultáneos por debajo del tope.
+  const limited = await rateLimitOrRespond(
+    { key: `comments:user:${user.id}`, windowSeconds: 300, max: 5 },
+    'Estás comentando muy rápido — esperá unos minutos.'
+  );
+  if (limited) return limited;
 
   const { data, error } = await supabase
     .from('project_comments')

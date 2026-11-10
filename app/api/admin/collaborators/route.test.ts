@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
@@ -15,6 +16,7 @@ import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { POST } from './route';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 function req(body: unknown) {
   return jsonRequest('http://localhost/api/admin/collaborators', body);
@@ -22,6 +24,7 @@ function req(body: unknown) {
 
 describe('POST /api/admin/collaborators', () => {
   beforeEach(() => {
+    vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(resolveRequestedProjectId).mockReset().mockResolvedValue('project-1');
     vi.mocked(requireProjectAccess).mockReset();
     vi.mocked(createAdminClient).mockReset();
@@ -101,7 +104,7 @@ describe('POST /api/admin/collaborators', () => {
 
     const res = await POST(req({ handle: 'ana' }));
     expect(res.status).toBe(201);
-    expect(notify).toHaveBeenCalledWith(supabase, expect.objectContaining({ recipientId: 'profile-1', type: 'collaboration_invite' }));
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ recipientId: 'profile-1', type: 'collaboration_invite' }));
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'ana@example.com' }));
   });
 
@@ -127,13 +130,20 @@ describe('POST /api/admin/collaborators', () => {
         { data: { id: 'profile-1' } }, // profiles
         { data: { name: 'Torre del Mar' } }, // projects
         { data: null }, // no existing collaborator
-        { count: 10 }, // rate-limit count
       ],
     });
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Mandaste muchas invitaciones' }), { status: 429 }) as never
+    );
 
     const res = await POST(req({ handle: 'ana' }));
     expect(res.status).toBe(429);
+    expect(rateLimitOrRespond).toHaveBeenCalledWith(
+      { key: 'collaborators-invite:user:user-1', windowSeconds: 600, max: 10 },
+      expect.any(String)
+    );
+    expect(supabase.from).toHaveBeenCalledTimes(3); // profiles, projects, existing: no llegó al insert
   });
 
   it('invitación nueva: inserta, notifica, 201', async () => {
@@ -142,7 +152,6 @@ describe('POST /api/admin/collaborators', () => {
         { data: { id: 'profile-1' } },
         { data: { name: 'Torre del Mar' } },
         { data: null },
-        { count: 0 },
         { data: { id: 'collab-1', status: 'pending' }, error: null }, // insert().select().single()
       ],
     });
@@ -163,7 +172,6 @@ describe('POST /api/admin/collaborators', () => {
         { data: { id: 'profile-1' } },
         { data: { name: 'Torre del Mar' } },
         { data: null },
-        { count: 0 },
         { data: null, error: { code: '23505', message: 'duplicate' } },
       ],
     });
@@ -179,7 +187,6 @@ describe('POST /api/admin/collaborators', () => {
         { data: { id: 'profile-1' } },
         { data: { name: 'Torre del Mar' } },
         { data: null },
-        { count: 0 },
         { data: null, error: { message: 'insert failed' } },
       ],
     });
@@ -196,7 +203,6 @@ describe('POST /api/admin/collaborators', () => {
         { data: { id: 'profile-1' } },
         { data: null }, // .from('projects') no encontró nombre
         { data: null },
-        { count: 0 },
         { data: { id: 'collab-1', status: 'pending' }, error: null },
       ],
     });

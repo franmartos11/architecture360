@@ -7,11 +7,10 @@ import { extractHashtags } from '@/lib/hashtags';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline, sanitizeText } from '@/lib/sanitize';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
-const RATE_LIMIT_WINDOW_MINUTES = 5;
-const RATE_LIMIT_MAX_POSTS = 5;
 const MAX_POLL_OPTIONS = 4;
 const MIN_POLL_OPTIONS = 2;
 
@@ -322,15 +321,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
-  const { count: recentCount } = await supabase
-    .from('posts')
-    .select('id', { count: 'exact', head: true })
-    .eq('author_id', user.id)
-    .gte('created_at', since);
-  if ((recentCount ?? 0) >= RATE_LIMIT_MAX_POSTS) {
-    return NextResponse.json({ error: 'Estás publicando muy rápido — esperá unos minutos.' }, { status: 429 });
-  }
+  // Atómico en Postgres (check_rate_limit): contar filas y después insertar dejaba
+  // pasar varios pedidos simultáneos por debajo del tope.
+  const limited = await rateLimitOrRespond(
+    { key: `posts:user:${user.id}`, windowSeconds: 300, max: 5 },
+    'Estás publicando muy rápido — esperá unos minutos.'
+  );
+  if (limited) return limited;
 
   const { data, error } = await supabase
     .from('posts')
@@ -362,7 +359,7 @@ export async function POST(request: Request) {
   if (mentionedHandles.length > 0) {
     const { data: mentioned } = await supabase.from('profiles').select('id').in('handle', mentionedHandles);
     for (const m of mentioned ?? []) {
-      await notify(supabase, { recipientId: m.id, actorId: user.id, type: 'mention', entityId: data.id });
+      await notify({ recipientId: m.id, actorId: user.id, type: 'mention', entityId: data.id });
     }
   }
 

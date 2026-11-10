@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!data) return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
 
   if (body.status === 'accepted') {
-    await notify(supabase, { recipientId: data.invited_by, actorId: user.id, type: 'collaboration_accepted', entityId: data.project_id });
+    await notify({ recipientId: data.invited_by, actorId: user.id, type: 'collaboration_accepted', entityId: data.project_id });
     try {
       const [{ data: project }, { data: profile }] = await Promise.all([
         supabase.from('projects').select('name').eq('id', data.project_id).maybeSingle(),

@@ -55,10 +55,12 @@ export async function POST(request: Request) {
   const name = sanitizeText(body.name, 200);
   const message = sanitizeMultiline(body.message, 2000) || null;
 
-  // Insert público (policy RLS "public insert leads") — sin .select()
-  // a propósito: no hay policy de SELECT para anon en leads, así que
-  // pedir la fila de vuelta con RETURNING la filtraría a cero filas.
-  const { error } = await supabase.from('leads').insert({
+  // El insert va con service-role y NO con el cliente anon: la tabla ya no
+  // tiene policy de insert pública (si la tuviera, cualquiera con la anon key
+  // —que viaja en el bundle— podría pegarle a /rest/v1/leads salteándose la
+  // validación, el sanitizado y el rate limit de esta ruta). Sin .select()
+  // porque no se necesita la fila de vuelta.
+  const { error } = await createAdminClient().from('leads').insert({
     project_id: project?.id ?? null,
     name,
     email: body.email,
@@ -70,7 +72,10 @@ export async function POST(request: Request) {
     ip_address: ip,
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[leads] no se pudo guardar el lead', error);
+    return NextResponse.json({ error: 'No pudimos enviar tu consulta. Probá de nuevo en un rato.' }, { status: 500 });
+  }
 
   if (project?.owner_id) {
     try {

@@ -59,7 +59,7 @@ describe('POST /api/posts/[id]/like', () => {
     const res = await POST(req('POST'), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'post-author',
       actorId: 'user-1',
       type: 'like',

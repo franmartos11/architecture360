@@ -307,7 +307,7 @@ describe('POST /api/conversations/[id]/messages', () => {
 
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'msg-1', body: 'hola' });
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'user-2',
       actorId: 'user-1',
       type: 'message',
