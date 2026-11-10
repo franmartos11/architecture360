@@ -9,6 +9,7 @@ import {
   planEdificio, planDuplex, planLoteo, planUnico, countUnits, duplicateCodes, MAX_PLANNED_UNITS,
   type PlannedBuilding, type TowerInput, type DuplexModel, type BlockInput, type LevelInput, type NumberingScheme, type GroundFloorUse,
 } from '@/lib/guided-structure';
+import { serverError } from '@/lib/api-errors';
 
 // Carga guiada (/admin/carga). Tres operaciones, todas en UN request para
 // no pasar por el límite de escrituras por minuto del panel (proxy.ts),
@@ -23,20 +24,27 @@ import {
 
 const UNIT_COLUMNS = 'id, floor_id, code, model_name, type, category, bedrooms, bathrooms, total_area, inner_area, balcony_area, external_area, lot_size, floors_count, living_rooms, garage_spaces, hoa_fee, price, currency, status, condition, features, polygon, rooms, tour_data, gallery_images, interior_image_url';
 
+// loadTree devuelve { error } y la ruta lo responde: el detalle de la base queda
+// en el log del servidor, no en la respuesta.
+function treeError(error: unknown) {
+  console.error('[guided] no se pudo cargar la estructura', error);
+  return { error: 'No se pudo cargar la estructura del proyecto.' };
+}
+
 async function loadTree(supabase: SupabaseClient, projectId: string) {
   const { data: buildings, error } = await supabase
     .from('buildings').select('id, slug, name, total_floors, created_at').eq('project_id', projectId).order('created_at');
-  if (error) return { error: error.message };
+  if (error) return treeError(error);
   const buildingIds = (buildings ?? []).map(b => b.id as string);
   const { data: floors, error: floorsErr } = buildingIds.length
     ? await supabase.from('floors').select('id, building_id, number, label, plan_image, floor_kind, floor_kind_description, unit_dots').in('building_id', buildingIds).order('number')
     : { data: [], error: null };
-  if (floorsErr) return { error: floorsErr.message };
+  if (floorsErr) return treeError(floorsErr);
   const floorIds = (floors ?? []).map(f => f.id as string);
   const { data: units, error: unitsErr } = floorIds.length
     ? await supabase.from('units').select(UNIT_COLUMNS).in('floor_id', floorIds).order('code')
     : { data: [], error: null };
-  if (unitsErr) return { error: unitsErr.message };
+  if (unitsErr) return treeError(unitsErr);
 
   const unitsByFloor = new Map<string, unknown[]>();
   for (const u of (units ?? []) as { floor_id: string }[]) {
@@ -237,7 +245,7 @@ export async function POST(request: Request) {
     // (floors/units caen en cascada) para que el usuario pueda reintentar
     // sin chocar con el 409 de "ya tiene estructura".
     if (created.length) await supabase.from('buildings').delete().in('id', created);
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo crear la estructura' }, { status: 500 });
+    return serverError(e, 'No se pudo crear la estructura. Probá de nuevo.');
   }
 
   const tree = await loadTree(supabase, projectId);
@@ -270,7 +278,7 @@ async function addSpaces(supabase: SupabaseClient, projectId: string, body: Reco
   const fresh = rows.filter((r: { code: string }) => !taken.has(r.code));
   if (fresh.length === 0) return NextResponse.json({ error: 'Ya hay espacios con esos nombres en este nivel' }, { status: 409 });
   const { data, error } = await supabase.from('units').insert(fresh).select(UNIT_COLUMNS);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ units: data ?? [] }, { status: 201 });
 }
 
@@ -416,12 +424,18 @@ export async function PATCH(request: Request) {
   await run(unitUpdates, async u => {
     if (Object.keys(u.values).length === 0) return;
     const { error } = await supabase.from('units').update({ ...u.values, updated_at: now }).eq('id', u.id);
-    if (error) failed.push({ id: u.id, error: error.code === '23505' ? 'Código repetido en ese piso' : error.message });
+    if (error) {
+      if (error.code !== '23505') console.error('[guided] no se pudo actualizar la unidad', u.id, error);
+      failed.push({ id: u.id, error: error.code === '23505' ? 'Código repetido en ese piso' : 'No se pudo guardar' });
+    }
   });
   await run(floorUpdates, async f => {
     if (Object.keys(f.values).length === 0) return;
     const { error } = await supabase.from('floors').update(f.values).eq('id', f.id);
-    if (error) failed.push({ id: f.id, error: error.message });
+    if (error) {
+      console.error('[guided] no se pudo actualizar el piso', f.id, error);
+      failed.push({ id: f.id, error: 'No se pudo guardar' });
+    }
   });
 
   if (failed.length > 0) {

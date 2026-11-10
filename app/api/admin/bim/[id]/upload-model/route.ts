@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { BIM_BUCKET, MAX_GEOMETRY_BYTES } from '@/lib/bim';
 import { mapBimModelRow } from '@/data/bim-repository';
 import type { BimModelRow } from '@/types/database';
+import { serverError } from '@/lib/api-errors';
 
 // Tipos MIME que acepta el upload de modelo 3D. `application/octet-stream`
 // es lo que mandan algunos browsers cuando no reconocen la extensión —
@@ -46,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
 
       const { data, error } = await admin.storage.from(BIM_BUCKET).createSignedUploadUrl(storagePath);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return serverError(error);
       
       return NextResponse.json({ signedUrl: data.signedUrl, path: data.path });
     }
@@ -65,7 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .eq('id', id)
         .select('*')
         .single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return serverError(error);
 
       return NextResponse.json({ model: mapBimModelRow(data as BimModelRow) });
     }
@@ -73,7 +74,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Acción inválida' }, { status: 400 });
 
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: `Server error: ${message || String(error)}` }, { status: 500 });
+    return serverError(error, 'No se pudo procesar el modelo 3D. Probá de nuevo.');
   }
 }

@@ -38,7 +38,7 @@ describe('DELETE /api/post-comments/[id]', () => {
 
     const res = await DELETE(del(), ctx());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('no es el autor del comentario ni del post (RLS no afectó filas): 403', async () => {

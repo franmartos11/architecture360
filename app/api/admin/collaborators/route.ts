@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
 import { sanitizeText } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 
 async function notifyInvitee(
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
       .eq('id', existing.id)
       .select('*, profile:profiles(handle, display_name, avatar_image)')
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     if (project?.name) await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
     return NextResponse.json(data, { status: 201 });
   }
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Esa persona ya está acreditada en este proyecto.' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (project?.name) await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name });
   return NextResponse.json(data, { status: 201 });

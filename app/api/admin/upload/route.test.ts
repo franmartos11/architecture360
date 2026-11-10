@@ -131,6 +131,6 @@ describe('POST /api/admin/upload', () => {
 
     const res = await POST(uploadRequest({ ...pngFile(), folder: 'units' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('bucket lleno');
+    expect((await res.json()).error).toBe('No se pudo preparar la subida.'); // no filtra el mensaje del storage
   });
 });

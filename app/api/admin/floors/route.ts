@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveProjectIdFromBuilding, resolveRequestedPro
 import { sanitizeText } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { floorCreateSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     .in('building_id', buildingIds)
     .order('number');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(floors ?? []);
 }
 
@@ -57,6 +58,6 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data, { status: 201 });
 }

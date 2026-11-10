@@ -73,7 +73,7 @@ describe('POST /api/posts/[id]/save', () => {
 
     const res = await POST(req('POST'), ctx());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 

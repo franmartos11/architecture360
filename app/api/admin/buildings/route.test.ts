@@ -42,7 +42,7 @@ describe('GET /api/admin/buildings', () => {
 
     const res = await GET(get('http://localhost/api/admin/buildings'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('db down');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('sin edificios: [] sin consultar floors', async () => {
@@ -157,7 +157,7 @@ describe('POST /api/admin/buildings', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/buildings', { name: 'Torre del Mar' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida — "edificio" (con paso de piso): no auto-provisiona piso/unidad', async () => {

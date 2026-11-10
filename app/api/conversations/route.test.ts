@@ -227,7 +227,7 @@ describe('POST /api/conversations', () => {
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('23505 pero la re-consulta tampoco encuentra nada: cae a 500 con el mensaje original', async () => {
@@ -245,6 +245,6 @@ describe('POST /api/conversations', () => {
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('duplicate key');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

@@ -157,7 +157,7 @@ describe('POST /api/post-comments', () => {
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('feliz: inserta, notifica al autor del post, devuelve el comentario con autor', async () => {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 // GET /api/follows/[handle]
 // → { handle, displayName, avatarImage, bio, accountType, followerCount, followingCount, isFollowedByMe }
@@ -78,7 +79,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
     .from('follows')
     .insert({ follower_id: me.id, following_id: target.id });
 
-  if (error && error.code !== '23505') return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error && error.code !== '23505') return serverError(error);
 
   await notify({ recipientId: target.id, actorId: me.id, type: 'follow' });
 

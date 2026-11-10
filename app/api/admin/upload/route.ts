@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { parseJsonBody } from '@/lib/api-validate';
 import { uploadTicketSchema } from '@/lib/signed-upload-schema';
+import { serverError } from '@/lib/api-errors';
 
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024; // 15MB — las panorámicas 360° pesan bastante
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB — clips cortos en loop, no hay que subir un documental
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const { data: signed, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
-  if (error || !signed) return NextResponse.json({ error: error?.message ?? 'No se pudo preparar la subida' }, { status: 500 });
+  if (error || !signed) return serverError(error ?? new Error('Storage no devolvió la URL firmada'), 'No se pudo preparar la subida.');
 
   const { data } = admin.storage.from(BUCKET).getPublicUrl(path);
   return NextResponse.json({ signedUrl: signed.signedUrl, contentType: baseType, url: data.publicUrl, path });

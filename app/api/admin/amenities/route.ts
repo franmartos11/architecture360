@@ -3,6 +3,7 @@ import { resolveRequestedProjectId, resolveProjectIdFromBuilding, resolveProject
 import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { amenityCreateSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -57,6 +58,6 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data, { status: 201 });
 }

@@ -48,6 +48,6 @@ describe('GET /api/collaborators/mine', () => {
 
     const res = await GET();
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

@@ -75,7 +75,7 @@ describe('POST /api/admin/aerial-hotspots/bulk', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', { items: [ITEM_A] }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('camino feliz: un item nuevo (insert) y uno existente (update), un resultado por cada uno', async () => {
@@ -114,7 +114,7 @@ describe('POST /api/admin/aerial-hotspots/bulk', () => {
     const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', { items: [ITEM_A, ITEM_B] }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.results[0]).toEqual({ slideId: 'slide-1', buildingId: 'building-1', success: false, data: null, error: 'insert failed' });
+    expect(body.results[0]).toEqual({ slideId: 'slide-1', buildingId: 'building-1', success: false, data: null, error: 'No se pudo guardar' }); // sin el mensaje de la base
     expect(body.results[1]).toEqual({ slideId: 'slide-1', buildingId: 'building-2', success: true, data: { id: 'hotspot-new-2', slide_id: 'slide-1', building_id: 'building-2' }, error: null });
   });
 });

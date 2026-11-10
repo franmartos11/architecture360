@@ -89,7 +89,7 @@ describe('GET /api/comments', () => {
 
     const res = await GET(getReq(`projectId=${PROJECT_ID}`));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('query failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -151,7 +151,7 @@ describe('POST /api/comments', () => {
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: 'Hola' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('comentario válido: inserta y devuelve 201 con el autor embebido', async () => {

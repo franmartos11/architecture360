@@ -5,6 +5,7 @@ import { notify } from '@/lib/notify';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const { data: post } = await supabase.from('posts').select('author_id').eq('id', body.postId).maybeSingle();
   if (post) await notify({ recipientId: post.author_id, actorId: user.id, type: 'comment', entityId: body.postId });

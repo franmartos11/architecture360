@@ -67,7 +67,7 @@ describe('GET /api/admin/units/[id]', () => {
 
     const res = await GET(get('http://localhost/api/admin/units/unit-1'), ctx('unit-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -217,7 +217,7 @@ describe('PATCH /api/admin/units/[id]', () => {
       ctx('unit-1')
     );
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -304,6 +304,6 @@ describe('DELETE /api/admin/units/[id]', () => {
 
     const res = await DELETE(del('http://localhost/api/admin/units/unit-1'), ctx('unit-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

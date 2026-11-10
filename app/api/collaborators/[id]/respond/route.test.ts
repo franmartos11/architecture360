@@ -55,7 +55,7 @@ describe('PATCH /api/collaborators/[id]/respond', () => {
 
     const res = await PATCH(req({ status: 'accepted' }), params());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('invitación no encontrada (RLS no matcheó nada): 404', async () => {

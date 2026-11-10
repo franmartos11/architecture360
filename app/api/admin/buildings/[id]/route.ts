@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveProjectIdFromBuilding } from '@/lib/supaba
 import { sanitizeText } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { buildingPatchSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { supabase } = access;
 
   const { data: building, error } = await supabase.from('buildings').select('*').eq('id', id).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!building) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
 
   const { data: floors } = await supabase
@@ -58,7 +59,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.tourOrientationDegrees !== undefined) updates.tour_orientation_degrees = body.tourOrientationDegrees;
 
   const { data, error } = await supabase.from('buildings').update(updates).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -81,6 +82,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   // Cascade en la base se lleva pisos, unidades y hotspots que apunten a este edificio.
   const { error } = await supabase.from('buildings').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

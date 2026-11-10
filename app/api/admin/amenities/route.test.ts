@@ -111,7 +111,7 @@ describe('POST /api/admin/amenities', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/amenities', { name: 'Pileta' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 

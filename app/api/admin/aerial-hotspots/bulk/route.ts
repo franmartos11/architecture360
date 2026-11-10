@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 // "Guardar todo" desde /admin/proyecto/aereas/[slideId]: la pantalla ahora
 // trabaja sobre todas las vistas aéreas del proyecto a la vez, así que en
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
     .from('aerial_hotspots')
     .select('id, slide_id, building_id')
     .in('slide_id', uniqueSlideIds);
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
+  if (existingError) return serverError(existingError);
 
   const existingIdByKey = new Map<string, string>();
   for (const h of (existingHotspots ?? []) as { id: string; slide_id: string; building_id: string }[]) {
@@ -96,12 +97,13 @@ export async function POST(request: Request) {
             .select()
             .single();
 
+      if (error) console.error('[aerial-hotspots/bulk] no se pudo guardar', item.slideId, item.buildingId, error);
       return {
         slideId: item.slideId,
         buildingId: item.buildingId,
         success: !error,
         data: error ? null : data,
-        error: error ? (error as { message: string }).message : null,
+        error: error ? 'No se pudo guardar' : null,
       };
     })
   );

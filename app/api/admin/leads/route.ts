@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -34,6 +35,6 @@ export async function GET(request: Request) {
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data ?? []);
 }

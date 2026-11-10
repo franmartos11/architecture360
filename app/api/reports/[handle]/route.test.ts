@@ -88,6 +88,6 @@ describe('POST /api/reports/[handle]', () => {
 
     const res = await POST(post({ reason: 'me acosa' }), params());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

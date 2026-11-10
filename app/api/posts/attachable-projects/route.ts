@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api-errors';
 
 // Lista liviana de "mis proyectos" para el picker de adjuntar Proyecto o
 // Recorrido 360 en el composer del feed — a diferencia de
@@ -17,7 +18,7 @@ export async function GET() {
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const projects = (data ?? []).map(p => ({
     id: p.id,

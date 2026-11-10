@@ -55,7 +55,7 @@ describe('GET /api/admin/fonts', () => {
 
     const res = await GET();
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('db down');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -129,7 +129,7 @@ describe('POST /api/admin/fonts', () => {
     const file = new File(['abc'], 'font.woff2', { type: 'font/woff2' });
     const res = await POST(postRequest({ file, name: 'Mi Fuente' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida: sube, registra y devuelve la fuente creada', async () => {

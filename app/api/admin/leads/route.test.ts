@@ -63,7 +63,7 @@ describe('GET /api/admin/leads', () => {
 
     const res = await GET(get('http://localhost/api/admin/leads'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('db down');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   describe('?count=1&since=', () => {

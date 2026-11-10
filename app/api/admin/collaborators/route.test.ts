@@ -194,7 +194,7 @@ describe('POST /api/admin/collaborators', () => {
 
     const res = await POST(req({ handle: 'ana' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('proyecto sin nombre: inserta igual pero no intenta notificar', async () => {

@@ -7,6 +7,7 @@ import { resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
+import { serverError } from '@/lib/api-errors';
 
 // Secciones "de contenido" — las únicas que computeEmptySectionKeys sabe
 // evaluar (calculadora/contacto son toggles de configuración, no algo que
@@ -31,7 +32,7 @@ export async function GET() {
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const projectIds = (data ?? []).map(p => p.id);
   const pendingLeadsByProject = new Map<string, number>();
@@ -187,7 +188,7 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Ese slug ya está en uso.' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   // Formas "de una sola cosa" (casa): la casa ES el proyecto, así que se

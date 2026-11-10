@@ -5,6 +5,7 @@ import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
 import { sanitizeText } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { unitCreateSchema } from '@/lib/unit-schema';
+import { serverError } from '@/lib/api-errors';
 
 // GET /api/admin/units            → todas las unidades del proyecto activo,
 //                                    con edificio/piso resueltos (para el
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
     const { data: units, error } = await access.supabase.from('units').select('*').eq('floor_id', floorId).order('code');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     return NextResponse.json(units ?? []);
   }
 
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
   if (floorIds.length === 0) return NextResponse.json([]);
 
   const { data: units, error } = await supabase.from('units').select('*').in('floor_id', floorIds).order('code');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const floorById = new Map((floors ?? []).map(f => [f.id, f]));
   const buildingById = new Map((buildings ?? []).map(b => [b.id, b]));
@@ -174,6 +175,6 @@ export async function POST(request: Request) {
   if (error?.code === '23505') {
     return NextResponse.json({ error: `Ya existe una unidad con el código "${code}" en este piso.` }, { status: 409 });
   }
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data, { status: 201 });
 }

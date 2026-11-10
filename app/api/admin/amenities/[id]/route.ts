@@ -3,6 +3,7 @@ import { resolveProjectIdFromAmenity, resolveProjectIdFromBuilding, resolveProje
 import { sanitizeText, sanitizeMultiline, sanitizeSpecs, sanitizePoint, sanitizePolygon } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { amenityPatchSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,7 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.visible !== undefined) updates.visible = body.visible;
 
   const { data, error } = await supabase.from('amenities').update(updates).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -65,6 +66,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { supabase } = access;
 
   const { error } = await supabase.from('amenities').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

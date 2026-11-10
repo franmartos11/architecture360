@@ -72,6 +72,6 @@ describe('PATCH /api/admin/leads/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/leads/lead-1', { status: 'contactado' }), params('lead-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

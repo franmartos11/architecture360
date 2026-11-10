@@ -101,7 +101,7 @@ describe('PATCH /api/admin/aerial-hotspots/[id]', () => {
       ctx('hotspot-1')
     );
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -141,6 +141,6 @@ describe('DELETE /api/admin/aerial-hotspots/[id]', () => {
 
     const res = await DELETE(del('http://localhost/api/admin/aerial-hotspots/hotspot-1'), ctx('hotspot-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

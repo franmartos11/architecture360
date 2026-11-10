@@ -55,7 +55,7 @@ describe('POST /api/admin/floors/[id]/duplicate', () => {
 
     const res = await POST(req('floor-src', { number: 4, label: 'Piso 4' }), params('floor-src'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('piso de origen inexistente en la base (maybeSingle null): 404', async () => {
@@ -77,7 +77,7 @@ describe('POST /api/admin/floors/[id]/duplicate', () => {
 
     const res = await POST(req('floor-src', { number: 4, label: 'Piso 4' }), params('floor-src'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('duplicado válido con unidades: crea el piso, clona unidades y pines con código remapeado', async () => {
@@ -168,7 +168,7 @@ describe('POST /api/admin/floors/[id]/duplicate', () => {
 
     const res = await POST(req('floor-src', { number: 5, label: 'Piso 5' }), params('floor-src'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   // El wizard auto-crea Piso 1..N al dar de alta el edificio, así que el

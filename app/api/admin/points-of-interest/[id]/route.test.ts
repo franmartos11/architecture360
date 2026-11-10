@@ -51,7 +51,7 @@ describe('PATCH /api/admin/points-of-interest/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1', { name: 'Nuevo' }), params('poi-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('actualización válida: 200 con la fila actualizada', async () => {
@@ -92,7 +92,7 @@ describe('DELETE /api/admin/points-of-interest/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1'), params('poi-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('borrado válido: 200 con success true', async () => {

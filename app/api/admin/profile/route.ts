@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { parseJsonBody, optionalUrlSchema } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
 
 // skills/experiences/education/certifications/awards son listas de objetos
 // con forma propia (ej. { role, company, from, to }) — se cachea su longitud
@@ -48,7 +49,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ profile: data });
 }
 
@@ -116,7 +117,7 @@ export async function PATCH(request: Request) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Ese handle ya está en uso.' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ profile: data });
 }

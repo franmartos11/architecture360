@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
 
 const MAX_TITLE_LENGTH = 140;
 const MAX_TEXT_LENGTH = 500;
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     .select('id, title, description, location, starts_at')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ ...data, attendeeCount: 0, attendingByMe: false }, { status: 201 });
 }

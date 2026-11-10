@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 // Copia polígono + pin de cada depto de un piso de referencia a este piso —
 // para cuando los pisos ya tienen sus unidades cargadas (ej. vía CSV o uno
@@ -30,16 +31,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     supabase.from('floors').select('*').eq('id', body.sourceFloorId).maybeSingle(),
     supabase.from('floors').select('*').eq('id', targetFloorId).maybeSingle(),
   ]);
-  if (sourceErr) return NextResponse.json({ error: sourceErr.message }, { status: 500 });
-  if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
+  if (sourceErr) return serverError(sourceErr);
+  if (targetErr) return serverError(targetErr);
   if (!sourceFloor || !targetFloor) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
 
   const [{ data: sourceUnits, error: sourceUnitsErr }, { data: targetUnits, error: targetUnitsErr }] = await Promise.all([
     supabase.from('units').select('id, code, polygon').eq('floor_id', body.sourceFloorId),
     supabase.from('units').select('id, code').eq('floor_id', targetFloorId),
   ]);
-  if (sourceUnitsErr) return NextResponse.json({ error: sourceUnitsErr.message }, { status: 500 });
-  if (targetUnitsErr) return NextResponse.json({ error: targetUnitsErr.message }, { status: 500 });
+  if (sourceUnitsErr) return serverError(sourceUnitsErr);
+  if (targetUnitsErr) return serverError(targetUnitsErr);
 
   const oldNumTag = String(sourceFloor.number).padStart(2, '0');
   const newNumTag = String(targetFloor.number).padStart(2, '0');
@@ -60,7 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!target) continue;
 
     const { error: updateErr } = await supabase.from('units').update({ polygon: su.polygon }).eq('id', target.id);
-    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    if (updateErr) return serverError(updateErr);
     unitsUpdated++;
 
     const sourceDot = sourceDotByCode.get(su.code);
@@ -73,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (unitsUpdated > 0) {
     const { error: floorUpdateErr } = await supabase.from('floors').update({ unit_dots: nextDots }).eq('id', targetFloorId);
-    if (floorUpdateErr) return NextResponse.json({ error: floorUpdateErr.message }, { status: 500 });
+    if (floorUpdateErr) return serverError(floorUpdateErr);
   }
 
   return NextResponse.json({ unitsUpdated });

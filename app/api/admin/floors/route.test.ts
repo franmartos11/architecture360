@@ -45,7 +45,7 @@ describe('POST /api/admin/floors', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/floors', VALID_BODY));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida: inserta y devuelve 201 con la fila creada', async () => {

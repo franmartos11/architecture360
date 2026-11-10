@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { HANDLE_RE } from '@/lib/validate';
 import { isBlockedEitherWay } from '@/lib/blocks';
+import { serverError } from '@/lib/api-errors';
 
 const PARTICIPANT_SELECT = 'id, handle, display_name, avatar_image';
 
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
         .eq('participant_one', participantOne).eq('participant_two', participantTwo).maybeSingle();
       if (raceWinner) return NextResponse.json({ id: raceWinner.id });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ id: created.id }, { status: 201 });
 }

@@ -77,7 +77,7 @@ describe('POST /api/admin/floors/[id]/copy-delimitation', () => {
 
     const res = await POST(req('floor-target', { sourceFloorId: 'floor-src' }), params('floor-target'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('copia el polígono de las unidades que matchean por código remapeado, e ignora las sin polígono o sin match', async () => {
@@ -146,6 +146,6 @@ describe('POST /api/admin/floors/[id]/copy-delimitation', () => {
 
     const res = await POST(req('floor-target', { sourceFloorId: 'floor-src' }), params('floor-target'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

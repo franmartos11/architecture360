@@ -92,7 +92,7 @@ describe('PATCH /api/admin/aerial-slides/[id]', () => {
       ctx('slide-1')
     );
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -132,6 +132,6 @@ describe('DELETE /api/admin/aerial-slides/[id]', () => {
 
     const res = await DELETE(del('http://localhost/api/admin/aerial-slides/slide-1'), ctx('slide-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

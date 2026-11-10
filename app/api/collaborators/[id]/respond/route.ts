@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
+import { serverError } from '@/lib/api-errors';
 
 // La persona acreditada acepta o rechaza su propia invitación — a
 // diferencia del resto de /api/admin/collaborators, esto no depende de
@@ -26,7 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!data) return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
 
   if (body.status === 'accepted') {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { isBlockedEitherWay } from '@/lib/blocks';
+import { serverError } from '@/lib/api-errors';
 
 // Mismo patrón que /api/follows/[handle]: identificado por handle (así
 // llama MessageThread, que ya tiene other.handle a mano), resuelto a
@@ -48,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
   // INSERT idempotente — 23505 (unique violation) significa que ya lo
   // tenías bloqueado, no es error real (mismo criterio que follows).
   const { error } = await supabase.from('user_blocks').insert({ blocker_id: user.id, blocked_id: target.id });
-  if (error && error.code !== '23505') return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error && error.code !== '23505') return serverError(error);
 
   return NextResponse.json({ isBlockedByMe: true, canMessage: false });
 }

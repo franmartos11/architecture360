@@ -3,6 +3,7 @@ import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/
 import { sanitizeText } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { floorPatchSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,7 +29,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.floorKindDescription !== undefined) updates.floor_kind_description = sanitizeText(body.floorKindDescription, 300) || null;
 
   const { data, error } = await supabase.from('floors').update(updates).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -43,6 +44,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   // Cascade se lleva las unidades de este piso.
   const { error } = await supabase.from('floors').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

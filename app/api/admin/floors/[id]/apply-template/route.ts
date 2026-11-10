@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 // Aplica el "piso tipo" de un piso de referencia a OTRO piso que ya existe
 // (a diferencia de /duplicate, que siempre crea un piso nuevo) — para
@@ -35,16 +36,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     supabase.from('floors').select('*').eq('id', body.sourceFloorId).maybeSingle(),
     supabase.from('floors').select('*').eq('id', targetFloorId).maybeSingle(),
   ]);
-  if (sourceErr) return NextResponse.json({ error: sourceErr.message }, { status: 500 });
-  if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
+  if (sourceErr) return serverError(sourceErr);
+  if (targetErr) return serverError(targetErr);
   if (!sourceFloor || !targetFloor) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
 
   const [{ data: sourceUnits, error: sourceUnitsErr }, { data: targetUnits, error: targetUnitsErr }] = await Promise.all([
     supabase.from('units').select('*').eq('floor_id', body.sourceFloorId),
     supabase.from('units').select('code').eq('floor_id', targetFloorId),
   ]);
-  if (sourceUnitsErr) return NextResponse.json({ error: sourceUnitsErr.message }, { status: 500 });
-  if (targetUnitsErr) return NextResponse.json({ error: targetUnitsErr.message }, { status: 500 });
+  if (sourceUnitsErr) return serverError(sourceUnitsErr);
+  if (targetUnitsErr) return serverError(targetUnitsErr);
 
   const oldNumTag = String(sourceFloor.number).padStart(2, '0');
   const newNumTag = String(targetFloor.number).padStart(2, '0');
@@ -84,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       tour_data: u.tour_data,
     }));
     const { error: insertErr } = await supabase.from('units').insert(clones);
-    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    if (insertErr) return serverError(insertErr);
     unitsCreated = clones.length;
   }
 
@@ -97,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const existingDots: typeof sourceDots = targetFloor.unit_dots ?? [];
     const nextDots = [...existingDots.filter(d => !clonedCodes.has(d.unitId)), ...remappedDots];
     const { error: floorUpdateErr } = await supabase.from('floors').update({ unit_dots: nextDots }).eq('id', targetFloorId);
-    if (floorUpdateErr) return NextResponse.json({ error: floorUpdateErr.message }, { status: 500 });
+    if (floorUpdateErr) return serverError(floorUpdateErr);
   }
 
   return NextResponse.json({ unitsCreated, skipped });

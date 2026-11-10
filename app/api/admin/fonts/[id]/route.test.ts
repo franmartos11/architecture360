@@ -42,6 +42,6 @@ describe('DELETE /api/admin/fonts/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/fonts/x'), params('x'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

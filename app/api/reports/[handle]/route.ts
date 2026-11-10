@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
 
 const MAX_REASON_LENGTH = 500;
 
@@ -48,7 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ han
     entity_id: parsed.data.entityId ?? null,
     reason,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

@@ -3,6 +3,7 @@ import { requireAdminUser } from '@/lib/supabase/require-admin';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sanitizeText } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
 
 // Fuentes propias — cuenta-scoped (owner_id), no project-scoped: se suben
 // una vez y quedan disponibles para elegir en cualquier proyecto del mismo
@@ -27,7 +28,7 @@ export async function GET() {
 
   const supabase = await createClient();
   const { data, error } = await supabase.from('fonts').select('*').eq('owner_id', user.id).order('created_at');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ fonts: data ?? [] });
 }
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const bytes = await file.arrayBuffer();
   const { error: uploadError } = await admin.storage.from(BUCKET).upload(path, bytes, { contentType: file.type, upsert: false });
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
+  if (uploadError) return serverError(uploadError);
 
   const { data: publicUrl } = admin.storage.from(BUCKET).getPublicUrl(path);
 
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     .insert({ owner_id: user.id, name, file_url: publicUrl.publicUrl, format })
     .select()
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ font: data });
 }

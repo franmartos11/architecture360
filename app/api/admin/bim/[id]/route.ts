@@ -6,6 +6,7 @@ import { deleteBimStorageFiles } from '@/lib/supabase/delete-bim-storage';
 import { mapBimModelRow } from '@/data/bim-repository';
 import { canPublishBimModel, MAX_GALLERY_IMAGES } from '@/lib/bim';
 import type { BimModelRow } from '@/types/database';
+import { serverError } from '@/lib/api-errors';
 
 const patchSchema = z.object({
   title: z.string().optional(),
@@ -76,7 +77,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .eq('id', id)
     .select('*')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   if (parsed.data.floorIds !== undefined) {
     await access.supabase.from('bim_model_floors').delete().eq('bim_model_id', id);
@@ -115,7 +116,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   await deleteBimStorageFiles(createAdminClient(), [current]);
 
   const { error } = await access.supabase.from('bim_models').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ success: true });
 }

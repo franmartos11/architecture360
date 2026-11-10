@@ -8,6 +8,7 @@ import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline, sanitizeText } from '@/lib/sanitize';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -342,7 +343,7 @@ export async function POST(request: Request) {
     .select(AUTHOR_SELECT)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   if (body.poll) {
     const { data: poll } = await supabase.from('post_polls').insert({ post_id: data.id, question: sanitizeText(body.poll.question, 200) }).select('id').single();

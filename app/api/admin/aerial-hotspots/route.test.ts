@@ -93,6 +93,6 @@ describe('POST /api/admin/aerial-hotspots', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots', VALID_BODY));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

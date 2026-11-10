@@ -134,7 +134,7 @@ describe('PATCH /api/admin/buildings/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/buildings/building-1', { name: 'Nuevo' }), params('building-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -186,7 +186,7 @@ describe('DELETE /api/admin/buildings/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/buildings/building-1'), params('building-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 

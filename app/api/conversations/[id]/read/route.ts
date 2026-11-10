@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api-errors';
 
 // POST /api/conversations/[id]/read → marca como leídos los mensajes que
 // mandó el otro participante — la RLS de messages ya limita esto a filas
@@ -17,6 +18,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .neq('sender_id', user.id)
     .is('read_at', null);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

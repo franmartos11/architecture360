@@ -4,6 +4,7 @@ import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { unitPatchSchema } from '@/lib/unit-schema';
+import { serverError } from '@/lib/api-errors';
 
 // Longitud máxima de los campos de texto libre del FIELD_MAP de abajo —
 // el resto (números, booleanos, jsonb de polígonos/tour) no pasa por acá.
@@ -93,7 +94,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { supabase } = access;
 
   const { data, error } = await supabase.from('units').select('*').eq('id', id).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!data) return NextResponse.json({ error: 'Unidad no encontrada' }, { status: 404 });
   return NextResponse.json(data);
 }
@@ -141,7 +142,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error?.code === '23505') {
     return NextResponse.json({ error: `Ya existe una unidad con el código "${body.code ?? 'ese código'}" en este piso.` }, { status: 409 });
   }
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -155,6 +156,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { supabase } = access;
 
   const { error } = await supabase.from('units').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

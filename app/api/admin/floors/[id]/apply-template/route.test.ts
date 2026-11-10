@@ -93,7 +93,7 @@ describe('POST /api/admin/floors/[id]/apply-template', () => {
 
     const res = await POST(req('floor-target', { sourceFloorId: 'floor-src' }), params('floor-target'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('unidades ya existentes en destino se saltean; solo clona las que faltan, y remapea los pines', async () => {
@@ -161,6 +161,6 @@ describe('POST /api/admin/floors/[id]/apply-template', () => {
 
     const res = await POST(req('floor-target', { sourceFloorId: 'floor-src' }), params('floor-target'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });

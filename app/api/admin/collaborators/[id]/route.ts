@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromCollaborator, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .select('*, profile:profiles(handle, display_name, avatar_image)')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -43,6 +44,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { supabase } = access;
 
   const { error } = await supabase.from('project_collaborators').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }
