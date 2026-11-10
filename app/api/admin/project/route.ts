@@ -9,14 +9,18 @@ import { getPublishReadiness, describeMissing } from '@/lib/publish-readiness';
 import { getProjectBySlug } from '@/data/project-repository';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
 import { slugify } from '@/lib/slug';
+import { safeUrl } from '@/lib/schema-parts';
+import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema } from '@/lib/project-schemas';
+import { serverError } from '@/lib/api-errors';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
 // sectionConfig/themeConfig/commonAreasTour/processGallery/beforeAfter son
-// blobs JSON grandes y con forma propia (config del sitio, tour 360°,
-// galería de proceso) — se aceptan sin validar su estructura interna acá
-// (fuera de alcance de este endurecimiento puntual); lo que sí se valida
-// es todo el texto libre que termina en la ficha pública del proyecto.
+// blobs JSON con forma propia (config del sitio, tema, tour 360°, galería de
+// proceso): su forma y sus topes viven en lib/project-schemas.ts. Antes eran
+// z.unknown() y entraba cualquier cosa de cualquier tamaño, que después se
+// servía (con caché) a cada visitante — en el tema, además, los valores
+// terminan como variables CSS del sitio público.
 const projectPatchSchema = z.object({
   name: z.string().max(200).optional(),
   // Link público (/proyecto/[slug]) — editable desde Configuración. Se
@@ -33,21 +37,21 @@ const projectPatchSchema = z.object({
   // no rechazar ese null — el handler lo sanea a '' igual.
   description: z.string().max(5000).nullable().optional(),
   tagline: z.string().max(300).nullable().optional(),
-  sectionConfig: z.unknown().optional(),
-  themeConfig: z.unknown().optional(),
+  sectionConfig: sectionConfigSchema.optional(),
+  themeConfig: themeConfigSchema.optional(),
   location: z.string().max(300).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  masterplanImage: z.string().max(1000).nullable().optional(),
-  commonAreasTour: z.unknown().optional(),
+  masterplanImage: safeUrl.nullable().optional(),
+  commonAreasTour: commonAreasTourSchema.optional(),
   tourOrientationDegrees: z.number().min(0).max(360).nullable().optional(),
   academicInstitution: z.string().max(200).nullable().optional(),
   academicCareer: z.string().max(200).nullable().optional(),
   academicTutor: z.string().max(200).nullable().optional(),
   academicYear: z.string().max(20).nullable().optional(),
   academicTeam: z.string().max(500).nullable().optional(),
-  processGallery: z.unknown().optional(),
-  beforeAfter: z.unknown().optional(),
+  processGallery: processGallerySchema.optional(),
+  beforeAfter: beforeAfterSchema.optional(),
   // Avance de obra: la forma se valida y se sanea entera en
   // parseConstructionProgress (null = sin avance cargado).
   constructionProgress: z.unknown().optional(),
@@ -64,7 +68,7 @@ export async function GET(request: Request) {
   const { supabase } = access;
 
   const { data: project, error } = await supabase.from('projects').select('*').eq('id', projectId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
   const [{ data: buildings }, { slides, hotspots }, { data: amenities }, { data: pointsOfInterest }, { data: collaborators }, comments, unitsTotal, unitsPriced] = await Promise.all([
@@ -232,7 +236,7 @@ export async function PATCH(request: Request) {
 
   // Carrera entre el chequeo de arriba y el update: la constraint unique decide.
   if (error?.code === '23505' && body.slug !== undefined) return NextResponse.json({ error: 'Ese link ya lo usa otro proyecto. Probá con otro.' }, { status: 409 });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (previousSlug) revalidateProjectBySlug(previousSlug);
   return NextResponse.json(data);
 }

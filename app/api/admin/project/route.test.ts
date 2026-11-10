@@ -338,7 +338,7 @@ describe('PATCH /api/admin/project', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'X' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -384,5 +384,45 @@ describe('PATCH /api/admin/project: publicar exige el mínimo', () => {
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
     expect(res.status).toBe(200);
     expect(getProjectBySlug).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/admin/project: validación de los blobs JSON', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['tema con un color que no es hex', { themeConfig: { customColors: { bg: 'url(https://evil.com/x.png)' } } }],
+    ['tema con fondo que rompe el url()', { themeConfig: { backgroundImageUrl: "https://a.com/x.jpg');background:url('//evil" } }],
+    ['tema con radio inválido', { themeConfig: { radius: '10vw' } }],
+    ['secciones que no son un array', { sectionConfig: { key: 'about' } }],
+    ['galería de proceso con javascript:', { processGallery: ['javascript:alert(1)'] }],
+    ['antes/después con una imagen peligrosa', { beforeAfter: [{ label: 'x', beforeImage: 'javascript:alert(1)', afterImage: 'https://a.com/b.jpg' }] }],
+    ['recorrido demasiado grande', { commonAreasTour: { initialNodeId: 'n', nodes: [{ id: 'n', name: 'x', imageUrl: 'https://a.com/x.jpg', note: 'x'.repeat(600_000) }] } }],
+    ['foto del masterplan con javascript:', { masterplanImage: 'javascript:alert(1)' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', body, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un tema válido llega al update tal cual (con las claves de color filtradas)', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      themeConfig: { presetKey: 'natural', customColors: { bg: '#fafafa', spacing: '999rem' } },
+    }, { method: 'PATCH' }));
+
+    expect(res.status).toBe(200);
+    const sent = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(sent.theme_config).toEqual({ presetKey: 'natural', customColors: { bg: '#fafafa' } });
   });
 });

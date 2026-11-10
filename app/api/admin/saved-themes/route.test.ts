@@ -47,7 +47,7 @@ describe('GET /api/admin/saved-themes', () => {
 
     const res = await GET();
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('db down');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -92,7 +92,7 @@ describe('POST /api/admin/saved-themes', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/saved-themes', { name: 'Oscuro', config: { preset: 'dark' } }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida: inserta y devuelve el tema creado', async () => {
@@ -103,5 +103,32 @@ describe('POST /api/admin/saved-themes', () => {
     const res = await POST(jsonRequest('http://localhost/api/admin/saved-themes', { name: 'Oscuro', config: { preset: 'dark' } }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ theme: { id: 'theme-1', name: 'Oscuro', config: { preset: 'dark' } } });
+  });
+});
+
+describe('POST /api/admin/saved-themes: validación del tema', () => {
+  beforeEach(() => {
+    vi.mocked(requireAdminUser).mockReset();
+    vi.mocked(createClient).mockReset();
+  });
+
+  it.each([
+    ['color que no es hex', { customColors: { bg: 'red' } }],
+    ['fondo con una comilla', { backgroundImageUrl: "https://a.com/x'.jpg" }],
+    ['radio inválido', { radius: '10vw' }],
+  ])('400 con %s, sin tocar la base', async (_n, config) => {
+    vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await POST(jsonRequest('http://localhost/api/admin/saved-themes', { name: 'Oscuro', config }));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
+    const res = await POST(new Request('http://localhost/api/admin/saved-themes', { method: 'POST', body: '{roto' }));
+    expect(res.status).toBe(400);
   });
 });
