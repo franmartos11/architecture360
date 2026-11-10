@@ -40,11 +40,10 @@ describe('POST /api/leads', () => {
     const supabase = mockSupabase({
       results: [
         { data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, // .from('projects')...maybeSingle()
-        { error: null }, // .from('leads').insert(...)
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
-    const admin = { auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'dueño@example.com' } } }) } } };
+    const admin = { ...mockSupabase({ results: [{ error: null }] }), auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'dueño@example.com' } } }) } } };
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
@@ -68,8 +67,9 @@ describe('POST /api/leads', () => {
   });
 
   it('sin IP en la request: no rate-limitea y sigue el flujo normal', async () => {
-    const supabase = mockSupabase({ results: [{ data: null }, { error: null }] });
+    const supabase = mockSupabase({ results: [{ data: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({ results: [{ error: null }] }) as never);
 
     const res = await POST(req(VALID_BODY));
 
@@ -78,36 +78,40 @@ describe('POST /api/leads', () => {
   });
 
   it('proyecto no encontrado: igual inserta el lead (project_id null), sin intentar notificar', async () => {
-    const supabase = mockSupabase({ results: [{ data: null }, { error: null }] });
+    const supabase = mockSupabase({ results: [{ data: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const admin = mockSupabase({ results: [{ error: null }] });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 
     expect(res.status).toBe(200);
     expect(sendEmail).not.toHaveBeenCalled();
-    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(admin.from).toHaveBeenCalledTimes(1); // solo el insert; no se busca al dueño
   });
 
-  it('error de la base al insertar: 500 con el mensaje', async () => {
-    const supabase = mockSupabase({
-      results: [{ data: null }, { error: { message: 'insert failed' } }],
-    });
+  it('error de la base al insertar: 500 con mensaje genérico (no filtra el de la base)', async () => {
+    const supabase = mockSupabase({ results: [{ data: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({ results: [{ error: { message: 'insert failed' } }] }) as never);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    const { error } = await res.json();
+    expect(error).not.toContain('insert failed');
+    expect(error).toMatch(/No pudimos/);
   });
 
   it('si falla el envío de email, la respuesta sigue siendo success (best-effort)', async () => {
     const supabase = mockSupabase({
-      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, { error: null }],
+      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
-    vi.mocked(createAdminClient).mockImplementation(() => {
-      throw new Error('supabase admin down');
-    });
+    const insertOnly = mockSupabase({ results: [{ error: null }] });
+    const admin = { ...insertOnly, auth: { admin: { getUserById: vi.fn().mockRejectedValue(new Error('supabase admin down')) } } };
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 

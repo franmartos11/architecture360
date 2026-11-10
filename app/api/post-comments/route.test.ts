@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 vi.mock('@/lib/notify', () => ({ notify: vi.fn().mockResolvedValue(undefined) }));
 
@@ -8,6 +9,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const POST_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -17,6 +19,7 @@ function get(url: string) {
 
 describe('GET /api/post-comments', () => {
   beforeEach(() => {
+    vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(createClient).mockReset();
   });
 
@@ -130,20 +133,25 @@ describe('POST /api/post-comments', () => {
   });
 
   it('rate limit alcanzado (5 comentarios en 5 min): 429, no inserta', async () => {
-    const supabase = mockSupabase({
-      user: { id: 'user-1' },
-      results: [{ count: 5 }], // count de comentarios recientes
-    });
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Estás comentando muy rápido' }), { status: 429 }) as never
+    );
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(429);
+    expect(rateLimitOrRespond).toHaveBeenCalledWith(
+      { key: 'post-comments:user:user-1', windowSeconds: 300, max: 5 },
+      expect.any(String)
+    );
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it('error de la base al insertar: 500', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
-      results: [{ count: 0 }, { data: null, error: { message: 'insert failed' } }],
+      results: [{ data: null, error: { message: 'insert failed' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -156,7 +164,6 @@ describe('POST /api/post-comments', () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
       results: [
-        { count: 0 }, // rate-limit count
         { data: { id: 'c1', post_id: POST_ID, author_id: 'user-1', body: 'hola', created_at: '2026-01-01' } }, // insert
         { data: { author_id: 'post-author' } }, // .from('posts') lookup
         { data: [{ id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] }, // withAuthors
@@ -166,7 +173,7 @@ describe('POST /api/post-comments', () => {
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(201);
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'post-author',
       actorId: 'user-1',
       type: 'comment',
@@ -180,7 +187,6 @@ describe('POST /api/post-comments', () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
       results: [
-        { count: 0 },
         { data: { id: 'c1', post_id: POST_ID, author_id: 'user-1', body: 'hola', created_at: '2026-01-01' } },
         { data: null }, // post no existe
         { data: [] },

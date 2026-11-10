@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!error) {
     const { data: post } = await supabase.from('posts').select('author_id').eq('id', id).maybeSingle();
-    if (post) await notify(supabase, { recipientId: post.author_id, actorId: user.id, type: 'like', entityId: id });
+    if (post) await notify({ recipientId: post.author_id, actorId: user.id, type: 'like', entityId: id });
   }
 
   return NextResponse.json({ success: true });

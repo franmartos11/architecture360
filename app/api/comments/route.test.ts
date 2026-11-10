@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
 import { createClient } from '@/lib/supabase/server';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -18,6 +20,7 @@ function postReq(body: unknown) {
 
 describe('GET /api/comments', () => {
   beforeEach(() => {
+    vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(createClient).mockReset();
   });
 
@@ -124,17 +127,25 @@ describe('POST /api/comments', () => {
   });
 
   it('rate limit propio alcanzado: 429, no inserta', async () => {
-    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ count: 5 }] });
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Estás comentando muy rápido' }), { status: 429 }) as never
+    );
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: 'Hola' }));
     expect(res.status).toBe(429);
+    expect(rateLimitOrRespond).toHaveBeenCalledWith(
+      { key: 'comments:user:user-1', windowSeconds: 300, max: 5 },
+      expect.any(String)
+    );
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it('error de la base al insertar: 500', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
-      results: [{ count: 0 }, { error: { message: 'insert failed' } }],
+      results: [{ error: { message: 'insert failed' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -148,7 +159,6 @@ describe('POST /api/comments', () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
       results: [
-        { count: 0 },
         { data: inserted, error: null },
         { data: [{ id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] },
       ],

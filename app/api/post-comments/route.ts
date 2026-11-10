@@ -4,11 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
-const RATE_LIMIT_WINDOW_MINUTES = 5;
-const RATE_LIMIT_MAX_COMMENTS = 5;
 
 // Mismo patrón que /api/comments (project_comments) — sin FK real entre
 // post_comments.author_id y profiles, join manual.
@@ -68,15 +67,13 @@ export async function POST(request: Request) {
   const text = sanitizeMultiline(body.body, MAX_BODY_LENGTH);
   if (!text) return NextResponse.json({ error: 'Falta el comentario' }, { status: 400 });
 
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
-  const { count: recentCount } = await supabase
-    .from('post_comments')
-    .select('id', { count: 'exact', head: true })
-    .eq('author_id', user.id)
-    .gte('created_at', since);
-  if ((recentCount ?? 0) >= RATE_LIMIT_MAX_COMMENTS) {
-    return NextResponse.json({ error: 'Estás comentando muy rápido — esperá unos minutos.' }, { status: 429 });
-  }
+  // Atómico en Postgres (check_rate_limit): contar filas y después insertar dejaba
+  // pasar varios pedidos simultáneos por debajo del tope.
+  const limited = await rateLimitOrRespond(
+    { key: `post-comments:user:${user.id}`, windowSeconds: 300, max: 5 },
+    'Estás comentando muy rápido — esperá unos minutos.'
+  );
+  if (limited) return limited;
 
   const { data, error } = await supabase
     .from('post_comments')
@@ -87,7 +84,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const { data: post } = await supabase.from('posts').select('author_id').eq('id', body.postId).maybeSingle();
-  if (post) await notify(supabase, { recipientId: post.author_id, actorId: user.id, type: 'comment', entityId: body.postId });
+  if (post) await notify({ recipientId: post.author_id, actorId: user.id, type: 'comment', entityId: body.postId });
 
   const [comment] = await withAuthors(supabase, [data]);
   return NextResponse.json(comment, { status: 201 });

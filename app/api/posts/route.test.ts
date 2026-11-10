@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 vi.mock('@/lib/notify', () => ({ notify: vi.fn().mockResolvedValue(undefined) }));
 
@@ -8,6 +9,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const SHARED_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -17,6 +19,7 @@ function get(url: string) {
 
 describe('GET /api/posts', () => {
   beforeEach(() => {
+    vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(createClient).mockReset();
   });
 
@@ -319,21 +322,29 @@ describe('POST /api/posts', () => {
     expect((await res.json()).error).toBe('Falta el texto del post');
   });
 
-  it('rate limit alcanzado (5 posts en 5 min): 429', async () => {
+  it('rate limit alcanzado (5 posts en 5 min): 429 y no inserta', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
-      results: [{ data: { id: 'user-1' } }, { count: 5 }],
+      results: [{ data: { id: 'user-1' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Estás publicando muy rápido' }), { status: 429 }) as never
+    );
 
     const res = await POST(req({ body: 'hola' }));
     expect(res.status).toBe(429);
+    expect(rateLimitOrRespond).toHaveBeenCalledWith(
+      { key: 'posts:user:user-1', windowSeconds: 300, max: 5 },
+      expect.any(String)
+    );
+    expect(supabase.from).toHaveBeenCalledTimes(1); // solo la consulta previa: no llegó al insert
   });
 
   it('error de la base al insertar: 500', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
-      results: [{ data: { id: 'user-1' } }, { count: 0 }, { data: null, error: { message: 'insert failed' } }],
+      results: [{ data: { id: 'user-1' } }, { data: null, error: { message: 'insert failed' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -346,7 +357,6 @@ describe('POST /api/posts', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: 'user-1' } }, // profile check
-        { count: 0 }, // rate-limit count
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: 'hello' } }, // insert
         { data: [] }, // post_likes
         { data: [] }, // post_comments
@@ -366,7 +376,6 @@ describe('POST /api/posts', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: 'user-1' } }, // profile check
-        { count: 0 }, // rate-limit count
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: 'hey @ana check this out' } }, // insert
         { data: [{ id: 'mentioned-1' }] }, // profiles by handle (mentions)
         { data: [] }, // post_likes
@@ -379,7 +388,7 @@ describe('POST /api/posts', () => {
 
     const res = await POST(req({ body: 'hey @ana check this out' }));
     expect(res.status).toBe(201);
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'mentioned-1',
       actorId: 'user-1',
       type: 'mention',
@@ -392,7 +401,6 @@ describe('POST /api/posts', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: 'user-1' } }, // profile check
-        { count: 0 }, // rate-limit count
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: SHARED_ID, body: '' } }, // insert
         { data: [] }, // post_likes
         { data: [] }, // post_comments
@@ -453,7 +461,6 @@ describe('POST /api/posts', () => {
       results: [
         { data: { id: 'user-1' } }, // profile check
         { data: { id: SHARED_ID, owner_id: 'user-1', common_areas_tour: null } }, // project lookup
-        { count: 0 }, // rate-limit count
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: 'Miren este proyecto' } }, // insert
         { data: [] }, // post_likes
         { data: [] }, // post_comments
@@ -472,7 +479,6 @@ describe('POST /api/posts', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: 'user-1' } }, // profile check
-        { count: 0 }, // rate-limit count
         { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, body: '¿Revit o Archicad?' } }, // insert
         { data: { id: 'poll-1' } }, // post_polls insert
         { error: null }, // post_poll_options insert

@@ -99,7 +99,7 @@ describe('PATCH /api/collaborators/[id]/respond', () => {
 
     const res = await PATCH(req({ status: 'accepted' }), params());
     expect(res.status).toBe(200);
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'owner-1',
       actorId: 'user-1',
       type: 'collaboration_accepted',

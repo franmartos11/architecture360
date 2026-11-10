@@ -165,7 +165,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     last_message_sender_id: user.id,
   }).eq('id', id);
 
-  await notify(supabase, { recipientId, actorId: user.id, type: 'message', entityId: id });
+  await notify({ recipientId, actorId: user.id, type: 'message', entityId: id });
 
   return NextResponse.json(resolved, { status: 201 });
 }

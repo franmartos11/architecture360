@@ -153,7 +153,7 @@ describe('POST /api/follows/[handle]', () => {
     const res = await POST(req('POST'), params());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ followerCount: 7, isFollowedByMe: true });
-    expect(notify).toHaveBeenCalledWith(supabase, { recipientId: 'target-1', actorId: 'me-1', type: 'follow' });
+    expect(notify).toHaveBeenCalledWith({ recipientId: 'target-1', actorId: 'me-1', type: 'follow' });
   });
 
   it('insert 23505 (ya lo seguía): se trata como éxito, no como error', async () => {
