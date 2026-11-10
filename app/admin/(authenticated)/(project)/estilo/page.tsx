@@ -8,6 +8,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
+import { fetchProjectPreview } from '@/lib/preview-fetch';
 import { THEME_PRESETS, RADIUS_OPTIONS } from '@/lib/theme-presets';
 import { CURATED_FONTS, ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { resolveTheme, getContrastWarnings } from '@/lib/resolve-theme';
@@ -64,13 +65,16 @@ export default function AdminEstiloPage() {
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
 
-  const load = () => {
+  // force=true al reintentar: tiene que traer lo último. Al abrir la pantalla
+  // comparte el pedido con el estado de publicación del layout (lib/preview-fetch.ts).
+  // `force` solo es true cuando se llama explícito (reintentar); useEffect lo llama sin argumentos.
+  const load = (force?: boolean) => {
     startTransition(() => {
       setLoading(true);
       setLoadError(false);
     });
     Promise.all([
-      fetch(withActiveProject('/api/admin/project/preview', activeProjectId)).then(r => r.json()),
+      fetchProjectPreview(withActiveProject('/api/admin/project/preview', activeProjectId), { force: force === true }),
       fetch('/api/admin/fonts').then(r => r.json()),
       fetch('/api/admin/saved-themes').then(r => r.json()),
     ])
@@ -152,7 +156,7 @@ export default function AdminEstiloPage() {
   const toggleGroup = (k: Group) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
   if (loading) return <LoadingSpinner text="Cargando estilo..." tone="light" />;
-  if (loadError || !themeConfig || !project) return <ErrorState message="No se pudo cargar el estilo." onRetry={load} />;
+  if (loadError || !themeConfig || !project) return <ErrorState message="No se pudo cargar el estilo." onRetry={() => load(true)} />;
 
   const preset = THEME_PRESETS.find(p => p.key === themeConfig.presetKey) ?? THEME_PRESETS[0];
   const resolved = resolveTheme(themeConfig, ownerFonts);

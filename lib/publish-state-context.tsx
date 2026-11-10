@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { resolveSectionList, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
 import { withActiveProject } from '@/lib/active-project-context';
+import { fetchProjectPreview } from '@/lib/preview-fetch';
 import { getPublishReadiness, type ReadinessItem } from '@/lib/publish-readiness';
 import { getProjectHref, getProjectPreviewHref } from '@/lib/project-url';
 import { getProjectTypeConfig } from '@/lib/project-types';
@@ -40,6 +41,14 @@ const PublishStateContext = createContext<PublishState | null>(null);
 // Se vuelve a pedir al navegar entre pantallas del panel y al volver a la
 // pestaña, para que lo que se cargó en otra pantalla (un lote, la vista
 // aérea) se refleje sin recargar.
+//
+// Cada pedido arma el proyecto público completo (edificios, pisos, unidades…),
+// así que no se repite más seguido que esto: pasar por tres pantallas en
+// pocos segundos hacía tres reconstrucciones completas. Lo que cambia algo
+// y necesita verlo YA llama a refresh(), que saltea el intervalo mínimo.
+const MIN_NAV_REFRESH_MS = 10_000;
+const MIN_FOCUS_REFRESH_MS = 60_000;
+
 export function PublishStateProvider({
   projectId,
   slug,
@@ -64,12 +73,23 @@ export function PublishStateProvider({
   const [missingSections, setMissingSections] = useState<MissingSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
-  const refresh = useCallback(() => setTick(t => t + 1), []);
+  const lastFetchAt = useRef(0);
+  const forceNext = useRef(false);
+  const refresh = useCallback(() => {
+    forceNext.current = true;
+    setTick(t => t + 1);
+  }, []);
 
   useEffect(() => {
+    // Navegación sin cambios explícitos: si se pidió hace poco, no repetir.
+    if (!forceNext.current && Date.now() - lastFetchAt.current < MIN_NAV_REFRESH_MS) return;
+    const forced = forceNext.current;
+    forceNext.current = false;
+    lastFetchAt.current = Date.now();
     let cancelled = false;
-    fetch(withActiveProject('/api/admin/project/preview', projectId))
-      .then(res => res.json())
+    // Compartido con la pantalla que se está abriendo (Sitio, Estilo…): un solo
+    // pedido en vez de dos. Un refresh() explícito sí fuerza uno nuevo.
+    fetchProjectPreview(withActiveProject('/api/admin/project/preview', projectId), { force: forced })
       .then(data => {
         if (cancelled || !data.project) return;
         setRequiredItems(getPublishReadiness(data.project, typeConfig).items);
@@ -86,7 +106,10 @@ export function PublishStateProvider({
   }, [projectId, typeConfig, pathname, tick]);
 
   useEffect(() => {
-    const onFocus = () => refresh();
+    const onFocus = () => {
+      // Volver a la pestaña dos veces seguidas no es un cambio: esperar un rato.
+      if (Date.now() - lastFetchAt.current >= MIN_FOCUS_REFRESH_MS) refresh();
+    };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh]);

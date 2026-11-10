@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
+import { fetchProjectPreview } from '@/lib/preview-fetch';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { resolveSectionList } from '@/lib/project-sections';
 import { btnPrimary } from '@/components/admin/panel-ui';
@@ -46,8 +47,7 @@ export default function CalculatorEditor({ onSaved, showSiteToggle }: { onSaved?
 
   useEffect(() => {
     if (!showSiteToggle) return;
-    fetch(withActiveProject('/api/admin/project/preview', activeProjectId))
-      .then(res => res.json())
+    fetchProjectPreview(withActiveProject('/api/admin/project/preview', activeProjectId))
       .then(data => {
         if (data?.project) {
           setSectionConfig(resolveSectionList(data.project.sectionConfig, typeConfig).map(({ key, enabled }) => ({ key, enabled })));

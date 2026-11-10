@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
+import { fetchProjectPreview } from '@/lib/preview-fetch';
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { usePublishState } from '@/lib/publish-state-context';
@@ -85,10 +86,14 @@ export default function AdminSitioPage() {
   const sectionsRef = useRef<SectionRow[] | null>(null);
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
 
-  const load = () => {
+  // force=true al recargar después de guardar o reintentar: tiene que traer lo
+  // último, no lo que ya estaba en vuelo. Al abrir la pantalla comparte el pedido
+  // con el estado de publicación del layout (ver lib/preview-fetch.ts).
+  // `force` solo es true cuando se llama explícito; useEffect lo llama sin argumentos.
+  const load = (force?: boolean) => {
     startTransition(() => { setLoading(true); setLoadError(false); });
     Promise.all([
-      fetch(withActiveProject('/api/admin/project/preview', activeProjectId)).then(res => res.json()),
+      fetchProjectPreview(withActiveProject('/api/admin/project/preview', activeProjectId), { force: force === true }),
       fetch('/api/admin/fonts').then(res => res.json()),
     ])
       .then(([data, fontsData]) => {
@@ -148,7 +153,7 @@ export default function AdminSitioPage() {
   const handleDragEnd = () => { if (sectionsRef.current) persist(sectionsRef.current); };
 
   if (loading) return <LoadingSpinner text="Cargando el sitio..." tone="light" />;
-  if (loadError || !project || !sections) return <ErrorState message="No se pudo cargar el sitio." onRetry={load} />;
+  if (loadError || !project || !sections) return <ErrorState message="No se pudo cargar el sitio." onRetry={() => load(true)} />;
 
   const theme = resolveTheme(project.themeConfig, ownerFonts);
 
@@ -363,9 +368,9 @@ export default function AdminSitioPage() {
             );
           })()}
           {selected === 'portada' ? (
-            <PortadaEditor onSaved={load} />
+            <PortadaEditor onSaved={() => load(true)} />
           ) : selRow ? (
-            <SectionPanelBody row={selRow} status={selStatus} typeConfig={typeConfig} onSaved={load} />
+            <SectionPanelBody row={selRow} status={selStatus} typeConfig={typeConfig} onSaved={() => load(true)} />
           ) : null}
         </div>
 

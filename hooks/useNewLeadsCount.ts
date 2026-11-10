@@ -21,12 +21,13 @@ export function useNewLeadsCount() {
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch(withActiveProject('/api/admin/leads', activeProjectId));
+      // Con la pestaña en segundo plano nadie mira el badge: no consultar.
+      if (document.hidden) return;
+      const url = withActiveProject('/api/admin/leads', activeProjectId);
+      const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}count=1&since=${getLastSeenAt()}`);
       if (!res.ok) return;
-      const leads: { created_at: string }[] = await res.json();
-      const lastSeenAt = getLastSeenAt();
-      const newOnes = leads.filter(l => new Date(l.created_at).getTime() > lastSeenAt);
-      setCount(newOnes.length);
+      const data: { count?: number } = await res.json();
+      setCount(data.count ?? 0);
     } catch {
       // silencioso — no interrumpir la navegación del admin por esto
     }
@@ -37,7 +38,13 @@ export function useNewLeadsCount() {
       check();
     });
     const interval = setInterval(check, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // Al volver a la pestaña, ponerse al día sin esperar el próximo ciclo.
+    const onVisible = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [check]);
 
   const markSeen = useCallback(() => {
