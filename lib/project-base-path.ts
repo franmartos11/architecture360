@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { resolveProjectSlugFromHost } from './project-subdomain';
+import { resolveProjectSlugForHost } from './project-host';
 
 // Prefijo a anteponer a cualquier link INTERNO del sitio público de este
 // proyecto (masterplan, ubicación, un edificio, una unidad...). Server-only
@@ -21,6 +21,6 @@ import { resolveProjectSlugFromHost } from './project-subdomain';
 // vez por request y distribuye por contexto de React.
 export async function getProjectBasePath(slug: string): Promise<string> {
   const host = (await headers()).get('host');
-  const onSubdomain = host ? resolveProjectSlugFromHost(host) === slug : false;
+  const onSubdomain = host ? (await resolveProjectSlugForHost(host)) === slug : false;
   return onSubdomain ? '' : `/proyecto/${slug}`;
 }

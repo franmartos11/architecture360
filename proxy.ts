@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
-import { resolveProjectSlugFromHost } from '@/lib/project-subdomain';
+import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin } from '@/lib/project-host';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
 // .env.local.example), este proxy no hace nada — así el sitio
@@ -44,7 +44,9 @@ export async function proxy(request: NextRequest) {
   // de que el handler llegue a correr — así no hace falta repetir este
   // chequeo en cada una de las ~53 rutas.
   if (isApiRoute) {
-    if (!isAllowedOrigin(origin)) {
+    // Un dominio propio activo (project_domains) también es "el propio frontend":
+    // el sitio de un cliente en torre.com hace fetch a /api/leads con ese Origin.
+    if (!isAllowedOrigin(origin) && !(await isActiveCustomDomainOrigin(origin))) {
       return NextResponse.json({ error: 'Origen no permitido' }, { status: 403 });
     }
     if (request.method === 'OPTIONS') {
@@ -79,7 +81,28 @@ export async function proxy(request: NextRequest) {
     // Host para saber de qué proyecto se trata.
     if (!isStaticAssetPath(pathname) && !isApiRoute) {
       const host = request.headers.get('host');
-      const projectSlug = host ? resolveProjectSlugFromHost(host) : null;
+      // Subdominio de la plataforma o dominio propio del cliente (con caché).
+      const resolved = host ? await resolveHostProject(host) : null;
+      const projectSlug = resolved?.slug ?? null;
+
+      // Un proyecto con dominio propio activo tiene UNA dirección: el link de la
+      // plataforma (/proyecto/slug o su subdominio) redirige ahí, así Google no ve
+      // el mismo sitio en tres URLs. Solo GET/HEAD, y nunca si ya estamos en el
+      // dominio propio (evita el bucle). Un borrador no redirige: ver canonicalDomainForSlug.
+      if ((request.method === 'GET' || request.method === 'HEAD') && resolved?.kind !== 'custom') {
+        const viaPath = pathname.match(/^\/proyecto\/([^/]+)(\/.*)?$/);
+        const slugParaRedirigir = projectSlug ?? viaPath?.[1] ?? null;
+        if (slugParaRedirigir) {
+          const dominio = await canonicalDomainForSlug(slugParaRedirigir);
+          if (dominio) {
+            const resto = projectSlug ? pathname : (viaPath?.[2] ?? '');
+            const destino = new URL(`https://${dominio}${resto === '/' ? '' : resto}`);
+            destino.search = request.nextUrl.search;
+            return withCors(NextResponse.redirect(destino, 301));
+          }
+        }
+      }
+
       if (projectSlug) {
         const url = request.nextUrl.clone();
         url.pathname = `/proyecto/${projectSlug}${pathname === '/' ? '' : pathname}`;

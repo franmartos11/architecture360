@@ -6,6 +6,7 @@ import { PageHeader, SegmentedTabs, btnSecondary } from '@/components/admin/pane
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
+import CustomDomainsSection from '@/components/admin/CustomDomainsSection';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
@@ -171,6 +172,8 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {project && <CustomDomainsSection projectId={project.id} />}
 
       {project && (
         <section className="rounded-2xl border border-gray-200 bg-white">

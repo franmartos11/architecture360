@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { headers } from 'next/headers';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import { getIndexableProfileHandles } from '@/data/profile-repository';
-import { resolveProjectSlugFromHost } from '@/lib/project-subdomain';
+import { resolveProjectSlugForHost } from '@/lib/project-host';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 import type { Project } from '@/types';
 
@@ -25,7 +25,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const host = (await headers()).get('host');
-  const slugDeSubdominio = host ? resolveProjectSlugFromHost(host) : null;
+  const slugDeSubdominio = host ? await resolveProjectSlugForHost(host) : null;
 
   if (slugDeSubdominio) {
     const project = await getPublicProjectBySlug(slugDeSubdominio);

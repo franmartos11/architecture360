@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { headers } from 'next/headers';
-import { resolveProjectSlugFromHost } from '@/lib/project-subdomain';
+import { resolveProjectSlugForHost } from '@/lib/project-host';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -13,7 +13,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
  */
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const host = (await headers()).get('host');
-  const enSubdominioDeProyecto = host ? resolveProjectSlugFromHost(host) !== null : false;
+  const enSubdominioDeProyecto = host ? (await resolveProjectSlugForHost(host)) !== null : false;
   const base = enSubdominioDeProyecto ? `${protocoloDe(host!)}://${host}` : SITE_URL;
 
   return {

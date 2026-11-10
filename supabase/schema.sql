@@ -712,6 +712,41 @@ create table if not exists calculator_settings (
   min_down_payment numeric not null default 20
 );
 
+-- ═══════════════════════════════════════════════════════════════════
+-- Dominios propios por proyecto (www.torre-del-mar.com → /proyecto/[slug])
+-- ═══════════════════════════════════════════════════════════════════
+-- Un proyecto puede tener varios (apex + www). El proxy resuelve el Host
+-- contra esta tabla (ver lib/project-host.ts) y reescribe a /proyecto/[slug].
+-- status: 'pending' (cargado, DNS sin verificar) → 'verified' (Vercel lo ve) →
+-- 'active' (sirve el sitio). Solo los 'active' se resuelven.
+create table if not exists project_domains (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  hostname text not null unique,
+  status text not null default 'pending' check (status in ('pending', 'verified', 'active')),
+  vercel_verification jsonb,
+  created_at timestamptz not null default now(),
+  constraint project_domains_hostname_format
+    check (hostname = lower(hostname) and hostname ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+);
+create index if not exists project_domains_project_idx on project_domains(project_id);
+
+alter table project_domains enable row level security;
+
+-- El proxy resuelve el Host como anon, antes de saber quién visita: los
+-- dominios activos son públicos (de todos modos están en el DNS).
+drop policy if exists "public read active project_domains" on project_domains;
+create policy "public read active project_domains" on project_domains for select to anon, authenticated
+  using (status = 'active');
+
+drop policy if exists "owner read project_domains" on project_domains;
+create policy "owner read project_domains" on project_domains for select to authenticated
+  using (exists (select 1 from projects p where p.id = project_domains.project_id and p.owner_id = auth.uid()));
+
+-- Sin policy de escritura a propósito: dar de alta y activar un dominio lo
+-- hace el server con service_role, después de verificar contra Vercel. Si el
+-- dueño pudiera escribir, podría ponerse 'active' sin haber verificado nada.
+
 -- ─── Comentarios en la ficha de un proyecto ──────────────────────────
 -- Cualquier cuenta logueada puede comentar cualquier proyecto público —
 -- no hace falta ser el dueño ni tener perfil propio. author_id apunta a
