@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, Building2, Bell, MessageCircle, User, ChevronDown, Pencil, LogOut } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { createClient } from '@/lib/supabase/client';
+import Popover, { MenuItem } from '@/components/ui/Popover';
 import NavSearch from '@/components/social/NavSearch';
 import NotificationsPanel from '@/components/app/NotificationsPanel';
 import { useUnreadNotificationsCount } from '@/hooks/useUnreadNotificationsCount';
@@ -15,6 +16,9 @@ interface AppShellProps {
   profileHandle: string | null;
   avatarImage: string | null;
 }
+
+// Fila de link del menú de cuenta (los botones usan MenuItem).
+const ITEM_LINK = 'flex items-center gap-2.5 px-4 py-2 min-h-[40px] text-sm text-trevo-dark hover:bg-trevo-dark/5 focus-visible:outline-none focus-visible:bg-trevo-dark/5 transition-colors';
 
 // Definido a nivel de módulo (no dentro de AppShell) — si viviera dentro del
 // render, React lo vería como un tipo de componente nuevo en cada render de
@@ -45,19 +49,8 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
   const loggedIn = !!userEmail;
   const [menuOpen, setMenuOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const bellRef = useRef<HTMLDivElement>(null);
   const { count: unreadCount, clear: clearUnread } = useUnreadNotificationsCount(loggedIn);
   const unreadMessages = useUnreadMessagesCount(loggedIn);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleSignOut = async () => {
     await createClient().auth.signOut();
@@ -116,12 +109,13 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                 )}
               </Link>
 
-              <div ref={bellRef} className="relative">
+              <div className="relative">
                 <button
                   onClick={() => setBellOpen(o => !o)}
                   className="relative p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                   aria-label={unreadCount > 0 ? `Notificaciones (${unreadCount} sin leer)` : 'Notificaciones'}
                   aria-expanded={bellOpen}
+                  aria-haspopup="dialog"
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
@@ -130,51 +124,44 @@ export default function AppShell({ userEmail, profileHandle, avatarImage }: AppS
                     </span>
                   )}
                 </button>
-                {bellOpen && (
-                  <div className="absolute top-full right-0 mt-1.5 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-trevo-dark/10 overflow-hidden z-50">
-                    <NotificationsPanel onRead={clearUnread} />
-                  </div>
-                )}
+                <Popover open={bellOpen} onClose={() => setBellOpen(false)} role="dialog" ariaLabel="Notificaciones" className="!py-0 !mt-1.5 max-w-[calc(100vw-2rem)] overflow-hidden border-trevo-dark/10">
+                  <NotificationsPanel onRead={clearUnread} />
+                </Popover>
               </div>
 
-              <div ref={menuRef} className="relative">
+              <div className="relative">
                 <button
                   onClick={() => setMenuOpen(o => !o)}
                   className="flex items-center gap-1.5 p-1 pr-2 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                   aria-label="Mi cuenta"
                   aria-expanded={menuOpen}
+                  aria-haspopup="menu"
                 >
                   <AvatarCircle avatarImage={avatarImage} />
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
-                {menuOpen && (
-                  <div className="absolute top-full right-0 mt-1.5 w-56 bg-white rounded-xl shadow-lg border border-trevo-dark/10 overflow-hidden z-50">
-                    <div className="px-4 py-3 border-b border-trevo-dark/5">
-                      <p className="text-sm font-medium text-trevo-dark truncate">{userEmail}</p>
-                    </div>
-                    <div className="py-1">
-                      <Link href={profileHref} onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-trevo-dark hover:bg-trevo-dark/5 transition-colors">
-                        <User className="w-4 h-4 text-trevo-dark/40" />
-                        {profileHandle ? 'Ver mi perfil' : 'Crear mi perfil'}
-                      </Link>
-                      <Link href="/admin/portfolio" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-trevo-dark hover:bg-trevo-dark/5 transition-colors">
-                        <Pencil className="w-4 h-4 text-trevo-dark/40" />
-                        Editar perfil
-                      </Link>
-
-                      <Link href="/admin/proyectos" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-trevo-dark hover:bg-trevo-dark/5 transition-colors">
-                        <Building2 className="w-4 h-4 text-trevo-dark/40" />
-                        Mis proyectos
-                      </Link>
-                    </div>
-                    <div className="py-1 border-t border-trevo-dark/5">
-                      <button onClick={handleSignOut} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors text-left">
-                        <LogOut className="w-4 h-4" />
-                        Cerrar sesión
-                      </button>
-                    </div>
+                <Popover open={menuOpen} onClose={() => setMenuOpen(false)} role="menu" ariaLabel="Mi cuenta" className="!mt-1.5 w-56 !py-0 overflow-hidden border-trevo-dark/10">
+                  <div className="px-4 py-3 border-b border-trevo-dark/5">
+                    <p className="text-sm font-medium text-trevo-dark truncate">{userEmail}</p>
                   </div>
-                )}
+                  <div className="py-1">
+                    <Link href={profileHref} role="menuitem" onClick={() => setMenuOpen(false)} className={ITEM_LINK}>
+                      <User className="w-4 h-4 text-trevo-dark/40" />
+                      {profileHandle ? 'Ver mi perfil' : 'Crear mi perfil'}
+                    </Link>
+                    <Link href="/admin/portfolio" role="menuitem" onClick={() => setMenuOpen(false)} className={ITEM_LINK}>
+                      <Pencil className="w-4 h-4 text-trevo-dark/40" />
+                      Editar perfil
+                    </Link>
+                    <Link href="/admin/proyectos" role="menuitem" onClick={() => setMenuOpen(false)} className={ITEM_LINK}>
+                      <Building2 className="w-4 h-4 text-trevo-dark/40" />
+                      Mis proyectos
+                    </Link>
+                  </div>
+                  <div className="py-1 border-t border-trevo-dark/5">
+                    <MenuItem danger icon={<LogOut />} onClick={handleSignOut}>Cerrar sesión</MenuItem>
+                  </div>
+                </Popover>
               </div>
             </>
           ) : (

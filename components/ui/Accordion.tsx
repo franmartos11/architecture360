@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useId, type ReactNode } from 'react';
+import Collapse from '@/components/ui/Collapse';
 
 export type AccordionStatus = 'complete' | 'partial' | 'empty';
 
@@ -46,6 +47,7 @@ export function AccordionItem({
   const ctx = useContext(AccordionContext);
   if (!ctx) throw new Error('AccordionItem debe usarse dentro de <Accordion>');
   const open = ctx.value === value;
+  const panelId = useId();
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
@@ -53,6 +55,7 @@ export function AccordionItem({
         type="button"
         onClick={() => ctx.onChange(open && ctx.collapsible ? '' : value)}
         aria-expanded={open}
+        aria-controls={panelId}
         className="w-full h-12 px-4 flex items-center gap-3 text-left hover:bg-gray-50/60 transition-colors"
       >
         {status && <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />}
@@ -64,11 +67,11 @@ export function AccordionItem({
         )}
         <span className={`text-gray-400 text-xs transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-gray-100 flex flex-col gap-3.5">
+      <Collapse open={open}>
+        <div id={panelId} className="px-4 pb-4 pt-1 border-t border-gray-100 flex flex-col gap-3.5">
           {children}
         </div>
-      )}
+      </Collapse>
     </div>
   );
 }

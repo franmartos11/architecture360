@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef, startTransition } from 'react';
-import type { RefObject } from 'react';
 import Image, { getImageProps } from 'next/image';
 import { m as motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion';
 import { TransitionLink, useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -17,6 +16,7 @@ import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel,
 import { ELEVATOR_EASE, floorDirection, floorSteps, floorTransitionMs, type FloorDirection } from '@/lib/floor-transition';
 import { UnitSheet, WIDE_QUERY } from './UnitSheet';
 import Segmented from '@/components/ui/Segmented';
+import Popover from '@/components/ui/Popover';
 import { stagger } from '@/lib/motion';
 import { MobileSelectionCard, MobileUnitDetail, type MobileActions, type MobileSelectionSummary } from './MobileUnitPanels';
 import { AmenityPanel, SpotPanel, IncludesBlock, NextAvailableCard, AmenityMarkerIcon, AMENITY_COLOR, AMENITY_TEXT } from './FloorPlanPanels';
@@ -81,19 +81,18 @@ interface LayersToggleProps {
   onToggleLayer: (key: LayerKey) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  panelRef: RefObject<HTMLDivElement | null>;
 }
 
 /** Botón "capas" (siluetas/etiquetas/fotos) — colapsado por defecto, se
- *  despliega hacia abajo desde la esquina donde vive. Se monta dos veces
- *  (variante desktop y mobile, cada una oculta por CSS según el ancho de
- *  pantalla) por eso recibe su propia ref de cada lado. */
-function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange, panelRef }: LayersToggleProps) {
+ *  despliega hacia abajo desde la esquina donde vive. El clic afuera, Escape
+ *  y el foco los maneja Popover. */
+function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange }: LayersToggleProps) {
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative">
       <button
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label="Capas del plano"
         className="w-11 h-11 flex items-center justify-center rounded-full bg-white/95 shadow-sm text-gray-600 transition-colors"
       >
@@ -102,8 +101,8 @@ function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange, pane
           <path d="M3 13l9 5 9-5" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute top-full right-0 mt-2 z-20 bg-white/95 rounded-xl shadow-lg border border-gray-200/60 p-2 w-max">
+      <Popover open={open} onClose={() => onOpenChange(false)} role="dialog" ariaLabel="Capas del plano" className="!mt-2 z-20 !bg-white/95 border-gray-200/60 !p-2 w-max">
+        <div>
           <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 px-1.5 pt-0.5 pb-1.5">CAPAS</p>
           <div className="flex flex-col gap-0.5">
             {options.map(([key, label]) => (
@@ -127,7 +126,7 @@ function LayersToggle({ options, layers, onToggleLayer, open, onOpenChange, pane
             ))}
           </div>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }
@@ -213,25 +212,6 @@ export default function FloorPlanViewer({
   }, [showBim]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const { favorites, toggleFavorite } = useUnitFavorites(projectSlug);
-  // El botón de capas se renderiza dos veces (variante desktop y mobile,
-  // una siempre oculta por CSS según el ancho) — cada una necesita su
-  // propia ref para que el "click afuera" no cierre por error la que sí
-  // está visible.
-  const layersRef = useRef<HTMLDivElement>(null);
-  const layersRefMobile = useRef<HTMLDivElement>(null);
-
-  // Cierra el panel de capas al tocar afuera.
-  useEffect(() => {
-    if (!layersOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (layersRef.current?.contains(target) || layersRefMobile.current?.contains(target)) return;
-      setLayersOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [layersOpen]);
-
   // Tamaño real (en px) al que dibujamos el plano — se calcula a mano en
   // vez de dejar que el ancho llene el contenedor y la altura "siga"
   // (w-full h-auto): un plano cuadrado/vertical en una pantalla ancha
@@ -1020,7 +1000,6 @@ export default function FloorPlanViewer({
                 onToggleLayer={key => setLayers(l => ({ ...l, [key]: !l[key] }))}
                 open={layersOpen}
                 onOpenChange={setLayersOpen}
-                panelRef={layersRef}
               />
             )}
           </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Reveal from '@/components/ui/Reveal';
+import Collapse from '@/components/ui/Collapse';
 
 const FAQS = [
   {
@@ -52,6 +53,7 @@ export default function LandingFaq() {
                   type="button"
                   onClick={() => setOpenIndex(isOpen ? -1 : i)}
                   aria-expanded={isOpen}
+                  aria-controls={`faq-${i}`}
                   className="w-full bg-transparent border-0 py-5 flex items-center justify-between gap-5 cursor-pointer text-left"
                 >
                   <span className="font-display text-base md:text-[17px] font-semibold text-white">{faq.q}</span>
@@ -63,9 +65,9 @@ export default function LandingFaq() {
                     +
                   </span>
                 </button>
-                {isOpen && (
-                  <p className="pb-5.5 text-[14.5px] leading-relaxed text-white/58 max-w-2xl">{faq.a}</p>
-                )}
+                <Collapse open={isOpen}>
+                  <p id={`faq-${i}`} className="pb-5.5 text-[14.5px] leading-relaxed text-white/58 max-w-2xl">{faq.a}</p>
+                </Collapse>
               </div>
             );
           })}

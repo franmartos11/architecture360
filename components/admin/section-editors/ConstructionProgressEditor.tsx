@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { fieldClass } from '@/components/admin/panel-ui';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Collapse from '@/components/ui/Collapse';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -299,7 +300,7 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
             return (
               <li key={u.id} className="relative pl-9 flex flex-col gap-3">
                 <span aria-hidden className="absolute left-0 top-1.5 w-[13px] h-[13px] rounded-full bg-brand-700" />
-                <button type="button" onClick={() => toggleOpen(u.id)} aria-expanded={isOpen}
+                <button type="button" onClick={() => toggleOpen(u.id)} aria-expanded={isOpen} aria-controls={`obra-${u.id}`}
                   className="flex items-center gap-x-3 gap-y-1 flex-wrap text-left min-h-[32px]">
                   <span className="font-display text-lg font-semibold text-gray-900">{monthTitle(u.date)}</span>
                   {stage && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800">{stage}</span>}
@@ -316,8 +317,8 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
                     {u.images.length > 6 && <span className="w-[124px] h-[92px] rounded-xl bg-gray-100 flex items-center justify-center text-sm text-gray-600">+{u.images.length - 6}</span>}
                   </div>
                 )}
-                {isOpen && (
-                  <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 flex flex-col gap-4">
+                <Collapse open={isOpen}>
+                  <div id={`obra-${u.id}`} className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 flex flex-col gap-4">
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label className="flex flex-col gap-1.5">
                         <span className="text-xs font-medium text-gray-700">Fecha</span>
@@ -360,7 +361,7 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
                       <button type="button" onClick={() => removeUpdate(u)} className="min-h-[40px] px-3 rounded-lg text-[13px] font-medium text-red-700 hover:bg-red-50">Borrar entrada</button>
                     </div>
                   </div>
-                )}
+                </Collapse>
               </li>
             );
           })}

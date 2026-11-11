@@ -7,6 +7,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
+import Collapse from '@/components/ui/Collapse';
 import { UNIT_FEATURE_GROUPS, ROOM_KIND_LABEL } from '@/lib/units';
 import type { RoomKind, TourData, TourNode, UnitStatus } from '@/types';
 import type { FlowProps } from './GuidedLoad';
@@ -549,7 +550,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
             const photos = r.images?.length ?? 0;
             return (
               <div key={r.id} className={`rounded-[14px] bg-white flex flex-col ${photos ? 'border border-gray-200' : 'border-[1.5px] border-dashed border-[#C9C3B7]'}`}>
-                <button type="button" onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open}
+                <button type="button" onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open} aria-controls={`room-${r.id}`}
                   className="flex items-center gap-3 min-h-[56px] px-4 text-left">
                   <span className="flex-1 min-w-0 flex flex-col">
                     <span className="text-sm font-semibold text-gray-900 truncate">{r.name || 'Ambiente'}</span>
@@ -560,7 +561,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
                   {panos[r.id] && <span className="text-[10px] font-bold px-[7px] py-[3px] rounded-[5px] bg-gray-900 text-white">360°</span>}
                   <span aria-hidden className="text-gray-500">{open ? '−' : '+'}</span>
                 </button>
-                {open && <div className="px-4 pb-4">{editor(r)}</div>}
+                <Collapse open={open}><div id={`room-${r.id}`} className="px-4 pb-4">{editor(r)}</div></Collapse>
               </div>
             );
           })}

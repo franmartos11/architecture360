@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
+import Popover, { MenuItem } from '@/components/ui/Popover';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface ShareMenuProps {
@@ -20,19 +21,7 @@ interface ShareMenuProps {
 // desktop solo copiaba en silencio.
 export default function ShareMenu({ url, text, children, align = 'right' }: ShareMenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const toast = useToast();
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
-  }, [open]);
 
   const enc = encodeURIComponent;
   const targets = [
@@ -58,43 +47,27 @@ export default function ShareMenu({ url, text, children, align = 'right' }: Shar
   };
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div className="relative inline-block">
       {children({ onClick: () => setOpen(o => !o), 'aria-expanded': open })}
-      {open && (
-        <div
-          role="menu"
-          className={`absolute z-50 mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-gray-200 py-1 text-sm ${align === 'right' ? 'right-0' : 'left-0'}`}
-        >
-          <button
-            type="button"
-            onClick={copy}
-            className="w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+      <Popover open={open} onClose={() => setOpen(false)} role="menu" align={align === 'right' ? 'end' : 'start'} ariaLabel="Compartir" className="w-44 text-sm">
+        <MenuItem onClick={copy}>Copiar link</MenuItem>
+        {targets.map(t => (
+          <a
+            key={t.label}
+            href={t.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3.5 py-2 min-h-[40px] text-gray-800 hover:bg-gray-100 focus-visible:outline-none focus-visible:bg-gray-100 transition-colors"
           >
-            Copiar link
-          </button>
-          {targets.map(t => (
-            <a
-              key={t.label}
-              href={t.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              {t.label}
-            </a>
-          ))}
-          {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-            <button
-              type="button"
-              onClick={nativeShare}
-              className="w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
-            >
-              Más opciones…
-            </button>
-          )}
-        </div>
-      )}
+            {t.label}
+          </a>
+        ))}
+        {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+          <MenuItem onClick={nativeShare} className="border-t border-gray-100">Más opciones…</MenuItem>
+        )}
+      </Popover>
     </div>
   );
 }

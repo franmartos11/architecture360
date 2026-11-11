@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { POPOVER, POPOVER_OUT, REDUCED_FADE } from '@/lib/motion';
 
 interface SearchResult {
   handle: string;
@@ -17,6 +19,7 @@ export default function NavSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const reduced = !!useReducedMotion();
 
   useEffect(() => {
     const q = query.trim();
@@ -60,13 +63,28 @@ export default function NavSearch() {
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
+          onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }}
+          aria-expanded={open && !!query.trim()}
+          role="combobox"
+          aria-controls="navsearch-resultados"
           placeholder="Buscar personas y estudios..."
           className="w-full px-3.5 py-1.5 rounded-lg bg-white/10 text-sm text-white placeholder:text-white/40 border border-white/10 focus:bg-white/15 focus:border-white/25 outline-none transition-colors"
         />
       </form>
 
+      {/* A mano (m.div + AnimatePresence) y no con Popover: Popover mueve el
+          foco al primer ítem al abrir y acá el input tiene que seguir
+          escribiéndose. Mismos tokens POPOVER / POPOVER_OUT. */}
+      <AnimatePresence>
       {open && query.trim() && (
-        <div className="absolute top-full left-0 mt-1.5 w-full min-w-[16rem] bg-white rounded-xl shadow-lg border border-trevo-dark/10 overflow-hidden z-50">
+        <m.div
+          initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={reduced ? { opacity: 0, transition: REDUCED_FADE } : { opacity: 0, scale: 0.96, y: -4, transition: POPOVER_OUT }}
+          transition={reduced ? REDUCED_FADE : POPOVER}
+          style={{ transformOrigin: 'top left' }}
+          id="navsearch-resultados"
+          className="absolute top-full left-0 mt-1.5 w-full min-w-[16rem] bg-white rounded-xl shadow-lg border border-trevo-dark/10 overflow-hidden z-50">
           {results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-trevo-dark/40">Sin resultados</p>
           ) : (
@@ -98,8 +116,9 @@ export default function NavSearch() {
           >
             Ver todos los resultados →
           </button>
-        </div>
+        </m.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

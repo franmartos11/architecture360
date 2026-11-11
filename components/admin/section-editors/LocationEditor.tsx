@@ -8,6 +8,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
+import Collapse from '@/components/ui/Collapse';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -436,7 +437,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                         </div>
                       </div>
 
-                      {open && (
+                      <Collapse open={open}>
                         <form onSubmit={handleSubmit} className="px-3 pb-3 pl-[42px] flex flex-col gap-3">
                           <div className="grid grid-cols-1 gap-2.5">
                             <Input
@@ -526,7 +527,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                             <Button type="button" variant="danger" size="sm" onClick={() => handleDelete(p.id)}>Borrar</Button>
                           </div>
                         </form>
-                      )}
+                      </Collapse>
                     </div>
                   );
                 })}

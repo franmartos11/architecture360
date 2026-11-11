@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import Collapse from '@/components/ui/Collapse';
 import { SKILLS_CATALOG } from '@/lib/skills-catalog';
 import type { ProfileSkill } from '@/types';
 
@@ -102,6 +103,8 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
               <button
                 type="button"
                 onClick={() => setOpenCat(open ? null : cat)}
+                aria-expanded={open}
+                aria-controls={`skills-${cat}`}
                 className="w-full h-[42px] px-[14px] flex items-center gap-[10px] hover:bg-[#faf9f6] transition-colors"
                 style={{ background: open ? '#faf9f6' : '#fff' }}
               >
@@ -111,15 +114,15 @@ export default function SkillsSection({ skills, onChange }: SkillsSectionProps) 
                 )}
                 <span className="text-[11px] text-[rgba(28,25,23,0.4)]">{open ? '▲' : '▼'}</span>
               </button>
-              {open && (
-                <div className="px-[14px] pb-[13px] flex gap-[6px] flex-wrap">
+              <Collapse open={open}>
+                <div id={`skills-${cat}`} className="px-[14px] pb-[13px] flex gap-[6px] flex-wrap">
                   {catSkills.map(s => (
                     <button key={s} type="button" onClick={() => toggle(s)} className={chipClass(labels.includes(s))}>
                       {labels.includes(s) ? `✓ ${s}` : s}
                     </button>
                   ))}
                 </div>
-              )}
+              </Collapse>
             </div>
           );
         })}
