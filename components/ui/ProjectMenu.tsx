@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useId, useState } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import Dialog from '@/components/ui/Dialog';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { useContactModal } from '@/hooks/useContactModal';
-import { useScrollLock } from '@/hooks/useScrollLock';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
 
@@ -51,13 +50,12 @@ export function ProjectMenuButton({ info, variant = 'bar' }: { info: ProjectNavI
         <span className="hidden sm:inline">Menú</span>
       </button>
 
-      {open && (
-        <ProjectMenuOverlay
-          info={info}
-          onClose={close}
-          onContact={contact}
-        />
-      )}
+      <ProjectMenuOverlay
+        open={open}
+        info={info}
+        onClose={close}
+        onContact={contact}
+      />
 
       {info.showLeads && (
         <LeadCaptureModal
@@ -97,7 +95,8 @@ export function ChatIcon({ className }: { className?: string }) {
   );
 }
 
-function ProjectMenuOverlay({ info, onClose, onContact }: {
+function ProjectMenuOverlay({ open, info, onClose, onContact }: {
+  open: boolean;
   info: ProjectNavInfo;
   onClose: () => void;
   /** message: texto inicial del formulario (ej. "Agendar visita"). */
@@ -108,20 +107,7 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
   const hrefs = projectNavHrefs(basePath, info.singleUnit, info.explore.plans?.buildingId);
   const unitsLabel = info.singleUnit?.label ?? info.unitsLabel;
 
-  useScrollLock(true);
-
-  // Portal por lo mismo que ModalPortal (un ancestro con transform o
-  // backdrop-filter — la barra, los visores con framer-motion — recorta un
-  // position: fixed), pero al contenedor del theme y no al body: ahí viven
-  // las variables --theme-* que pinta el menú. El overlay solo se monta
-  // tras un clic, así que document ya existe.
-  const [portalTarget] = useState(() => document.querySelector('[data-project-theme]') ?? document.body);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const titleId = useId();
 
   const isActive = (href: string) => pathname.replace(/\/+$/, '') === href.replace(/\/+$/, '');
   const section = projectSectionFor(pathname, basePath, info);
@@ -140,17 +126,22 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
     ...(info.showCalculator ? [{ href: hrefs.calculator, label: 'Cotizador' }] : []),
   ];
 
-  return createPortal(
-    <div className="fixed inset-0 z-[55]" role="dialog" aria-modal="true" aria-label="Menú">
-      {/* Mobile: velo sobre la vista, la hoja sube desde abajo. Tablet: pantalla completa. */}
-      <button type="button" aria-label="Cerrar menú" onClick={onClose} className="absolute inset-0 bg-black/60 cursor-default" />
-
-      <div
-        className="absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-3xl bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)]
-          md:inset-0 md:max-h-none md:rounded-none"
-        style={{ fontFamily: 'var(--theme-font-body)' }}
-      >
-        <div className="max-w-3xl mx-auto px-[18px] pb-[22px] md:px-8 md:pb-8 flex flex-col md:min-h-full">
+  // Dialog: portal con las variables del tema, scroll lock, foco, Escape y
+  // fondo. Mobile: hoja desde abajo; tablet: modal centrado de 720 px (antes
+  // pantalla completa — el contenido ya tenía un máximo de 768 px).
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      variant="sheet"
+      size="lg"
+      padded={false}
+      labelledBy={titleId}
+      className="!bg-[var(--theme-bg-alt)] !text-[var(--theme-text-on-dark)]"
+    >
+      <div style={{ fontFamily: 'var(--theme-font-body)' }}>
+        <h2 id={titleId} className="sr-only">Menú</h2>
+        <div className="max-w-3xl mx-auto px-[18px] pb-[22px] md:px-8 md:pb-8 flex flex-col">
           {/* Cabecera — tablet: marca + Cerrar; mobile: tirador de la hoja. */}
           <div className="md:hidden flex justify-center pt-2.5 pb-2">
             <span aria-hidden="true" className="w-10 h-1 rounded-full bg-[var(--theme-text-on-dark)]/25" />
@@ -237,8 +228,7 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
           )}
         </div>
       </div>
-    </div>,
-    portalTarget,
+    </Dialog>
   );
 }
 
