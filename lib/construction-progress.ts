@@ -46,11 +46,45 @@ export function stageLabelOf(progress: ConstructionProgress, id: string | undefi
   return id ? progress.stages.find(s => s.id === id)?.label : undefined;
 }
 
-/** Actualizaciones con al menos una foto, de la más vieja a la más nueva. */
+/** ¿Tiene algo que mostrar en el sitio? Al menos una foto o un clip, y no es borrador. */
+export function isPublishedUpdate(u: ConstructionUpdate): boolean {
+  return !u.draft && (u.images.length > 0 || !!u.video);
+}
+
+/** Actualizaciones publicadas con foto o clip, de la más vieja a la más nueva. Es lo que ve el sitio. */
 export function visibleUpdates(progress: ConstructionProgress): ConstructionUpdate[] {
   return progress.updates
-    .filter(u => u.images.length > 0)
+    .filter(isPublishedUpdate)
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** La entrada más reciente por fecha (borradores incluidos si `includeDrafts`), o undefined. */
+export function latestUpdate(progress: ConstructionProgress, { includeDrafts = false } = {}): ConstructionUpdate | undefined {
+  return [...progress.updates]
+    .filter(u => includeDrafts || !u.draft)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+}
+
+const DAY_MS = 86_400_000;
+/** Días enteros entre dos fechas yyyy-mm-dd (en UTC, sin zona horaria). Negativo si `to` es anterior. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+}
+
+/** Días desde la última entrada publicada hasta `today` (yyyy-mm-dd), o null si no hay ninguna. Para el "hace N días" del panel. */
+export function daysSinceLastUpdate(progress: ConstructionProgress, today: string): number | null {
+  const last = latestUpdate(progress, { includeDrafts: true });
+  return last ? daysBetween(last.date, today) : null;
+}
+
+/** "Mes N de obra" contando desde startedAt (el mes de inicio es el 1). null sin fecha de inicio o si `date` es anterior. */
+export function constructionMonth(progress: ConstructionProgress, date: string): number | null {
+  if (!progress.startedAt) return null;
+  const [y0, m0] = progress.startedAt.split('-').map(Number);
+  const [y1, m1] = date.split('-').map(Number);
+  if (!y0 || !y1) return null;
+  const months = (y1 - y0) * 12 + (m1 - m0) + 1;
+  return months >= 1 ? months : null;
 }
 
 /** Etapa en curso: la marcada, o la de la actualización más reciente que tenga una. */

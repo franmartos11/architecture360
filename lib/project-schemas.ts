@@ -59,6 +59,47 @@ export const beforeAfterSchema = z
   .array(z.looseObject({ label: z.string().max(200), beforeImage: safeUrl, afterImage: safeUrl }))
   .max(50);
 
+// ─── Avance de obra ─────────────────────────────────────────────────
+// Solo la FORMA y los topes: el contenido (HTML en los textos, ids
+// repetidos, etapas huérfanas, fotos que no son http) lo normaliza después
+// parseConstructionProgress. Los topes de acá son más holgados que los de
+// lib/construction-progress (MAX_STAGES, MAX_UPDATES…) a propósito: un
+// panel que mande de más se recorta en silencio, uno que mande algo
+// absurdo (10.000 entradas) se rechaza con 400 antes de tocar nada.
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
+const progressStage = z.looseObject({
+  id: z.string().max(100).optional(),
+  label: z.string().max(200),
+  from: isoDay.optional(),
+  to: isoDay.optional(),
+});
+const progressUpdate = z.looseObject({
+  id: z.string().max(100).optional(),
+  date: isoDay,
+  stageId: z.string().max(100).optional(),
+  title: z.string().max(1000),
+  body: z.string().max(5000).optional(),
+  images: z.array(safeUrl).max(50),
+  video: safeUrl.optional(),
+  view: z.string().max(200).optional(),
+  draft: z.boolean().optional(),
+  notifiedAt: z.string().max(40).optional(),
+});
+/** project.construction_progress (null = sin avance). 600 KB de JSON como máximo. */
+export const constructionProgressSchema = nullable(
+  bounded(
+    z.looseObject({
+      stages: z.array(progressStage).max(50),
+      currentStageId: z.string().max(100).optional(),
+      percent: z.number().optional(),
+      deliveryEstimate: z.string().max(500).optional(),
+      startedAt: isoDay.optional(),
+      updates: z.array(progressUpdate).max(300),
+    }),
+    600_000
+  )
+);
+
 // ─── Recorrido de áreas comunes ─────────────────────────────────────
 /** project.common_areas_tour (null = sin recorrido). */
 export const commonAreasTourSchema = nullable(tourData);

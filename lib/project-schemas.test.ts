@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema } from './project-schemas';
+import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema, constructionProgressSchema } from './project-schemas';
 
 const ok = (schema: { safeParse: (v: unknown) => { success: boolean } }, v: unknown) => schema.safeParse(v).success;
 
@@ -78,5 +78,31 @@ describe('commonAreasTourSchema', () => {
   it('rechaza javascript: en un nodo y un tour demasiado grande', () => {
     expect(ok(commonAreasTourSchema, { initialNodeId: 'n1', nodes: [{ id: 'n1', name: 'Hall', imageUrl: 'javascript:alert(1)' }] })).toBe(false);
     expect(ok(commonAreasTourSchema, { initialNodeId: 'n1', nodes: [{ id: 'n1', name: 'Hall', imageUrl: 'https://x.com/p.jpg', note: 'x'.repeat(600_000) }] })).toBe(false);
+  });
+});
+
+describe('constructionProgressSchema', () => {
+  it('acepta null, lo que guarda el panel y los campos nuevos (fechas de etapa, clip, borrador, inicio de obra)', () => {
+    expect(ok(constructionProgressSchema, null)).toBe(true);
+    expect(ok(constructionProgressSchema, { stages: [], updates: [] })).toBe(true);
+    expect(ok(constructionProgressSchema, {
+      stages: [{ id: 's1', label: 'Estructura', from: '2026-01-01', to: '2026-06-30' }],
+      currentStageId: 's1', percent: 40, deliveryEstimate: 'Diciembre 2027', startedAt: '2025-11-01',
+      updates: [{ id: 'u1', date: '2026-03-01', stageId: 's1', title: 'Losa', body: 'x', images: ['https://a.com/1.jpg'], video: 'https://a.com/clip.mp4', view: 'Dron', draft: true }],
+    })).toBe(true);
+  });
+
+  it.each([
+    ['sin stages', { updates: [] }],
+    ['fecha de entrada que no es yyyy-mm-dd', { stages: [], updates: [{ date: '01/03/2026', title: 'x', images: [] }] }],
+    ['fecha de etapa inválida', { stages: [{ label: 'x', from: 'marzo' }], updates: [] }],
+    ['javascript: en una foto', { stages: [], updates: [{ date: '2026-03-01', title: 'x', images: ['javascript:alert(1)'] }] }],
+    ['javascript: en el clip', { stages: [], updates: [{ date: '2026-03-01', title: 'x', images: [], video: 'javascript:alert(1)' }] }],
+    ['demasiadas entradas', { stages: [], updates: Array.from({ length: 301 }, () => ({ date: '2026-03-01', title: 'x', images: [] })) }],
+    ['demasiadas etapas', { stages: Array.from({ length: 51 }, () => ({ label: 'x' })), updates: [] }],
+    ['draft que no es booleano', { stages: [], updates: [{ date: '2026-03-01', title: 'x', images: [], draft: 'si' }] }],
+    ['demasiado grande (más de 600 KB)', { stages: [], updates: Array.from({ length: 10 }, () => ({ date: '2026-03-01', title: 'x', images: Array.from({ length: 50 }, (_, i) => `https://a.com/${'z'.repeat(1900)}${i}`) })) }],
+  ])('rechaza %s', (_n, body) => {
+    expect(ok(constructionProgressSchema, body)).toBe(false);
   });
 });

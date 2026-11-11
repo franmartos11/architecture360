@@ -304,7 +304,74 @@ describe('PATCH /api/admin/project', () => {
       stages: [{ id: 's1', label: 'Estructura' }],
       percent: 55,
       updates: [{ id: 'u1', date: '2026-03-01', stageId: 's1', title: 'Losa', images: ['https://a.supabase.co/1.jpg'] }],
+      // La marca de guardado la pone el servidor.
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     });
+  });
+
+  it('constructionProgress con forma inválida (fecha que no es yyyy-mm-dd, demasiadas entradas): 400 antes de tocar la base', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const badDate = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [{ date: '01/03/2026', title: 'x', images: [] }] },
+    }));
+    expect(badDate.status).toBe(400);
+    const tooMany = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: Array.from({ length: 301 }, () => ({ date: '2026-03-01', title: 'x', images: [] })) },
+    }));
+    expect(tooMany.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('constructionProgressBase igual a lo guardado: guarda y pisa la marca con una nueva', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: { stages: [], updates: [], percent: 10, updatedAt: '2026-11-10T10:00:00.000Z' } } }, // lo guardado
+      { data: { id: 'project-1' }, error: null }, // update
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 20, updatedAt: '2026-11-10T10:00:00.000Z' },
+      constructionProgressBase: '2026-11-10T10:00:00.000Z',
+    }));
+    expect(res.status).toBe(200);
+    const payload = supabase.from.mock.results[1].value.update.mock.calls[0][0];
+    expect(payload.construction_progress.percent).toBe(20);
+    expect(payload.construction_progress.updatedAt).not.toBe('2026-11-10T10:00:00.000Z');
+  });
+
+  it('constructionProgressBase distinto de lo guardado (otra persona guardó en el medio): 409 y no escribe', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: { stages: [], updates: [], percent: 10, updatedAt: '2026-11-10T11:00:00.000Z' } } },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 20 },
+      constructionProgressBase: '2026-11-10T10:00:00.000Z',
+    }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('construction_progress_conflict');
+    expect(supabase.from.mock.results[0].value.update).not.toHaveBeenCalled();
+  });
+
+  it('constructionProgressBase null con nada guardado (primera carga): guarda', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: null } },
+      { data: { id: 'project-1' }, error: null },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 1 },
+      constructionProgressBase: null,
+    }));
+    expect(res.status).toBe(200);
   });
 
   it('constructionProgress vacío: guarda null', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseConstructionProgress } from './construction-progress-sanitize';
-import { currentStageIndex, formatUpdateDate, hasConstructionProgress, suggestedStages, visibleUpdates } from './construction-progress';
+import { parseConstructionProgress, stampConstructionProgress } from './construction-progress-sanitize';
+import { constructionMonth, currentStageIndex, daysBetween, daysSinceLastUpdate, formatUpdateDate, hasConstructionProgress, isPublishedUpdate, latestUpdate, suggestedStages, visibleUpdates } from './construction-progress';
 import type { ConstructionProgress } from '@/types';
 
 const img = 'https://x.supabase.co/storage/v1/object/public/a/1.jpg';
@@ -53,6 +53,63 @@ describe('parseConstructionProgress', () => {
     expect(parseConstructionProgress({ percent: -3 })?.percent).toBe(0);
     expect(parseConstructionProgress({ percent: 'mucho', deliveryEstimate: 'Junio 2027' })).toEqual({ stages: [], updates: [], deliveryEstimate: 'Junio 2027' });
   });
+
+  it('etapas con fechas: las guarda si son yyyy-mm-dd y descarta un fin anterior al inicio', () => {
+    const p = parseConstructionProgress({
+      stages: [
+        { id: 'a', label: 'Uno', from: '2026-01-01', to: '2026-03-31' },
+        { id: 'b', label: 'Dos', from: '2026-04-01', to: '2026-01-01' },
+        { id: 'c', label: 'Tres', from: 'enero', to: '2026-09-30' },
+      ],
+      updates: [],
+    })!;
+    expect(p.stages).toEqual([
+      { id: 'a', label: 'Uno', from: '2026-01-01', to: '2026-03-31' },
+      { id: 'b', label: 'Dos', from: '2026-04-01' },
+      { id: 'c', label: 'Tres', to: '2026-09-30' },
+    ]);
+  });
+
+  it('entradas: clip http(s) opcional, borrador solo si es true, y una entrada con solo clip se conserva', () => {
+    const p = parseConstructionProgress({
+      stages: [],
+      updates: [
+        { id: 'u1', date: '2026-01-10', title: '', images: [], video: 'https://x.supabase.co/clip.mp4', draft: true },
+        { id: 'u2', date: '2026-01-11', title: 'Sin clip válido', images: [img], video: 'javascript:alert(1)', draft: 'si' },
+        { id: 'u3', date: '2026-01-12', title: '', images: [], video: 'ftp://x/clip.mp4' },
+      ],
+    })!;
+    expect(p.updates).toEqual([
+      { id: 'u1', date: '2026-01-10', title: '', images: [], video: 'https://x.supabase.co/clip.mp4', draft: true },
+      { id: 'u2', date: '2026-01-11', title: 'Sin clip válido', images: [img] },
+    ]);
+  });
+
+  it('inicio de obra y updatedAt: el inicio exige yyyy-mm-dd; updatedAt se conserva solo si es una fecha ISO válida', () => {
+    expect(parseConstructionProgress({ startedAt: '2025-11-01' })).toEqual({ stages: [], updates: [], startedAt: '2025-11-01' });
+    expect(parseConstructionProgress({ startedAt: 'noviembre' })).toBeNull();
+    expect(parseConstructionProgress({ percent: 10, updatedAt: '2026-11-11T10:00:00.000Z' })?.updatedAt).toBe('2026-11-11T10:00:00.000Z');
+    expect(parseConstructionProgress({ percent: 10, updatedAt: 'ayer' })?.updatedAt).toBeUndefined();
+  });
+
+  it('notifiedAt por entrada: se conserva si es una fecha ISO válida, se descarta si no', () => {
+    const p = parseConstructionProgress({
+      stages: [],
+      updates: [
+        { id: 'u1', date: '2026-01-10', title: 'A', images: [], notifiedAt: '2026-01-11T10:00:00.000Z' },
+        { id: 'u2', date: '2026-01-12', title: 'B', images: [], notifiedAt: 'ayer' },
+      ],
+    })!;
+    expect(p.updates[0].notifiedAt).toBe('2026-01-11T10:00:00.000Z');
+    expect(p.updates[1].notifiedAt).toBeUndefined();
+  });
+
+  it('stampConstructionProgress: la marca es del servidor y pisa la que venga del panel', () => {
+    const now = new Date('2026-11-11T12:00:00.000Z');
+    const stamped = stampConstructionProgress({ stages: [], updates: [], percent: 5, updatedAt: '2020-01-01T00:00:00.000Z' }, now);
+    expect(stamped.updatedAt).toBe('2026-11-11T12:00:00.000Z');
+    expect(stamped.percent).toBe(5);
+  });
 });
 
 describe('helpers', () => {
@@ -65,8 +122,40 @@ describe('helpers', () => {
     ],
   };
 
-  it('visibleUpdates: solo con fotos, de la más vieja a la más nueva', () => {
+  it('visibleUpdates: solo publicadas con foto o clip, de la más vieja a la más nueva', () => {
     expect(visibleUpdates(progress).map(u => u.id)).toEqual(['u1', 'u2']);
+    const withDraftAndClip: ConstructionProgress = {
+      ...progress,
+      updates: [
+        ...progress.updates,
+        { id: 'u4', date: '2026-07-01', title: 'Borrador', images: [img], draft: true },
+        { id: 'u5', date: '2026-08-01', title: 'Solo clip', images: [], video: 'https://x/clip.mp4' },
+      ],
+    };
+    expect(visibleUpdates(withDraftAndClip).map(u => u.id)).toEqual(['u1', 'u2', 'u5']);
+    expect(isPublishedUpdate({ id: 'x', date: '2026-01-01', title: 'x', images: [img], draft: true })).toBe(false);
+  });
+
+  it('latestUpdate y daysSinceLastUpdate: la más nueva por fecha; los borradores cuentan solo si se piden', () => {
+    const withDraft: ConstructionProgress = {
+      ...progress,
+      updates: [...progress.updates, { id: 'd', date: '2026-09-01', title: 'Borrador', images: [], draft: true }],
+    };
+    expect(latestUpdate(withDraft)?.id).toBe('u3');
+    expect(latestUpdate(withDraft, { includeDrafts: true })?.id).toBe('d');
+    expect(latestUpdate({ stages: [], updates: [] })).toBeUndefined();
+    expect(daysSinceLastUpdate(withDraft, '2026-09-11')).toBe(10);
+    expect(daysSinceLastUpdate({ stages: [], updates: [] }, '2026-09-11')).toBeNull();
+  });
+
+  it('daysBetween y constructionMonth: sin zona horaria; el mes de inicio es el 1', () => {
+    expect(daysBetween('2026-02-27', '2026-03-02')).toBe(3);
+    expect(daysBetween('2026-03-02', '2026-02-27')).toBe(-3);
+    const started: ConstructionProgress = { stages: [], updates: [], startedAt: '2025-11-15' };
+    expect(constructionMonth(started, '2025-11-30')).toBe(1);
+    expect(constructionMonth(started, '2026-11-01')).toBe(13);
+    expect(constructionMonth(started, '2025-10-01')).toBeNull();
+    expect(constructionMonth({ stages: [], updates: [] }, '2026-01-01')).toBeNull();
   });
 
   it('currentStageIndex: la marcada, o la de la actualización más reciente con etapa', () => {

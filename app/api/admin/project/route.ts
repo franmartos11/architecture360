@@ -7,10 +7,10 @@ import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { PROJECT_SALE_MODES, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
 import { getPublishReadiness, describeMissing } from '@/lib/publish-readiness';
 import { getProjectBySlug } from '@/data/project-repository';
-import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { parseConstructionProgress, stampConstructionProgress } from '@/lib/construction-progress-sanitize';
 import { slugify } from '@/lib/slug';
 import { safeUrl } from '@/lib/schema-parts';
-import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema } from '@/lib/project-schemas';
+import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema, constructionProgressSchema } from '@/lib/project-schemas';
 import { serverError } from '@/lib/api-errors';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
@@ -52,9 +52,13 @@ const projectPatchSchema = z.object({
   academicTeam: z.string().max(500).nullable().optional(),
   processGallery: processGallerySchema.optional(),
   beforeAfter: beforeAfterSchema.optional(),
-  // Avance de obra: la forma se valida y se sanea entera en
-  // parseConstructionProgress (null = sin avance cargado).
-  constructionProgress: z.unknown().optional(),
+  // Avance de obra: el schema corta la forma y el tamaño; el contenido lo
+  // sanea entero parseConstructionProgress (null = sin avance cargado).
+  constructionProgress: constructionProgressSchema.optional(),
+  // updatedAt del avance tal como lo cargó el panel. Si viene y no coincide
+  // con lo guardado, otra persona guardó en el medio: 409, no se pisa.
+  // Sin este campo el guardado es incondicional (panel viejo, scripts).
+  constructionProgressBase: z.string().max(40).nullable().optional(),
   showInPortfolio: z.boolean().optional(),
   published: z.boolean().optional(),
 });
@@ -201,7 +205,20 @@ export async function PATCH(request: Request) {
   if (body.academicTeam !== undefined) updates.academic_team = sanitizeText(body.academicTeam, 500);
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
-  if (body.constructionProgress !== undefined) updates.construction_progress = parseConstructionProgress(body.constructionProgress);
+  if (body.constructionProgress !== undefined) {
+    if (body.constructionProgressBase !== undefined) {
+      const { data: row } = await supabase.from('projects').select('construction_progress').eq('id', projectId).maybeSingle();
+      const saved = parseConstructionProgress(row?.construction_progress)?.updatedAt ?? null;
+      if (saved !== body.constructionProgressBase) {
+        return NextResponse.json(
+          { error: 'Alguien más guardó el avance de obra mientras lo editabas. Recargá para ver lo nuevo antes de volver a guardar.', code: 'construction_progress_conflict' },
+          { status: 409 }
+        );
+      }
+    }
+    const parsed = parseConstructionProgress(body.constructionProgress);
+    updates.construction_progress = parsed ? stampConstructionProgress(parsed) : null;
+  }
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;
   if (body.published !== undefined) {
     // Publicar exige el mínimo de lib/publish-readiness — el mismo que
