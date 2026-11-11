@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, startTransition, createContext, useContext } from 'react';
 import {
   DndContext,
@@ -190,6 +192,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
 }
 
 export default function AdminLeads() {
+  const contentIn = useContentIn();
   const activeProjectId = useActiveProjectId();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -314,7 +317,7 @@ export default function AdminLeads() {
 
   return (
     <UnitsContext.Provider value={unitsByCode}>
-    <div className="flex flex-col gap-6">
+    <m.div {...contentIn} className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Operación"
         title="Leads"
@@ -389,7 +392,7 @@ export default function AdminLeads() {
         )}
       </div>
       )}
-    </div>
+    </m.div>
     </UnitsContext.Provider>
   );
 }

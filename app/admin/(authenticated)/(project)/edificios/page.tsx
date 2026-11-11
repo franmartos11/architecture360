@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -28,6 +30,7 @@ type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' |
 };
 
 export default function AdminBuildingsPage() {
+  const contentIn = useContentIn();
   const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, aerialLabel } = typeConfig;
@@ -162,7 +165,7 @@ export default function AdminBuildingsPage() {
   const totalFloors = buildings.reduce((n, b) => n + b.floors_loaded, 0);
 
   return (
-    <div className="flex flex-col gap-7">
+    <m.div {...contentIn} className="flex flex-col gap-7">
       <div className="flex items-end justify-between gap-x-6 gap-y-4 flex-wrap">
         <div className="min-w-0 flex flex-col gap-2.5 flex-[1_1_420px]">
           <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">Estructura</p>
@@ -367,7 +370,7 @@ export default function AdminBuildingsPage() {
           {error && <p role="alert" className="m-0 px-5 sm:px-6 pb-4 text-sm text-red-700">{error}</p>}
         </div>
       )}
-    </div>
+    </m.div>
   );
 }
 

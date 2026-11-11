@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { Suspense, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PageSkeleton, SkeletonCard, SkeletonForm } from '@/components/ui/Skeleton';
@@ -44,6 +46,7 @@ export default function GuidedLoad({ project }: { project: GuidedProject }) {
 }
 
 function GuidedLoadInner({ project }: { project: GuidedProject }) {
+  const contentIn = useContentIn();
   const { tree, setTree, loading, error, reload } = useGuidedTree();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -67,12 +70,12 @@ function GuidedLoadInner({ project }: { project: GuidedProject }) {
     // guiada lo anula (márgenes negativos) para ocupar todo el área de
     // contenido como en el diseño. `carga-guiada` aplica la paleta y las
     // tipografías del diseño (ver globals.css).
-    <div className="carga-guiada min-h-[calc(100vh-1px)] flex flex-col bg-[#F5F3EE] -m-6 md:-m-8">
+    <m.div {...contentIn} className="carga-guiada min-h-[calc(100vh-1px)] flex flex-col bg-[#F5F3EE] -m-6 md:-m-8">
       {project.projectType === 'edificio' && <EdificioFlow {...props} />}
       {project.projectType === 'duplex' && <DuplexFlow {...props} />}
       {project.projectType === 'casa' && <CasaFlow {...props} />}
       {project.projectType === 'loteo' && <LoteoFlow {...props} />}
       {project.projectType === 'unico' && <UnicoFlow {...props} />}
-    </div>
+    </m.div>
   );
 }

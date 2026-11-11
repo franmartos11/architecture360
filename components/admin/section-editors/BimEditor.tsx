@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -19,6 +21,7 @@ import type { BimModel, Floor, Unit } from '@/types';
 // mostrar un modelo BIM?" — con una o más, la lista + editor de siempre,
 // sin volver a preguntar.
 export default function BimEditor() {
+  const contentIn = useContentIn();
   const activeProjectId = useActiveProjectId();
   const [models, setModels] = useState<BimModel[] | null>(null);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -98,7 +101,7 @@ export default function BimEditor() {
   const selected = models.find(m => m.id === selectedId) ?? null;
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-6 items-start">
+    <m.div {...contentIn} className="grid md:grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-6 items-start">
       <div className="flex flex-col gap-3">
         <Button type="button" onClick={create} disabled={creating} className="self-start">
           <Plus className="w-4 h-4" /> {creating ? 'Creando...' : 'Nueva pieza'}
@@ -122,6 +125,6 @@ export default function BimEditor() {
           <p className="text-sm text-gray-500">Elegí una pieza de la lista o creá una nueva.</p>
         )}
       </div>
-    </div>
+    </m.div>
   );
 }

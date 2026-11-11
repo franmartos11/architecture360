@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape, type PolygonCanvasApi } from '@/components/admin/PolygonCanvas';
@@ -29,6 +31,7 @@ function centroid(points: { x: number; y: number }[]) {
 // usa tanto en su pantalla standalone (pisos/[floorId]/plano/page.tsx) como
 // embebido dentro del wizard de carga guiada.
 export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingId: string; floorId: string }) {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel, buildingLabel, hasFloorStep } = typeConfig;
   const unitLabelLower = unitLabel.toLowerCase();
@@ -249,7 +252,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
   // unidades del piso con su estado de dibujo, el aviso de la que falta y
   // los atajos.
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 items-start">
+    <m.div {...contentIn} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 items-start">
       <div className="flex flex-col gap-3 min-w-0">
         {siblingFloors.length > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-[14px] border border-gray-200 bg-white px-4 py-3">
@@ -473,7 +476,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
           </div>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }
 

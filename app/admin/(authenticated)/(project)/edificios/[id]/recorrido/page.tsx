@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useCallback, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import TourEditor from '@/components/admin/TourEditor';
@@ -10,6 +12,7 @@ import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminBuildingTourPage({ params }: { params: Promise<{ id: string }> }) {
+  const contentIn = useContentIn();
   const { id } = use(params);
 
   const [buildingName, setBuildingName] = useState('');
@@ -70,7 +73,7 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
   if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       <div>
         <Link href={`/admin/edificios/${id}`} className="inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← {buildingName}</Link>
         <p className="m-0 mt-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500">{buildingName}</p>
@@ -96,6 +99,6 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
           />
         </div>
       </Card>
-    </div>
+    </m.div>
   );
 }

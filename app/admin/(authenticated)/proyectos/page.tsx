@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import { PageSkeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -42,6 +44,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 const STRIPES = 'repeating-linear-gradient(135deg, #EFECE6 0 12px, #F5F3EE 12px 24px)';
 
 export default function MisProyectosPage() {
+  const contentIn = useContentIn();
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -138,7 +141,7 @@ export default function MisProyectosPage() {
   const publishedCount = (projects ?? []).filter(p => p.published).length;
 
   return (
-    <div className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
+    <m.div {...contentIn} className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
       <main className="flex-[999_1_640px] min-w-0 px-4 py-8 sm:px-10 sm:py-10 flex flex-col gap-6">
         <div className="flex items-end justify-between gap-x-6 gap-y-4 flex-wrap">
           <div className="min-w-0">
@@ -276,7 +279,7 @@ export default function MisProyectosPage() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={() => { setDeleteTarget(null); load(); }}
       />
-    </div>
+    </m.div>
   );
 }
 

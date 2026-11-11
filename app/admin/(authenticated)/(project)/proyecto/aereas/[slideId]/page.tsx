@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, use, useMemo, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -37,6 +39,7 @@ function keyOf(slideId: string, buildingId: string) {
 }
 
 export default function AdminAerialSlidePolygonsPage({ params }: { params: Promise<{ slideId: string }> }) {
+  const contentIn = useContentIn();
   const { slideId: initialSlideId } = use(params);
   const searchParams = useSearchParams();
   const initialBuildingId = searchParams.get('building');
@@ -357,7 +360,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const activePinPoints = activePinKey ? points[activePinKey] ?? [] : [];
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <button type="button" onClick={() => guardedNavigate('/admin/proyecto')} className="text-sm text-gray-500 hover:text-gray-700">
@@ -522,6 +525,6 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
           </div>
         </>
       )}
-    </div>
+    </m.div>
   );
 }

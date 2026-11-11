@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
@@ -21,6 +23,7 @@ const ACTIVE_COLOR = '#047857';
 // en el piso — una amenity vive en un solo piso, así que ubicarla acá la
 // saca del piso donde estuviera antes.
 export default function FloorAmenitiesDelimiter({ buildingId, floorId }: { buildingId: string; floorId: string }) {
+  const contentIn = useContentIn();
   const [planImage, setPlanImage] = useState<string | null>(null);
   const [amenities, setAmenities] = useState<AmenityRow[]>([]);
   const [points, setPoints] = useState<Record<string, Point[]>>({});
@@ -137,7 +140,7 @@ export default function FloorAmenitiesDelimiter({ buildingId, floorId }: { build
   const activePin = activeId ? pins[activeId] ?? (activePolygon.length >= 3 ? polygonCenter(activePolygon) : null) : null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
+    <m.div {...contentIn} className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
       <div className="space-y-3">
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
           {([['rectangle', 'Rectángulo'], ['point', 'Forma libre'], ['pin', '📍 Pin']] as const).map(([m, label]) => (
@@ -220,6 +223,6 @@ export default function FloorAmenitiesDelimiter({ buildingId, floorId }: { build
           Las amenities de todo el complejo también se pueden ubicar en el piso de una torre (ej. un cowork en el piso 5).
         </p>
       </div>
-    </div>
+    </m.div>
   );
 }

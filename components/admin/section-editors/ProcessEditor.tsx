@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -8,6 +10,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function ProcessEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [images, setImages] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,13 +43,13 @@ export default function ProcessEditor({ onSaved }: { onSaved: () => void }) {
     );
 
   return (
-    <div className="p-6 space-y-4">
+    <m.div {...contentIn} className="p-6 space-y-4">
       <MultiImageUploader values={images} onChange={setImages} folder="process" />
       <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
-    </div>
+    </m.div>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera } from 'lucide-react';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -117,6 +119,7 @@ function chipClass(active: boolean) {
 }
 
 export default function AdminPortfolioPage() {
+  const contentIn = useContentIn();
   const [loading, setLoading] = useState(true);
   const [handle, setHandle] = useState('');
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
@@ -261,7 +264,7 @@ export default function AdminPortfolioPage() {
   ];
 
   return (
-    <div className={poppins.className}>
+    <m.div {...contentIn} className={poppins.className}>
 
       <div className="sticky top-14 z-30 bg-[rgba(245,244,240,0.92)] backdrop-blur-md border-b border-[rgba(28,25,23,0.08)]">
         <div className="max-w-[1260px] mx-auto px-[24px] py-[12px] flex items-center gap-[16px] flex-wrap">
@@ -573,6 +576,6 @@ export default function AdminPortfolioPage() {
           />
         </div>
       </div>
-    </div>
+    </m.div>
   );
 }

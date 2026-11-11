@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, use, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
@@ -42,6 +44,7 @@ const floorShort = (f: FloorRow) => (f.number === 0 ? 'PB' : /penthouse|^ph\b/i.
 const PALETTE = ['#37463f', '#968676', '#3b82f6', '#e11d48', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 
 export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
+  const contentIn = useContentIn();
   const { id: buildingId, floorId } = use(params);
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep, hasFloorStep, buildingLabel, unitLabel, unitIsLand } = typeConfig;
@@ -195,7 +198,7 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
   const sortedFloors = [...floors].sort((a, b) => b.number - a.number);
 
   return (
-    <div className={showFloorColumn ? 'grid grid-cols-1 lg:grid-cols-[176px_minmax(0,1fr)] gap-6 items-start' : ''}>
+    <m.div {...contentIn} className={showFloorColumn ? 'grid grid-cols-1 lg:grid-cols-[176px_minmax(0,1fr)] gap-6 items-start' : ''}>
       {showFloorColumn && (
         <nav aria-label="Pisos del edificio" className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible -mx-1 px-1 pb-1 lg:pb-0 lg:sticky lg:top-6">
           <span className="hidden lg:block text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 px-1 pb-1">Pisos</span>
@@ -323,6 +326,6 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
         </div>
       )}
     </div>
-    </div>
+    </m.div>
   );
 }

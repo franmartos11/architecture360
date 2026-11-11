@@ -46,3 +46,24 @@ export default function Loaded({ loading, skeleton, className, children }: Loade
     </m.div>
   );
 }
+
+/**
+ * Props de movimiento para el elemento raíz de un contenido que se monta
+ * DESPUÉS de un skeleton (`<m.div {...useContentIn()}>`): la misma entrada
+ * que `Loaded`, sin envoltorio extra.
+ *
+ * Existe porque `Loaded` evalúa sus children aunque esté cargando, y las
+ * pantallas cuyos datos son null mientras cargan (form, project, tree…)
+ * necesitan el early return `if (loading) return <Skeleton/>`. Ahí el
+ * contenido nace recién al terminar de cargar, y con `initial`/`animate`
+ * en el montaje anima una sola vez — los rerenders no lo repiten. Hay que
+ * llamarlo ARRIBA del componente, antes de cualquier return temprano.
+ */
+export function useContentIn() {
+  const reduced = !!useReducedMotion();
+  return {
+    initial: reduced ? false as const : { opacity: 0, y: CONTENT_IN_Y },
+    animate: { opacity: 1, y: 0 },
+    transition: reducedOr(reduced, CONTENT_IN),
+  };
+}

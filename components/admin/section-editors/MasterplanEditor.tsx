@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -8,6 +10,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function MasterplanEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,13 +41,13 @@ export default function MasterplanEditor({ onSaved }: { onSaved: () => void }) {
     );
 
   return (
-    <div className="p-6 space-y-4">
+    <m.div {...contentIn} className="p-6 space-y-4">
       <ImageUploader label="Imagen del masterplan" value={image} onChange={setImage} folder="masterplan" />
       <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
-    </div>
+    </m.div>
   );
 }

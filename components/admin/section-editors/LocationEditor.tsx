@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import EmptyState from '@/components/ui/EmptyState';
@@ -66,6 +68,7 @@ function timePills(p: PoiRow) {
 // después se hace click en el mapa — evita abrir un picker chico por
 // cada punto como antes.
 export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
+  const contentIn = useContentIn();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectCenter, setProjectCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [pois, setPois] = useState<PoiRow[]>([]);
@@ -280,7 +283,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   }));
 
   return (
-    <div className="space-y-4">
+    <m.div {...contentIn} className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">
           {pois.length} punto{pois.length === 1 ? '' : 's'} · {placedCount} ubicado{placedCount === 1 ? '' : 's'} en el mapa
@@ -550,6 +553,6 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </m.div>
   );
 }

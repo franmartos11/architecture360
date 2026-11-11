@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
@@ -61,6 +63,7 @@ const reasignacionErrorMessage = (result: PersistResult) =>
 // toca. La cochera se guarda en la UNIDAD dueña (units.parking_spots), no en
 // el piso — el piso solo aporta el plano sobre el que se dibuja.
 export default function FloorParkingDelimiter({ buildingId, floorId }: { buildingId: string; floorId: string }) {
+  const contentIn = useContentIn();
   const { unitLabel } = useProjectTypeConfig();
   const unitLabelLower = unitLabel.toLowerCase();
   const [planImage, setPlanImage] = useState<string | null>(null);
@@ -350,7 +353,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     (unitById.get(unitId)?.parking_spots ?? []).filter(s => s.floorId !== floorId).length;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
+    <m.div {...contentIn} className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
       <div className="space-y-3">
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
           <button
@@ -489,6 +492,6 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
           Las cocheras que un {unitLabelLower} tenga marcadas en otro subsuelo no se muestran acá y no se tocan al guardar.
         </p>
       </div>
-    </div>
+    </m.div>
   );
 }

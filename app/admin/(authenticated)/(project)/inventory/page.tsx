@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useRef, startTransition, Fragment } from 'react';
 import { PageSkeleton, Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
@@ -60,6 +62,7 @@ function parseOrientation(text: string): string | null {
 interface PendingChange { unit: UnitRow; col: EditCol; from: string; to: string; value: number | string }
 
 export default function AdminInventory() {
+  const contentIn = useContentIn();
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [floors, setFloors] = useState<FloorRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
@@ -519,7 +522,7 @@ export default function AdminInventory() {
   const colIndex = (c: EditCol) => editCols.indexOf(c);
 
   return (
-    <div className="flex flex-col gap-6">
+    <m.div {...contentIn} className="flex flex-col gap-6">
       <PageHeader
         eyebrow={hasFloorStep ? 'Estructura e inventario' : 'Inventario'}
         title={title}
@@ -946,7 +949,7 @@ export default function AdminInventory() {
           </div>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }
 

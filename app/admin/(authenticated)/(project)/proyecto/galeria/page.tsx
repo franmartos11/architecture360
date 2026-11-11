@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -24,6 +26,7 @@ import { pluralize } from '@/lib/units';
 // por la barra de cambios sin guardar, como el resto de la ficha.
 
 export default function GaleriaPage() {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { saleMode, buildingLabel, hasUnitStep, aerialLabel, aerialLabelPlural } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -88,6 +91,7 @@ export default function GaleriaPage() {
   };
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Galería"
@@ -182,5 +186,6 @@ export default function GaleriaPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

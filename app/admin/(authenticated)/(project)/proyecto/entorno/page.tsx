@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import LocationPicker from '@/components/admin/LocationPicker';
 import LocationEditor from '@/components/admin/section-editors/LocationEditor';
@@ -16,6 +18,7 @@ import { useFichaProject, UnsavedBar, FichaLayout } from '@/components/admin/sec
 // amenidades como grilla. /admin/proyecto/ubicacion y /amenities redirigen acá.
 
 export default function EntornoPage() {
+  const contentIn = useContentIn();
   const ficha = useFichaProject();
   const { project, setProject, savedProject } = ficha;
   const [pinOpen, setPinOpen] = useState(false);
@@ -29,6 +32,7 @@ export default function EntornoPage() {
   const centerKey = `${savedProject?.latitude ?? ''},${savedProject?.longitude ?? ''}`;
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Entorno"
@@ -71,5 +75,6 @@ export default function EntornoPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

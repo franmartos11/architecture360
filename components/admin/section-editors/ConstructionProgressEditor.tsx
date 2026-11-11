@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { fieldClass } from '@/components/admin/panel-ui';
@@ -34,6 +36,7 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
   /** Encabezado de la pantalla, que recibe el botón "+ Nueva entrada" para ponerlo en sus acciones. */
   header?: (newEntryButton: ReactNode) => ReactNode;
 }) {
+  const contentIn = useContentIn();
   const [progress, setProgress] = useState<ConstructionProgress | null>(null);
   const [projectType, setProjectType] = useState<ProjectType>('edificio');
   const [loading, setLoading] = useState(true);
@@ -154,7 +157,7 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
   );
 
   return (
-    <div className="flex flex-col gap-8">
+    <m.div {...contentIn} className="flex flex-col gap-8">
       {header ? header(newEntryButton) : <div className="flex justify-end">{newEntryButton}</div>}
 
       {/* ── Resumen: % general, entrega y etapas ── */}
@@ -377,6 +380,6 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
           </button>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }

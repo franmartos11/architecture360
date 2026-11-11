@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, startTransition } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { GripVertical, ChevronUp, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react';
@@ -70,6 +72,7 @@ const STATUS_DOT: Record<Status, string> = {
 // esto vivía partido en dos pantallas (/admin/sitio para el contenido,
 // /admin/sitio/secciones para orden/visibilidad); ver lib/project-sections.ts.
 export default function AdminSitioPage() {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const publishState = usePublishState();
   const [project, setProject] = useState<Project | null>(null);
@@ -215,7 +218,7 @@ export default function AdminSitioPage() {
     // listas largas); debajo de xl se apilan con scroll de página. -m-6
     // md:-m-8 anula el padding del shell para que las columnas lleguen a
     // los bordes como en el diseño.
-    <div className="-m-6 md:-m-8 flex flex-col xl:flex-row xl:h-screen bg-[#F5F3EE]">
+    <m.div {...contentIn} className="-m-6 md:-m-8 flex flex-col xl:flex-row xl:h-screen bg-[#F5F3EE]">
       {/* ── Lista ─────────────────────────────────────────────── */}
       <section aria-label="Secciones" className="xl:w-[320px] shrink-0 px-4 sm:px-6 py-8 flex flex-col gap-4 xl:overflow-y-auto border-b xl:border-b-0 xl:border-r border-gray-200">
         <div className="flex flex-col gap-2">
@@ -403,7 +406,7 @@ export default function AdminSitioPage() {
           </button>
         </div>
       </aside>
-    </div>
+    </m.div>
   );
 }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -62,6 +64,7 @@ const DWELLING_CSV_TEMPLATE_ROW = [
 // es un registro único, sin lista que mostrar. El polígono propio de la
 // unidad se sigue delimitando aparte, en /plano — eso no cambia acá.
 export default function UnitsEditor({ buildingId, floorId, buildingName }: { buildingId: string; floorId: string; buildingName: string }) {
+  const contentIn = useContentIn();
   const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel, showStatus, showPrice, unitIsLand } = typeConfig;
@@ -318,7 +321,7 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
   if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${pluralize(unitLabelLower)}.`} onRetry={load} />;
 
   return (
-    <div className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
+    <m.div {...contentIn} className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
       {/* ── Lista ─────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
@@ -577,6 +580,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
           </div>
         )}
       </div>
-    </div>
+    </m.div>
   );
 }

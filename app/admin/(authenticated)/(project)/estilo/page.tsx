@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, startTransition } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -48,6 +50,7 @@ type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 // muestra exactamente lo que ya está guardado, no un borrador aparte.
 export default function AdminEstiloPage() {
   const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const [project, setProject] = useState<Project | null>(null);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig | null>(null);
@@ -219,7 +222,7 @@ export default function AdminEstiloPage() {
     // (temas, colores, tipografía, esquinas) y la vista previa a la
     // derecha. En xl+ cada columna scrollea por dentro; debajo se apilan
     // con la vista previa primero. -m-6 md:-m-8 anula el padding del shell.
-    <div className={`-m-6 md:-m-8 flex flex-col-reverse xl:flex-row xl:h-screen bg-[#F5F3EE] ${ALL_FONT_CLASSNAMES}`}>
+    <m.div {...contentIn} className={`-m-6 md:-m-8 flex flex-col-reverse xl:flex-row xl:h-screen bg-[#F5F3EE] ${ALL_FONT_CLASSNAMES}`}>
       {/* ── Controles ─────────────────────────────────────────── */}
       <section aria-label="Controles de estilo" className="xl:w-[400px] shrink-0 px-4 sm:px-7 py-8 flex flex-col gap-7 xl:overflow-y-auto xl:border-r border-gray-200">
         <div className="flex flex-col gap-2">
@@ -563,6 +566,6 @@ export default function AdminEstiloPage() {
           </div>
         </div>
       </section>
-    </div>
+    </m.div>
   );
 }

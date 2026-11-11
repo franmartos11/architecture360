@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, renderHook } from '@testing-library/react';
 import MotionProvider from './MotionProvider';
-import Loaded from './Loaded';
+import Loaded, { useContentIn } from './Loaded';
+
+const reducedFlag = vi.hoisted(() => ({ value: true }));
 
 vi.mock('framer-motion', async (importOriginal) => {
   const actual = await importOriginal<typeof import('framer-motion')>();
-  return { ...actual, useReducedMotion: () => true };
+  return { ...actual, useReducedMotion: () => reducedFlag.value };
 });
 
 function Wrap({ loading }: { loading: boolean }) {
@@ -39,5 +41,22 @@ describe('Loaded', () => {
     render(<Wrap loading={false} />);
     expect(screen.getByText('Contenido real')).toBeTruthy();
     expect(screen.queryByTestId('skeleton')).toBeNull();
+  });
+});
+
+describe('useContentIn', () => {
+  it('con movimiento: entra desde abajo con fundido', () => {
+    reducedFlag.value = false;
+    const { result } = renderHook(() => useContentIn());
+    expect(result.current.initial).toMatchObject({ opacity: 0 });
+    expect(result.current.animate).toEqual({ opacity: 1, y: 0 });
+    reducedFlag.value = true;
+  });
+
+  it('con movimiento reducido: sin estado inicial ni duración', () => {
+    reducedFlag.value = true;
+    const { result } = renderHook(() => useContentIn());
+    expect(result.current.initial).toBe(false);
+    expect(result.current.transition).toEqual({ duration: 0 });
   });
 });

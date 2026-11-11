@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
@@ -37,6 +39,7 @@ const DESC_MAX = 2000; // mismo límite que sanitizeMultiline() aplica server-si
 // deslizable de /admin/sitio. onSaved es opcional: solo lo pasa /admin/sitio,
 // para refrescar su preview en vivo tras cada cambio.
 export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
+  const contentIn = useContentIn();
   const [amenities, setAmenities] = useState<AmenityRow[]>([]);
   const [buildings, setBuildings] = useState<BuildingRow[]>([]);
   const [commonAreasTour, setCommonAreasTour] = useState<TourData | null>(null);
@@ -268,7 +271,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   if (loadError) return <ErrorState message="No se pudieron cargar las amenidades." onRetry={load} />;
 
   return (
-    <div className="flex flex-col xl:flex-row gap-4 xl:h-[70vh] xl:min-h-[560px]">
+    <m.div {...contentIn} className="flex flex-col xl:flex-row gap-4 xl:h-[70vh] xl:min-h-[560px]">
       {/* ── Lista ─────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col gap-3.5 xl:h-full xl:overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
@@ -653,7 +656,7 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
           )}
         </Card>
       </div>
-    </div>
+    </m.div>
   );
 }
 

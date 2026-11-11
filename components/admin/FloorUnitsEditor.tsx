@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -183,6 +185,7 @@ const FRESH_UNIT_FORM: Record<string, unknown> = formFieldsFromUnit({
 // unidad del piso interno — en modo edición si ya existe, o de alta si
 // todavía no. Sin tabla, sin CSV, sin "Duplicar/Borrar" (no hay lista).
 export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }: { buildingId?: string; floorId: string; onUnitsChange?: (units: UnitRow[]) => void }) {
+  const contentIn = useContentIn();
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -746,7 +749,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       {hasUnitStep && (
         <Card>
           <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
@@ -1495,7 +1498,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         </div>
       </form>
       )}
-    </div>
+    </m.div>
   );
 }
 

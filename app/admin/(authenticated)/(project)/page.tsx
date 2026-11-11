@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useCallback, startTransition } from 'react';
 import type { Lead } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
@@ -31,6 +33,7 @@ type Unit = Pick<DbUnitRow, 'id' | 'code' | 'total_area' | 'status' | 'price' | 
 
 export default function AdminDashboard() {
   const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -123,7 +126,7 @@ export default function AdminDashboard() {
 
   if (totalUnits === 0) {
     return (
-      <div className="flex flex-col gap-6">
+      <m.div {...contentIn} className="flex flex-col gap-6">
         <PageHeader eyebrow="Visión general" title="Dashboard" />
         <Card className="flex flex-col items-start gap-3">
           <h2 className="m-0 text-[15px] font-semibold text-gray-900">
@@ -138,13 +141,13 @@ export default function AdminDashboard() {
           </p>
           <Link href="/admin/carga" className={btnPrimary}>Empezar la carga guiada →</Link>
         </Card>
-      </div>
+      </m.div>
     );
   }
 
   if (!showsCommercialMetrics) {
     return (
-      <div className="flex flex-col gap-6">
+      <m.div {...contentIn} className="flex flex-col gap-6">
         <PageHeader eyebrow="Visión general" title="Dashboard" />
         {/* Para "casa" (una sola unidad) el conteo no aporta — se va directo
             al link para compartir. Para el resto, las cifras. */}
@@ -155,7 +158,7 @@ export default function AdminDashboard() {
           ]} />
         )}
         {shareCard}
-      </div>
+      </m.div>
     );
   }
 
@@ -194,7 +197,7 @@ export default function AdminDashboard() {
     .slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-6">
+    <m.div {...contentIn} className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Visión general"
         title="Dashboard"
@@ -285,7 +288,7 @@ export default function AdminDashboard() {
         )}
         {shareCard}
       </div>
-    </div>
+    </m.div>
   );
 }
 

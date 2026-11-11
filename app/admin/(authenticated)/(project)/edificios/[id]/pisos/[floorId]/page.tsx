@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsEditor from '@/components/admin/FloorUnitsEditor';
@@ -11,6 +13,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement } from '@/lib/project-types';
 
 export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: string; floorId: string }> }) {
+  const contentIn = useContentIn();
   const { id: buildingId, floorId } = use(params);
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, hasUnitStep, buildingLabel } = typeConfig;
@@ -62,7 +65,7 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link href="/admin/proyecto" className="inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">← Proyecto</Link>
@@ -74,6 +77,6 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       </div>
 
       <FloorUnitsEditor buildingId={buildingId} floorId={floorId} />
-    </div>
+    </m.div>
   );
 }

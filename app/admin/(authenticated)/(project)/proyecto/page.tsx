@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -37,6 +39,7 @@ interface UnitLite { total_area: number | null; model_name: string | null }
 
 export default function AdminProjectPage() {
   const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { saleMode, buildingLabel, aerialLabelPlural, unitLabel } = typeConfig;
   const ficha = useFichaProject();
@@ -169,6 +172,7 @@ export default function AdminProjectPage() {
   );
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout aside={aside}>
       <ChapterHeader
         title="Esencial"
@@ -298,5 +302,6 @@ export default function AdminProjectPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

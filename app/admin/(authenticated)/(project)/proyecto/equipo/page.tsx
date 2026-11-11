@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
 import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
@@ -28,6 +30,7 @@ function initials(name: string) {
 }
 
 export default function EquipoPage() {
+  const contentIn = useContentIn();
   const { saleMode } = useProjectTypeConfig();
   const ficha = useFichaProject();
   const { project, setProject, collaborators, comments, setComments } = ficha;
@@ -94,6 +97,7 @@ export default function EquipoPage() {
   const academicFilled = !!(project.academic_institution || project.academic_career || project.academic_tutor || project.academic_year);
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Equipo"
@@ -228,5 +232,6 @@ export default function EquipoPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

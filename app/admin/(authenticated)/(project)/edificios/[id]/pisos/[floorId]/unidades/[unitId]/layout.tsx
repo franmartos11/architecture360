@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useCallback, use, startTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -40,6 +42,7 @@ export default function UnitShellLayout({
   children: React.ReactNode;
   params: Promise<{ id: string; floorId: string; unitId: string }>;
 }) {
+  const contentIn = useContentIn();
   const { id: buildingId, floorId, unitId } = use(params);
   const pathname = usePathname();
   const router = useRouter();
@@ -198,7 +201,7 @@ export default function UnitShellLayout({
 
   return (
     <UnitShellContext.Provider value={{ unit, values, patch }}>
-      <div className="flex flex-col gap-4">
+      <m.div {...contentIn} className="flex flex-col gap-4">
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="self-start inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">
           ← Volver a {pluralize(unitLabelLower)}
         </Link>
@@ -301,7 +304,7 @@ export default function UnitShellLayout({
             </div>
           </div>
         </div>
-      </div>
+      </m.div>
     </UnitShellContext.Provider>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -28,6 +30,7 @@ const STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
 };
 
 export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [collaborators, setCollaborators] = useState<CollaboratorRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<PersonSearchResult | null>(null);
@@ -104,7 +107,7 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
     );
 
   return (
-    <div>
+    <m.div {...contentIn}>
       <div className="divide-y divide-gray-100">
         {collaborators.map(c => (
           <div key={c.id} className="p-4 flex items-center gap-4">
@@ -165,6 +168,6 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
           </Button>
         </div>
       </form>
-    </div>
+    </m.div>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useRef } from 'react';
 import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
@@ -15,6 +17,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 // igual publicado — párrafo nuevo y viñeta — y no negrita/cursiva/enlaces.
 
 export default function RelatoPage() {
+  const contentIn = useContentIn();
   const { saleMode } = useProjectTypeConfig();
   const ficha = useFichaProject();
   const { project, setProject } = ficha;
@@ -73,6 +76,7 @@ export default function RelatoPage() {
   );
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout aside={aside}>
       <ChapterHeader
         title="Relato"
@@ -122,5 +126,6 @@ export default function RelatoPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }
