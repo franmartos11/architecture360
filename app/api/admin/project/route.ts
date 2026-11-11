@@ -12,6 +12,8 @@ import { slugify } from '@/lib/slug';
 import { safeUrl } from '@/lib/schema-parts';
 import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema, constructionProgressSchema } from '@/lib/project-schemas';
 import { serverError } from '@/lib/api-errors';
+import { removeOrphanedMedia } from '@/lib/storage-cleanup';
+import type { ConstructionProgress } from '@/types';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
@@ -62,6 +64,11 @@ const projectPatchSchema = z.object({
   showInPortfolio: z.boolean().optional(),
   published: z.boolean().optional(),
 });
+
+/** Todas las fotos y clips de un avance (con repetidos: una URL puede estar en dos entradas). */
+function progressMediaUrls(progress: ConstructionProgress): string[] {
+  return progress.updates.flatMap(u => [...u.images, ...(u.video ? [u.video] : [])]);
+}
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -205,19 +212,22 @@ export async function PATCH(request: Request) {
   if (body.academicTeam !== undefined) updates.academic_team = sanitizeText(body.academicTeam, 500);
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
+  // Avance guardado antes de este PATCH: sirve para el chequeo de conflicto y
+  // para saber qué fotos dejaron de usarse (se borran después del update).
+  let previousProgress: ConstructionProgress | null = null;
+  let nextProgress: ConstructionProgress | null = null;
   if (body.constructionProgress !== undefined) {
-    if (body.constructionProgressBase !== undefined) {
-      const { data: row } = await supabase.from('projects').select('construction_progress').eq('id', projectId).maybeSingle();
-      const saved = parseConstructionProgress(row?.construction_progress)?.updatedAt ?? null;
-      if (saved !== body.constructionProgressBase) {
-        return NextResponse.json(
-          { error: 'Alguien más guardó el avance de obra mientras lo editabas. Recargá para ver lo nuevo antes de volver a guardar.', code: 'construction_progress_conflict' },
-          { status: 409 }
-        );
-      }
+    const { data: row } = await supabase.from('projects').select('construction_progress').eq('id', projectId).maybeSingle();
+    previousProgress = parseConstructionProgress(row?.construction_progress);
+    if (body.constructionProgressBase !== undefined && (previousProgress?.updatedAt ?? null) !== body.constructionProgressBase) {
+      return NextResponse.json(
+        { error: 'Alguien más guardó el avance de obra mientras lo editabas. Recargá para ver lo nuevo antes de volver a guardar.', code: 'construction_progress_conflict' },
+        { status: 409 }
+      );
     }
     const parsed = parseConstructionProgress(body.constructionProgress);
-    updates.construction_progress = parsed ? stampConstructionProgress(parsed) : null;
+    nextProgress = parsed ? stampConstructionProgress(parsed) : null;
+    updates.construction_progress = nextProgress;
   }
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;
   if (body.published !== undefined) {
@@ -255,5 +265,10 @@ export async function PATCH(request: Request) {
   if (error?.code === '23505' && body.slug !== undefined) return NextResponse.json({ error: 'Ese link ya lo usa otro proyecto. Probá con otro.' }, { status: 409 });
   if (error) return serverError(error);
   if (previousSlug) revalidateProjectBySlug(previousSlug);
+  // Recién con el guardado hecho: si el borrado falla queda un archivo suelto,
+  // no un avance perdido. Nunca lanza.
+  if (body.constructionProgress !== undefined && previousProgress) {
+    await removeOrphanedMedia(progressMediaUrls(previousProgress), nextProgress ? progressMediaUrls(nextProgress) : [], { bucket: 'project-media', folder: 'construction' });
+  }
   return NextResponse.json(data);
 }

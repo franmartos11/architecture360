@@ -11,6 +11,7 @@ import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { polygonCenter } from '@/lib/amenities';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { withoutDraftUpdates } from '@/lib/construction-progress-public';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -335,7 +336,10 @@ function readPublicProject(slug: string) {
       async (s: string) => {
         const project = await fetchProjectBySlug(createPublicClient(), s, { onlyPublished: true });
         if (!project) throw new PublicProjectNotFound(s);
-        return project;
+        // Los borradores del avance de obra no salen al sitio público (la
+        // vista los oculta, pero el blob viaja entero en el HTML). El admin
+        // y el preview del dueño leen por getProjectBySlug y los conservan.
+        return { ...project, constructionProgress: withoutDraftUpdates(project.constructionProgress) };
       },
       ['public-project', slug],
       { tags: [projectCacheTag(slug)], revalidate: PUBLIC_PROJECT_REVALIDATE_SECONDS }

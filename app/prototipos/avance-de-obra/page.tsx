@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import ConstructionProgressView from '@/components/project-landing/ConstructionProgressView';
 import { Container } from '@/components/project-landing/ui';
 import { getPublicProjectBySlug } from '@/data/project-repository';
-import { DEMO_PROGRESS } from '@/lib/construction-progress';
+import { DEMO_PROGRESS } from '@/lib/construction-progress-demo';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 
