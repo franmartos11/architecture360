@@ -201,6 +201,31 @@ html[data-nav-pending] [data-site-nav]::after {
   from { opacity: 0; }
 }
 
+/* ─── Skeletons (components/ui/Skeleton.tsx) ──────────────────────
+   Un brillo apenas más claro que la base cruza de izquierda a derecha
+   cada 1.6 s — más sereno que el pulso de opacidad, y se lee como "está
+   viniendo" en vez de "está roto". El gradiente mide 4 anchos: el brillo
+   arranca fuera del borde izquierdo y termina fuera del derecho, así no
+   se ve aparecer ni desaparecer. Todas las piezas comparten una sola
+   animación (mismo reloj), por eso el barrido se ve parejo en una tabla.
+   Los colores son los neutros del panel (gray-200 del tema .atrium-ui). */
+.skeleton-shimmer {
+  --skeleton-base: #EAE7E0;
+  --skeleton-shine: #F3F1EC;
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(90deg, var(--skeleton-base) 35%, var(--skeleton-shine) 50%, var(--skeleton-base) 65%);
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer { animation: none; background-image: none; }
+}
+
 /* ─── Buttons ──────────────────────────────────────────────────── */
 /* Botones del sitio público en mobile — una sola familia: mismo alto,
    mismo redondeado y misma tipografía. El principal lleva el color de
