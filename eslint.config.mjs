@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees de Claude Code (.claude/worktrees/*): cada uno es una copia entera del repo,
+    // con su propio .next y un node_modules enlazado. Sin esto el lint los recorre y reporta
+    // cientos de miles de problemas que no son de este árbol. vitest.config.ts ya los excluye.
+    ".claude/**",
   ]),
 ]);
 
