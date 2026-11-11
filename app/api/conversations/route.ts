@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { HANDLE_RE } from '@/lib/validate';
 import { isBlockedEitherWay } from '@/lib/blocks';
@@ -100,7 +101,9 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (existing) return NextResponse.json({ id: existing.id });
 
-  const { data: created, error } = await supabase
+  // Con service-role: sin policy de INSERT para usuarios (ver comentario en supabase/schema.sql).
+  // Que seas uno de los dos participantes y que no haya un bloqueo ya se verificó arriba.
+  const { data: created, error } = await createAdminClient()
     .from('conversations')
     .insert({ participant_one: participantOne, participant_two: participantTwo })
     .select('id')

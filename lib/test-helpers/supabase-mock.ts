@@ -123,3 +123,22 @@ export function jsonRequest(url: string, body?: unknown, init: RequestInit = {})
     ...init,
   });
 }
+
+/**
+ * Dos clientes (sesión y service-role) que comparten UNA cola de resultados pero
+ * registran por separado qué tabla toca cada uno. Sirve para afirmar que una
+ * ruta crea la fila con service-role y que el cliente de sesión nunca la toca —
+ * sin tener que repartir la cola entre dos mocks:
+ *
+ *   const { session, admin } = splitClients(mockSupabase({ user, results }));
+ *   vi.mocked(createClient).mockResolvedValue(session as never);
+ *   vi.mocked(createAdminClient).mockReturnValue(admin as never);
+ *   ...
+ *   expect(admin.from).toHaveBeenCalledWith('posts');
+ *   expect(session.from).not.toHaveBeenCalledWith('posts');
+ */
+export function splitClients(shared: ReturnType<typeof mockSupabase>) {
+  const session = { ...shared, from: vi.fn((table: string) => shared.from(table)) };
+  const admin = { from: vi.fn((table: string) => shared.from(table)) };
+  return { session, admin };
+}

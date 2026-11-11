@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 
 import { createClient } from '@/lib/supabase/server';
-import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { mockSupabase, jsonRequest, splitClients } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 
@@ -22,11 +24,13 @@ describe('GET /api/comments', () => {
   beforeEach(() => {
     vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
   });
 
   it('sin projectId: 400 antes de tocar la base', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(getReq(''));
     expect(res.status).toBe(400);
@@ -44,6 +48,7 @@ describe('GET /api/comments', () => {
     ];
     const supabase = mockSupabase({ results: [{ data: comments, error: null }, { data: profiles }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(getReq(`projectId=${PROJECT_ID}`));
     expect(res.status).toBe(200);
@@ -67,6 +72,7 @@ describe('GET /api/comments', () => {
       results: [{ data: comments, error: null }, { data: [{ id: 'author-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(getReq(`projectId=${PROJECT_ID}`));
     const json = await res.json();
@@ -77,6 +83,7 @@ describe('GET /api/comments', () => {
   it('sin comentarios: no consulta profiles, devuelve lista vacía', async () => {
     const supabase = mockSupabase({ results: [{ data: [], error: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(getReq(`projectId=${PROJECT_ID}`));
     expect(res.status).toBe(200);
@@ -86,6 +93,7 @@ describe('GET /api/comments', () => {
   it('error de la base: 500', async () => {
     const supabase = mockSupabase({ results: [{ error: { message: 'query failed' } }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(getReq(`projectId=${PROJECT_ID}`));
     expect(res.status).toBe(500);
@@ -96,11 +104,13 @@ describe('GET /api/comments', () => {
 describe('POST /api/comments', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
   });
 
   it('sin sesión: 401', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: 'Hola' }));
     expect(res.status).toBe(401);
@@ -110,6 +120,7 @@ describe('POST /api/comments', () => {
   it('body inválido (zod): 400', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ projectId: 'no-es-uuid', body: 'Hola' }));
     expect(res.status).toBe(400);
@@ -119,6 +130,7 @@ describe('POST /api/comments', () => {
   it('comentario vacío tras sanitizar (solo tags HTML): 400', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: '<script></script>' }));
     expect(res.status).toBe(400);
@@ -129,6 +141,7 @@ describe('POST /api/comments', () => {
   it('rate limit propio alcanzado: 429, no inserta', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
     vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'Estás comentando muy rápido' }), { status: 429 }) as never
     );
@@ -148,6 +161,7 @@ describe('POST /api/comments', () => {
       results: [{ error: { message: 'insert failed' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: 'Hola' }));
     expect(res.status).toBe(500);
@@ -163,10 +177,15 @@ describe('POST /api/comments', () => {
         { data: [{ id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] },
       ],
     });
-    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const { session, admin } = splitClients(supabase);
+    vi.mocked(createClient).mockResolvedValue(session as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(postReq({ projectId: PROJECT_ID, body: 'Hola' }));
     expect(res.status).toBe(201);
+    // El insert sale por service-role: sin policy de INSERT para usuarios, el cliente de sesión no puede crear la fila.
+    expect(admin.from).toHaveBeenCalledWith('project_comments');
+    expect(session.from).not.toHaveBeenCalledWith('project_comments');
     expect(await res.json()).toEqual({ ...inserted, author: { id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null } });
   });
 });

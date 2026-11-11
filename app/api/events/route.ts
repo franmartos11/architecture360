@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
 const MAX_TITLE_LENGTH = 140;
 const MAX_TEXT_LENGTH = 500;
@@ -65,7 +67,14 @@ export async function POST(request: Request) {
   const title = sanitizeText(body.title, MAX_TITLE_LENGTH);
   if (!title) return NextResponse.json({ error: 'Falta el título del evento' }, { status: 400 });
 
-  const { data, error } = await supabase
+  const limited = await rateLimitOrRespond(
+    { key: `events:user:${user.id}`, windowSeconds: 3600, max: 10 },
+    'Publicaste muchos eventos seguidos — esperá un rato.'
+  );
+  if (limited) return limited;
+
+  // Con service-role: sin policy de INSERT para usuarios (ver comentario en supabase/schema.sql).
+  const { data, error } = await createAdminClient()
     .from('events')
     .insert({
       title,

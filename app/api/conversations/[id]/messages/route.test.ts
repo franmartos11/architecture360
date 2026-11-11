@@ -279,12 +279,10 @@ describe('POST /api/conversations/[id]/messages', () => {
   it('error de la base al insertar: 500 con el mensaje', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
-      results: [
-        { data: { id: CONVO_ID, participant_one: 'user-1', participant_two: 'user-2' } },
-        { data: null, error: { message: 'insert failed' } },
-      ],
+      results: [{ data: { id: CONVO_ID, participant_one: 'user-1', participant_two: 'user-2' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({ results: [{ data: null, error: { message: 'insert failed' } }] }) as never);
 
     const res = await POST(post({ body: 'hola' }), { params: params() });
 
@@ -297,16 +295,20 @@ describe('POST /api/conversations/[id]/messages', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: CONVO_ID, participant_one: 'user-1', participant_two: 'user-2' } },
-        { data: { id: 'msg-1', body: 'hola' } },
         { data: null }, // .from('conversations').update(...)
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const admin = mockSupabase({ results: [{ data: { id: 'msg-1', body: 'hola' } }] }); // .from('messages').insert(...)
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(post({ body: 'hola' }), { params: params() });
 
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'msg-1', body: 'hola' });
+    // El insert sale por service-role: sin policy de INSERT para usuarios, el cliente de sesión no puede crear mensajes.
+    expect(admin.from).toHaveBeenCalledWith('messages');
+    expect(supabase.from).not.toHaveBeenCalledWith('messages');
     expect(notify).toHaveBeenCalledWith({
       recipientId: 'user-2',
       actorId: 'user-1',
@@ -321,12 +323,12 @@ describe('POST /api/conversations/[id]/messages', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: CONVO_ID, participant_one: 'user-1', participant_two: 'user-2' } },
-        { data: { id: 'msg-3', attachment_url: path, attachment_type: 'image' } },
         { data: null },
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
     const admin = mockSupabase({
+      results: [{ data: { id: 'msg-3', attachment_url: path, attachment_type: 'image' } }],
       storage: { createSignedUrls: { data: [{ path, signedUrl: 'https://signed.example/123-abcde.png?token=y' }], error: null } },
     });
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
@@ -342,11 +344,11 @@ describe('POST /api/conversations/[id]/messages', () => {
       user: { id: 'user-1' },
       results: [
         { data: { id: CONVO_ID, participant_one: 'user-1', participant_two: 'user-2' } },
-        { data: { id: 'msg-2' } },
         { data: null },
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({ results: [{ data: { id: 'msg-2' } }] }) as never);
 
     const res = await POST(post({ sharedPostId: 'a1b2c3d4-e5f6-4a1b-8c2d-1234567890ab' }), { params: params() });
 

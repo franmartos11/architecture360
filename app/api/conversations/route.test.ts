@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/blocks', () => ({ isBlockedEitherWay: vi.fn().mockResolvedValue(false) }));
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { isBlockedEitherWay } from '@/lib/blocks';
-import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
+import { mockSupabase, jsonRequest, splitClients } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
 
 function postReq(body: unknown) {
@@ -18,11 +20,13 @@ function postReq(body: unknown) {
 describe('GET /api/conversations', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
   });
 
   it('sin sesión: devuelve lista vacía (no 401)', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -33,6 +37,7 @@ describe('GET /api/conversations', () => {
   it('sin conversaciones: no consulta mensajes', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [{ data: [], error: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -42,6 +47,7 @@ describe('GET /api/conversations', () => {
   it('error en la query principal: swallow, devuelve lista vacía (no 500)', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [{ error: { message: 'boom' } }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -71,6 +77,7 @@ describe('GET /api/conversations', () => {
       results: [{ data: rows, error: null }, { data: unreadRows }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -87,6 +94,7 @@ describe('GET /api/conversations', () => {
 describe('POST /api/conversations', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
     vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(isBlockedEitherWay).mockReset().mockResolvedValue(false);
   });
@@ -94,6 +102,7 @@ describe('POST /api/conversations', () => {
   it('sin sesión: 401', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(401);
@@ -103,6 +112,7 @@ describe('POST /api/conversations', () => {
   it('handle inválido: 400 antes de rate-limitear', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'AB' }));
     expect(res.status).toBe(400);
@@ -112,6 +122,7 @@ describe('POST /api/conversations', () => {
   it('rate-limit alcanzado: devuelve el 429 tal cual, sin tocar la base', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
     const { NextResponse } = await import('next/server');
     vi.mocked(rateLimitOrRespond).mockResolvedValue(NextResponse.json({ error: 'Demasiadas solicitudes' }, { status: 429 }));
 
@@ -123,6 +134,7 @@ describe('POST /api/conversations', () => {
   it('sin portfolio propio: 400', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [{ data: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(400);
@@ -132,6 +144,7 @@ describe('POST /api/conversations', () => {
   it('perfil objetivo no encontrado: 404', async () => {
     const supabase = mockSupabase({ user: { id: 'me-1' }, results: [{ data: { id: 'me-1' } }, { data: null }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(404);
@@ -143,6 +156,7 @@ describe('POST /api/conversations', () => {
       results: [{ data: { id: 'me-1' } }, { data: { id: 'me-1' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'self' }));
     expect(res.status).toBe(400);
@@ -155,6 +169,7 @@ describe('POST /api/conversations', () => {
       results: [{ data: { id: 'me-1' } }, { data: { id: 'p2' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
     vi.mocked(isBlockedEitherWay).mockResolvedValue(true);
 
     const res = await POST(postReq({ handle: 'beto' }));
@@ -172,6 +187,7 @@ describe('POST /api/conversations', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(200);
@@ -188,10 +204,17 @@ describe('POST /api/conversations', () => {
         { data: { id: 'conv-new' }, error: null }, // insert
       ],
     });
-    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const { session, admin } = splitClients(supabase);
+    vi.mocked(createClient).mockResolvedValue(session as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(201);
+    // El insert sale por service-role: sin policy de INSERT para usuarios, el cliente de sesión no puede crear la fila.
+    // (el cliente de sesión sí lee la tabla para ver si ya existe; lo que no puede es insertar)
+    expect(admin.from).toHaveBeenCalledWith('conversations');
+    expect(admin.from.mock.results[0].value.insert).toHaveBeenCalledWith({ participant_one: expect.any(String), participant_two: expect.any(String) });
+    for (const r of session.from.mock.results) expect(r.value.insert?.mock.calls.length ?? 0).toBe(0);
     expect(await res.json()).toEqual({ id: 'conv-new' });
   });
 
@@ -207,6 +230,7 @@ describe('POST /api/conversations', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(200);
@@ -224,6 +248,7 @@ describe('POST /api/conversations', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(500);
@@ -242,6 +267,7 @@ describe('POST /api/conversations', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(postReq({ handle: 'beto' }));
     expect(res.status).toBe(500);

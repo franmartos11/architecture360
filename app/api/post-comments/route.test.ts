@@ -3,11 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/notify', () => ({ notify: vi.fn().mockResolvedValue(undefined) }));
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notify } from '@/lib/notify';
-import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
+import { mockSupabase, jsonRequest, splitClients } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 
@@ -21,6 +23,7 @@ describe('GET /api/post-comments', () => {
   beforeEach(() => {
     vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
   });
 
   it('sin postId: 400, no toca la base', async () => {
@@ -41,6 +44,7 @@ describe('GET /api/post-comments', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(get(`http://localhost/api/post-comments?postId=${POST_ID}`));
     expect(res.status).toBe(200);
@@ -61,6 +65,7 @@ describe('GET /api/post-comments', () => {
   it('sin comentarios: no consulta profiles, hasMore false', async () => {
     const supabase = mockSupabase({ results: [{ data: [] }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(get(`http://localhost/api/post-comments?postId=${POST_ID}`));
     expect(res.status).toBe(200);
@@ -79,6 +84,7 @@ describe('GET /api/post-comments', () => {
       results: [{ data: rows }, { data: [{ id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(get(`http://localhost/api/post-comments?postId=${POST_ID}`));
     const body = await res.json();
@@ -89,6 +95,7 @@ describe('GET /api/post-comments', () => {
   it('error de la base: 200 con lista vacía (no rompe el feed)', async () => {
     const supabase = mockSupabase({ results: [{ data: null, error: { message: 'boom' } }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await GET(get(`http://localhost/api/post-comments?postId=${POST_ID}`));
     expect(res.status).toBe(200);
@@ -99,6 +106,7 @@ describe('GET /api/post-comments', () => {
 describe('POST /api/post-comments', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
     vi.mocked(notify).mockReset().mockResolvedValue(undefined);
   });
 
@@ -109,6 +117,7 @@ describe('POST /api/post-comments', () => {
   it('sin sesión: 401', async () => {
     const supabase = mockSupabase({ user: null, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(401);
@@ -117,6 +126,7 @@ describe('POST /api/post-comments', () => {
   it('body inválido (postId no es uuid): 400', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(req({ postId: 'no-es-uuid', body: 'hola' }));
     expect(res.status).toBe(400);
@@ -126,6 +136,7 @@ describe('POST /api/post-comments', () => {
   it('comentario vacío tras sanitizar (solo tags HTML): 400', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(req({ postId: POST_ID, body: '<script></script>' }));
     expect(res.status).toBe(400);
@@ -135,6 +146,7 @@ describe('POST /api/post-comments', () => {
   it('rate limit alcanzado (5 comentarios en 5 min): 429, no inserta', async () => {
     const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
     vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'Estás comentando muy rápido' }), { status: 429 }) as never
     );
@@ -154,6 +166,7 @@ describe('POST /api/post-comments', () => {
       results: [{ data: null, error: { message: 'insert failed' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(500);
@@ -169,10 +182,15 @@ describe('POST /api/post-comments', () => {
         { data: [{ id: 'user-1', handle: 'ana', display_name: 'Ana', avatar_image: null }] }, // withAuthors
       ],
     });
-    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const { session, admin } = splitClients(supabase);
+    vi.mocked(createClient).mockResolvedValue(session as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(201);
+    // El insert sale por service-role: sin policy de INSERT para usuarios, el cliente de sesión no puede crear la fila.
+    expect(admin.from).toHaveBeenCalledWith('post_comments');
+    expect(session.from).not.toHaveBeenCalledWith('post_comments');
     expect(notify).toHaveBeenCalledWith({
       recipientId: 'post-author',
       actorId: 'user-1',
@@ -193,6 +211,7 @@ describe('POST /api/post-comments', () => {
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as never);
 
     const res = await POST(req({ postId: POST_ID, body: 'hola' }));
     expect(res.status).toBe(201);

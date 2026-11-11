@@ -188,10 +188,20 @@ alter table posts enable row level security;
 drop policy if exists "public read posts" on posts;
 create policy "public read posts" on posts for select to anon, authenticated using (true);
 
+-- Sin policy de INSERT para usuarios a propósito: un post lo crea el servidor con
+-- service-role (ver app/api/posts/route.ts), que es donde viven la validación, el sanitizado y el rate
+-- limit. Con una policy de insert, cualquiera con la anon key (que viaja en el
+-- bundle) podía insertar directo en /rest/v1/posts salteándose todo eso. Esta línea
+-- también retira la policy en bases donde ya existía.
+-- Editar y borrar lo propio sigue pasando por la sesión del autor.
 drop policy if exists "author write posts" on posts;
-create policy "author write posts" on posts for all to authenticated
+drop policy if exists "author update own posts" on posts;
+create policy "author update own posts" on posts for update to authenticated
   using (author_id = auth.uid())
   with check (author_id = auth.uid());
+drop policy if exists "author delete own posts" on posts;
+create policy "author delete own posts" on posts for delete to authenticated
+  using (author_id = auth.uid());
 
 -- Repost: un post normal no lo tiene; uno reposteado apunta al original.
 -- on delete set null — si se borra el original, el repost queda como un
@@ -242,9 +252,12 @@ alter table post_comments enable row level security;
 drop policy if exists "public read post_comments" on post_comments;
 create policy "public read post_comments" on post_comments for select to anon, authenticated using (true);
 
+-- Sin policy de INSERT para usuarios a propósito: un comentario de post lo crea el servidor con
+-- service-role (ver app/api/post-comments/route.ts), que es donde viven la validación, el sanitizado y el rate
+-- limit. Con una policy de insert, cualquiera con la anon key (que viaja en el
+-- bundle) podía insertar directo en /rest/v1/post_comments salteándose todo eso. Esta línea
+-- también retira la policy en bases donde ya existía.
 drop policy if exists "authenticated insert own post_comments" on post_comments;
-create policy "authenticated insert own post_comments" on post_comments for insert to authenticated
-  with check (author_id = auth.uid());
 
 drop policy if exists "author delete own post_comments" on post_comments;
 create policy "author delete own post_comments" on post_comments for delete to authenticated
@@ -765,9 +778,12 @@ alter table project_comments enable row level security;
 drop policy if exists "public read comments" on project_comments;
 create policy "public read comments" on project_comments for select to anon, authenticated using (true);
 
+-- Sin policy de INSERT para usuarios a propósito: un comentario de proyecto lo crea el servidor con
+-- service-role (ver app/api/comments/route.ts), que es donde viven la validación, el sanitizado y el rate
+-- limit. Con una policy de insert, cualquiera con la anon key (que viaja en el
+-- bundle) podía insertar directo en /rest/v1/project_comments salteándose todo eso. Esta línea
+-- también retira la policy en bases donde ya existía.
 drop policy if exists "authenticated insert own comments" on project_comments;
-create policy "authenticated insert own comments" on project_comments for insert to authenticated
-  with check (author_id = auth.uid());
 
 -- Borra su propio comentario, o el dueño del proyecto por moderación —
 -- dos policies permisivas de delete, se combinan con OR.
@@ -1257,12 +1273,12 @@ create policy "participants read conversations" on conversations for select to a
 -- la ruta (POST /api/conversations) hace el mismo chequeo antes para
 -- devolver un error legible, esto cubre el caso de que algo le pegue
 -- directo a la tabla.
+-- Sin policy de INSERT para usuarios a propósito: la conversación la crea el
+-- servidor con service-role (app/api/conversations/route.ts), que ya verifica que
+-- seas uno de los dos y que no haya un bloqueo. Con una policy de insert, cualquiera
+-- con la anon key podía crearlas directo en /rest/v1/conversations salteándose el
+-- rate limit de la ruta. Esta línea también retira la policy en bases donde existía.
 drop policy if exists "participants insert conversations" on conversations;
-create policy "participants insert conversations" on conversations for insert to authenticated
-  with check (
-    (auth.uid() = participant_one or auth.uid() = participant_two)
-    and not is_blocked_either_way(participant_one, participant_two)
-  );
 
 -- last_message_at se actualiza al mandar un mensaje — cualquiera de los
 -- dos participantes necesita poder tocar la fila, no solo quien la creó.
@@ -1297,17 +1313,13 @@ create policy "participants read messages" on messages for select to authenticat
 -- Mismo chequeo de bloqueo que el insert de conversations: si ya existía
 -- la conversación de antes de que alguno bloqueara al otro, esto igual
 -- corta el envío de mensajes nuevos.
+-- Sin policy de INSERT para usuarios a propósito: el mensaje lo crea el servidor con
+-- service-role (app/api/conversations/[id]/messages/route.ts), que ya verifica que
+-- seas participante y que no haya un bloqueo antes de insertar, además de la
+-- validación, el sanitizado y el rate limit. Con una policy de insert, cualquiera
+-- con la anon key podía mandar mensajes directo en /rest/v1/messages salteándose
+-- todo eso. Esta línea también retira la policy en bases donde existía.
 drop policy if exists "participants send messages" on messages;
-create policy "participants send messages" on messages for insert to authenticated
-  with check (
-    sender_id = auth.uid()
-    and exists (
-      select 1 from conversations c
-      where c.id = messages.conversation_id
-        and (c.participant_one = auth.uid() or c.participant_two = auth.uid())
-        and not is_blocked_either_way(c.participant_one, c.participant_two)
-    )
-  );
 
 -- Marcar como leído: cualquiera de los dos participantes puede tocar
 -- read_at de los mensajes de la conversación (incluye los propios, no
@@ -1574,14 +1586,21 @@ alter table events enable row level security;
 drop policy if exists "public read events" on events;
 create policy "public read events" on events for select to anon, authenticated using (true);
 
+-- Sin policy de INSERT para usuarios a propósito: un evento lo crea el servidor con
+-- service-role (ver app/api/events/route.ts), que es donde viven la validación, el sanitizado y el rate
+-- limit. Con una policy de insert, cualquiera con la anon key (que viaja en el
+-- bundle) podía insertar directo en /rest/v1/events salteándose todo eso. Esta línea
+-- también retira la policy en bases donde ya existía.
+-- Editar y borrar lo propio sigue pasando por la sesión del creador.
 drop policy if exists "authenticated insert own events" on events;
-create policy "authenticated insert own events" on events for insert to authenticated
-  with check (created_by = auth.uid());
-
 drop policy if exists "creator manage own events" on events;
-create policy "creator manage own events" on events for all to authenticated
+drop policy if exists "creator update own events" on events;
+create policy "creator update own events" on events for update to authenticated
   using (created_by = auth.uid())
   with check (created_by = auth.uid());
+drop policy if exists "creator delete own events" on events;
+create policy "creator delete own events" on events for delete to authenticated
+  using (created_by = auth.uid());
 
 -- ─── Asistencia a eventos ─────────────────────────────────────────────
 create table if not exists event_rsvps (

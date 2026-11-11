@@ -148,7 +148,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   );
   if (limited) return limited;
 
-  const { data, error } = await supabase
+  // Con service-role: sin policy de INSERT para usuarios (ver comentario en supabase/schema.sql).
+  // Que seas participante y que no haya un bloqueo ya se verificó arriba.
+  const { data, error } = await createAdminClient()
     .from('messages')
     .insert({
       conversation_id: id, sender_id: user.id, body: text || null, shared_post_id: sharedPostId,
