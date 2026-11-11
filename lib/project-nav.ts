@@ -18,6 +18,12 @@ export interface ProjectNavInfo {
   /** Unidades disponibles — solo cuando el proyecto muestra estado de venta. */
   unitsAvailable?: number;
   amenitiesCount: number;
+  /**
+   * La landing muestra el avance de obra (sección prendida y con algo
+   * cargado — ver showsConstructionProgress). Solo entonces el menú suma
+   * "Avance de obra": para quien compra en pozo es lo primero que busca.
+   */
+  hasProgress?: boolean;
   /** Nombre de cada edificio por id — para "Plantas · Torre A" en la barra. */
   buildingNames: Record<string, string>;
   /** Tarjetas de "Explorar 3D" del menú. plans: el primer edificio con plano. */
@@ -48,6 +54,9 @@ export function projectNavHrefs(
     amenities: `${basePath}/amenities`,
     location: `${basePath}/ubicacion`,
     calculator: `${basePath}#cotizador`,
+    // Sobre el inicio y no sobre el basePath crudo: en subdominio quedaría
+    // "#avance" a secas y desde /unidades llevaría a /unidades#avance.
+    progress: `${basePath || '/'}#avance`,
     plans: plansBuildingId ? `${basePath}/edificio/${plansBuildingId}` : undefined,
   };
 }

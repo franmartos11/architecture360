@@ -9,7 +9,17 @@ import type { BeforeAfterPair } from '@/types';
 // lugar — típico de un reciclaje/rehabilitación. La imagen "antes" se
 // recorta con clip-path según la posición del divisor en vez de
 // escalarla, así ninguna de las dos fotos se deforma al arrastrar.
-export default function BeforeAfterSlider({ label, beforeImage, afterImage }: BeforeAfterPair) {
+//
+// `beforeLabel`/`afterLabel` reemplazan los "Antes"/"Después" de las
+// esquinas (el avance de obra pone las fechas: "ago 2025 · Mes 2 de obra");
+// sin ellos queda como siempre. Con teclado se mueve con las flechas.
+interface BeforeAfterSliderProps extends BeforeAfterPair {
+  beforeLabel?: string;
+  afterLabel?: string;
+  sizes?: string;
+}
+
+export default function BeforeAfterSlider({ label, beforeImage, afterImage, beforeLabel, afterLabel, sizes = '(min-width: 768px) 800px, 100vw' }: BeforeAfterSliderProps) {
   const [percent, setPercent] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -33,6 +43,17 @@ export default function BeforeAfterSlider({ label, beforeImage, afterImage }: Be
   const handlePointerUp = () => {
     draggingRef.current = false;
   };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const d = e.key === 'ArrowLeft' ? -5 : e.key === 'ArrowRight' ? 5 : 0;
+    if (!d) return;
+    e.preventDefault();
+    setPercent(p => Math.min(100, Math.max(0, p + d)));
+  };
+  // Las etiquetas de siempre van en mayúsculas chicas; las propias (fechas)
+  // se leen mejor tal cual y, en un celular, pasan a dos renglones antes
+  // que pisarse entre ellas.
+  const tagClass = (custom: boolean) =>
+    `absolute top-4 text-white bg-black/50 backdrop-blur px-2.5 py-1 pointer-events-none ${custom ? 'max-w-[calc(50%-1.5rem)] rounded-xl text-xs leading-snug font-semibold' : 'rounded-full text-[11px] font-bold uppercase tracking-wide'}`;
 
   return (
     <div className="space-y-3">
@@ -43,35 +64,42 @@ export default function BeforeAfterSlider({ label, beforeImage, afterImage }: Be
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="relative aspect-[16/10] rounded-[var(--theme-radius)] overflow-hidden select-none touch-none cursor-ew-resize shadow-lg"
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={0}
+        aria-label={label || 'Comparar antes y después'}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(percent)}
+        className="relative aspect-[16/10] rounded-[var(--theme-radius)] overflow-hidden select-none touch-none cursor-ew-resize shadow-lg focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--theme-accent)]"
       >
         {/* Después — de fondo, ocupa todo el marco */}
         <Image
           src={afterImage}
-          alt="Después"
+          alt={afterLabel ?? 'Después'}
           fill
-          sizes="(min-width: 768px) 800px, 100vw"
+          sizes={sizes}
           placeholder="blur"
           blurDataURL={shimmerDataUrl()}
           className="object-cover pointer-events-none"
         />
-        <span className="absolute top-4 right-4 text-[11px] font-bold uppercase tracking-wide text-white bg-black/50 backdrop-blur px-2.5 py-1 rounded-full pointer-events-none">
-          Después
+        <span className={`${tagClass(!!afterLabel)} right-4`}>
+          {afterLabel ?? 'Después'}
         </span>
 
         {/* Antes — recortada con clip-path, no escalada, para que ninguna de las dos fotos se deforme */}
         <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}>
           <Image
             src={beforeImage}
-            alt="Antes"
+            alt={beforeLabel ?? 'Antes'}
             fill
-            sizes="(min-width: 768px) 800px, 100vw"
+            sizes={sizes}
             placeholder="blur"
             blurDataURL={shimmerDataUrl()}
             className="object-cover pointer-events-none"
           />
-          <span className="absolute top-4 left-4 text-[11px] font-bold uppercase tracking-wide text-white bg-black/50 backdrop-blur px-2.5 py-1 rounded-full pointer-events-none">
-            Antes
+          <span className={`${tagClass(!!beforeLabel)} left-4`}>
+            {beforeLabel ?? 'Antes'}
           </span>
         </div>
 

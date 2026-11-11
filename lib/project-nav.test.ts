@@ -11,4 +11,9 @@ describe('projectNavHrefs', () => {
     expect(h.home).toBe('/');
     expect(h.masterplan).toBe('/masterplan');
   });
+
+  it('avance de obra apunta a la sección de la landing, también desde una sub-ruta', () => {
+    expect(projectNavHrefs('').progress).toBe('/#avance');
+    expect(projectNavHrefs('/proyecto/torre').progress).toBe('/proyecto/torre#avance');
+  });
 });

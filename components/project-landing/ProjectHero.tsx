@@ -15,6 +15,12 @@ interface ProjectHeroProps {
   meta?: string;
   primary?: { href: string; label: string };
   secondary?: { href: string; label: string };
+  /**
+   * Línea del avance de obra ("72% de avance · Terminaciones · Entrega
+   * estimada diciembre 2027") que lleva a la sección. Solo cuando la
+   * sección está en la landing; sin esto el hero queda como siempre.
+   */
+  progress?: { href: string; text: string };
 }
 
 // Coordenadas del SVG de la máscara — el texto se dibuja sobre este lienzo
@@ -65,7 +71,7 @@ function useRamp(v: MotionValue<number>, input: number[], output: number[]) {
  *
  * Sin movimiento (prefers-reduced-motion) queda fijo el nombre con la frase.
  */
-export default function ProjectHero({ name, image, tagline, meta, primary, secondary }: ProjectHeroProps) {
+export default function ProjectHero({ name, image, tagline, meta, primary, secondary, progress }: ProjectHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const textRef = useRef<SVGTextElement>(null);
   const maskId = `hero-mask-${useId().replace(/:/g, '')}`;
@@ -167,11 +173,19 @@ export default function ProjectHero({ name, image, tagline, meta, primary, secon
           className="absolute inset-x-0 bottom-6 sm:bottom-10"
         >
           <Container className="flex flex-wrap gap-6 items-end justify-between">
-            {(tagline || meta) && (
-              <p className="m-0 max-w-[580px] text-lg sm:text-[22px] leading-[1.3] font-medium tracking-[-0.01em] text-[var(--theme-text)]">
-                {tagline && <>{tagline.replace(/[.\s]+$/, '')}. </>}
-                {meta && <span className="text-[var(--theme-text-muted)]">{meta}</span>}
-              </p>
+            {(tagline || meta || progress) && (
+              <div className="flex flex-col gap-3 max-w-[580px]">
+                {(tagline || meta) && (
+                  <p className="m-0 text-lg sm:text-[22px] leading-[1.3] font-medium tracking-[-0.01em] text-[var(--theme-text)]">
+                    {tagline && <>{tagline.replace(/[.\s]+$/, '')}. </>}
+                    {meta && <span className="text-[var(--theme-text-muted)]">{meta}</span>}
+                  </p>
+                )}
+                {/* Para quien compra en pozo esto es el argumento: va arriba,
+                    pero callado — un renglón, sin botón, con el punto de
+                    "en curso" de la tira de etapas. */}
+                {progress && <HeroProgressLink {...progress} />}
+              </div>
             )}
             {(primary || secondary) && (
               <div className="flex gap-2.5 flex-wrap">
@@ -183,5 +197,18 @@ export default function ProjectHero({ name, image, tagline, meta, primary, secon
         </m.div>
       </div>
     </header>
+  );
+}
+
+/** El renglón del avance de obra del hero (exportado para el laboratorio). */
+export function HeroProgressLink({ href, text }: { href: string; text: string }) {
+  return (
+    <a
+      href={href}
+      className="self-start inline-flex items-center gap-2.5 text-sm sm:text-[15px] font-medium text-[var(--theme-text)] no-underline hover:underline underline-offset-4 decoration-[var(--theme-text-muted)]"
+    >
+      <span aria-hidden="true" className="shrink-0 w-2 h-2 rounded-full bg-[var(--theme-accent)]" />
+      {text}
+    </a>
   );
 }

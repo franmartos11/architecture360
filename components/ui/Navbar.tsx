@@ -149,6 +149,11 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
             <Link href={hrefs.location} aria-current={isActive(hrefs.location) ? 'page' : undefined} className={navItemClass(isActive(hrefs.location))}>
               Ubicación
             </Link>
+            {info.hasProgress && (
+              <Link href={hrefs.progress} className={navItemClass(false)}>
+                Avance de obra
+              </Link>
+            )}
             {info.showCalculator && (
               <Link href={hrefs.calculator} className={navItemClass(false)}>
                 Cotizador

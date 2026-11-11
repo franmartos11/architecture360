@@ -4,6 +4,8 @@ import ConstructionProgressView from '@/components/project-landing/ConstructionP
 import { Container } from '@/components/project-landing/ui';
 import { getPublicProjectBySlug } from '@/data/project-repository';
 import { DEMO_PROGRESS } from '@/lib/construction-progress-demo';
+import { progressHeadline } from '@/lib/construction-progress-view';
+import { HeroProgressLink } from '@/components/project-landing/ProjectHero';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 
@@ -28,6 +30,7 @@ export default async function ConstructionProgressLabPage({ searchParams }: Page
   const kind: Kind = KINDS.some(k => k.key === t) ? (t as Kind) : 'edificio';
   const project = await getPublicProjectBySlug(p);
   const theme = resolveTheme(project?.themeConfig);
+  const headline = progressHeadline(DEMO_PROGRESS[kind]);
 
   return (
     <div
@@ -53,8 +56,14 @@ export default async function ConstructionProgressLabPage({ searchParams }: Page
         </Container>
       </div>
 
-      {/* Aire arriba y abajo para probar el scroll como si estuviera en la landing. */}
-      <div className="h-[30vh]" />
+      {/* Aire arriba y abajo para probar el scroll como si estuviera en la
+          landing. Arriba, el renglón que el hero muestra con estos datos. */}
+      <div className="h-[30vh] flex items-end pb-10">
+        <Container className="w-full flex flex-col gap-2">
+          <span className="text-[13px] text-[var(--theme-text-muted)]">En el hero</span>
+          {headline && <HeroProgressLink href="#avance" text={headline} />}
+        </Container>
+      </div>
       <ConstructionProgressView key={kind} progress={DEMO_PROGRESS[kind]} />
       <div className="h-[60vh]" />
     </div>

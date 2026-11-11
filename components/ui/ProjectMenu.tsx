@@ -123,6 +123,7 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
     },
     { href: hrefs.amenities, label: 'Amenities' },
     { href: hrefs.location, label: 'Ubicación' },
+    ...(info.hasProgress ? [{ href: hrefs.progress, label: 'Avance de obra' }] : []),
     ...(info.showCalculator ? [{ href: hrefs.calculator, label: 'Cotizador' }] : []),
   ];
 
