@@ -11,6 +11,9 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
 import { useCustomDomain } from '@/lib/custom-domain-context';
+import Collapse from '@/components/ui/Collapse';
+import { SlidingIndicator, useSlidingIndicator } from '@/components/admin/SlidingIndicator';
+
 interface ActiveProject {
   id: string;
   slug: string;
@@ -108,16 +111,30 @@ export default function ProjectAdminShell({
     { label: 'Configuración', href: '/admin/settings' },
   ];
 
+  const isLeads = pathname === '/admin/leads' || pathname.startsWith('/admin/leads/');
+  const isDashboard = pathname === '/admin';
+  // Ítem de primer nivel activo: ahí se para el indicador que se desliza.
+  // aria-current: "page" en el ítem que ES la página; una sección con
+  // subítems lleva "true" y el "page" queda para el subítem activo, así no
+  // hay dos "página actual" a la vez.
+  const activeTop = isFichaSection ? 'ficha'
+    : isUnidadesSection ? 'unidades'
+    : isSitioSection ? 'sitio'
+    : isLeads ? 'leads'
+    : isDashboard ? 'dashboard'
+    : navItems.find(item => pathname === item.href)?.href ?? null;
+  // Se vuelve a medir al abrir/cerrar el menú móvil: cerrado está oculto
+  // (sin indicador) y al abrirse aparece ya en su lugar, sin volar.
+  const { ref: navRef, box: navBox } = useSlidingIndicator<HTMLElement>(activeTop, mobileNavOpen);
+
   // Estilo del menú: el del diseño de la carga de proyectos (fondo claro,
   // ícono de trazo + label, activo en gris cálido). Mismos ítems y rutas
   // que antes — solo cambia la presentación.
+  // El fondo del activo lo pinta el indicador deslizante; hasta medirlo
+  // (el HTML del server, antes de hidratar) lo pinta el propio ítem.
   const itemClass = (active: boolean) =>
-    `flex items-center gap-2.5 min-h-[40px] px-2.5 rounded-lg text-sm transition-colors ${
-      active ? 'bg-[#EAE7E0] text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-    }`;
-  const subClass = (active: boolean) =>
-    `flex items-center min-h-[34px] px-2.5 rounded-lg text-[13px] transition-colors ${
-      active ? 'bg-white text-gray-900 font-semibold shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'
+    `flex items-center gap-2.5 min-h-[40px] px-2.5 rounded-lg text-sm transition-[color,background-color,transform] duration-150 active:scale-[0.98] ${
+      active ? `text-gray-900 font-semibold ${navBox ? '' : 'bg-[#EAE7E0]'}` : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
     }`;
 
   return (
@@ -151,53 +168,40 @@ export default function ProjectAdminShell({
           </button>
         </div>
 
-        <nav className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-1 px-3 pb-5 flex-col gap-1`}>
+        <nav ref={navRef} data-indicator-root="" className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex relative isolate flex-1 px-3 pb-5 flex-col gap-1`}>
+          <SlidingIndicator box={navBox} className="rounded-lg bg-[#EAE7E0]" />
           <p className="px-2.5 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Proyecto</p>
 
           <div>
-            <Link href="/admin/proyecto" className={itemClass(isFichaSection)}>
+            <Link href="/admin/proyecto" data-indicator="ficha" aria-current={isFichaSection ? 'true' : undefined} className={itemClass(isFichaSection)}>
               <NavIcon d="M4 4h16v16H4zM4 9h16M9 9v11" />
               <span className="flex-1">Ficha</span>
             </Link>
-            {isFichaSection && (
-              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
-                {fichaChapters.map(c => (
-                  <Link key={c.href} href={c.href} className={subClass(chapterActive(c))}>{c.label}</Link>
-                ))}
-              </div>
-            )}
+            <Collapse open={isFichaSection}>
+              <SubNav items={fichaChapters.map(c => ({ label: c.label, href: c.href, active: chapterActive(c) }))} />
+            </Collapse>
           </div>
 
           <div>
-            <Link href={unidadesHref} className={itemClass(isUnidadesSection)}>
+            <Link href={unidadesHref} data-indicator="unidades" aria-current={isUnidadesSection ? (unidadesSubItems.length > 0 ? 'true' : 'page') : undefined} className={itemClass(isUnidadesSection)}>
               <NavIcon d="M5 3h14v18H5zM9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" />
               <span className="flex-1">{unidadesLabel}</span>
               {hasUnitStep && unitsCount > 0 && <span className="text-xs text-gray-500 font-normal">{unitsCount}</span>}
             </Link>
-            {isUnidadesSection && unidadesSubItems.length > 0 && (
-              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
-                {unidadesSubItems.map(sub => {
-                  const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
-                  return <Link key={sub.href} href={sub.href} className={subClass(isSubActive)}>{sub.label}</Link>;
-                })}
-              </div>
-            )}
+            <Collapse open={isUnidadesSection && unidadesSubItems.length > 0}>
+              <SubNav items={unidadesSubItems.map(sub => ({ ...sub, active: pathname === sub.href || pathname.startsWith(`${sub.href}/`) }))} />
+            </Collapse>
           </div>
 
           <div>
-            <Link href="/admin/sitio" className={itemClass(isSitioSection)}>
+            <Link href="/admin/sitio" data-indicator="sitio" aria-current={isSitioSection ? 'true' : undefined} className={itemClass(isSitioSection)}>
               <NavIcon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
               <span className="flex-1">Sitio web</span>
               {!isSitioSection && <span className="text-[11px] text-gray-500 font-normal">Secciones · Estilo</span>}
             </Link>
-            {isSitioSection && (
-              <div className="mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
-                {sitioSubItems.map(sub => {
-                  const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
-                  return <Link key={sub.href} href={sub.href} className={subClass(isSubActive)}>{sub.label}</Link>;
-                })}
-              </div>
-            )}
+            <Collapse open={isSitioSection}>
+              <SubNav items={sitioSubItems.map(sub => ({ ...sub, active: pathname === sub.href || pathname.startsWith(`${sub.href}/`) }))} />
+            </Collapse>
           </div>
 
           {/* Operación: Leads primero (lo que hay que atender), después el
@@ -206,7 +210,7 @@ export default function ProjectAdminShell({
             <p className="px-2.5 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Operación</p>
           )}
           {showLeads && (
-            <Link href="/admin/leads" className={itemClass(pathname === '/admin/leads' || pathname.startsWith('/admin/leads/'))}>
+            <Link href="/admin/leads" data-indicator="leads" aria-current={isLeads ? 'page' : undefined} className={itemClass(isLeads)}>
               <NavIcon d="M3 12h5l2 3h4l2-3h5M5 5h14l2 7v7H3v-7z" />
               <span className="flex-1">Leads</span>
               {newLeadsCount > 0 && (
@@ -217,7 +221,7 @@ export default function ProjectAdminShell({
             </Link>
           )}
           {hasUnitStep && !typeConfig.singleBuilding && (
-            <Link href="/admin" className={itemClass(pathname === '/admin')}>
+            <Link href="/admin" data-indicator="dashboard" aria-current={isDashboard ? 'page' : undefined} className={itemClass(isDashboard)}>
               <NavIcon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
               <span className="flex-1">Dashboard</span>
             </Link>
@@ -226,7 +230,7 @@ export default function ProjectAdminShell({
           <div className="mt-auto pt-6 flex flex-col gap-2">
             <PublishReadinessCard />
             {navItems.map(item => (
-              <Link key={item.href} href={item.href} className={itemClass(pathname === item.href)}>
+              <Link key={item.href} href={item.href} data-indicator={item.href} aria-current={pathname === item.href ? 'page' : undefined} className={itemClass(pathname === item.href)}>
                 <NavIcon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
                 <span className="flex-1">{item.label}</span>
               </Link>
@@ -258,6 +262,34 @@ export default function ProjectAdminShell({
       </main>
     </div>
     </ProjectTypeProvider>
+  );
+}
+
+// Subítems de una sección (capítulos de la Ficha, Inventario / Edificios…):
+// el activo lleva una pastilla blanca que se desliza entre ellos. Al
+// desplegarse el bloque, la primera medición no anima: aparece en su lugar.
+function SubNav({ items }: { items: { label: string; href: string; active: boolean }[] }) {
+  const activeHref = items.find(i => i.active)?.href ?? null;
+  const { ref, box } = useSlidingIndicator<HTMLDivElement>(activeHref);
+  return (
+    <div ref={ref} data-indicator-root="" className="relative isolate mt-1 mb-1.5 ml-[18px] pl-3 border-l border-gray-200 flex flex-col gap-0.5">
+      <SlidingIndicator box={box} className="rounded-lg bg-white shadow-[0_1px_2px_rgba(23,25,26,0.06)]" />
+      {items.map(i => (
+        <Link
+          key={i.href}
+          href={i.href}
+          data-indicator={i.href}
+          aria-current={i.active ? 'page' : undefined}
+          className={`flex items-center min-h-[34px] px-2.5 rounded-lg text-[13px] transition-colors ${
+            i.active
+              ? `text-gray-900 font-semibold ${box ? '' : 'bg-white shadow-[0_1px_2px_rgba(23,25,26,0.06)]'}`
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {i.label}
+        </Link>
+      ))}
+    </div>
   );
 }
 
