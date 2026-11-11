@@ -24,6 +24,9 @@ const leadSchema = z.object({
   method: z.string().max(50).optional(),
   source: z.string().max(50).optional(),
   projectSlug: z.string().max(100).optional(),
+  // Opt-in explícito a las novedades de obra por correo. Sin esto en true no se
+  // le manda nada, nunca (ver /api/admin/project/progress-notify).
+  wantsUpdates: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -70,6 +73,7 @@ export async function POST(request: Request) {
     method: sanitizeText(body.method, 50) || null,
     source: sanitizeText(body.source, 50) || null,
     ip_address: ip,
+    wants_updates: body.wantsUpdates === true,
   });
 
   if (error) {

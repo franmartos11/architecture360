@@ -10,6 +10,8 @@ import { sanitizeMultiline, sanitizeText } from '@/lib/sanitize';
 import type { EmbeddedPost } from '@/components/social/EmbeddedPostCard';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { serverError } from '@/lib/api-errors';
+import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { isPublishedUpdate } from '@/lib/construction-progress';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -42,6 +44,17 @@ interface SampleLiker {
   avatar_image: string | null;
 }
 
+/** Resumen de una entrada de avance de obra para la tarjeta del feed (ver PostFeed). */
+export interface ProgressUpdateCard {
+  id: string;
+  date: string;
+  title: string;
+  percent: number | null;
+  cover: string | null;
+  /** Clip, solo cuando la entrada no tiene fotos (para el marco con el poster). */
+  video: string | null;
+}
+
 interface PollOptionRow {
   id: string;
   poll_id: string;
@@ -54,7 +67,7 @@ interface PollOptionRow {
 // pedirlo post por post.
 async function withCounts(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  posts: { id: string; shared_post_id: string | null }[],
+  posts: { id: string; shared_post_id: string | null; shared_project_id?: string | null; shared_project_kind?: string | null; shared_progress_update_id?: string | null }[],
   currentUserId: string | undefined
 ) {
   const postIds = posts.map(p => p.id);
@@ -66,7 +79,16 @@ async function withCounts(
     }));
   }
 
-  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }, { data: pollRows }] = await Promise.all([
+  // Posts que comparten una entrada del avance de obra: la portada, la fecha y
+  // el título salen del blob del proyecto. No se trae en el embed de
+  // AUTHOR_SELECT porque construction_progress puede pesar bastante (hasta 100
+  // entradas con sus textos) y iría en CADA post del feed; así se pide solo
+  // para los proyectos de los posts de esta página que lo necesitan, y al
+  // cliente se le manda únicamente la entrada resumida.
+  const progressPosts = posts.filter(p => p.shared_project_kind === 'progress' && p.shared_project_id && p.shared_progress_update_id);
+  const progressProjectIds = [...new Set(progressPosts.map(p => p.shared_project_id as string))];
+
+  const [{ data: likeRows }, { data: commentRows }, { data: sharedPostRows }, { data: savedRows }, { data: pollRows }, { data: progressRows }] = await Promise.all([
     // Se pide más reciente primero y con el perfil embebido: sirve tanto
     // para el conteo/likedByMe como para el facepile de "quién le dio
     // like" sin una query aparte.
@@ -82,7 +104,20 @@ async function withCounts(
       ? supabase.from('saved_posts').select('post_id').eq('profile_id', currentUserId).in('post_id', postIds)
       : Promise.resolve({ data: [] }),
     supabase.from('post_polls').select('id, post_id, question').in('post_id', postIds),
+    progressProjectIds.length > 0
+      ? supabase.from('projects').select('id, construction_progress').in('id', progressProjectIds)
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const progressById = new Map((progressRows as { id: string; construction_progress: unknown }[] ?? []).map(r => [r.id, parseConstructionProgress(r.construction_progress)]));
+  // null = la entrada ya no existe o dejó de estar publicada: el cliente cae a
+  // la tarjeta común del proyecto en vez de mostrar una entrada fantasma.
+  const progressUpdateOf = (p: { shared_project_id?: string | null; shared_progress_update_id?: string | null }): ProgressUpdateCard | null => {
+    const progress = p.shared_project_id ? progressById.get(p.shared_project_id) : null;
+    const u = progress?.updates.find(x => x.id === p.shared_progress_update_id);
+    if (!progress || !u || !isPublishedUpdate(u)) return null;
+    return { id: u.id, date: u.date, title: u.title, percent: progress.percent ?? null, cover: u.images[0] ?? null, video: u.images.length === 0 ? (u.video ?? null) : null };
+  };
 
   const likeCountByPost = new Map<string, number>();
   const likedByMe = new Set<string>();
@@ -140,6 +175,7 @@ async function withCounts(
     const options = pollRow ? (optionsByPoll.get(pollRow.id) ?? []).map(o => ({ id: o.id, label: o.label, voteCount: voteCountByOption.get(o.id) ?? 0 })) : [];
     return {
       ...p,
+      ...(p.shared_project_kind === 'progress' ? { progress_update: progressUpdateOf(p) } : {}),
       shared_post: p.shared_post_id ? (sharedPostById.get(p.shared_post_id) ?? null) : null,
       likeCount: likeCountByPost.get(p.id) ?? 0,
       likedByMe: likedByMe.has(p.id),
@@ -278,7 +314,9 @@ const postSchema = z.object({
   sharedPostId: uuidSchema.optional(),
   imageUrl: z.url().max(1000).optional(),
   sharedProjectId: uuidSchema.optional(),
-  sharedProjectKind: z.enum(['project', 'tour']).optional(),
+  sharedProjectKind: z.enum(['project', 'tour', 'progress']).optional(),
+  // Con kind 'progress': id de la entrada dentro de construction_progress.updates.
+  sharedProgressUpdateId: z.string().min(1).max(64).optional(),
   poll: pollSchema.optional(),
 });
 
@@ -311,7 +349,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Un post admite un solo adjunto: imagen, proyecto o encuesta.' }, { status: 400 });
   }
 
-  let sharedProjectKind: 'project' | 'tour' | null = null;
+  let sharedProjectKind: 'project' | 'tour' | 'progress' | null = null;
+  let sharedProgressUpdateId: string | null = null;
   if (body.sharedProjectId) {
     const { data: project } = await supabase.from('projects').select('id, owner_id, common_areas_tour').eq('id', body.sharedProjectId).maybeSingle();
     if (!project || project.owner_id !== user.id) {
@@ -320,6 +359,15 @@ export async function POST(request: Request) {
     sharedProjectKind = body.sharedProjectKind ?? 'project';
     if (sharedProjectKind === 'tour' && !project.common_areas_tour) {
       return NextResponse.json({ error: 'Ese proyecto todavía no tiene un recorrido 360 cargado.' }, { status: 400 });
+    }
+    if (sharedProjectKind === 'progress') {
+      // El blob se pide aparte y solo acá: el resto de los adjuntos no lo necesita.
+      const { data: row } = await supabase.from('projects').select('construction_progress').eq('id', body.sharedProjectId).maybeSingle();
+      const update = parseConstructionProgress(row?.construction_progress)?.updates.find(u => u.id === body.sharedProgressUpdateId);
+      if (!update || !isPublishedUpdate(update)) {
+        return NextResponse.json({ error: 'Esa entrada de avance no existe o todavía no está publicada (con foto o clip).' }, { status: 400 });
+      }
+      sharedProgressUpdateId = update.id;
     }
   }
 
@@ -344,6 +392,7 @@ export async function POST(request: Request) {
       shared_post_id: sharedPostId,
       shared_project_id: body.sharedProjectId ?? null,
       shared_project_kind: sharedProjectKind,
+      shared_progress_update_id: sharedProgressUpdateId,
     })
     .select(AUTHOR_SELECT)
     .single();

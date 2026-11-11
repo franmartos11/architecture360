@@ -1798,4 +1798,17 @@ create policy "project owner all bim_model_units" on bim_model_units for all to 
   using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()))
   with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()));
 
+-- ─── Novedades de obra: compartir al feed y avisar por correo ──────────
+-- Una entrada del avance de obra (projects.construction_progress.updates[].id)
+-- compartida en el feed. Es un id dentro del JSON, no una FK: la tarjeta lo
+-- resuelve del blob al leer el feed.
+alter table posts add column if not exists shared_progress_update_id text;
+alter table posts drop constraint if exists posts_shared_project_kind_check;
+alter table posts add constraint posts_shared_project_kind_check check (shared_project_kind is null or shared_project_kind in ('project', 'tour', 'progress'));
 
+-- Opt-in a recibir por correo las novedades de la obra (casilla apagada por
+-- defecto en el formulario) y baja con un clic desde el correo. Los lee y
+-- escribe solo el servidor con service-role: leads no tiene policy de INSERT
+-- ni de UPDATE para usuarios.
+alter table leads add column if not exists wants_updates boolean not null default false;
+alter table leads add column if not exists updates_unsubscribed_at timestamptz;

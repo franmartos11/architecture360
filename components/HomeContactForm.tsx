@@ -13,6 +13,8 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
+  // Opt-in a las novedades de la obra por correo: apagado por defecto, nunca se asume.
+  const [wantsUpdates, setWantsUpdates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -35,6 +37,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
           unitName: 'General',
           source: 'home_contact_form',
           projectSlug,
+          wantsUpdates,
         }),
       });
 
@@ -44,6 +47,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
         setEmail('');
         setPhone('');
         setMessage('');
+        setWantsUpdates(false);
       } else {
         setError('Hubo un error al enviar tu consulta. Por favor, intentá de nuevo.');
       }
@@ -87,6 +91,10 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
       <label className={LABEL}>
         <span>Mensaje <span className="font-normal text-[var(--theme-text-muted)]">(opcional)</span></span>
         <textarea rows={3} maxLength={2000} value={message} onChange={e => setMessage(e.target.value)} className={`${FIELD} h-auto py-3 resize-y`} />
+      </label>
+      <label className="flex items-start gap-2.5 text-[14px] font-normal text-[var(--theme-text)]">
+        <input type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0 accent-[var(--theme-text)]" />
+        Avisame cuando haya novedades de la obra
       </label>
       {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
       <Pill type="submit" disabled={isSubmitting} arrow size="lg" block className="mt-1">

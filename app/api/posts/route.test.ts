@@ -539,4 +539,73 @@ describe('POST /api/posts', () => {
     const res = await POST(req({ poll: { question: '¿Sí o no?', options: ['Sí'] } }));
     expect(res.status).toBe(400);
   });
+
+  describe('compartir una entrada del avance de obra (kind "progress")', () => {
+    const blob = {
+      stages: [],
+      percent: 40,
+      updates: [
+        { id: 'pub1', date: '2026-10-01', title: 'Losa terminada', images: ['https://x.com/a.jpg'] },
+        { id: 'borr', date: '2026-10-02', title: 'Borrador', images: ['https://x.com/b.jpg'], draft: true },
+        { id: 'vacia', date: '2026-10-03', title: 'Sin foto', images: [] },
+      ],
+    };
+    const own = { data: { id: SHARED_ID, owner_id: 'user-1', common_areas_tour: null } };
+
+    it('publicada: crea el post con el id de la entrada y la devuelve resuelta', async () => {
+      const supabase = mockSupabase({
+        user: { id: 'user-1' },
+        results: [
+          { data: { id: 'user-1' } }, // profile
+          own, // project
+          { data: { construction_progress: blob } }, // blob
+          { data: { id: 'p1', author_id: 'user-1', shared_post_id: null, shared_project_id: SHARED_ID, shared_project_kind: 'progress', shared_progress_update_id: 'pub1', body: 'x' } }, // insert
+          { data: [] }, // post_likes
+          { data: [] }, // post_comments
+          { data: [] }, // saved_posts
+          { data: [] }, // post_polls
+          { data: [{ id: SHARED_ID, construction_progress: blob }] }, // blob para la tarjeta
+        ],
+      });
+      const { session, admin } = splitClients(supabase);
+      vi.mocked(createClient).mockResolvedValue(session as never);
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ body: 'Novedades', sharedProjectId: SHARED_ID, sharedProjectKind: 'progress', sharedProgressUpdateId: 'pub1' }));
+      expect(res.status).toBe(201);
+      const inserted = admin.from.mock.results[0].value.insert.mock.calls[0][0];
+      expect(inserted).toMatchObject({ shared_project_kind: 'progress', shared_progress_update_id: 'pub1', shared_project_id: SHARED_ID });
+      expect((await res.json()).progress_update).toEqual({ id: 'pub1', date: '2026-10-01', title: 'Losa terminada', percent: 40, cover: 'https://x.com/a.jpg', video: null });
+    });
+
+    it.each([
+      ['borrador', 'borr'],
+      ['sin foto ni clip', 'vacia'],
+      ['inexistente', 'nope'],
+    ])('entrada %s: 400 y no inserta', async (_nombre, updateId) => {
+      const supabase = mockSupabase({
+        user: { id: 'user-1' },
+        results: [{ data: { id: 'user-1' } }, own, { data: { construction_progress: blob } }],
+      });
+      const { session, admin } = splitClients(supabase);
+      vi.mocked(createClient).mockResolvedValue(session as never);
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ body: 'x', sharedProjectId: SHARED_ID, sharedProjectKind: 'progress', sharedProgressUpdateId: updateId }));
+      expect(res.status).toBe(400);
+      expect(admin.from).not.toHaveBeenCalled();
+    });
+
+    it('sin sharedProgressUpdateId: 400', async () => {
+      const supabase = mockSupabase({
+        user: { id: 'user-1' },
+        results: [{ data: { id: 'user-1' } }, own, { data: { construction_progress: blob } }],
+      });
+      vi.mocked(createClient).mockResolvedValue(supabase as never);
+      vi.mocked(createAdminClient).mockReturnValue(supabase as never);
+
+      const res = await POST(req({ body: 'x', sharedProjectId: SHARED_ID, sharedProjectKind: 'progress' }));
+      expect(res.status).toBe(400);
+    });
+  });
 });

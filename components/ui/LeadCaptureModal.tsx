@@ -46,6 +46,8 @@ export default function LeadCaptureModal({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
+  // Opt-in a las novedades de la obra por correo: apagado por defecto, nunca se asume.
+  const [wantsUpdates, setWantsUpdates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -108,6 +110,7 @@ export default function LeadCaptureModal({
           unitName: unit?.name || 'General',
           source: 'form_modal',
           projectSlug,
+          wantsUpdates,
         })
       });
       
@@ -119,6 +122,7 @@ export default function LeadCaptureModal({
           setName('');
           setEmail('');
           setPhone('');
+          setWantsUpdates(false);
           setMessage(defaultMessage);
         }, 3000);
       } else {
@@ -266,6 +270,11 @@ export default function LeadCaptureModal({
           className="w-full px-3.5 py-3 rounded-xl border border-[#D5D9DE] text-[16px] leading-[22px] text-gray-900 resize-none outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
         />
       </div>
+
+      <label htmlFor="lead-m-updates" className="flex items-start gap-2.5 text-[14px] text-gray-700">
+        <input id="lead-m-updates" type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-5 h-5 shrink-0 accent-gray-900" />
+        Avisame cuando haya novedades de la obra
+      </label>
     </form>
   );
 
@@ -288,6 +297,10 @@ export default function LeadCaptureModal({
         <label htmlFor="lead-msg" className="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
         <textarea id="lead-msg" rows={4} value={message} onChange={e => setMessage(e.target.value)} className={`${FIELD} resize-none`} />
       </div>
+      <label htmlFor="lead-updates" className="flex items-start gap-2.5 text-sm text-gray-700">
+        <input id="lead-updates" type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0 accent-gray-900" />
+        Avisame cuando haya novedades de la obra
+      </label>
     </form>
   );
 
