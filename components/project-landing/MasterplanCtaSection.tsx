@@ -47,6 +47,13 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
           muted="sin moverte de donde estás."
           className="mb-16"
         />
+        {/* Hover (y foco con teclado) de cada fila, sin tocar la composición:
+            el título grande se corre y toma el acento — es lo que se va a
+            abrir —, y los detalles de la izquierda responden con la curva
+            corta (160 ms): el número pasa a color pleno y la descripción se
+            corre 4 px, como si la fila entera se inclinara hacia adelante.
+            Todo en EASE_OUT (lib/motion.ts), la curva del resto del sitio.
+            Con movimiento reducido quedan solo los cambios de color. */}
         {rows.map((r, i) => (
           <Link
             key={r.title}
@@ -54,15 +61,15 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
             className={`group ${r.wideOnly ? 'hidden wide:flex' : 'flex'} flex-wrap items-center gap-6 py-7 border-t border-[var(--theme-border-on-dark)] no-underline text-[var(--theme-text-on-dark)]`}
           >
             <div className="flex-[1_1_220px] flex gap-4 items-start">
-              <span className="flex-none w-7 h-7 rounded-full border border-[var(--theme-border-on-dark)] flex items-center justify-center text-xs font-semibold text-[var(--theme-text-on-dark-muted)] tabular-nums">
+              <span className="flex-none w-7 h-7 rounded-full border border-[var(--theme-border-on-dark)] flex items-center justify-center text-xs font-semibold text-[var(--theme-text-on-dark-muted)] tabular-nums transition-colors duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-[var(--theme-text-on-dark)] group-hover:border-[var(--theme-text-on-dark)] group-focus-visible:text-[var(--theme-text-on-dark)] group-focus-visible:border-[var(--theme-text-on-dark)]">
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <span className="text-sm leading-normal text-[var(--theme-text-on-dark-muted)] max-w-[240px]">{r.desc}</span>
+              <span className="text-sm leading-normal text-[var(--theme-text-on-dark-muted)] max-w-[240px] transition-[transform,color] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:translate-x-1 group-hover:text-[var(--theme-text-on-dark)] motion-safe:group-focus-visible:translate-x-1 group-focus-visible:text-[var(--theme-text-on-dark)]">{r.desc}</span>
             </div>
-            <span className="flex-[999_1_480px] min-w-0 font-[family-name:var(--theme-font-heading)] text-[clamp(44px,8vw,124px)] leading-[0.95] font-medium tracking-[-0.045em] transition-[transform,color] duration-500 ease-[cubic-bezier(.2,.7,.2,1)] group-hover:translate-x-[18px] group-hover:text-[var(--theme-accent)]">
+            <span className="flex-[999_1_480px] min-w-0 font-[family-name:var(--theme-font-heading)] text-[clamp(44px,8vw,124px)] leading-[0.95] font-medium tracking-[-0.045em] transition-[transform,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:translate-x-[18px] group-hover:text-[var(--theme-accent)] motion-safe:group-focus-visible:translate-x-[18px] group-focus-visible:text-[var(--theme-accent)]">
               {r.title}
             </span>
-            <span aria-hidden="true" className="hidden sm:flex w-16 h-16 rounded-full bg-[var(--theme-text-on-dark)] text-[var(--theme-bg-alt)] items-center justify-center opacity-0 -translate-x-3 transition-[opacity,transform] duration-500 group-hover:opacity-100 group-hover:translate-x-0">
+            <span aria-hidden="true" className="hidden sm:flex w-16 h-16 rounded-full bg-[var(--theme-text-on-dark)] text-[var(--theme-bg-alt)] items-center justify-center opacity-0 motion-safe:-translate-x-3 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 motion-safe:group-hover:translate-x-0 group-focus-visible:opacity-100 motion-safe:group-focus-visible:translate-x-0">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M9 7h8v8" /></svg>
             </span>
           </Link>

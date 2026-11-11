@@ -171,6 +171,9 @@ export default function UnitViewer({
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // Dónde estaba la foto tocada al abrir un lightbox (uno por vez): la foto
+  // grande sale desde ahí y vuelve ahí al cerrar.
+  const [lightboxOrigin, setLightboxOrigin] = useState<DOMRect | null>(null);
   // Programa de ambientes con detalle (tipo, m², características, foto) —
   // cuando está cargado, reemplaza a la lista plana "N Dormitorios / N
   // Baños". Agrupado por planta (planta baja + niveles extra).
@@ -303,7 +306,8 @@ export default function UnitViewer({
 
   // Fotos de UN ambiente: la principal + las adicionales que tenga.
   const roomPhotos = (room: Room) => [room.imageUrl, ...(room.images ?? [])].filter((u): u is string => !!u);
-  const openRoomPhoto = (room: Room) => {
+  const openRoomPhoto = (room: Room, rect?: DOMRect) => {
+    setLightboxOrigin(rect ?? null);
     setRoomLightboxImages(roomPhotos(room));
     setRoomLightboxIndex(0);
     setRoomLightboxOpen(true);
@@ -348,6 +352,7 @@ export default function UnitViewer({
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxOpen(false)}
           altPrefix="Imagen"
+          originRect={lightboxOrigin}
         />
 
         <ImageLightbox
@@ -357,6 +362,7 @@ export default function UnitViewer({
           onIndexChange={setAmenityImageIndex}
           onClose={() => setAmenityLightboxOpen(false)}
           altPrefix={activeAmenity?.name ?? 'Imagen'}
+          originRect={lightboxOrigin}
         />
 
         <ImageLightbox
@@ -366,6 +372,7 @@ export default function UnitViewer({
           onIndexChange={setRoomLightboxIndex}
           onClose={() => setRoomLightboxOpen(false)}
           altPrefix="Ambiente"
+          originRect={lightboxOrigin}
         />
 
 
@@ -445,7 +452,7 @@ export default function UnitViewer({
           images={unit.galleryImages ?? []}
           activeIndex={galleryIndex}
           onIndexChange={setGalleryIndex}
-          onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+          onOpenLightbox={(index, rect) => { setLightboxOrigin(rect); setLightboxIndex(index); setLightboxOpen(true); }}
         />
       );
     return (
@@ -541,7 +548,7 @@ export default function UnitViewer({
                       {room.imageUrl && (
                         <button
                           type="button"
-                          onClick={() => openRoomPhoto(room)}
+                          onClick={e => openRoomPhoto(room, e.currentTarget.getBoundingClientRect())}
                           className="relative block w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-100"
                         >
                           <Image src={room.imageUrl} alt={roomName} fill sizes="100vw" placeholder="blur" blurDataURL={shimmerDataUrl(400, 300)} className="object-cover" />
@@ -831,7 +838,7 @@ export default function UnitViewer({
                                     {room.imageUrl ? (
                                       <button
                                         type="button"
-                                        onClick={() => openRoomPhoto(room)}
+                                        onClick={e => openRoomPhoto(room, e.currentTarget.getBoundingClientRect())}
                                         className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 group"
                                       >
                                         <Image src={room.imageUrl} alt={roomName} fill sizes="288px" placeholder="blur" blurDataURL={shimmerDataUrl(288, 216)} className="object-cover transition-transform group-hover:scale-[1.03]" />
@@ -1074,7 +1081,7 @@ export default function UnitViewer({
                 images={unit.galleryImages}
                 activeIndex={galleryIndex}
                 onIndexChange={setGalleryIndex}
-                onOpenLightbox={(index) => { setLightboxIndex(index); setLightboxOpen(true); }}
+                onOpenLightbox={(index, rect) => { setLightboxOrigin(rect); setLightboxIndex(index); setLightboxOpen(true); }}
               />
             )}
 
@@ -1095,7 +1102,7 @@ export default function UnitViewer({
                 onViewModeChange={setAmenityViewMode}
                 listOpen={amenitiesListOpen}
                 onListOpenChange={setAmenitiesListOpen}
-                onOpenLightbox={() => setAmenityLightboxOpen(true)}
+                onOpenLightbox={(rect) => { setLightboxOrigin(rect); setAmenityLightboxOpen(true); }}
               />
             )}
 
