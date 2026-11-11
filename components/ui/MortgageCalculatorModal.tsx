@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { m as motion, AnimatePresence } from 'framer-motion';
 import { formatPrice } from '@/lib/units';
-import ModalPortal from '@/components/ui/ModalPortal';
+import Dialog from '@/components/ui/Dialog';
 
 interface MortgageCalculatorModalProps {
   isOpen: boolean;
@@ -47,39 +46,8 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
     : 0;
 
   return (
-    <ModalPortal open={isOpen}>
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative w-full max-w-md max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-          >
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Calculadora Financiera</h3>
-                <p className="text-xs text-gray-500">Proyección estimada de pagos</p>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-6 overflow-y-auto">
+    <Dialog open={isOpen} onClose={onClose} title="Calculadora Financiera" description="Proyección estimada de pagos">
+      <div className="space-y-6">
               {/* Unit Price Display */}
               <div className="flex justify-between items-end pb-4 border-b border-gray-100">
                 <span className="text-sm font-medium text-gray-500">Precio de la unidad</span>
@@ -143,11 +111,7 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
                 Los cálculos son aproximados y no incluyen seguros, impuestos ni gastos administrativos. 
                 Sujeto a aprobación crediticia.
               </p>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-    </ModalPortal>
+      </div>
+    </Dialog>
   );
 }

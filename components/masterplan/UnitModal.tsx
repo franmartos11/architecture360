@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
-import { m as motion, AnimatePresence } from 'framer-motion';
+import { useId, useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { Unit } from '@/types';
 import { formatPrice, getStatusLabel } from '@/lib/units';
 import Badge from '@/components/ui/Badge';
-import ModalPortal from '@/components/ui/ModalPortal';
+import Dialog from '@/components/ui/Dialog';
 
 interface UnitModalProps {
   unit: Unit | null;
@@ -16,42 +15,22 @@ interface UnitModalProps {
 
 export default function UnitModal({ unit, onClose }: UnitModalProps) {
   const basePath = useProjectBasePath();
-  // Close on ESC
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  const titleId = useId();
+  // La última unidad no nula: al cerrar, el diálogo se anima con su contenido.
+  const [shown, setShown] = useState(unit);
+  if (unit && unit !== shown) setShown(unit);
+  const current = unit ?? shown;
 
   return (
-    <ModalPortal open={!!unit}>
-    <AnimatePresence>
-      {unit && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.3, type: 'spring', damping: 25 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-          >
-            <div
-              className="glass rounded-2xl w-full max-w-md pointer-events-auto overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
+    <Dialog
+      open={!!unit}
+      onClose={onClose}
+      labelledBy={titleId}
+      padded={false}
+      className="glass !text-white"
+    >
+      {current && (
+        <div>
               {/* Header */}
               <div className="relative px-6 pt-6 pb-4">
                 <button
@@ -66,15 +45,15 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
 
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                    {unit.id.split('-')[0]}
+                    {current.id.split('-')[0]}
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-white">{unit.name}</h2>
-                    <p className="text-sm text-white/50">{unit.buildingId} · Piso {unit.floor}</p>
+                    <h2 id={titleId} className="text-lg font-semibold text-white">{current.name}</h2>
+                    <p className="text-sm text-white/50">{current.buildingId} · Piso {current.floor}</p>
                   </div>
                 </div>
 
-                <Badge status={unit.status} />
+                <Badge status={current.status} />
               </div>
 
               {/* Details grid */}
@@ -87,7 +66,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                       </svg>
                     }
                     label="Tipología"
-                    value={unit.type.charAt(0).toUpperCase() + unit.type.slice(1)}
+                    value={current.type.charAt(0).toUpperCase() + current.type.slice(1)}
                   />
                   <DetailItem
                     icon={
@@ -96,7 +75,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                       </svg>
                     }
                     label="Superficie"
-                    value={`${unit.totalArea} m²`}
+                    value={`${current.totalArea} m²`}
                   />
                   <DetailItem
                     icon={
@@ -105,7 +84,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                       </svg>
                     }
                     label="Precio"
-                    value={unit.price ? formatPrice(unit.price, unit.currency) : 'Consultar'}
+                    value={current.price ? formatPrice(current.price, current.currency) : 'Consultar'}
                   />
                   <DetailItem
                     icon={
@@ -114,7 +93,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                       </svg>
                     }
                     label="Estado"
-                    value={getStatusLabel(unit.status)}
+                    value={getStatusLabel(current.status)}
                   />
                 </div>
               </div>
@@ -124,16 +103,16 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white/40">Precio por m²</span>
                   <span className="text-white font-medium">
-                    {unit.price ? formatPrice(Math.round(unit.price / unit.totalArea), unit.currency) : '-'}/m²
+                    {current.price ? formatPrice(Math.round(current.price / current.totalArea), current.currency) : '-'}/m²
                   </span>
                 </div>
               </div>
 
               {/* Actions */}
               <div className="px-6 py-5 border-t border-white/5 flex gap-3">
-                {unit.tourImageUrl && unit.status !== 'sold' && (
+                {current.tourImageUrl && current.status !== 'sold' && (
                   <Link
-                    href={`${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`}
+                    href={`${basePath}/edificio/${current.buildingId}/unidad/${current.id}`}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -150,12 +129,9 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                   Cerrar
                 </button>
               </div>
-            </div>
-          </motion.div>
-        </>
+        </div>
       )}
-    </AnimatePresence>
-    </ModalPortal>
+    </Dialog>
   );
 }
 

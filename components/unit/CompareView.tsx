@@ -293,7 +293,6 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
           unit={contactUnit}
           projectSlug={projectSlug}
           defaultMethod={contactModal.method}
-          elevated
         />
       )}
     </motion.div>

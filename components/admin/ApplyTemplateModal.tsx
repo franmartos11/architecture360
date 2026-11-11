@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
+import Dialog from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface FloorLike { id: string; number: number; label: string }
@@ -53,36 +54,38 @@ export default function ApplyTemplateModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">Aplicar piso tipo a {targetFloor.label}</h3>
-          <p className="text-sm text-gray-500 mt-0.5">Copia las unidades de otro piso de este edificio a {targetFloor.label} (código re-numerado, con polígono, ambientes, tour y pines incluidos).</p>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {siblingFloors.length === 0 ? (
-            <p className="text-sm text-gray-400">Este edificio todavía no tiene otro piso para usar como referencia.</p>
-          ) : (
-            <select
-              value={sourceFloorId}
-              onChange={e => setSourceFloorId(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
-            >
-              <option value="">Elegir piso de referencia...</option>
-              {siblingFloors.sort((a, b) => a.number - b.number).map(f => (
-                <option key={f.id} value={f.id}>{f.label}</option>
-              ))}
-            </select>
-          )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" disabled={working || !sourceFloorId}>
-              {working ? 'Aplicando...' : 'Aplicar plantilla'}
-            </Button>
-            <Button type="button" variant="ghost" onClick={onClose} className="bg-transparent hover:bg-gray-100">Cancelar</Button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Aplicar piso tipo a ${targetFloor.label}`}
+      description={`Copia las unidades de otro piso de este edificio a ${targetFloor.label} (código re-numerado, con polígono, ambientes, tour y pines incluidos).`}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={onClose} className="bg-transparent hover:bg-gray-100">Cancelar</Button>
+          <Button type="submit" form="apply-template-form" disabled={working || !sourceFloorId}>
+            {working ? 'Aplicando...' : 'Aplicar plantilla'}
+          </Button>
+        </>
+      }
+    >
+      <form id="apply-template-form" onSubmit={handleSubmit} className="space-y-4">
+        {siblingFloors.length === 0 ? (
+          <p className="text-sm text-gray-400">Este edificio todavía no tiene otro piso para usar como referencia.</p>
+        ) : (
+          <select
+            value={sourceFloorId}
+            onChange={e => setSourceFloorId(e.target.value)}
+            aria-label="Piso de referencia"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
+          >
+            <option value="">Elegir piso de referencia...</option>
+            {siblingFloors.sort((a, b) => a.number - b.number).map(f => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+        )}
+        {error && <p className="text-sm text-red-500">{error}</p>}
+      </form>
+    </Dialog>
   );
 }

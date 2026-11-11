@@ -51,8 +51,8 @@ export interface DialogProps {
   description?: ReactNode;
   /** Botones del pie, fuera del área que scrollea. */
   footer?: ReactNode;
-  /** sm 400 px · md 520 px · lg 720 px de ancho máximo. */
-  size?: 'sm' | 'md' | 'lg';
+  /** sm 400 px · md 520 px · lg 720 px · xl 1120 px de ancho máximo. */
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   /** `sheet`: hoja desde abajo en pantallas angostas. */
   variant?: 'center' | 'sheet';
   /** `alertdialog` para confirmaciones que exigen una respuesta. */
@@ -67,10 +67,12 @@ export interface DialogProps {
   padded?: boolean;
   /** Clases extra del panel. */
   className?: string;
+  /** Capa z-[300] en vez de 200: para un Dialog que se abre encima de otro (ConfirmProvider). */
+  elevated?: boolean;
   children: ReactNode;
 }
 
-const SIZE = { sm: 'sm:max-w-[400px]', md: 'sm:max-w-[520px]', lg: 'sm:max-w-[720px]' } as const;
+const SIZE = { sm: 'sm:max-w-[400px]', md: 'sm:max-w-[520px]', lg: 'sm:max-w-[720px]', xl: 'sm:max-w-[1120px]' } as const;
 
 // Misma media query que la variante `wide` de globals.css y que UnitSheet.
 // Sin matchMedia (jsdom, entornos raros) se asume escritorio.
@@ -89,17 +91,23 @@ function useIsNarrow() {
   );
 }
 
+// Pila de diálogos abiertos: con uno encima de otro (un confirm dentro de un
+// modal), solo el de arriba atiende Escape y Tab; si no, un Escape cerraría
+// los dos y el Tab del de abajo le robaría el foco al de arriba.
+const dialogStack: HTMLElement[] = [];
+
 interface DialogContextValue { titleId: string; descriptionId: string; onClose: () => void }
 const DialogContext = createContext<DialogContextValue | null>(null);
 
 export default function Dialog({
   open, onClose, title, description, footer, size = 'md', variant = 'center', role = 'dialog',
-  dismissible = true, labelledBy, initialFocus, padded = true, className = '', children,
+  dismissible = true, labelledBy, initialFocus, padded = true, className = '', elevated = false, children,
 }: DialogProps) {
   const reduced = !!useReducedMotion();
   const isNarrow = useIsNarrow();
   const asSheet = variant === 'sheet' && isNarrow;
   const panelRef = useRef<HTMLDivElement>(null);
+  const z = elevated ? 'z-[300]' : 'z-[200]';
   const titleId = useId();
   const descriptionId = useId();
 
@@ -114,8 +122,10 @@ export default function Dialog({
     if (!panel) return;
     const prev = document.activeElement as HTMLElement | null;
     focusInitial(panel);
+    dialogStack.push(panel);
 
     const onKey = (e: KeyboardEvent) => {
+      if (dialogStack[dialogStack.length - 1] !== panel) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         requestClose();
@@ -147,6 +157,8 @@ export default function Dialog({
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
+      const at = dialogStack.indexOf(panel);
+      if (at !== -1) dialogStack.splice(at, 1);
       if (prev && prev !== document.body && prev.isConnected) focusQuiet(prev);
     };
   }, [open]);
@@ -175,11 +187,11 @@ export default function Dialog({
               transition={BACKDROP}
               onClick={() => { if (dismissible) onClose(); }}
               data-dialog-backdrop=""
-              className="fixed inset-0 z-[200] bg-[rgba(17,24,39,0.55)] backdrop-blur-[3px]"
+              className={`fixed inset-0 ${z} bg-[rgba(17,24,39,0.55)] backdrop-blur-[3px]`}
             />
             <div
               key="layer"
-              className={`fixed inset-0 z-[200] flex pointer-events-none ${asSheet ? 'items-end' : 'items-center justify-center p-4'}`}
+              className={`fixed inset-0 ${z} flex pointer-events-none ${asSheet ? 'items-end' : 'items-center justify-center p-4'}`}
             >
               <m.div
                 ref={panelRef}
