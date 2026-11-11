@@ -75,3 +75,27 @@ describe('PATCH /api/admin/leads/[id]', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('PATCH /api/admin/leads/[id]: forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromLead).mockReset();
+  });
+
+  it('un body que no es un objeto o no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(resolveProjectIdFromLead).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    expect((await PATCH(jsonRequest('http://localhost/api/admin/leads/lead-1', [1], { method: 'PATCH' }), params('lead-1'))).status).toBe(400);
+    expect((await PATCH(new Request('http://localhost/api/admin/leads/lead-1', { method: 'PATCH', body: '{roto' }), params('lead-1'))).status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('solo el estado llega al update: el resto de las claves se descarta', async () => {
+    vi.mocked(resolveProjectIdFromLead).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'lead-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    await PATCH(jsonRequest('http://localhost/api/admin/leads/lead-1', { status: 'contactado', email: 'x@y.com', project_id: 'otro' }, { method: 'PATCH' }), params('lead-1'));
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0]).toEqual({ status: 'contactado' });
+  });
+});

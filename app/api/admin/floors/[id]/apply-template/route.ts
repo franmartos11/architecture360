@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { floorSourceSchema } from '@/lib/structure-schemas';
 
 // Aplica el "piso tipo" de un piso de referencia a OTRO piso que ya existe
 // (a diferencia de /duplicate, que siempre crea un piso nuevo) — para
@@ -11,10 +13,14 @@ import { serverError } from '@/lib/api-errors';
 // cuyo caso esa se salta para no pisar datos cargados a mano.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: targetFloorId } = await params;
-  const body = await request.json();
-  if (!body.sourceFloorId) {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.sourceFloorId) {
     return NextResponse.json({ error: 'Falta sourceFloorId' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, floorSourceSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   if (body.sourceFloorId === targetFloorId) {
     return NextResponse.json({ error: 'El piso de origen y destino no pueden ser el mismo' }, { status: 400 });
   }

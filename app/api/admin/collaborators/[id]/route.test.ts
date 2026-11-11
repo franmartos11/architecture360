@@ -117,3 +117,22 @@ describe('DELETE /api/admin/collaborators/[id]', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('PATCH /api/admin/collaborators/[id]: forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromCollaborator).mockReset();
+  });
+
+  it.each([
+    ['contribution como objeto', { contribution: { x: 1 } }],
+    ['contribution de más de 1000 caracteres', { contribution: 'x'.repeat(1001) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromCollaborator).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/collaborators/c1', body, { method: 'PATCH' }), params('c1'));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});

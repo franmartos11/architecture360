@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { resolveProjectIdFromCollaborator, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { collaboratorPatchSchema } from '@/lib/content-schemas';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,7 +14,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, collaboratorPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.contribution !== undefined) {
     updates.contribution = sanitizeText(body.contribution, 300);

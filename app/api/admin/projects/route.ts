@@ -9,6 +9,8 @@ import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
 import { serverError } from '@/lib/api-errors';
 import { getActiveDomains } from '@/lib/project-domains';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { projectCreateSchema } from '@/lib/content-schemas';
 
 // Secciones "de contenido" — las únicas que computeEmptySectionKeys sabe
 // evaluar (calculadora/contacto son toggles de configuración, no algo que
@@ -155,7 +157,11 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, projectCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const name = sanitizeText(body.name, 150);
   if (!name) {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });

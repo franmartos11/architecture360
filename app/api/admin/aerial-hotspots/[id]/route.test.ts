@@ -82,7 +82,7 @@ describe('PATCH /api/admin/aerial-hotspots/[id]', () => {
     const res = await PATCH(
       jsonRequest(
         'http://localhost/api/admin/aerial-hotspots/hotspot-1',
-        { buildingId: 'building-1', x: 0.1, y: 0.2, polygon: [[0, 0]] },
+        { buildingId: 'building-1', x: 0.1, y: 0.2, polygon: [{ x: 0, y: 0 }] },
         { method: 'PATCH' }
       ),
       ctx('hotspot-1')
@@ -142,5 +142,24 @@ describe('DELETE /api/admin/aerial-hotspots/[id]', () => {
     const res = await DELETE(del('http://localhost/api/admin/aerial-hotspots/hotspot-1'), ctx('hotspot-1'));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
+  });
+});
+
+describe('PATCH /api/admin/aerial-hotspots/[id]: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromHotspot).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+
+  it.each([
+    ['y como texto', { y: 'abc' }],
+    ['polígono con más de 500 puntos', { polygon: Array(501).fill({ x: 1, y: 1 }) }],
+    ['polígono con puntos mal formados', { polygon: [[0, 0]] }],
+  ])('400 con %s, antes de chequear acceso', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromHotspot).mockResolvedValue('project-1');
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/aerial-hotspots/hotspot-1', body, { method: 'PATCH' }), ctx('hotspot-1'));
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
   });
 });

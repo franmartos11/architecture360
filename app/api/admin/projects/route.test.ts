@@ -251,3 +251,27 @@ describe('POST /api/admin/projects', () => {
     expect(res.status).toBe(201);
   });
 });
+
+describe('POST /api/admin/projects: forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(createClient).mockReset();
+  });
+
+  it.each([
+    ['name como objeto', { name: { $ne: null } }],
+    ['name gigante', { name: 'x'.repeat(501) }],
+    ['projectType como número', { name: 'Torre', projectType: 7 }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const res = await POST(jsonRequest('http://localhost/api/admin/projects', body));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ user: { id: 'user-1' }, results: [] }) as never);
+    expect((await POST(new Request('http://localhost/api/admin/projects', { method: 'POST', body: '{roto' }))).status).toBe(400);
+  });
+});
+

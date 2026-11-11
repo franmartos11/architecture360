@@ -147,3 +147,47 @@ describe('PATCH /api/collaborators/[id]/respond', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });
+
+describe('PATCH /api/collaborators/[id]/respond: email y forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(sendEmail).mockReset().mockResolvedValue(undefined);
+    vi.mocked(createClient).mockReset();
+    vi.mocked(createAdminClient).mockReset();
+  });
+
+  it('el email escapa el nombre del proyecto y de la persona: un enlace colado queda como texto', async () => {
+    // sanitizeText saca los tags pero decodifica las entidades: un nombre guardado como
+    // `&lt;a href="https://malo.com"&gt;click&lt;/a&gt;` queda como el TEXTO <a href=…>.
+    const evil = '<a href="https://malo.com">click aquí</a>';
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: { id: 'collab-1', status: 'accepted', invited_by: 'owner-1', project_id: 'project-1' }, error: null },
+        { data: { name: evil } },
+        { data: { display_name: evil } },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(createAdminClient).mockReturnValue({ auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'owner@example.com' } } }) } } } as never);
+
+    await PATCH(req({ status: 'accepted' }), params());
+
+    const { html } = vi.mocked(sendEmail).mock.calls[0][0] as { html: string };
+    expect(html).not.toContain('<a href');
+    expect(html).toContain('&lt;a href=&quot;https://malo.com&quot;&gt;');
+  });
+
+  it.each([
+    ['status inventado', { status: 'maybe' }],
+    ['status como objeto', { status: { $ne: 'x' } }],
+  ])('400 con %s', async (_n, body) => {
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ user: { id: 'user-1' }, results: [] }) as never);
+    expect((await PATCH(req(body), params())).status).toBe(400);
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ user: { id: 'user-1' }, results: [] }) as never);
+    const res = await PATCH(new Request('http://localhost/api/collaborators/collab-1/respond', { method: 'PATCH', body: '{roto' }), params());
+    expect(res.status).toBe(400);
+  });
+});

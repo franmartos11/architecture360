@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { aerialHotspotCreateSchema } from '@/lib/content-schemas';
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  if (!body.slideId || !body.buildingId || body.x === undefined || body.y === undefined) {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.slideId || !raw.data.buildingId || raw.data.x === undefined || raw.data.y === undefined) {
     return NextResponse.json({ error: 'Faltan slideId, buildingId, x y/o y' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, aerialHotspotCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const [slideProjectId, buildingProjectId] = await Promise.all([
     resolveProjectIdFromSlide(body.slideId),

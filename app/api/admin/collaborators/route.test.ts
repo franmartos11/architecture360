@@ -214,3 +214,43 @@ describe('POST /api/admin/collaborators', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/admin/collaborators: email y forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+    vi.mocked(sendEmail).mockReset().mockResolvedValue(undefined);
+    vi.mocked(createAdminClient).mockReset();
+  });
+
+  it('el email escapa el nombre del proyecto: un enlace colado queda como texto', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const evil = '<a href="https://malo.com">click aquí</a>';
+    const supabase = mockSupabase({
+      results: [
+        { data: { id: 'profile-1' } },
+        { data: { name: evil } },
+        { data: null },
+        { data: { id: 'collab-1', status: 'pending' }, error: null },
+      ],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(createAdminClient).mockReturnValue({ auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'ana@example.com' } } }) } } } as never);
+
+    await POST(req({ handle: 'ana' }));
+
+    const { html } = vi.mocked(sendEmail).mock.calls[0][0] as { html: string };
+    expect(html).not.toContain('<a href');
+    expect(html).toContain('&lt;a href=');
+  });
+
+  it.each([
+    ['handle como objeto', { handle: { $ne: null } }],
+    ['contribution gigante', { handle: 'ana', contribution: 'x'.repeat(1001) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const res = await POST(req(body));
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
+  });
+});

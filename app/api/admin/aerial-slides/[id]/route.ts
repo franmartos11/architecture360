@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { resolveProjectIdFromSlide, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { aerialSlidePatchSchema } from '@/lib/content-schemas';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,7 +14,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, aerialSlidePatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const updates: Record<string, unknown> = {};
   if (body.imageUrl !== undefined) updates.image_url = body.imageUrl;

@@ -3,6 +3,8 @@ import { resolveRequestedProjectId, requireProjectAccess } from '@/lib/supabase/
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { poiCreateSchema } from '@/lib/content-schemas';
 
 export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -12,13 +14,17 @@ export async function POST(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (!body.name || typeof body.name !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.name || typeof raw.data.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
-  if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
+  if (raw.data.category !== undefined && !isValidEnum(raw.data.category, POI_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${POI_CATEGORIES.join(', ')}` }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, poiCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const { data, error } = await supabase
     .from('points_of_interest')

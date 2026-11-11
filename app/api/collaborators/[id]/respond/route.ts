@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
 import { serverError } from '@/lib/api-errors';
+import { escapeHtml } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { collaboratorRespondSchema } from '@/lib/content-schemas';
 
 // La persona acreditada acepta o rechaza su propia invitación — a
 // diferencia del resto de /api/admin/collaborators, esto no depende de
@@ -14,10 +17,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
-  if (body.status !== 'accepted' && body.status !== 'declined') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (raw.data.status !== 'accepted' && raw.data.status !== 'declined') {
     return NextResponse.json({ error: "status debe ser 'accepted' o 'declined'" }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, collaboratorRespondSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const { data, error } = await supabase
     .from('project_collaborators')
@@ -42,7 +49,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await sendEmail({
           to: inviter.email,
           subject: `${profile?.display_name ?? 'Alguien'} confirmó el crédito en "${project.name}"`,
-          html: `<p><strong>${profile?.display_name ?? 'Esa persona'}</strong> confirmó su crédito en <strong>${project.name}</strong> — ya aparece en la ficha pública del proyecto.</p>`,
+          // escapeHtml: sanitizeText saca los tags pero decodifica las entidades, así que un
+          // nombre guardado como texto "<a href=…>" se interpretaría como HTML en un email.
+          html: `<p><strong>${escapeHtml(profile?.display_name ?? 'Esa persona')}</strong> confirmó su crédito en <strong>${escapeHtml(project.name)}</strong> — ya aparece en la ficha pública del proyecto.</p>`,
         });
       }
     } catch (err) {

@@ -84,3 +84,35 @@ describe('POST /api/admin/points-of-interest', () => {
     expect(res.status).toBe(201);
   });
 });
+
+describe('POST /api/admin/points-of-interest: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['latitud fuera de rango', { name: 'Colegio', latitude: 200 }],
+    ['longitud fuera de rango', { name: 'Colegio', longitude: -400 }],
+    ['imagen con javascript:', { name: 'Colegio', image: 'javascript:alert(1)' }],
+    ['minutos negativos', { name: 'Colegio', walkMinutes: -5 }],
+    ['minutos como texto raro', { name: 'Colegio', walkMinutes: 'mucho' }],
+    ['descripción gigante', { name: 'Colegio', description: 'x'.repeat(2001) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await POST(jsonRequest('http://localhost/api/admin/points-of-interest', body));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('acepta los minutos escritos como texto numérico (la ruta los convierte con Number)', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'poi-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await POST(jsonRequest('http://localhost/api/admin/points-of-interest', { name: 'Colegio', walkMinutes: '12' }));
+    expect(res.status).toBe(201);
+    expect(supabase.from.mock.results[0].value.insert.mock.calls[0][0].walk_minutes).toBe(12);
+  });
+});

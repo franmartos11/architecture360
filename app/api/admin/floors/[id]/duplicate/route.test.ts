@@ -262,3 +262,24 @@ describe('POST /api/admin/floors/[id]/duplicate', () => {
     });
   });
 });
+
+describe('POST /api/admin/floors/[id]/duplicate: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromFloor).mockReset();
+  });
+
+  it.each([
+    ['number como texto', { number: '5', label: 'Piso 5' }],
+    ['number absurdo', { number: 1e9, label: 'Piso 5' }],
+    ['label gigante', { number: 5, label: 'x'.repeat(301) }],
+    ['includeUnits como texto', { number: 5, label: 'Piso 5', includeUnits: 'si' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromFloor).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await POST(req('floor-source', body), params('floor-source'));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});

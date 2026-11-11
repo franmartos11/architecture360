@@ -3,7 +3,9 @@ import { resolveRequestedProjectId, requireProjectAccess } from '@/lib/supabase/
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
-import { sanitizeText } from '@/lib/sanitize';
+import { sanitizeText, escapeHtml } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { collaboratorInviteSchema } from '@/lib/content-schemas';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { serverError } from '@/lib/api-errors';
 
@@ -20,7 +22,9 @@ async function notifyInvitee(
     await sendEmail({
       to: invitee.email,
       subject: `Te acreditaron en "${projectName}"`,
-      html: `<p>Te sumaron como colaborador en <strong>${projectName}</strong>.</p>
+      // escapeHtml: sanitizeText saca los tags pero decodifica las entidades, así que un
+      // nombre guardado como texto "<a href=…>" se interpretaría como HTML en un email.
+      html: `<p>Te sumaron como colaborador en <strong>${escapeHtml(projectName)}</strong>.</p>
         <p>Entrá a tu portfolio (/admin/portfolio) para confirmar el crédito — recién ahí aparece en público.</p>`,
     });
   } catch (err) {
@@ -35,15 +39,19 @@ export async function POST(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
   if (!projectId) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
-  const body = await request.json();
-  if (!body.handle || typeof body.handle !== 'string') return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.handle || typeof raw.data.handle !== 'string') return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
+  const parsed = validateJson(raw.data, collaboratorInviteSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const contribution = sanitizeText(body.contribution, 300);
 
   const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 
-  const { data: profile } = await supabase.from('profiles').select('id').eq('handle', body.handle).maybeSingle();
+  const { data: profile } = await supabase.from('profiles').select('id').eq('handle', body.handle as string).maybeSingle();
   if (!profile) return NextResponse.json({ error: 'No existe ningún perfil con ese handle' }, { status: 404 });
 
   const { data: project } = await supabase.from('projects').select('name').eq('id', projectId).maybeSingle();

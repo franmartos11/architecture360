@@ -96,3 +96,22 @@ describe('POST /api/admin/aerial-hotspots', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('POST /api/admin/aerial-hotspots: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromSlide).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+
+  it.each([
+    ['x como texto', { slideId: 's1', buildingId: 'b1', x: '10', y: 20 }],
+    ['coordenada absurda', { slideId: 's1', buildingId: 'b1', x: 1e12, y: 20 }],
+    ['polígono con más de 500 puntos', { slideId: 's1', buildingId: 'b1', x: 1, y: 2, polygon: Array(501).fill({ x: 1, y: 1 }) }],
+    ['polígono con puntos mal formados', { slideId: 's1', buildingId: 'b1', x: 1, y: 2, polygon: [[0, 0]] }],
+  ])('400 con %s, antes de resolver nada', async (_n, body) => {
+    const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots', body));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromSlide).not.toHaveBeenCalled();
+  });
+});

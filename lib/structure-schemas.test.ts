@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildingPatchSchema, buildingCreateSchema, floorPatchSchema, floorCreateSchema, amenityPatchSchema, amenityCreateSchema,
+  floorSourceSchema, floorDuplicateSchema,
 } from './structure-schemas';
 
 const ok = (schema: { safeParse: (v: unknown) => { success: boolean } }, body: unknown) => schema.safeParse(body).success;
@@ -67,5 +68,18 @@ describe('amenities', () => {
     ['descripción de más de 5000', { description: 'x'.repeat(5001) }],
   ])('rechaza %s', (_n, body) => {
     expect(ok(amenityPatchSchema, body)).toBe(false);
+  });
+});
+
+describe('operaciones sobre pisos', () => {
+  it('copiar de otro piso: sourceFloorId es un texto acotado', () => {
+    expect(ok(floorSourceSchema, { sourceFloorId: 'floor-1' })).toBe(true);
+    for (const v of [{}, { sourceFloorId: '' }, { sourceFloorId: 5 }, { sourceFloorId: {} }, { sourceFloorId: 'x'.repeat(201) }]) expect(ok(floorSourceSchema, v)).toBe(false);
+  });
+  it('duplicar: número, etiqueta e includeUnits acotados', () => {
+    expect(ok(floorDuplicateSchema, { number: 5, label: 'Piso 5', includeUnits: true })).toBe(true);
+    expect(ok(floorDuplicateSchema, { number: -1, label: 'Subsuelo' })).toBe(true);
+    expect(ok(floorDuplicateSchema, { number: '5' })).toBe(false);
+    expect(ok(floorDuplicateSchema, { includeUnits: 'si' })).toBe(false);
   });
 });

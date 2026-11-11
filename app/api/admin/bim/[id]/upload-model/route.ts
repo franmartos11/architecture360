@@ -5,6 +5,7 @@ import { BIM_BUCKET, MAX_GEOMETRY_BYTES } from '@/lib/bim';
 import { mapBimModelRow } from '@/data/bim-repository';
 import type { BimModelRow } from '@/types/database';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject } from '@/lib/api-validate';
 
 // Tipos MIME que acepta el upload de modelo 3D. `application/octet-stream`
 // es lo que mandan algunos browsers cuando no reconocen la extensión —
@@ -19,8 +20,9 @@ const ALLOWED_EXTENSIONS = new Set(['glb', 'gltf']);
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const { action, ext } = body;
+    const raw = await readJsonObject(request);
+    if ('error' in raw) return raw.error;
+    const { action, ext } = raw.data as { action?: unknown; ext?: unknown };
 
     const projectId = await resolveProjectIdFromBimModel(id);
     if (!projectId) return NextResponse.json({ error: 'Pieza no encontrada' }, { status: 404 });
@@ -31,8 +33,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const admin = createAdminClient();
 
     if (action === 'get-url') {
-      if (!ALLOWED_EXTENSIONS.has(ext)) {
-        return NextResponse.json({ error: `Extensión .${ext} no permitida.` }, { status: 400 });
+      if (typeof ext !== 'string' || !ALLOWED_EXTENSIONS.has(ext)) {
+        return NextResponse.json({ error: `Extensión .${String(ext)} no permitida.` }, { status: 400 });
       }
 
       const storagePath = `${id}/model.${ext}`;
@@ -53,6 +55,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     if (action === 'complete') {
+      // Igual que en get-url: la extensión arma la ruta del archivo en el bucket, así que no puede
+      // ser cualquier texto (antes solo se restringía en get-url).
+      if (typeof ext !== 'string' || !ALLOWED_EXTENSIONS.has(ext)) {
+        return NextResponse.json({ error: 'Extensión no permitida.' }, { status: 400 });
+      }
       const storagePath = `${id}/model.${ext}`;
       const { data: urlData } = admin.storage.from(BIM_BUCKET).getPublicUrl(storagePath);
 

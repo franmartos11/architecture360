@@ -79,3 +79,15 @@ export const amenityPatchSchema = z.object(amenityFields).partial();
 
 /** POST /api/admin/amenities. */
 export const amenityCreateSchema = z.object(amenityFields).partial().required({ name: true });
+
+// ─── Operaciones sobre pisos ────────────────────────────────────────
+/** POST /api/admin/floors/[id]/apply-template y /copy-delimitation: de qué piso copiar. */
+export const floorSourceSchema = z.object({ sourceFloorId: idString.min(1) });
+
+/** POST /api/admin/floors/[id]/duplicate: el piso nuevo (la ruta exige number y label con su mensaje). */
+export const floorDuplicateSchema = z.object({
+  number: floorFields.number,
+  label: floorFields.label,
+  includeUnits: z.boolean(),
+}).partial();
+

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { aerialHotspotBulkSchema } from '@/lib/content-schemas';
 
 // "Guardar todo" desde /admin/proyecto/aereas/[slideId]: la pantalla ahora
 // trabaja sobre todas las vistas aéreas del proyecto a la vez, así que en
@@ -29,15 +31,19 @@ function isValidItem(item: unknown): item is BulkItem {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const rawItems: unknown[] = Array.isArray(body?.items) ? body.items : [];
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const rawItems: unknown[] = Array.isArray(raw.data.items) ? raw.data.items : [];
   if (rawItems.length === 0 || !rawItems.every(isValidItem)) {
     return NextResponse.json(
       { error: 'Faltan items válidos: cada uno necesita slideId, buildingId, x e y' },
       { status: 400 }
     );
   }
-  const items = rawItems as BulkItem[];
+  // Forma y topes (hasta 200 items, polígonos de hasta 500 puntos, coordenadas acotadas).
+  const parsed = validateJson({ items: rawItems }, aerialHotspotBulkSchema);
+  if ('error' in parsed) return parsed.error;
+  const items: BulkItem[] = parsed.data.items.map(i => ({ ...i, polygon: i.polygon ?? undefined }));
 
   // No confiamos en nada del body: cada slide y cada edificio mencionado
   // tiene que existir y pertenecer al MISMO proyecto (mismo chequeo que

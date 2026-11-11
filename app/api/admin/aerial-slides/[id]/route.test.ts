@@ -135,3 +135,31 @@ describe('DELETE /api/admin/aerial-slides/[id]', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('PATCH /api/admin/aerial-slides/[id]: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromSlide).mockReset();
+  });
+
+  it.each([
+    ['imageUrl con javascript:', { imageUrl: 'javascript:alert(1)' }],
+    ['label de más de 500 caracteres', { label: 'x'.repeat(501) }],
+    ['sortOrder como texto', { sortOrder: '2' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromSlide).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/aerial-slides/slide-1', body, { method: 'PATCH' }), ctx('slide-1'));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('las claves desconocidas (project_id…) no llegan al update', async () => {
+    vi.mocked(resolveProjectIdFromSlide).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'slide-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    await PATCH(jsonRequest('http://localhost/api/admin/aerial-slides/slide-1', { label: 'Sur', project_id: 'otro' }, { method: 'PATCH' }), ctx('slide-1'));
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0]).toEqual({ label: 'Sur' });
+  });
+});

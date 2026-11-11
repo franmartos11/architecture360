@@ -51,3 +51,27 @@ describe('POST /api/admin/active-project', () => {
     );
   });
 });
+
+describe('POST /api/admin/active-project: forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(cookies).mockReset();
+  });
+
+  it.each([
+    ['projectId como objeto', { projectId: { $ne: null } }],
+    ['projectId como número', { projectId: 42 }],
+    ['projectId gigante (terminaría en una cookie)', { projectId: 'x'.repeat(201) }],
+  ])('400 con %s, sin chequear acceso ni setear la cookie', async (_n, body) => {
+    const setSpy = vi.fn();
+    vi.mocked(cookies).mockResolvedValue({ set: setSpy } as never);
+    const res = await POST(jsonRequest('http://localhost/api/admin/active-project', body));
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400', async () => {
+    expect((await POST(new Request('http://localhost/api/admin/active-project', { method: 'POST', body: '{roto' }))).status).toBe(400);
+  });
+});

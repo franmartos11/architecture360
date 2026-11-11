@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { floorDuplicateSchema } from '@/lib/structure-schemas';
 
 // Duplica un piso entero: clona cada unidad del piso de origen —incluyendo
 // polígono, ambientes, tour 360° y fotos— porque cuando el layout se repite,
@@ -27,10 +29,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (body.number === undefined || !body.label || typeof body.label !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (raw.data.number === undefined || !raw.data.label || typeof raw.data.label !== 'string') {
     return NextResponse.json({ error: 'Faltan number y/o label para el piso nuevo' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, floorDuplicateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const label = sanitizeText(body.label, 100);
 
   const { data: sourceFloor, error: floorErr } = await supabase

@@ -118,3 +118,27 @@ describe('POST /api/admin/aerial-hotspots/bulk', () => {
     expect(body.results[1]).toEqual({ slideId: 'slide-1', buildingId: 'building-2', success: true, data: { id: 'hotspot-new-2', slide_id: 'slide-1', building_id: 'building-2' }, error: null });
   });
 });
+
+describe('POST /api/admin/aerial-hotspots/bulk: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromSlide).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+  const item = { slideId: 's1', buildingId: 'b1', x: 10, y: 20 };
+
+  it.each([
+    ['más de 200 items', { items: Array(201).fill(item) }],
+    ['un polígono de más de 500 puntos', { items: [{ ...item, polygon: Array(501).fill({ x: 1, y: 1 }) }] }],
+    ['coordenadas absurdas', { items: [{ ...item, x: 1e12 }] }],
+    ['un polígono mal formado', { items: [{ ...item, polygon: [[0, 0]] }] }],
+  ])('400 con %s, antes de resolver nada', async (_n, body) => {
+    const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', body));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromSlide).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400', async () => {
+    expect((await POST(new Request('http://localhost/api/admin/aerial-hotspots/bulk', { method: 'POST', body: '{roto' }))).status).toBe(400);
+  });
+});

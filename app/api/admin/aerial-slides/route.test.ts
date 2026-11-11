@@ -72,3 +72,30 @@ describe('POST /api/admin/aerial-slides', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('POST /api/admin/aerial-slides: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['imageUrl con javascript:', { imageUrl: 'javascript:alert(1)', label: 'Norte' }],
+    ['videoUrl con javascript:', { imageUrl: 'https://a.com/x.jpg', videoUrl: 'javascript:alert(1)', label: 'Norte' }],
+    ['label como número', { imageUrl: 'https://a.com/x.jpg', label: 5 }],
+    ['sortOrder como texto', { imageUrl: 'https://a.com/x.jpg', label: 'Norte', sortOrder: 'primero' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await POST(jsonRequest('http://localhost/api/admin/aerial-slides', body));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [] }), user: { id: 'user-1' } } as never);
+    expect((await POST(new Request('http://localhost/api/admin/aerial-slides', { method: 'POST', body: '{roto' }))).status).toBe(400);
+  });
+});

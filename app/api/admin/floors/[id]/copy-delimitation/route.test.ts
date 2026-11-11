@@ -149,3 +149,25 @@ describe('POST /api/admin/floors/[id]/copy-delimitation', () => {
     expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
+
+describe('POST /api/admin/floors/[id]/copy-delimitation: forma del body', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromFloor).mockReset();
+  });
+
+  it.each([
+    ['sourceFloorId como objeto', { sourceFloorId: { $ne: null } }],
+    ['sourceFloorId como número', { sourceFloorId: 7 }],
+    ['sourceFloorId gigante', { sourceFloorId: 'x'.repeat(201) }],
+  ])('400 con %s, antes de resolver nada', async (_n, body) => {
+    const res = await POST(req('floor-target', body), params('floor-target'));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromFloor).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    const res = await POST(new Request('http://localhost/api/admin/floors/floor-target/copy-delimitation', { method: 'POST', body: '{roto' }), params('floor-target'));
+    expect(res.status).toBe(400);
+  });
+});
