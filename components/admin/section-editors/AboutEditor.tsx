@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -68,7 +68,7 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !form) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !form) return <EditorSkeleton rows={3} />;
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">

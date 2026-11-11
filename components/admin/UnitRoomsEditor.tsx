@@ -5,7 +5,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -327,7 +327,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     [rooms, points]
   );
 
-  if (loading) return <LoadingSpinner text="Cargando unidad..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudo cargar la unidad." onRetry={load} />;
 
   return (

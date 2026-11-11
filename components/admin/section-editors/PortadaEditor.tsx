@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
@@ -61,7 +61,7 @@ export default function PortadaEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !form) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !form) return <EditorSkeleton rows={5} />;
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">

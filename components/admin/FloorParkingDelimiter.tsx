@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -325,7 +325,7 @@ export default function FloorParkingDelimiter({ buildingId, floorId }: { buildin
     setActiveKey(spot.key);
   };
 
-  if (loading) return <LoadingSpinner text="Cargando plano de cocheras..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano de cocheras." onRetry={load} />;
 
   if (!planImage) {

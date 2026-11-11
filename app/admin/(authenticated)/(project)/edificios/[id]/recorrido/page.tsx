@@ -6,7 +6,7 @@ import TourEditor from '@/components/admin/TourEditor';
 import TourOrientationControl from '@/components/admin/TourOrientationControl';
 import { Card, CardHeader } from '@/components/ui/Card';
 import type { TourData } from '@/types';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminBuildingTourPage({ params }: { params: Promise<{ id: string }> }) {
@@ -61,7 +61,12 @@ export default function AdminBuildingTourPage({ params }: { params: Promise<{ id
     setSavingOrientation(false);
   }, [id]);
 
-  if (loading) return <LoadingSpinner text="Cargando recorrido..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton>
+      <Skeleton className="h-[420px] w-full rounded-2xl" />
+      <SkeletonCard lines={2} />
+    </PageSkeleton>
+  );
   if (loadError) return <ErrorState message="No se pudo cargar el recorrido." onRetry={load} />;
 
   return (

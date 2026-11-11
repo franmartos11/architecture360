@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, startTransition } from 'react';
 import type { Lead } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonStatStrip, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
@@ -76,7 +76,12 @@ export default function AdminDashboard() {
 
   useEffect(load, [load]);
 
-  if (loading) return <LoadingSpinner text="Cargando dashboard..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <SkeletonStatStrip count={4} />
+      <div className="grid gap-4 md:grid-cols-2"><SkeletonCard lines={4} /><SkeletonCard lines={4} /></div>
+    </PageSkeleton>
+  );
   if (error || !project) return <ErrorState message="No se pudo cargar el dashboard." onRetry={load} />;
 
   const totalUnits = units.length;

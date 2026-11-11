@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import BimModelList from '@/components/admin/BimModelList';
@@ -65,7 +65,7 @@ export default function BimEditor() {
   };
 
   if (models === null) {
-    return <LoadingSpinner text="Cargando..." />;
+    return <EditorSkeleton rows={2} padded={false} />;
   }
 
   if (models.length === 0 && !skipped) {

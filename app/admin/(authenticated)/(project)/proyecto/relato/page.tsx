@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -20,7 +20,7 @@ export default function RelatoPage() {
   const { project, setProject } = ficha;
   const textRef = useRef<HTMLTextAreaElement>(null);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando relato..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton aside rows={3} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const text = project.description ?? '';

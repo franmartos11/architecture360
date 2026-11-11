@@ -3,7 +3,7 @@
 import { useState, useEffect, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -148,7 +148,13 @@ export default function AdminBuildingsPage() {
   };
 
   if (loading || redirecting || (isSingleBuilding && buildings.length > 0 && !redirectFailed)) {
-    return <LoadingSpinner text={isSingleBuilding ? `Abriendo ${agree.el} ${buildingLabelLower}...` : `Cargando ${pluralize(buildingLabel.toLowerCase())}...`} tone="light" />;
+    return (
+      <PageSkeleton actions={1}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))' }}>
+          {Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} lines={3} />)}
+        </div>
+      </PageSkeleton>
+    );
   }
   if (loadError) return <ErrorState message={`No se pudieron cargar ${hasFloorStep ? 'los edificios' : `${agree.el === 'la' ? 'las' : 'los'} ${pluralize(buildingLabelLower)}`}.`} onRetry={load} />;
 

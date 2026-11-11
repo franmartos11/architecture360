@@ -3,7 +3,7 @@
 import { useState, useEffect, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, SegmentedTabs, fieldClass } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -62,7 +62,7 @@ export default function AdminProjectPage() {
   const [origin, setOrigin] = useState('');
   useEffect(() => { startTransition(() => setOrigin(window.location.origin)); }, []);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando proyecto..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton aside rows={6} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const displayUrl = origin ? getProjectDisplayUrl(project.slug, origin, customDomain) : `/proyecto/${project.slug}`;

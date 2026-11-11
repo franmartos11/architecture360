@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import { formatRelativeTime } from '@/lib/relativeTime';
@@ -122,7 +122,17 @@ export default function MisProyectosPage() {
     return true;
   }), [projects, q, filter]);
 
-  if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading) return (
+    <div className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
+      <main className="flex-[999_1_640px] min-w-0 px-4 py-8 sm:px-10 sm:py-10">
+        <PageSkeleton eyebrow={false} actions={1}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))' }}>
+            {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} />)}
+          </div>
+        </PageSkeleton>
+      </main>
+    </div>
+  );
 
   const total = projects?.length ?? 0;
   const publishedCount = (projects ?? []).filter(p => p.published).length;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -259,7 +259,12 @@ export default function AmenitiesEditor({ onSaved }: { onSaved?: () => void }) {
   const hasSel = creating || editingId !== null;
   const cur = editingId ? amenities.find(a => a.id === editingId) ?? null : null;
 
-  if (loading) return <LoadingSpinner text="Cargando amenidades..." tone="light" />;
+  if (loading) return (
+      <div role="status" aria-label="Cargando" className="flex flex-col xl:flex-row gap-4">
+        <SkeletonTable rows={5} cols={3} className="flex-1 min-w-0" />
+        <Skeleton className="h-[360px] xl:w-[380px] rounded-2xl" />
+      </div>
+    );
   if (loadError) return <ErrorState message="No se pudieron cargar las amenidades." onRetry={load} />;
 
   return (

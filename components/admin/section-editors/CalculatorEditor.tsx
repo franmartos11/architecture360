@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Loaded from '@/components/ui/Loaded';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { fetchProjectPreview } from '@/lib/preview-fetch';
@@ -90,8 +91,6 @@ export default function CalculatorEditor({ onSaved, showSiteToggle }: { onSaved?
     else toast('No se pudo cambiar la sección.', 'error');
   };
 
-  if (loading) return <LoadingSpinner text="Cargando calculadora..." tone="light" />;
-
   const field = (label: string, suffix: string, key: keyof Settings, opts: { step: string; min: number; max: number }) => (
     <label className="flex flex-col gap-1.5 min-w-0">
       <span className="text-xs font-medium text-gray-700">{label}</span>
@@ -108,6 +107,7 @@ export default function CalculatorEditor({ onSaved, showSiteToggle }: { onSaved?
   );
 
   return (
+    <Loaded loading={loading} skeleton={<EditorSkeleton rows={2} padded={false} />}>
     <form onSubmit={handleSave} className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
@@ -137,5 +137,6 @@ export default function CalculatorEditor({ onSaved, showSiteToggle }: { onSaved?
         </div>
       )}
     </form>
+    </Loaded>
   );
 }

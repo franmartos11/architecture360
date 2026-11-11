@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, startTransition, Fragment } from 'react';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -464,7 +464,12 @@ export default function AdminInventory() {
     fetchAll();
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${hasFloorStep ? 'unidades' : `${pluralize(unitLabelLower)}`}...`} tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={3}>
+      <Skeleton className="h-11 w-full max-w-[420px] rounded-[10px]" />
+      <SkeletonTable rows={8} cols={7} />
+    </PageSkeleton>
+  );
   if (error) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el inventario' : `${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}`}.`} onRetry={fetchAll} />;
 
   const counts = {

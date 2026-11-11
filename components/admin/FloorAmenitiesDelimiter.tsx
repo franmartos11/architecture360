@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -115,7 +115,7 @@ export default function FloorAmenitiesDelimiter({ buildingId, floorId }: { build
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSave]);
 
-  if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano." onRetry={load} />;
 
   if (!planImage) {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { PageHeader, StatStrip, btnPrimary } from '@/components/admin/panel-ui';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonStatStrip, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -155,11 +155,23 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     load();
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${buildingLabelLower}...`} tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <SkeletonStatStrip count={3} />
+      <SkeletonCard lines={3} />
+      <SkeletonCard lines={3} />
+    </PageSkeleton>
+  );
   if (loadError || !building) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el edificio' : `${agree.el} ${buildingLabelLower}`}.`} onRetry={load} />;
   if (isSingleHouse) {
     return floors[0]
-      ? <LoadingSpinner text={`Abriendo los datos ${agree.del} ${buildingLabelLower}...`} tone="light" />
+      ? (
+        <PageSkeleton actions={1}>
+          <SkeletonStatStrip count={3} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </PageSkeleton>
+      )
       : <ErrorState message={`No se encontró el piso interno ${agree.del} ${buildingLabelLower} — probá recargar.`} onRetry={load} />;
   }
 

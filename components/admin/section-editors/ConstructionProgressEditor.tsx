@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { fieldClass } from '@/components/admin/panel-ui';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Collapse from '@/components/ui/Collapse';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -69,7 +69,7 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
     return [...new Set([...used, ...VIEW_SUGGESTIONS])];
   }, [progress]);
 
-  if (loading || !progress) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !progress) return <EditorSkeleton rows={4} padded={false} />;
 
   const change = (next: ConstructionProgress) => { setProgress(next); setDirty(true); };
 

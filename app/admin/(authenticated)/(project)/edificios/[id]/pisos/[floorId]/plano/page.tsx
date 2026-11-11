@@ -6,7 +6,7 @@ import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import FloorParkingDelimiter from '@/components/admin/FloorParkingDelimiter';
 import FloorAmenitiesDelimiter from '@/components/admin/FloorAmenitiesDelimiter';
 import UnitRoomsEditor from '@/components/admin/UnitRoomsEditor';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -154,7 +154,11 @@ export default function AdminFloorPlanPolygonsPage({ params }: { params: Promise
     toast(failed ? `Aplicado a ${done} piso${done === 1 ? '' : 's'}; ${failed} con error.` : `Planta aplicada a ${done} piso${done === 1 ? '' : 's'}.`, failed ? 'error' : undefined);
   };
 
-  if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton eyebrow={false}>
+      <Skeleton className="aspect-[4/3] w-full rounded-2xl" />
+    </PageSkeleton>
+  );
   if (loadError) return <ErrorState message="No se pudo cargar el plano." />;
 
   // ── casa: directo al plano + ambientes de la única unidad ──────────

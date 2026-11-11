@@ -14,7 +14,7 @@ const TourEditor = dynamic(() => import('@/components/admin/TourEditor'), {
 });
 import type { UnitType, UnitStatus, UnitCategory, TourData, Room, RoomKind, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -738,7 +738,11 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     load();
   };
 
-  if (loading) return <LoadingSpinner text={hasUnitStep ? `Cargando ${pluralize(unitLabelLower)}...` : `Cargando datos ${uAgree.del} ${unitLabelLower}...`} tone="light" />;
+  if (loading) return (
+      <div role="status" aria-label="Cargando" className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+        <SkeletonForm rows={6} />
+      </div>
+    );
   if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
 
   return (

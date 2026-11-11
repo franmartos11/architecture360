@@ -4,7 +4,7 @@ import { use } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FloorUnitsEditor from '@/components/admin/FloorUnitsEditor';
 import UnitsEditor from '@/components/admin/UnitsEditor';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useState, useEffect, startTransition } from 'react';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -46,7 +46,11 @@ export default function AdminFloorUnitsPage({ params }: { params: Promise<{ id: 
       });
   }, [buildingId, floorId, isSingleHouse]);
 
-  if (loading) return <LoadingSpinner text="Cargando piso..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={0}>
+      <SkeletonTable rows={6} cols={5} />
+    </PageSkeleton>
+  );
   if (loadError) return <ErrorState message="No se pudo cargar el piso." />;
 
   // Cualquier tipo con lista de unidades (edificio/dúplex/único/loteo):

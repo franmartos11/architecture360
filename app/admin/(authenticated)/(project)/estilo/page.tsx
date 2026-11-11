@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, startTransition } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -157,7 +157,14 @@ export default function AdminEstiloPage() {
 
   const toggleGroup = (k: Group) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
-  if (loading) return <LoadingSpinner text="Cargando estilo..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={5} /></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={5} /></div>
+      </div>
+    </PageSkeleton>
+  );
   if (loadError || !themeConfig || !project) return <ErrorState message="No se pudo cargar el estilo." onRetry={() => load(true)} />;
 
   const preset = THEME_PRESETS.find(p => p.key === themeConfig.presetKey) ?? THEME_PRESETS[0];

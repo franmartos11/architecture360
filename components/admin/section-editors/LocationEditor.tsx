@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import EmptyState from '@/components/ui/EmptyState';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -272,7 +272,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  if (loading) return <LoadingSpinner text="Cargando ubicación..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudieron cargar los puntos de interés." onRetry={load} />;
 
   const overviewPois: OverviewPoi[] = visible.map(p => ({

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, btnPrimary, fieldClass } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -43,7 +43,7 @@ export default function EquipoPage() {
   const [editingContribution, setEditingContribution] = useState('');
   const [academicOpen, setAcademicOpen] = useState(false);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando equipo..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton rows={3} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const handleAdd = async (e: React.FormEvent) => {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape, type PolygonCanvasApi } from '@/components/admin/PolygonCanvas';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { getStatusColor, pluralize } from '@/lib/units';
@@ -213,7 +213,7 @@ export default function FloorUnitsDelimiter({ buildingId, floorId }: { buildingI
     return () => window.removeEventListener('keydown', onKey);
   }, [activeId]);
 
-  if (loading) return <LoadingSpinner text="Cargando plano..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudo cargar el plano." onRetry={load} />;
 
   const emptyBox = 'rounded-2xl border border-dashed border-gray-300 bg-white/60 p-10 text-center text-[13px] text-gray-600';

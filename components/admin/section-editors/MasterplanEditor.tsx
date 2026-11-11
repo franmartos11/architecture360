@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
@@ -33,7 +33,9 @@ export default function MasterplanEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || image === null) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || image === null) return (
+      <div role="status" aria-label="Cargando" className="p-6"><Skeleton className="aspect-[16/9] w-full rounded-2xl" /></div>
+    );
 
   return (
     <div className="p-6 space-y-4">

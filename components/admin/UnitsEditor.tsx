@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { HeadCheck } from '@/components/ui/HeadCheck';
@@ -309,7 +309,12 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
 
   const planoHref = `/admin/edificios/${buildingId}/pisos/${floorId}/plano`;
 
-  if (loading) return <LoadingSpinner text={`Cargando ${pluralize(unitLabelLower)}...`} tone="light" />;
+  if (loading) return (
+      <div role="status" aria-label="Cargando" className="flex flex-col gap-4">
+        <Skeleton className="h-11 w-full max-w-[420px] rounded-[10px]" />
+        <SkeletonTable rows={6} cols={5} />
+      </div>
+    );
   if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${pluralize(unitLabelLower)}.`} onRetry={load} />;
 
   return (

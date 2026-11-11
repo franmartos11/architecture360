@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonCard, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useGuidedTree, type GuidedProject, type GuidedTree } from './shared';
 import EdificioFlow from './EdificioFlow';
@@ -22,9 +22,22 @@ export interface FlowProps {
   goTo: (n: number) => void;
 }
 
+// Mismo marco que la carga guiada real (fondo beige, márgenes negativos del
+// shell) para que no salte al llegar el flujo.
+function GuidedSkeleton() {
+  return (
+    <div className="carga-guiada min-h-[calc(100vh-1px)] flex flex-col bg-[#F5F3EE] -m-6 md:-m-8 px-4 py-8 sm:px-10 sm:py-10">
+      <PageSkeleton>
+        <SkeletonCard lines={4} />
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={4} /></div>
+      </PageSkeleton>
+    </div>
+  );
+}
+
 export default function GuidedLoad({ project }: { project: GuidedProject }) {
   return (
-    <Suspense fallback={<LoadingSpinner text="Cargando..." tone="light" />}>
+    <Suspense fallback={<GuidedSkeleton />}>
       <GuidedLoadInner project={project} />
     </Suspense>
   );
@@ -45,7 +58,7 @@ function GuidedLoadInner({ project }: { project: GuidedProject }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [router, pathname, searchParams]);
 
-  if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading) return <GuidedSkeleton />;
   if (error || !tree) return <div className="p-6"><ErrorState message={error ?? 'No se pudo cargar el proyecto'} onRetry={reload} /></div>;
 
   const props: FlowProps = { project, tree, setTree, reload, step, goTo };

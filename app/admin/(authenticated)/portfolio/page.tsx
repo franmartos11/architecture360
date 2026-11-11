@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera } from 'lucide-react';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { SkeletonCard, SkeletonForm } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { PROFILE_AVAILABILITY } from '@/lib/profile-availability';
@@ -232,7 +232,16 @@ export default function AdminPortfolioPage() {
     if (!res.ok) { setProjects(prev => prev.map(p => p.id === project.id ? { ...p, show_in_portfolio: !next } : p)); toast('No se pudo actualizar.', 'error'); }
   };
 
-  if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading) return (
+    <div role="status" aria-label="Cargando" className="max-w-[1260px] mx-auto px-[24px] py-[22px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-[22px] items-start">
+      <div aria-hidden="true" className="flex flex-col gap-[16px] min-w-0">
+        <SkeletonCard lines={3} />
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={5} /></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={4} /></div>
+      </div>
+      <SkeletonCard lines={6} className="hidden lg:flex" />
+    </div>
+  );
 
   const isCompany = form.accountType === 'company';
   const bioLen = form.bio.length;

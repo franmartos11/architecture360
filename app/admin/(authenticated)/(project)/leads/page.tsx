@@ -14,7 +14,7 @@ import {
   type DraggableAttributes,
   type DraggableSyntheticListeners,
 } from '@dnd-kit/core';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -276,7 +276,20 @@ export default function AdminLeads() {
     }
   };
 
-  if (loading) return <LoadingSpinner text="Cargando leads..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={2}>
+      <Skeleton className="h-11 w-[320px] max-w-full rounded-[10px]" />
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="flex flex-col gap-2.5 rounded-2xl p-2.5 bg-[#EFECE6] min-h-[320px]">
+            <Skeleton className="h-4 w-24 m-1.5" />
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+          </div>
+        ))}
+      </div>
+    </PageSkeleton>
+  );
   if (error) return <ErrorState message="No se pudieron cargar los leads." onRetry={fetchLeads} />;
 
   const newLeadsCount = leads.filter(l => (l.status || 'nuevo') === 'nuevo').length;

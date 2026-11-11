@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, startTransition } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { GripVertical, ChevronUp, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -152,7 +152,16 @@ export default function AdminSitioPage() {
   // vez, al soltar, para no mandar un PATCH por cada micro-paso.
   const handleDragEnd = () => { if (sectionsRef.current) persist(sectionsRef.current); };
 
-  if (loading) return <LoadingSpinner text="Cargando el sitio..." tone="light" />;
+  if (loading) return (
+    <div role="status" aria-label="Cargando" className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+      <div aria-hidden="true" className="flex flex-col gap-3">
+        <Skeleton className="h-8 w-40" />
+        {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+      </div>
+      <Skeleton className="h-[480px] w-full rounded-2xl" />
+      <div aria-hidden="true" className="rounded-2xl border border-gray-200 bg-white p-5"><SkeletonForm rows={5} /></div>
+    </div>
+  );
   if (loadError || !project || !sections) return <ErrorState message="No se pudo cargar el sitio." onRetry={() => load(true)} />;
 
   const theme = resolveTheme(project.themeConfig, ownerFonts);

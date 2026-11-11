@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import ImageUploader from '@/components/admin/ImageUploader';
 import BeforeAfterSlider from '@/components/BeforeAfterSlider';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { fieldClass } from '@/components/admin/panel-ui';
 import type { BeforeAfterPair } from '@/types';
@@ -58,7 +58,11 @@ export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) 
     if (res.ok) { setDirty(false); toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !pairs) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !pairs) return (
+      <div role="status" aria-label="Cargando" className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))' }}>
+        {Array.from({ length: 2 }, (_, i) => <Skeleton key={i} aria-hidden="true" className="aspect-[16/10] rounded-2xl" />)}
+      </div>
+    );
 
   return (
     <div className="flex flex-col gap-4">

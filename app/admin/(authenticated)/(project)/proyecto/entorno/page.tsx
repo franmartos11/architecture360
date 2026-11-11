@@ -4,7 +4,7 @@ import { useState } from 'react';
 import LocationPicker from '@/components/admin/LocationPicker';
 import LocationEditor from '@/components/admin/section-editors/LocationEditor';
 import AmenitiesEditor from '@/components/admin/section-editors/AmenitiesEditor';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -20,7 +20,7 @@ export default function EntornoPage() {
   const { project, setProject, savedProject } = ficha;
   const [pinOpen, setPinOpen] = useState(false);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando entorno..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton rows={4} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const hasPin = project.latitude != null && project.longitude != null;

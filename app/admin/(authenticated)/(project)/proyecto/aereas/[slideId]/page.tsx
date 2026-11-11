@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use, useMemo, startTransition } from 'reac
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -342,7 +342,14 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     bumpVersion(key);
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${aerialLower}...`} tone="light" />;
+  if (loading) return (
+    <PageSkeleton eyebrow={false} actions={1}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] items-start">
+        <Skeleton className="aspect-[16/10] w-full rounded-2xl" />
+        <SkeletonCard lines={4} />
+      </div>
+    </PageSkeleton>
+  );
   if (loadError) return <ErrorState message={`No se pudo cargar la ${aerialLower}.`} onRetry={load} />;
   if (!activeSlide) return <ErrorState message={`${typeConfig.aerialLabel} no encontrada.`} />;
 
