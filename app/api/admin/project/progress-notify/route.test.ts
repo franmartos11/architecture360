@@ -105,7 +105,7 @@ describe('/api/admin/project/progress-notify', () => {
 
     const res = await POST(post({ updateId: 'pub1' }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sent: 2, skipped: 0 });
+    expect(await res.json()).toEqual({ sent: 2, skipped: 0, notifiedAt: expect.stringMatching(/^\d{4}-/), updatedAt: expect.stringMatching(/^\d{4}-/) });
 
     // El filtro de opt-in y baja viaja en la consulta, no se filtra en memoria.
     const leadsQuery = admin.from.mock.results[0].value;

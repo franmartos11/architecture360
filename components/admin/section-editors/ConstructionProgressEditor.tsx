@@ -19,6 +19,7 @@ import StagesEditor from '@/components/admin/construction-progress/StagesEditor'
 import Logbook from '@/components/admin/construction-progress/Logbook';
 import QuickEntryDialog from '@/components/admin/construction-progress/QuickEntryDialog';
 import ConflictNotice from '@/components/admin/construction-progress/ConflictNotice';
+import ProgressShareActions from '@/components/admin/section-editors/ProgressShareActions';
 import type { ConstructionProgress, ConstructionStage, ConstructionUpdate, ProjectType } from '@/types';
 
 // Editor del avance de obra — vive en /admin/proyecto/avance y en el panel
@@ -363,6 +364,22 @@ export default function ConstructionProgressEditor({ onSaved, header }: {
         onNewEntry={openQuick}
         viewOptions={viewOptions}
         onUploadingChange={markUploading}
+        // Compartir y enviar leen la entrada de la base: con cambios sin
+        // guardar se esconden, para no ofrecer mandar algo distinto de lo
+        // que se ve en pantalla.
+        actions={dirty || saving ? undefined : u => (
+          <ProgressShareActions
+            update={u}
+            onNotified={({ updateId, notifiedAt, updatedAt }) =>
+              // Sin pasar por change(): no es una edición de la persona, es
+              // copiar lo que el servidor ya guardó.
+              setProgress(cur => cur ? {
+                ...cur,
+                updatedAt: updatedAt ?? cur.updatedAt,
+                updates: cur.updates.map(x => (x.id === updateId ? { ...x, notifiedAt } : x)),
+              } : cur)}
+          />
+        )}
       />
 
       {(dirty || saving) && !quick.open && (

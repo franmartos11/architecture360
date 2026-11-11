@@ -130,9 +130,10 @@ export async function POST(request: Request) {
   // recibían el correo doble. El update va condicionado al updated_at que
   // leímos, así que solo uno de los dos gana. Si el envío se corta a la mitad
   // queda "enviada" sin haber llegado a todos — se prefiere eso a duplicar.
+  const notifiedAt = new Date().toISOString();
   const stamped = stampConstructionProgress({
     ...progress,
-    updates: progress.updates.map(u => (u.id === update.id ? { ...u, notifiedAt: new Date().toISOString() } : u)),
+    updates: progress.updates.map(u => (u.id === update.id ? { ...u, notifiedAt } : u)),
   });
   const claim = access.supabase.from('projects').update({ construction_progress: stamped, updated_at: stamped.updatedAt });
   const { data: claimed, error: claimError } = await (project.updated_at === null
@@ -180,5 +181,8 @@ export async function POST(request: Request) {
   }
 
   await revalidateProjectById(projectId);
-  return NextResponse.json({ sent, skipped });
+  // notifiedAt y updatedAt vuelven para que el panel actualice su copia sin
+  // recargar: sin la marca nueva, el próximo "Guardar cambios" chocaría con
+  // el 409 del PATCH (este envío ya cambió updatedAt en la base).
+  return NextResponse.json({ sent, skipped, notifiedAt, updatedAt: stamped.updatedAt });
 }

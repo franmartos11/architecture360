@@ -12,6 +12,13 @@ interface Props {
   update: ConstructionUpdate;
   /** Si no viene se usa el proyecto activo del panel. */
   projectId?: string;
+  /**
+   * Se llama después de un envío exitoso con la marca que puso el servidor y
+   * el updatedAt nuevo del avance, para que el editor los copie en su estado
+   * (sin eso, un "Guardar cambios" posterior pisaría notifiedAt y chocaría
+   * con el 409 del PATCH).
+   */
+  onNotified?: (info: { updateId: string; notifiedAt: string; updatedAt?: string }) => void;
 }
 
 function longDate(iso: string): string {
@@ -24,7 +31,7 @@ function longDate(iso: string): string {
 // novedades. Las dos rutas leen la entrada de la base, no del panel: si se
 // acaba de crear o editar, hay que guardar antes (el servidor contesta 400
 // "no existe o no está publicada" si todavía no está).
-export default function ProgressShareActions({ update, projectId }: Props) {
+export default function ProgressShareActions({ update, projectId, onNotified }: Props) {
   const toast = useToast();
   const confirmDialog = useConfirm();
   const activeProjectId = useActiveProjectId();
@@ -100,7 +107,11 @@ export default function ProgressShareActions({ update, projectId }: Props) {
       const data = await res.json().catch(() => null);
       if (res.ok) {
         toast(data?.sent ? `Enviado a ${data.sent} ${data.sent === 1 ? 'interesado' : 'interesados'}.` : 'Todavía no hay interesados que hayan pedido novedades.');
-        if (data?.sent) setSentAt(new Date().toISOString());
+        if (data?.sent) {
+          const at = typeof data.notifiedAt === 'string' ? data.notifiedAt : new Date().toISOString();
+          setSentAt(at);
+          onNotified?.({ updateId: update.id, notifiedAt: at, updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : undefined });
+        }
       } else {
         toast(data?.error ?? 'No se pudo enviar.', 'error');
       }

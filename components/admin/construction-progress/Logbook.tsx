@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Collapse from '@/components/ui/Collapse';
 import { Pill } from '@/components/admin/panel-ui';
 import EntryFields from './EntryFields';
@@ -11,7 +12,7 @@ import type { ConstructionProgress, ConstructionUpdate } from '@/types';
 // los mismos campos que la carga rápida. El borrador se cambia desde la
 // línea misma, sin abrirla: es lo que más se toca después de cargar.
 
-export default function Logbook({ progress, today, open, onToggleOpen, onPatch, onSetDraft, onRemove, onNewEntry, viewOptions, onUploadingChange }: {
+export default function Logbook({ progress, today, open, onToggleOpen, onPatch, onSetDraft, onRemove, onNewEntry, viewOptions, onUploadingChange, actions }: {
   progress: ConstructionProgress;
   today: string;
   open: Set<string>;
@@ -22,6 +23,8 @@ export default function Logbook({ progress, today, open, onToggleOpen, onPatch, 
   onNewEntry: () => void;
   viewOptions: string[];
   onUploadingChange: (id: string, uploading: boolean) => void;
+  /** Acciones sobre una entrada ya guardada (compartir, enviar) — el editor las omite mientras hay cambios sin guardar. */
+  actions?: (u: ConstructionUpdate) => ReactNode;
 }) {
   const timeline = [...progress.updates].sort((a, b) => b.date.localeCompare(a.date));
   const hasThisMonth = progress.updates.some(u => u.date.slice(0, 7) === today.slice(0, 7));
@@ -81,6 +84,7 @@ export default function Logbook({ progress, today, open, onToggleOpen, onPatch, 
                   )}
                 </div>
               )}
+              {actions && <div>{actions(u)}</div>}
               <Collapse open={isOpen}>
                 <div id={`obra-${u.id}`} className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 flex flex-col gap-4">
                   <EntryFields
