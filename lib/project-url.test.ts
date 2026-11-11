@@ -47,3 +47,24 @@ describe('getProjectDisplayUrl', () => {
     );
   });
 });
+
+describe('con dominio propio activo del proyecto', () => {
+  it('getProjectHref: gana sobre /proyecto/[slug] y sobre el subdominio', async () => {
+    const sin = await loadWithRootDomain(undefined);
+    expect(sin.getProjectHref('torre', 'www.torre.com')).toBe('https://www.torre.com');
+    const con = await loadWithRootDomain('midominio.com');
+    expect(con.getProjectHref('torre', 'www.torre.com')).toBe('https://www.torre.com');
+  });
+
+  it('getProjectDisplayUrl: siempre https y sin importar el origin del panel', async () => {
+    const { getProjectDisplayUrl } = await loadWithRootDomain(undefined);
+    expect(getProjectDisplayUrl('torre', 'http://localhost:3000', 'www.torre.com')).toBe('https://www.torre.com');
+  });
+
+  it('null o vacío se comporta como sin dominio propio', async () => {
+    const { getProjectHref, getProjectDisplayUrl } = await loadWithRootDomain(undefined);
+    expect(getProjectHref('torre', null)).toBe('/proyecto/torre');
+    expect(getProjectHref('torre', '')).toBe('/proyecto/torre');
+    expect(getProjectDisplayUrl('torre', 'https://app.vercel.app', null)).toBe('https://app.vercel.app/proyecto/torre');
+  });
+});

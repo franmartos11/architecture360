@@ -10,6 +10,7 @@ import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 interface ActiveProject {
   id: string;
   slug: string;
@@ -47,7 +48,8 @@ export default function ProjectAdminShell({
   // Casi siempre es dato viejo (valor combinado legacy, migración a medias).
   const badType = typeConfig.fallbackFields.type ? project.project_type : null;
   const badSaleMode = typeConfig.fallbackFields.saleMode ? project.sale_mode : null;
-  const shareUrl = typeof window !== 'undefined' ? getProjectDisplayUrl(project.slug, window.location.origin) : '';
+  const customDomain = useCustomDomain();
+  const shareUrl = typeof window !== 'undefined' ? getProjectDisplayUrl(project.slug, window.location.origin, customDomain) : '';
 
   useEffect(() => {
     if (pathname === '/admin/leads') markLeadsSeen();

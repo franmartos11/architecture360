@@ -16,6 +16,7 @@ import { getProjectDisplayUrl } from '@/lib/project-url';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { pluralize } from '@/lib/units';
 import type { ThemeConfig, ThemeColorOverrides, CustomFont, SavedTheme, Project } from '@/types';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 
 // Mismo orden en el que se usan los tokens en la landing real — de fondo
 // principal a acento, para que el picker se lea de "más área cubierta" a
@@ -46,6 +47,7 @@ type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 // se toca (mismo autosave que el resto del admin). El preview de abajo
 // muestra exactamente lo que ya está guardado, no un borrador aparte.
 export default function AdminEstiloPage() {
+  const customDomain = useCustomDomain();
   const typeConfig = useProjectTypeConfig();
   const [project, setProject] = useState<Project | null>(null);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig | null>(null);
@@ -172,7 +174,7 @@ export default function AdminEstiloPage() {
     return key in CURATED_FONTS ? CURATED_FONTS[key as keyof typeof CURATED_FONTS].label : CURATED_FONTS[fallback].label;
   };
   const displayUrl = typeof window !== 'undefined'
-    ? getProjectDisplayUrl(project.slug, window.location.origin).replace(/^https?:\/\//, '')
+    ? getProjectDisplayUrl(project.slug, window.location.origin, customDomain).replace(/^https?:\/\//, '')
     : `${project.slug}.arq360.com`;
 
   const presetLabel = preset.label;

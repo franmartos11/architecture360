@@ -15,6 +15,7 @@ import { getProjectDisplayUrl } from '@/lib/project-url';
 import { PageHeader, Card, CardHeader, StatStrip, Pill, SegmentedTabs, btnPrimary } from '@/components/admin/panel-ui';
 
 import { pluralize } from '@/lib/units';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 interface ProjectSummary {
   slug: string;
   name: string;
@@ -29,6 +30,7 @@ type Unit = Pick<DbUnitRow, 'id' | 'code' | 'total_area' | 'status' | 'price' | 
 };
 
 export default function AdminDashboard() {
+  const customDomain = useCustomDomain();
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -82,8 +84,8 @@ export default function AdminDashboard() {
   const reserved = units.filter(u => u.status === 'reserved').length;
   const sold = units.filter(u => u.status === 'sold').length;
   const unitWord = (count: number) => count === 1 ? typeConfig.unitLabel.toLowerCase() : `${pluralize(typeConfig.unitLabel.toLowerCase())}`;
-  const displayUrl = getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '');
-  const shareUrl = () => getProjectDisplayUrl(project.slug, window.location.origin);
+  const displayUrl = getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '', customDomain);
+  const shareUrl = () => getProjectDisplayUrl(project.slug, window.location.origin, customDomain);
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl());

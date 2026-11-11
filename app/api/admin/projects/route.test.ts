@@ -56,6 +56,7 @@ describe('GET /api/admin/projects', () => {
         { data: [] }, // .from('aerial_slides')
         { data: [] }, // .from('points_of_interest')
         { data: [] }, // .from('project_collaborators')
+        { data: [{ project_id: 'project-1', hostname: 'www.torre.com' }] }, // .from('project_domains') activos
       ],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
@@ -68,11 +69,50 @@ describe('GET /api/admin/projects', () => {
     // typologies/location; before_after/process quedan afuera por no ser showcase).
     expect(await res.json()).toEqual({
       projects: [
-        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
-        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
+        { id: 'project-1', name: 'Torre del Mar', customDomain: 'www.torre.com', pendingLeadsCount: 2, commentsCount: 0, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
+        { id: 'project-2', name: 'Casa Roble', customDomain: null, pendingLeadsCount: 0, commentsCount: 1, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
       ],
       activeProjectId: 'project-1',
     });
+  });
+});
+
+describe('GET /api/admin/projects: dominio propio', () => {
+  beforeEach(() => {
+    vi.mocked(createClient).mockReset();
+    vi.mocked(resolveActiveProjectId).mockReset();
+  });
+
+  it('si la tabla project_domains no existe todavía (schema sin aplicar) o falla: la lista sigue andando, sin dominio', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [{ id: 'project-1', name: 'Torre del Mar' }] }, // .from('projects')
+        { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, // leads…collaborators
+        { data: null, error: { message: "Could not find the table 'public.project_domains'" } }, // project_domains
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(resolveActiveProjectId).mockResolvedValue('project-1');
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect((await res.json()).projects[0].customDomain).toBeNull();
+  });
+
+  it('con más de un dominio activo en un proyecto: muestra el más antiguo', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [{ id: 'project-1', name: 'Torre del Mar' }] },
+        { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] },
+        { data: [{ project_id: 'project-1', hostname: 'www.torre.com' }, { project_id: 'project-1', hostname: 'torre.com' }] }, // ya vienen por created_at asc
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(resolveActiveProjectId).mockResolvedValue('project-1');
+
+    expect((await (await GET()).json()).projects[0].customDomain).toBe('www.torre.com');
   });
 });
 

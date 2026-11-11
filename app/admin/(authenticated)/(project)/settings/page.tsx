@@ -13,8 +13,10 @@ import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import type { ProjectSaleMode, ProjectType } from '@/types';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 
 export default function SettingsPage() {
+  const customDomain = useCustomDomain();
   const { showCalculator } = useProjectTypeConfig();
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
@@ -82,7 +84,7 @@ export default function SettingsPage() {
   };
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const publicUrl = project ? getProjectDisplayUrl(project.slug, origin) : '';
+  const publicUrl = project ? getProjectDisplayUrl(project.slug, origin, customDomain) : '';
   // El link se arma alrededor del slug: /proyecto/[slug] o [slug].dominio.
   const [urlPrefix, urlSuffix] = getProjectDisplayUrl('__SLUG__', origin).replace(/^https?:\/\//, '').split('__SLUG__');
   const slugValue = slugDraft ?? project?.slug ?? '';
@@ -165,6 +167,11 @@ export default function SettingsPage() {
                     className="shrink-0 min-h-[36px] px-3 rounded-lg text-[13px] font-semibold text-gray-900 hover:bg-gray-100">Copiar</button>
                 )}
               </span>
+              {customDomain && (
+                <span className="text-xs text-gray-600">
+                  Tenés un dominio propio activo: este link redirige a <span className="font-mono">{customDomain}</span>, y esa es la dirección que se copia y se comparte.
+                </span>
+              )}
               {slugChanged && (
                 <span className="text-xs text-amber-800">Va a quedar <span className="font-mono">{slugify(slugValue) || '—'}</span>. El link anterior deja de funcionar para quien ya lo tenga.</span>
               )}

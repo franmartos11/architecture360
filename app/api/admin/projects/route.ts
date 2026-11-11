@@ -8,6 +8,7 @@ import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
 import { serverError } from '@/lib/api-errors';
+import { getActiveDomains } from '@/lib/project-domains';
 
 // Secciones "de contenido" — las únicas que computeEmptySectionKeys sabe
 // evaluar (calculadora/contacto son toggles de configuración, no algo que
@@ -104,6 +105,9 @@ export async function GET() {
     }
   }
 
+  // Dominio propio activo de cada proyecto (para que "Ver sitio público" lleve ahí).
+  const activeDomains = await getActiveDomains(supabase, projectIds);
+
   const projects = (data ?? []).map(p => {
     const typeConfig = getProjectTypeConfig(p.project_type, p.sale_mode);
     const availableContentKeys = SECTION_REGISTRY
@@ -133,6 +137,7 @@ export async function GET() {
 
     return {
       ...p,
+      customDomain: activeDomains.get(p.id) ?? null,
       pendingLeadsCount: pendingLeadsByProject.get(p.id) ?? 0,
       commentsCount: commentsByProject.get(p.id) ?? 0,
       unitsCount: unitsByProject.get(p.id) ?? 0,

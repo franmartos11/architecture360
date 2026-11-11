@@ -20,6 +20,8 @@ interface ProjectRow {
   project_type: ProjectType;
   sale_mode: ProjectSaleMode;
   published: boolean;
+  /** Dominio propio activo (www.torre.com), si tiene — ver GET /api/admin/projects. */
+  customDomain?: string | null;
   updated_at: string;
   pendingLeadsCount: number;
   commentsCount: number;
@@ -213,7 +215,7 @@ export default function MisProyectosPage() {
                     className="absolute top-12 right-2.5 w-[188px] bg-white border border-gray-200 rounded-xl shadow-[0_16px_34px_-14px_rgba(23,25,26,.3)] p-1.5 z-10"
                   >
                     <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Seguir cargando</button>
-                    <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
+                    <a href={p.published ? getProjectHref(p.slug, p.customDomain) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
                     <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Duplicar</button>
                     <div className="h-px bg-gray-200 my-1 mx-1.5" />
                     <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-red-700 hover:bg-red-50">Eliminar proyecto</button>

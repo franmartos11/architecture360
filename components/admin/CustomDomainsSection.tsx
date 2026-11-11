@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Pill, btnSecondary } from '@/components/admin/panel-ui';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -27,6 +28,7 @@ const STATUS: Record<DomainRow['status'], { label: string; tone: 'green' | 'warn
 export default function CustomDomainsSection({ projectId }: { projectId: string }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const router = useRouter();
   const base = `/api/admin/projects/${projectId}/domains`;
   const [domains, setDomains] = useState<DomainRow[] | null>(null);
   const [automatic, setAutomatic] = useState(true);
@@ -34,7 +36,12 @@ export default function CustomDomainsSection({ projectId }: { projectId: string 
   const [busy, setBusy] = useState<string | null>(null); // 'add' | id del dominio que se está verificando/quitando
 
   const [reloadKey, setReloadKey] = useState(0);
-  const load = () => setReloadKey(k => k + 1);
+  // Además de recargar la lista, se refresca el layout del panel: el dominio activo vive
+  // ahí (contexto del servidor) y de él salen los links de "Ver sitio" y "Copiar".
+  const load = () => {
+    setReloadKey(k => k + 1);
+    router.refresh();
+  };
 
   useEffect(() => {
     let cancelled = false;
