@@ -7,6 +7,8 @@ import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline, escapeHtml } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { clientIp } from '@/lib/request-ip';
+import { leadRecipientIds } from '@/lib/lead-recipients';
+import type { MemberRole } from '@/lib/project-roles';
 
 import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
 
@@ -73,25 +75,48 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (project?.owner_id) {
+    // Con el cliente admin porque este endpoint es público (anon) y RLS no
+    // le deja leer project_members. Si algo falla, igual se avisa al dueño:
+    // perder el aviso de un lead es peor que no avisar al equipo.
     try {
-      const { data: { user: owner } } = await createAdminClient().auth.admin.getUserById(project.owner_id);
-      if (owner?.email) {
-        // escapeHtml acá porque esto va directo a un email en HTML, no a
-        // la base — name/message ya están sanitizados (texto plano) para
-        // el insert de arriba, pero un email interpreta HTML, así que
-        // igual hay que escapar por si el texto plano contiene "<"/"&"
-        // sueltos que romperían el markup del mensaje.
-        await sendEmail({
-          to: owner.email,
-          subject: `Nuevo lead en ${project.name}`,
-          html: `<p><strong>${escapeHtml(name)}</strong> dejó sus datos en <strong>${escapeHtml(project.name)}</strong>.</p>
+      const admin = createAdminClient();
+      let members: { user_id: string; role: MemberRole; status: string }[] = [];
+      try {
+        const { data, error: membersError } = await admin
+          .from('project_members')
+          .select('user_id, role, status')
+          .eq('project_id', project.id);
+        if (membersError) throw membersError;
+        members = (data ?? []) as typeof members;
+      } catch (err) {
+        console.error('[leads] no se pudieron leer los miembros del proyecto', err);
+      }
+
+      // Un try/catch por destinatario: que falle un email no corta a los demás.
+      for (const userId of leadRecipientIds(project.owner_id, members)) {
+        try {
+          const { data: { user: recipient } } = await admin.auth.admin.getUserById(userId);
+          if (recipient?.email) {
+            // escapeHtml acá porque esto va directo a un email en HTML, no a
+            // la base — name/message ya están sanitizados (texto plano) para
+            // el insert de arriba, pero un email interpreta HTML, así que
+            // igual hay que escapar por si el texto plano contiene "<"/"&"
+            // sueltos que romperían el markup del mensaje.
+            await sendEmail({
+              to: recipient.email,
+              subject: `Nuevo lead en ${project.name}`,
+              html: `<p><strong>${escapeHtml(name)}</strong> dejó sus datos en <strong>${escapeHtml(project.name)}</strong>.</p>
             <p>Email: ${escapeHtml(body.email)}<br>Teléfono: ${escapeHtml(sanitizeText(body.phone, 40))}</p>
             ${message ? `<p>Mensaje: ${escapeHtml(message)}</p>` : ''}
             <p>Entrá a tu panel de administración → Leads para ver el detalle.</p>`,
-        });
+            });
+          }
+        } catch (err) {
+          console.error('[leads] no se pudo notificar a', userId, err);
+        }
       }
     } catch (err) {
-      console.error('[leads] no se pudo notificar al dueño', err);
+      console.error('[leads] no se pudo notificar', err);
     }
   }
 

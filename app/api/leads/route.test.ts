@@ -114,4 +114,47 @@ describe('POST /api/leads', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
   });
+
+  it('notifica también a gestores y administradores aceptados, no a editores ni pendientes', async () => {
+    const supabase = mockSupabase({
+      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, { error: null }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const members = [
+      { user_id: 'gestor-1', role: 'gestor', status: 'accepted' },
+      { user_id: 'admin-1', role: 'administrador', status: 'accepted' },
+      { user_id: 'editor-1', role: 'editor', status: 'accepted' },
+      { user_id: 'gestor-pend', role: 'gestor', status: 'pending' },
+    ];
+    const admin = {
+      ...mockSupabase({ results: [{ data: members }] }),
+      auth: { admin: { getUserById: vi.fn((id: string) => Promise.resolve({ data: { user: { email: `${id}@example.com` } } })) } },
+    };
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
+
+    expect(res.status).toBe(200);
+    expect(sendEmail).toHaveBeenCalledTimes(3);
+    const to = vi.mocked(sendEmail).mock.calls.map((c) => c[0].to).sort();
+    expect(to).toEqual(['admin-1@example.com', 'gestor-1@example.com', 'owner-1@example.com']);
+  });
+
+  it('si falla la lectura de miembros, igual avisa al dueño', async () => {
+    const supabase = mockSupabase({
+      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, { error: null }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const admin = {
+      ...mockSupabase({ results: [{ data: null, error: { message: 'boom' } }] }),
+      auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'dueño@example.com' } } }) } },
+    };
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
+
+    expect(res.status).toBe(200);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'dueño@example.com' }));
+  });
 });
