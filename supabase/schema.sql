@@ -294,6 +294,10 @@ create trigger projects_set_updated_at before update on projects
 -- aceptado. No otorga acceso de edición al proyecto: es una atribución
 -- pública (aparece en la ficha del proyecto y en el portfolio propio de
 -- la persona), no un mecanismo de coedición.
+-- Para dar acceso de edición, ver `project_members` (roles de proyecto).
+-- La política "owner manage collaborators" de abajo la redefine ese
+-- bloque, al final del archivo, con el mismo nombre: gestionar créditos
+-- pasa a pedir rango de administrador (3) en vez de ser el dueño.
 create table if not exists project_collaborators (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references projects(id) on delete cascade,
@@ -778,6 +782,13 @@ alter table calculator_settings enable row level security;
 --
 -- El dueño sigue viendo lo suyo aunque esté sin publicar: de eso vive el modo
 -- borrador y el preview del admin.
+--
+-- Desde "Roles de proyecto" (bloque del final del archivo) los miembros
+-- aceptados también ven el borrador, pero no por estas políticas: ese bloque
+-- suma "members read projects" (aparte, solo "to authenticated", porque
+-- project_role_rank no se puede ejecutar como anon) y las "owner write …"
+-- por rango ya les dan lectura de las tablas hijas. Estas "public read …" no
+-- se tocan.
 
 drop policy if exists "public read projects" on projects;
 create policy "public read projects" on projects for select to anon, authenticated
@@ -861,6 +872,11 @@ create policy "public insert leads" on leads for insert to anon, authenticated w
 -- para select no resta nada porque ya existe una policy pública
 -- permisiva más arriba (las políticas permisivas del mismo comando se
 -- combinan con OR, así que "público" sigue ganando para lectura).
+--
+-- Desde "Roles de proyecto" (bloque del final del archivo) estas
+-- políticas se reemplazan, con los mismos nombres, por otras que piden
+-- un rango mínimo en vez de ser el dueño. Como ese bloque corre después,
+-- es el que manda.
 -- ═══════════════════════════════════════════════════════════════════
 
 drop policy if exists "owner write projects" on projects;
@@ -1099,9 +1115,13 @@ create policy "mark own notifications read" on notifications for update to authe
 -- — en una base que ya tenía la tabla creada, el check original de la
 -- columna no los incluye todavía y hay que ampliarlo a mano (el create
 -- table de arriba es un no-op si la tabla ya existe).
+-- Los cuatro últimos son de roles de proyecto (ver el bloque del final).
+-- Tienen que estar también acá: si no, al volver a pegar el archivo
+-- entero, este add constraint fallaría con las filas que ya los usan.
 alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
-  check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention'));
+  check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention',
+                  'project_invite', 'project_invite_accepted', 'ownership_transfer', 'ownership_transfer_accepted'));
 
 -- ─── Bloqueos y denuncias ────────────────────────────────────────────
 -- Va antes de mensajería porque las policies de conversations/messages
@@ -1657,6 +1677,12 @@ create index if not exists idx_post_poll_votes_poll on post_poll_votes(poll_id);
 -- geometry_url / properties_url / source_* / stats quedan nulos hasta la
 -- Fase 2 (ingesta del modelo): una pieza puede publicarse solo con
 -- imágenes.
+--
+-- Desde "Roles de proyecto" (bloque del final del archivo) las políticas
+-- "project owner …" de bim_models, bim_model_floors y bim_model_units se
+-- reemplazan, con los mismos nombres, por otras que piden rango de editor
+-- (1) en el proyecto en vez de ser su dueño. Las "public read …" no se
+-- tocan.
 create table if not exists bim_models (
   id             uuid primary key default gen_random_uuid(),
   project_id     uuid not null references projects(id) on delete cascade,
@@ -1733,4 +1759,592 @@ create policy "project owner all bim_model_units" on bim_model_units for all to 
   using (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()))
   with check (exists (select 1 from bim_models m join projects p on m.project_id = p.id where m.id = bim_model_units.bim_model_id and p.owner_id = auth.uid()));
 
+-- ═══ Roles de proyecto ═══════════════════════════════════════════════
+-- Hasta acá, solo el dueño (projects.owner_id) podía escribir en un
+-- proyecto. Este bloque suma miembros con rol, de menor a mayor:
+--   editor (1) < gestor (2) < administrador (3) < dueño (4).
+-- Editor carga y edita contenido (BIM incluido); gestor además ve y
+-- gestiona leads; administrador además invita y saca miembros, gestiona
+-- créditos y publica, despublica o cambia la dirección (slug) del sitio;
+-- el dueño además borra el proyecto, decide si aparece en su portfolio y
+-- transfiere la propiedad.
+--
+-- Es una tabla aparte de project_collaborators a propósito: un crédito
+-- es una atribución pública (sus filas aceptadas se leen sin login), y un
+-- rol es acceso de edición. Mezclarlos dejaría los permisos de cada
+-- persona a la vista y haría que aceptar un crédito diera acceso.
+--
+-- Una sola función, project_role_rank(), resuelve el rango de la cuenta
+-- logueada. La usan todas las políticas de este bloque y también la app
+-- (por RPC), así no hay dos versiones de "quién puede qué".
+--
+-- Tres triggers cierran lo que RLS por fila no alcanza a expresar:
+--   - guard_project_owner_fields: nadie cambia owner_id (salvo la RPC de
+--     transferencia), solo el dueño cambia show_in_portfolio y solo un
+--     administrador o el dueño cambia published o slug. Sin esto, la
+--     política de update por rango dejaría que un editor se apropie del
+--     proyecto o lo publique.
+--   - guard_project_members: toda membresía nace "pending" (nadie queda
+--     con acceso sin haberlo aceptado), un miembro sin rango de
+--     administrador solo puede aceptar o rechazar su propia invitación,
+--     nunca subirse el rol, y solo el dueño nombra o cambia
+--     administradores.
+--   - guard_project_members_delete: solo el dueño saca a un
+--     administrador (irse uno mismo siempre se puede). Así el dueño
+--     anterior, que queda como administrador tras una transferencia, no
+--     puede ser expulsado por otro administrador.
+--
+-- Borradores: "public read projects" (más arriba) solo deja ver un
+-- proyecto sin publicar a su dueño. Un miembro aceptado necesita verlo
+-- también (para entrar al panel, y porque un update con returning exige
+-- pasar además las políticas de select), así que se suma "members read
+-- projects": una política aparte, solo "to authenticated", porque
+-- project_role_rank no se puede ejecutar como anon. Las tablas hijas no
+-- necesitan nada nuevo: sus "owner write …" por rango son "for all" y ya
+-- incluyen la lectura.
+--
+-- guard_project_members y guard_project_members_delete son security
+-- definer: sus chequeos con exists sobre projects ("el dueño no puede
+-- ser miembro", "el proyecto todavía existe") no pueden depender de que
+-- quien invita o saca vea el proyecto por RLS de lectura. auth.uid() y
+-- project_role_rank() dan lo mismo adentro, porque leen el JWT de la
+-- sesión (request.jwt.claims), no el rol de Postgres. Al devolver
+-- "trigger", no se pueden llamar sueltas (ni por RPC): Postgres solo las
+-- ejecuta como trigger.
+--
+-- La RPC accept_ownership_transfer() activa el flag de sesión
+-- app.ownership_transfer (set_config local a la transacción) para que los
+-- triggers la dejen pasar. Ninguna ruta lo pone a mano: PostgREST no
+-- expone set_config, así que desde el navegador no se puede activar.
+--
+-- Las reglas sobre administradores (nombrarlos, cambiarlos, sacarlos)
+-- las cierran los triggers; el resto de la jerarquía (un administrador
+-- invita como máximo a gestor) se valida además en las rutas de la app.
+--
+-- Las políticas reemplazan a las "owner write …" y "project owner …" de
+-- más arriba, conservando sus nombres. Como este bloque corre después, al
+-- volver a pegar el archivo entero el estado final es siempre el de acá.
+-- Las políticas "public read …" no se tocan.
+-- ═══════════════════════════════════════════════════════════════════
 
+-- ─── Miembros del proyecto ───────────────────────────────────────────
+-- El dueño NO tiene fila acá: su rango sale de projects.owner_id.
+-- user_id → profiles(id), el mismo patrón que
+-- project_collaborators.profile_id (profiles.id = auth.users.id): para
+-- invitar a alguien se lo busca por su handle.
+create table if not exists project_members (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  role text not null check (role in ('editor', 'gestor', 'administrador')),
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  invited_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, user_id)
+);
+
+create index if not exists idx_project_members_project on project_members(project_id, status);
+create index if not exists idx_project_members_user on project_members(user_id, status);
+
+-- ─── Rango de la cuenta logueada en un proyecto ─────────────────────
+-- 4 dueño, 3 administrador, 2 gestor, 1 editor, 0 sin acceso. Solo
+-- cuentan las membresías "accepted". Es security definer para que las
+-- políticas puedan llamarla sin recursión de RLS: "members read projects"
+-- la llama desde una política de projects y la función lee projects;
+-- como corre con el dueño de la tabla, esa lectura no pasa por RLS.
+-- Las políticas la invocan como (select project_role_rank(...)).
+create or replace function project_role_rank(p_project_id uuid) returns int
+language sql stable security definer set search_path = public, pg_temp as $$
+  select case
+    when exists (select 1 from projects where id = p_project_id and owner_id = auth.uid()) then 4
+    else coalesce((
+      select case role when 'administrador' then 3 when 'gestor' then 2 when 'editor' then 1 end
+      from project_members
+      where project_id = p_project_id and user_id = auth.uid() and status = 'accepted'
+    ), 0)
+  end
+$$;
+
+revoke execute on function project_role_rank(uuid) from public, anon;
+grant execute on function project_role_rank(uuid) to authenticated;
+
+-- ─── Transferencias de propiedad ─────────────────────────────────────
+-- El dueño la crea y la puede cancelar; to_user la ve y la puede
+-- rechazar. Aceptar solo se hace con la RPC accept_ownership_transfer
+-- (ninguna política de update deja pasarla a "accepted"). Como mucho
+-- una transferencia "pending" por proyecto (índice único parcial).
+create table if not exists project_ownership_transfers (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  from_user uuid not null references profiles(id),
+  to_user uuid not null references profiles(id),
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (from_user <> to_user)
+);
+
+create unique index if not exists project_ownership_transfers_one_pending
+  on project_ownership_transfers(project_id) where status = 'pending';
+create index if not exists idx_project_ownership_transfers_to_user
+  on project_ownership_transfers(to_user, status);
+
+-- ─── Trigger: owner_id, show_in_portfolio, published y slug ─────────
+-- owner_id solo cambia con el flag de la RPC de transferencia (ni
+-- siquiera el dueño lo cambia por update directo). show_in_portfolio
+-- solo lo cambia el dueño. published y slug (publicar o despublicar el
+-- sitio, cambiar su dirección) piden rango de administrador (3) o más:
+-- exponer precios en público o romper links compartidos no es "cargar
+-- contenido". Con auth.uid() nulo (service role, SQL Editor) se deja
+-- pasar porque esas rutas ya validan el rol en la app.
+-- errcode 42501 (insufficient_privilege) = el mismo código que un
+-- rechazo de RLS, así la app lo trata igual.
+create or replace function guard_project_owner_fields() returns trigger
+language plpgsql set search_path = public as $$
+declare
+  v_transfer boolean := coalesce(current_setting('app.ownership_transfer', true), '') = 'on';
+begin
+  if new.owner_id is distinct from old.owner_id and not v_transfer then
+    raise exception 'El dueño de un proyecto solo cambia aceptando una transferencia de propiedad'
+      using errcode = '42501';
+  end if;
+
+  if new.show_in_portfolio is distinct from old.show_in_portfolio
+     and auth.uid() is not null
+     and auth.uid() <> old.owner_id
+     and not v_transfer then
+    raise exception 'Solo el dueño puede mostrar u ocultar el proyecto en su portfolio'
+      using errcode = '42501';
+  end if;
+
+  -- if anidado: project_role_rank solo se evalúa con un usuario logueado
+  -- (anon no tiene execute sobre ella).
+  if (new.published is distinct from old.published or new.slug is distinct from old.slug)
+     and auth.uid() is not null
+     and not v_transfer then
+    if project_role_rank(old.id) < 3 then
+      raise exception 'Solo un administrador o el dueño puede publicar, despublicar o cambiar la dirección del proyecto'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_project_owner_fields on projects;
+create trigger guard_project_owner_fields
+  before update on projects
+  for each row execute function guard_project_owner_fields();
+
+-- ─── Trigger: membresías ─────────────────────────────────────────────
+-- Con el flag de transferencia o sin usuario (service role) no toca
+-- nada. Si no:
+--   - toda fila nueva nace "pending", aunque el insert diga otra cosa, y
+--     con invited_by = quien invita (no se puede atribuir a otro);
+--   - el dueño no puede tener fila (su rango sale de owner_id);
+--   - project_id y user_id no cambian nunca, e invited_by solo cambia al
+--     reinvitar;
+--   - la propia persona (sin rango de administrador) no cambia su rol y
+--     solo pasa su status de "pending" a "accepted" o "declined". Irse
+--     del proyecto es borrar su fila, no un update;
+--   - otra persona (RLS ya exige rango >= 3) puede cambiar el rol, pero
+--     el status solo puede volver a "pending" (reinvitar), nunca
+--     aceptarlo en nombre del invitado;
+--   - nombrar un administrador (insert con ese rol) o tocar una fila que
+--     es o pasa a ser de administrador pide ser el dueño (rango 4);
+--   - cualquier otro caso (ej. un administrador tocando su propia fila)
+--     se rechaza.
+-- security definer (ver la cabecera del bloque): el exists sobre
+-- projects no depende de que quien invita vea el proyecto.
+create or replace function guard_project_members() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if coalesce(current_setting('app.ownership_transfer', true), '') = 'on' or v_uid is null then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if exists (select 1 from projects where id = new.project_id and owner_id = new.user_id) then
+      raise exception 'El dueño del proyecto no puede ser miembro de su propio proyecto'
+        using errcode = '42501';
+    end if;
+    if new.role = 'administrador' and project_role_rank(new.project_id) < 4 then
+      raise exception 'Solo el dueño puede nombrar administradores'
+        using errcode = '42501';
+    end if;
+    new.status := 'pending';
+    new.invited_by := v_uid;
+    return new;
+  end if;
+
+  if new.project_id is distinct from old.project_id or new.user_id is distinct from old.user_id then
+    raise exception 'Una membresía no puede cambiar de proyecto ni de persona'
+      using errcode = '42501';
+  end if;
+
+  if v_uid = new.user_id and project_role_rank(new.project_id) < 3 then
+    if new.role is distinct from old.role then
+      raise exception 'Un miembro no puede cambiar su propio rol'
+        using errcode = '42501';
+    end if;
+    if new.status is distinct from old.status
+       and not (old.status = 'pending' and new.status in ('accepted', 'declined')) then
+      raise exception 'Solo se puede aceptar o rechazar una invitación pendiente'
+        using errcode = '42501';
+    end if;
+    new.invited_by := old.invited_by;
+    return new;
+  end if;
+
+  if v_uid <> new.user_id then
+    if (old.role = 'administrador' or new.role = 'administrador')
+       and project_role_rank(new.project_id) < 4 then
+      raise exception 'Solo el dueño puede nombrar o cambiar administradores'
+        using errcode = '42501';
+    end if;
+    if new.status is distinct from old.status and new.status <> 'pending' then
+      raise exception 'Solo la persona invitada puede aceptar o rechazar su invitación'
+        using errcode = '42501';
+    end if;
+    -- Reinvitar (volver a "pending") deja como invitante a quien reinvita;
+    -- cualquier otro cambio conserva el invitante original.
+    if new.status = 'pending' and old.status is distinct from 'pending' then
+      new.invited_by := v_uid;
+    else
+      new.invited_by := old.invited_by;
+    end if;
+    return new;
+  end if;
+
+  raise exception 'Cambio de membresía no permitido'
+    using errcode = '42501';
+end;
+$$;
+
+drop trigger if exists guard_project_members on project_members;
+create trigger guard_project_members
+  before insert or update on project_members
+  for each row execute function guard_project_members();
+
+-- ─── Trigger: sacar miembros ─────────────────────────────────────────
+-- Mismo bypass que el de arriba (flag de transferencia o service role).
+-- Irse uno mismo siempre se puede; sacar a un administrador, solo el
+-- dueño. El exists sobre projects deja pasar el borrado en cascada al
+-- borrar el proyecto entero: ahí la fila del proyecto ya no está y
+-- project_role_rank no podría reconocer al dueño. Es security definer
+-- para que ese exists vea el proyecto aunque esté en borrador y quien
+-- borra no lo pueda leer por RLS (si no, daría falso y dejaría a un
+-- administrador sacar a otro).
+create or replace function guard_project_members_delete() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if coalesce(current_setting('app.ownership_transfer', true), '') = 'on' or v_uid is null then
+    return old;
+  end if;
+
+  if v_uid <> old.user_id
+     and old.role = 'administrador'
+     and project_role_rank(old.project_id) < 4
+     and exists (select 1 from projects where id = old.project_id) then
+    raise exception 'Solo el dueño puede sacar a un administrador'
+      using errcode = '42501';
+  end if;
+
+  return old;
+end;
+$$;
+
+drop trigger if exists guard_project_members_delete on project_members;
+create trigger guard_project_members_delete
+  before delete on project_members
+  for each row execute function guard_project_members_delete();
+
+-- ─── RPC: aceptar una transferencia de propiedad ────────────────────
+-- Todo en una transacción: el nuevo dueño pasa a owner_id, deja de ser
+-- miembro (su rango sale de owner_id), el dueño anterior queda como
+-- administrador aceptado (no pierde el acceso de golpe), el proyecto
+-- sale del portfolio hasta que el nuevo dueño decida mostrarlo y, si el
+-- dueño anterior lo tenía como destacado de su portfolio, deja de serlo
+-- (ya no es suyo). El flag se apaga antes de salir para no dejar los
+-- triggers abiertos el resto de la transacción.
+create or replace function accept_ownership_transfer(p_transfer_id uuid) returns uuid
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_transfer project_ownership_transfers%rowtype;
+begin
+  select * into v_transfer
+  from project_ownership_transfers
+  where id = p_transfer_id
+  for update;
+
+  if not found then
+    raise exception 'La transferencia no existe' using errcode = 'P0002';
+  end if;
+
+  if v_transfer.to_user is distinct from auth.uid() then
+    raise exception 'La transferencia no es para esta cuenta' using errcode = '42501';
+  end if;
+
+  if v_transfer.status <> 'pending' then
+    raise exception 'La transferencia ya no está pendiente' using errcode = '55000';
+  end if;
+
+  perform 1 from projects
+  where id = v_transfer.project_id and owner_id = v_transfer.from_user
+  for update;
+  if not found then
+    raise exception 'Quien inició la transferencia ya no es el dueño del proyecto' using errcode = '55000';
+  end if;
+
+  perform set_config('app.ownership_transfer', 'on', true);
+
+  update projects
+  set owner_id = v_transfer.to_user,
+      show_in_portfolio = false,
+      updated_at = now()
+  where id = v_transfer.project_id;
+
+  update profiles
+  set featured_project_id = null
+  where id = v_transfer.from_user and featured_project_id = v_transfer.project_id;
+
+  delete from project_members
+  where project_id = v_transfer.project_id and user_id = v_transfer.to_user;
+
+  insert into project_members (project_id, user_id, role, status, invited_by)
+  values (v_transfer.project_id, v_transfer.from_user, 'administrador', 'accepted', v_transfer.to_user)
+  on conflict (project_id, user_id) do update
+    set role = 'administrador', status = 'accepted', updated_at = now();
+
+  update project_ownership_transfers
+  set status = 'accepted', updated_at = now()
+  where id = v_transfer.id;
+
+  perform set_config('app.ownership_transfer', 'off', true);
+
+  return v_transfer.project_id;
+end;
+$$;
+
+revoke execute on function accept_ownership_transfer(uuid) from public, anon;
+grant execute on function accept_ownership_transfer(uuid) to authenticated;
+
+-- ─── RLS: project_members ────────────────────────────────────────────
+-- Cada persona ve sus propias invitaciones; los miembros aceptados ven
+-- quién más está. Invitar pide rango >= 3. Update y delete: rango >= 3,
+-- o la propia persona (aceptar, rechazar o irse) — los triggers de arriba
+-- limitan qué puede cambiar cada uno.
+alter table project_members enable row level security;
+
+drop policy if exists "members read project_members" on project_members;
+create policy "members read project_members" on project_members for select to authenticated
+  using (user_id = auth.uid() or (select project_role_rank(project_members.project_id)) >= 1);
+
+drop policy if exists "admin invite project_members" on project_members;
+create policy "admin invite project_members" on project_members for insert to authenticated
+  with check ((select project_role_rank(project_members.project_id)) >= 3);
+
+drop policy if exists "admin or self update project_members" on project_members;
+create policy "admin or self update project_members" on project_members for update to authenticated
+  using ((select project_role_rank(project_members.project_id)) >= 3 or user_id = auth.uid())
+  with check ((select project_role_rank(project_members.project_id)) >= 3 or user_id = auth.uid());
+
+drop policy if exists "admin or self delete project_members" on project_members;
+create policy "admin or self delete project_members" on project_members for delete to authenticated
+  using ((select project_role_rank(project_members.project_id)) >= 3 or user_id = auth.uid());
+
+-- ─── RLS: project_ownership_transfers ────────────────────────────────
+-- Sin política de delete: el historial queda. Las dos de update exigen
+-- en el "using" que esté pendiente y en el "with check" que la fila siga
+-- siendo de quien la toca: las políticas permisivas del mismo comando se
+-- combinan con OR por separado (using con using, check con check), así
+-- que sin repetir from_user/to_user en el check el destinatario podría
+-- "cancelarla" o el dueño "rechazarla". Ninguna deja pasar "accepted".
+alter table project_ownership_transfers enable row level security;
+
+drop policy if exists "parties read ownership transfers" on project_ownership_transfers;
+create policy "parties read ownership transfers" on project_ownership_transfers for select to authenticated
+  using (from_user = auth.uid() or to_user = auth.uid());
+
+drop policy if exists "owner create ownership transfers" on project_ownership_transfers;
+create policy "owner create ownership transfers" on project_ownership_transfers for insert to authenticated
+  with check (
+    from_user = auth.uid()
+    and status = 'pending'
+    and exists (
+      select 1 from projects
+      where projects.id = project_ownership_transfers.project_id and projects.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "owner cancel ownership transfers" on project_ownership_transfers;
+create policy "owner cancel ownership transfers" on project_ownership_transfers for update to authenticated
+  using (from_user = auth.uid() and status = 'pending')
+  with check (from_user = auth.uid() and status = 'cancelled');
+
+drop policy if exists "recipient decline ownership transfers" on project_ownership_transfers;
+create policy "recipient decline ownership transfers" on project_ownership_transfers for update to authenticated
+  using (to_user = auth.uid() and status = 'pending')
+  with check (to_user = auth.uid() and status = 'declined');
+
+-- ─── RLS: projects ───────────────────────────────────────────────────
+-- "owner write projects" (for all) se parte en tres: crear sigue siendo
+-- para uno mismo, editar pasa a cualquier miembro (rango >= 1; el trigger
+-- guard_project_owner_fields protege owner_id, show_in_portfolio,
+-- published y slug) y borrar sigue siendo solo del dueño.
+-- "public read projects" no cambia (borrador: solo el dueño); "members
+-- read projects" suma la lectura para los miembros aceptados (ver la
+-- cabecera del bloque).
+drop policy if exists "owner write projects" on projects;
+
+drop policy if exists "owner insert projects" on projects;
+create policy "owner insert projects" on projects for insert to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "member update projects" on projects;
+create policy "member update projects" on projects for update to authenticated
+  using ((select project_role_rank(projects.id)) >= 1)
+  with check ((select project_role_rank(projects.id)) >= 1);
+
+drop policy if exists "owner delete projects" on projects;
+create policy "owner delete projects" on projects for delete to authenticated
+  using (owner_id = auth.uid());
+
+drop policy if exists "members read projects" on projects;
+create policy "members read projects" on projects for select to authenticated
+  using ((select project_role_rank(projects.id)) >= 1);
+
+-- ─── RLS: contenido (rango >= 1, editor en adelante) ────────────────
+drop policy if exists "owner write buildings" on buildings;
+create policy "owner write buildings" on buildings for all to authenticated
+  using ((select project_role_rank(buildings.project_id)) >= 1)
+  with check ((select project_role_rank(buildings.project_id)) >= 1);
+
+drop policy if exists "owner write amenities" on amenities;
+create policy "owner write amenities" on amenities for all to authenticated
+  using ((select project_role_rank(amenities.project_id)) >= 1)
+  with check ((select project_role_rank(amenities.project_id)) >= 1);
+
+drop policy if exists "owner write points_of_interest" on points_of_interest;
+create policy "owner write points_of_interest" on points_of_interest for all to authenticated
+  using ((select project_role_rank(points_of_interest.project_id)) >= 1)
+  with check ((select project_role_rank(points_of_interest.project_id)) >= 1);
+
+drop policy if exists "owner write aerial_slides" on aerial_slides;
+create policy "owner write aerial_slides" on aerial_slides for all to authenticated
+  using ((select project_role_rank(aerial_slides.project_id)) >= 1)
+  with check ((select project_role_rank(aerial_slides.project_id)) >= 1);
+
+drop policy if exists "owner write calculator_settings" on calculator_settings;
+create policy "owner write calculator_settings" on calculator_settings for all to authenticated
+  using ((select project_role_rank(calculator_settings.project_id)) >= 1)
+  with check ((select project_role_rank(calculator_settings.project_id)) >= 1);
+
+-- Las anidadas resuelven el project_id subiendo por las claves foráneas,
+-- igual que las políticas que reemplazan.
+drop policy if exists "owner write floors" on floors;
+create policy "owner write floors" on floors for all to authenticated
+  using ((select project_role_rank(
+    (select buildings.project_id from buildings where buildings.id = floors.building_id)
+  )) >= 1)
+  with check ((select project_role_rank(
+    (select buildings.project_id from buildings where buildings.id = floors.building_id)
+  )) >= 1);
+
+drop policy if exists "owner write units" on units;
+create policy "owner write units" on units for all to authenticated
+  using ((select project_role_rank(
+    (select buildings.project_id
+     from floors join buildings on buildings.id = floors.building_id
+     where floors.id = units.floor_id)
+  )) >= 1)
+  with check ((select project_role_rank(
+    (select buildings.project_id
+     from floors join buildings on buildings.id = floors.building_id
+     where floors.id = units.floor_id)
+  )) >= 1);
+
+drop policy if exists "owner write aerial_hotspots" on aerial_hotspots;
+create policy "owner write aerial_hotspots" on aerial_hotspots for all to authenticated
+  using ((select project_role_rank(
+    (select aerial_slides.project_id from aerial_slides where aerial_slides.id = aerial_hotspots.slide_id)
+  )) >= 1)
+  with check ((select project_role_rank(
+    (select aerial_slides.project_id from aerial_slides where aerial_slides.id = aerial_hotspots.slide_id)
+  )) >= 1);
+
+-- ─── RLS: BIM (rango >= 1, editor en adelante) ──────────────────────
+-- Las piezas BIM son contenido del proyecto: las carga cualquier miembro
+-- desde editor. La lectura de un miembro va por "project owner read
+-- bim_models" (piezas sin publicar o de un borrador); "public read
+-- bim_models" no cambia. Las tablas puente suben a bim_models para
+-- encontrar el proyecto.
+drop policy if exists "project owner read bim_models" on bim_models;
+create policy "project owner read bim_models" on bim_models for select to authenticated
+  using ((select project_role_rank(bim_models.project_id)) >= 1);
+
+drop policy if exists "project owner write bim_models" on bim_models;
+create policy "project owner write bim_models" on bim_models for all to authenticated
+  using ((select project_role_rank(bim_models.project_id)) >= 1)
+  with check ((select project_role_rank(bim_models.project_id)) >= 1);
+
+drop policy if exists "project owner all bim_model_floors" on bim_model_floors;
+create policy "project owner all bim_model_floors" on bim_model_floors for all to authenticated
+  using ((select project_role_rank(
+    (select bim_models.project_id from bim_models where bim_models.id = bim_model_floors.bim_model_id)
+  )) >= 1)
+  with check ((select project_role_rank(
+    (select bim_models.project_id from bim_models where bim_models.id = bim_model_floors.bim_model_id)
+  )) >= 1);
+
+drop policy if exists "project owner all bim_model_units" on bim_model_units;
+create policy "project owner all bim_model_units" on bim_model_units for all to authenticated
+  using ((select project_role_rank(
+    (select bim_models.project_id from bim_models where bim_models.id = bim_model_units.bim_model_id)
+  )) >= 1)
+  with check ((select project_role_rank(
+    (select bim_models.project_id from bim_models where bim_models.id = bim_model_units.bim_model_id)
+  )) >= 1);
+
+-- ─── RLS: leads (rango >= 2, gestor en adelante) ────────────────────
+-- Son datos personales de compradores: un editor no los ve. El insert
+-- público ("public insert leads") no cambia.
+drop policy if exists "owner read leads" on leads;
+create policy "owner read leads" on leads for select to authenticated
+  using ((select project_role_rank(leads.project_id)) >= 2);
+
+drop policy if exists "owner update leads" on leads;
+create policy "owner update leads" on leads for update to authenticated
+  using ((select project_role_rank(leads.project_id)) >= 2)
+  with check ((select project_role_rank(leads.project_id)) >= 2);
+
+drop policy if exists "owner delete leads" on leads;
+create policy "owner delete leads" on leads for delete to authenticated
+  using ((select project_role_rank(leads.project_id)) >= 2);
+
+-- ─── RLS: créditos y moderación (rango >= 3, administrador en adelante)
+-- Las políticas de lectura pública y de respuesta del acreditado de
+-- project_collaborators siguen igual.
+drop policy if exists "owner manage collaborators" on project_collaborators;
+create policy "owner manage collaborators" on project_collaborators for all to authenticated
+  using ((select project_role_rank(project_collaborators.project_id)) >= 3)
+  with check ((select project_role_rank(project_collaborators.project_id)) >= 3);
+
+drop policy if exists "owner delete project comments" on project_comments;
+create policy "owner delete project comments" on project_comments for delete to authenticated
+  using ((select project_role_rank(project_comments.project_id)) >= 3);
+
+-- ─── Notificaciones de roles y transferencias ───────────────────────
+-- Mismo motivo que el bloque de notificaciones de más arriba: en una base
+-- que ya tenía la tabla, hay que ampliar el check a mano. Va repetido acá
+-- para que este bloque se pueda pegar solo.
+alter table notifications drop constraint if exists notifications_type_check;
+alter table notifications add constraint notifications_type_check
+  check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention',
+                  'project_invite', 'project_invite_accepted', 'ownership_transfer', 'ownership_transfer_accepted'));
