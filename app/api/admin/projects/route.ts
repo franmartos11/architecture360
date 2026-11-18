@@ -35,7 +35,7 @@ export async function GET() {
     supabase.from('projects').select(PROJECT_COLUMNS).eq('owner_id', user.id),
     supabase
       .from('project_members')
-      .select(`role, project:projects(${PROJECT_COLUMNS})`)
+      .select(`id, role, project:projects(${PROJECT_COLUMNS})`)
       .eq('user_id', user.id)
       .eq('status', 'accepted'),
   ]);
@@ -47,7 +47,7 @@ export async function GET() {
     owned ?? [],
     // El cliente no está tipado con el schema: infiere el embed a-uno como
     // array, pero projects(project_id → id) devuelve un objeto (o null).
-    (memberships ?? []) as unknown as { role: MemberRole; project: NonNullable<typeof owned>[number] | null }[],
+    (memberships ?? []) as unknown as { id: string; role: MemberRole; project: NonNullable<typeof owned>[number] | null }[],
   );
 
   const projectIds = data.map(p => p.id);

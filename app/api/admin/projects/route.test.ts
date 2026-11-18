@@ -91,7 +91,7 @@ describe('GET /api/admin/projects', () => {
       user: { id: 'user-1' },
       results: [
         { data: [{ id: 'project-1', name: 'Torre del Mar', created_at: '2026-02-01' }] }, // propios
-        { data: [{ role: 'gestor', project: { id: 'project-2', name: 'Casa Roble', created_at: '2026-03-01' } }] }, // membresías
+        { data: [{ id: 'mem-1', role: 'gestor', project: { id: 'project-2', name: 'Casa Roble', created_at: '2026-03-01' } }] }, // membresías
         { data: [{ project_id: 'project-2' }] }, // leads (gestor: se consultan)
         ...emptyCounts,
       ],
@@ -103,6 +103,8 @@ describe('GET /api/admin/projects', () => {
     expect(res.status).toBe(200);
     const { projects } = await res.json();
     expect(projects.map((p: { id: string; role: string }) => [p.id, p.role])).toEqual([['project-2', 'gestor'], ['project-1', 'dueño']]);
+    expect(projects[0].membershipId).toBe('mem-1');
+    expect(projects[1].membershipId).toBeUndefined();
     expect(projects[0].pendingLeadsCount).toBe(1);
     expect(projects[0].progress).toEqual({ done: 0, total: 6 });
   });

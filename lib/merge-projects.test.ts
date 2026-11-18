@@ -25,4 +25,13 @@ describe('mergeProjectsWithRoles', () => {
     const res = mergeProjectsWithRoles([], [{ role: 'editor', project: null }]);
     expect(res).toEqual([]);
   });
+
+  it('lleva el id de la membresía como membershipId, y los propios no', () => {
+    const res = mergeProjectsWithRoles(
+      [p('a', '2026-01-01')],
+      [{ id: 'm1', role: 'editor', project: p('b', '2026-01-02') }, { id: 'm2', role: 'editor', project: p('a', '2026-01-01') }],
+    );
+    expect(res.find(r => r.id === 'b')?.membershipId).toBe('m1');
+    expect(res.find(r => r.id === 'a')?.membershipId).toBeUndefined();
+  });
 });
