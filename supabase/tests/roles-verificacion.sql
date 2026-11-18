@@ -7,11 +7,15 @@
 -- distintos), pegar este archivo entero en Supabase Dashboard → SQL
 -- Editor → Run.
 --
--- Opcional: reemplazar también 'HANDLE_TERCERO' por el handle de una
--- tercera cuenta. Con ella se comprueba que un administrador no puede
--- sacar ni cambiar a otro administrador (ni al dueño anterior después de
--- una transferencia). Si se deja el placeholder, esas comprobaciones se
--- saltean con un AVISO y el resto corre igual.
+-- REQUERIDO para una corrida completa: reemplazar también
+-- 'HANDLE_TERCERO' por el handle de una tercera cuenta (distinta de las
+-- otras dos). Con ella se comprueba que un administrador que no es el
+-- dueño no puede nombrar administradores (ni invitando con ese rol ni
+-- subiendo a alguien de rol) y no puede sacar ni cambiar a otro
+-- administrador (ni al dueño anterior después de una transferencia). Si
+-- se deja el placeholder, esas comprobaciones se saltean con un AVISO y
+-- la corrida termina como INCOMPLETA: no alcanza para dar por verificado
+-- el bloque de roles.
 --
 -- Corre todo dentro de begin; … rollback;, así que no deja rastros: el
 -- proyecto, el lead, las membresías, la pieza BIM, la transferencia y el
@@ -22,7 +26,8 @@
 -- afuera (invitado pendiente o anon) no.
 --
 -- Resultado esperado: el aviso "OK: todas las verificaciones pasaron" y
--- ningún error "FALLO: …". Si una verificación no se cumple, el script
+-- ningún error "FALLO: …" (sin HANDLE_TERCERO el aviso final dice
+-- "corrida INCOMPLETA" en vez de OK). Si una verificación no se cumple, el script
 -- se corta ahí con el FALLO correspondiente.
 --
 -- Para impersonar se usa el rol "authenticated" (o "anon") con
@@ -54,7 +59,7 @@ begin
     raise exception 'FALLO: HANDLE_DUENO y HANDLE_OTRO tienen que ser dos cuentas distintas';
   end if;
   if nullif(current_setting('t.third', true), '') is null then
-    raise notice 'AVISO: sin HANDLE_TERCERO, se saltean las comprobaciones de administrador contra administrador';
+    raise notice 'AVISO: corrida INCOMPLETA — falta HANDLE_TERCERO (requerido): se saltean las comprobaciones de un administrador no dueño nombrando, cambiando o sacando administradores';
   elsif current_setting('t.third') in (current_setting('t.owner'), current_setting('t.other')) then
     raise exception 'FALLO: HANDLE_TERCERO tiene que ser una cuenta distinta de HANDLE_DUENO y HANDLE_OTRO';
   end if;
@@ -408,12 +413,58 @@ begin
   end if;
 end $$;
 
--- ─── 6. Administradores en el borrador ──────────────────────────────
--- owner nombra administrador a other. Con una tercera cuenta, además la
--- nombra administradora y comprueba que other (administrador, no dueño)
--- no puede sacarla ni cambiarle el rol. La guarda de borrado mira
--- projects con un exists: en un borrador, si corriera con la RLS de
--- quien borra, podría dar falso y dejarlo pasar.
+-- ─── 6. Gestor y administradores en el borrador ─────────────────────
+-- owner sube a other a gestor (6a) y other comprueba que ya ve los
+-- leads (6b); después owner lo nombra administrador (6c). Con una
+-- tercera cuenta, other (administrador, no dueño) intenta nombrar
+-- administradores — invitando con ese rol y subiendo de rol a un gestor —
+-- y tiene que fallar con 42501 del trigger; sí puede invitarla como
+-- gestora (6d). owner la nombra administradora y ella acepta (6e), y
+-- other comprueba que no puede sacarla ni cambiarle el rol (6f). La
+-- guarda de borrado mira projects con un exists: en un borrador, si
+-- corriera con la RLS de quien borra, podría dar falso y dejarlo pasar.
+
+-- 6a. Como owner: other pasa de editor a gestor.
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_rows int;
+begin
+  begin
+    update project_members set role = 'gestor', updated_at = now()
+    where project_id = current_setting('t.project')::uuid
+      and user_id = current_setting('t.other')::uuid;
+    get diagnostics v_rows = row_count;
+  exception when others then
+    raise exception 'FALLO: el dueño no pudo nombrar gestor a other: % (%)', sqlerrm, sqlstate;
+  end;
+  if v_rows <> 1 then
+    raise exception 'FALLO: nombrar gestor a other debería afectar 1 fila y afectó %', v_rows;
+  end if;
+end $$;
+
+-- 6b. Como other (gestor): rango 2 y lee los leads del proyecto.
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.other'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_rank int;
+  v_leads int;
+begin
+  v_rank := project_role_rank(current_setting('t.project')::uuid);
+  if v_rank is distinct from 2 then
+    raise exception 'FALLO: other como gestor debería tener rango 2 y tiene %', v_rank;
+  end if;
+
+  -- El lead lo insertó postgres en el paso 1; el editor no lo veía (paso 4).
+  select count(*) into v_leads from leads where project_id = current_setting('t.project')::uuid;
+  if v_leads <> 1 then
+    raise exception 'FALLO: un gestor debería ver 1 lead del proyecto y ve %', v_leads;
+  end if;
+end $$;
+
+-- 6c. Como owner: other pasa de gestor a administrador.
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
 
 do $$
@@ -431,35 +482,9 @@ begin
   if v_rows <> 1 then
     raise exception 'FALLO: nombrar administrador a other debería afectar 1 fila y afectó %', v_rows;
   end if;
-
-  if nullif(current_setting('t.third', true), '') is not null then
-    begin
-      insert into project_members (project_id, user_id, role, invited_by)
-      values (
-        current_setting('t.project')::uuid,
-        current_setting('t.third')::uuid,
-        'administrador',
-        current_setting('t.owner')::uuid
-      );
-    exception when others then
-      raise exception 'FALLO: el dueño no pudo invitar a la tercera cuenta como administradora: % (%)', sqlerrm, sqlstate;
-    end;
-
-    -- La tercera cuenta acepta su propia invitación.
-    perform set_config('request.jwt.claims', json_build_object('sub', current_setting('t.third'), 'role', 'authenticated')::text, true);
-    update project_members set status = 'accepted', updated_at = now()
-    where project_id = current_setting('t.project')::uuid
-      and user_id = current_setting('t.third')::uuid;
-    get diagnostics v_rows = row_count;
-    if v_rows <> 1 then
-      raise exception 'FALLO: la tercera cuenta no pudo aceptar su invitación (afectó % filas)', v_rows;
-    end if;
-    if project_role_rank(current_setting('t.project')::uuid) is distinct from 3 then
-      raise exception 'FALLO: la tercera cuenta debería tener rango 3 después de aceptar';
-    end if;
-  end if;
 end $$;
 
+-- 6d. Como other (administrador, no dueño).
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.other'), 'role', 'authenticated')::text, true);
 
 do $$
@@ -468,6 +493,7 @@ declare
   v_count int;
   v_rows int;
   v_role text;
+  v_blocked boolean;
 begin
   v_rank := project_role_rank(current_setting('t.project')::uuid);
   if v_rank is distinct from 3 then
@@ -496,43 +522,157 @@ begin
   end if;
 
   if nullif(current_setting('t.third', true), '') is not null then
-    -- Sacar a otro administrador: solo el dueño.
-    v_rows := -1;
+    -- Invitar a alguien directamente como administrador: solo el dueño.
+    -- La RLS de insert deja pasar (rango 3), así que tiene que ser 42501
+    -- del trigger; ninguna fila nueva sería un error.
+    v_blocked := false;
     begin
-      delete from project_members
-      where project_id = current_setting('t.project')::uuid
-        and user_id = current_setting('t.third')::uuid;
-      get diagnostics v_rows = row_count;
+      insert into project_members (project_id, user_id, role, invited_by)
+      values (
+        current_setting('t.project')::uuid,
+        current_setting('t.third')::uuid,
+        'administrador',
+        current_setting('t.other')::uuid
+      );
     exception
-      when insufficient_privilege then v_rows := 0;
+      when insufficient_privilege then v_blocked := true;
       when others then
-        raise exception 'FALLO: que un administrador saque a otro falló con un error inesperado: % (%)', sqlerrm, sqlstate;
+        raise exception 'FALLO: que un administrador invite a otro administrador falló con un error inesperado: % (%)', sqlerrm, sqlstate;
     end;
-    if v_rows <> 0 then
-      raise exception 'FALLO: un administrador pudo sacar a otro administrador en un borrador';
+    if not v_blocked then
+      raise exception 'FALLO: un administrador que no es el dueño pudo invitar a alguien como administrador';
+    end if;
+    if exists (
+      select 1 from project_members
+      where project_id = current_setting('t.project')::uuid and user_id = current_setting('t.third')::uuid
+    ) then
+      raise exception 'FALLO: el intento bloqueado dejó una fila para la tercera cuenta';
     end if;
 
-    -- Cambiarle el rol a otro administrador: solo el dueño.
+    -- Como gestora sí la puede invitar (nace pending).
+    begin
+      insert into project_members (project_id, user_id, role, invited_by)
+      values (
+        current_setting('t.project')::uuid,
+        current_setting('t.third')::uuid,
+        'gestor',
+        current_setting('t.other')::uuid
+      );
+    exception when others then
+      raise exception 'FALLO: un administrador no pudo invitar a la tercera cuenta como gestora: % (%)', sqlerrm, sqlstate;
+    end;
+
+    -- Subir a un gestor a administrador: solo el dueño. La RLS de update
+    -- deja pasar (rango 3), así que también tiene que ser 42501.
+    v_blocked := false;
     v_rows := -1;
     begin
-      update project_members set role = 'gestor'
+      update project_members set role = 'administrador', updated_at = now()
       where project_id = current_setting('t.project')::uuid
         and user_id = current_setting('t.third')::uuid;
       get diagnostics v_rows = row_count;
     exception
-      when insufficient_privilege then v_rows := 0;
+      when insufficient_privilege then v_blocked := true;
       when others then
-        raise exception 'FALLO: que un administrador cambie a otro falló con un error inesperado: % (%)', sqlerrm, sqlstate;
+        raise exception 'FALLO: que un administrador suba a otro a administrador falló con un error inesperado: % (%)', sqlerrm, sqlstate;
     end;
-    if v_rows <> 0 then
-      raise exception 'FALLO: un administrador pudo cambiarle el rol a otro administrador';
+    if not v_blocked then
+      raise exception 'FALLO: subir un gestor a administrador siendo administrador no dueño debería fallar con 42501 y afectó % fila(s)', v_rows;
     end if;
 
     select role into v_role from project_members
     where project_id = current_setting('t.project')::uuid and user_id = current_setting('t.third')::uuid;
-    if v_role is distinct from 'administrador' then
-      raise exception 'FALLO: la tercera cuenta debería seguir como administradora y está como %', v_role;
+    if v_role is distinct from 'gestor' then
+      raise exception 'FALLO: la tercera cuenta debería seguir como gestora y está como %', v_role;
     end if;
+  end if;
+end $$;
+
+-- 6e. Con la tercera cuenta: owner la nombra administradora y ella acepta.
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_rows int;
+begin
+  if nullif(current_setting('t.third', true), '') is null then
+    return;
+  end if;
+
+  begin
+    update project_members set role = 'administrador', updated_at = now()
+    where project_id = current_setting('t.project')::uuid
+      and user_id = current_setting('t.third')::uuid;
+    get diagnostics v_rows = row_count;
+  exception when others then
+    raise exception 'FALLO: el dueño no pudo nombrar administradora a la tercera cuenta: % (%)', sqlerrm, sqlstate;
+  end;
+  if v_rows <> 1 then
+    raise exception 'FALLO: nombrar administradora a la tercera cuenta debería afectar 1 fila y afectó %', v_rows;
+  end if;
+
+  -- La tercera cuenta acepta su propia invitación.
+  perform set_config('request.jwt.claims', json_build_object('sub', current_setting('t.third'), 'role', 'authenticated')::text, true);
+  update project_members set status = 'accepted', updated_at = now()
+  where project_id = current_setting('t.project')::uuid
+    and user_id = current_setting('t.third')::uuid;
+  get diagnostics v_rows = row_count;
+  if v_rows <> 1 then
+    raise exception 'FALLO: la tercera cuenta no pudo aceptar su invitación (afectó % filas)', v_rows;
+  end if;
+  if project_role_rank(current_setting('t.project')::uuid) is distinct from 3 then
+    raise exception 'FALLO: la tercera cuenta debería tener rango 3 después de aceptar';
+  end if;
+end $$;
+
+-- 6f. Como other (administrador): no saca ni cambia a otro administrador.
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.other'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_rows int;
+  v_role text;
+begin
+  if nullif(current_setting('t.third', true), '') is null then
+    return;
+  end if;
+
+  -- Sacar a otro administrador: solo el dueño.
+  v_rows := -1;
+  begin
+    delete from project_members
+    where project_id = current_setting('t.project')::uuid
+      and user_id = current_setting('t.third')::uuid;
+    get diagnostics v_rows = row_count;
+  exception
+    when insufficient_privilege then v_rows := 0;
+    when others then
+      raise exception 'FALLO: que un administrador saque a otro falló con un error inesperado: % (%)', sqlerrm, sqlstate;
+  end;
+  if v_rows <> 0 then
+    raise exception 'FALLO: un administrador pudo sacar a otro administrador en un borrador';
+  end if;
+
+  -- Cambiarle el rol a otro administrador: solo el dueño.
+  v_rows := -1;
+  begin
+    update project_members set role = 'gestor'
+    where project_id = current_setting('t.project')::uuid
+      and user_id = current_setting('t.third')::uuid;
+    get diagnostics v_rows = row_count;
+  exception
+    when insufficient_privilege then v_rows := 0;
+    when others then
+      raise exception 'FALLO: que un administrador cambie a otro falló con un error inesperado: % (%)', sqlerrm, sqlstate;
+  end;
+  if v_rows <> 0 then
+    raise exception 'FALLO: un administrador pudo cambiarle el rol a otro administrador';
+  end if;
+
+  select role into v_role from project_members
+  where project_id = current_setting('t.project')::uuid and user_id = current_setting('t.third')::uuid;
+  if v_role is distinct from 'administrador' then
+    raise exception 'FALLO: la tercera cuenta debería seguir como administradora y está como %', v_role;
   end if;
 end $$;
 
@@ -777,10 +917,8 @@ end $$;
 -- ─── 10. Como other (nuevo dueño): cambia y saca a un administrador ─
 -- Los triggers solo dejan tocar filas de administrador al dueño (rango 4):
 -- acá se comprueba que el dueño sí puede, sobre la fila del dueño anterior.
---
--- Verificación manual (no la cubre este script): con un administrador
--- aceptado que NO sea el dueño, invitar a alguien con role =
--- 'administrador' → 42501.
+-- (Que un administrador no dueño no puede nombrar administradores lo
+-- cubre el paso 6d, con HANDLE_TERCERO.)
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.other'), 'role', 'authenticated')::text, true);
 
 do $$
@@ -831,6 +969,64 @@ begin
   end if;
 end $$;
 
+-- ─── 10b. Irse uno mismo: un editor borra su propia fila ────────────
+-- other (dueño) invita como editor al dueño anterior, que ya no es
+-- miembro; él acepta y se va borrando su fila. Con rango 1 la RLS de
+-- delete solo lo deja pasar por user_id = auth.uid(), y la guarda de
+-- borrado no se mete con quien se borra a sí mismo.
+do $$
+begin
+  begin
+    insert into project_members (project_id, user_id, role, invited_by)
+    values (
+      current_setting('t.project')::uuid,
+      current_setting('t.owner')::uuid,
+      'editor',
+      current_setting('t.other')::uuid
+    );
+  exception when others then
+    raise exception 'FALLO: el dueño no pudo invitar como editor al dueño anterior: % (%)', sqlerrm, sqlstate;
+  end;
+end $$;
+
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_rows int;
+  v_rank int;
+begin
+  update project_members set status = 'accepted', updated_at = now()
+  where project_id = current_setting('t.project')::uuid
+    and user_id = current_setting('t.owner')::uuid;
+  get diagnostics v_rows = row_count;
+  if v_rows <> 1 then
+    raise exception 'FALLO: el dueño anterior no pudo aceptar la invitación como editor (afectó % filas)', v_rows;
+  end if;
+
+  v_rank := project_role_rank(current_setting('t.project')::uuid);
+  if v_rank is distinct from 1 then
+    raise exception 'FALLO: el dueño anterior como editor debería tener rango 1 y tiene %', v_rank;
+  end if;
+
+  begin
+    delete from project_members
+    where project_id = current_setting('t.project')::uuid
+      and user_id = current_setting('t.owner')::uuid;
+    get diagnostics v_rows = row_count;
+  exception when others then
+    raise exception 'FALLO: un editor no pudo irse del proyecto: % (%)', sqlerrm, sqlstate;
+  end;
+  if v_rows <> 1 then
+    raise exception 'FALLO: irse del proyecto debería afectar 1 fila y afectó %', v_rows;
+  end if;
+
+  v_rank := project_role_rank(current_setting('t.project')::uuid);
+  if v_rank is distinct from 0 then
+    raise exception 'FALLO: después de irse debería tener rango 0 y tiene %', v_rank;
+  end if;
+end $$;
+
 -- ─── 11. Como anon: el borrador sigue sin leerse ─────────────────────
 reset role;
 set local role anon;
@@ -868,7 +1064,11 @@ select set_config('request.jwt.claims', '', true);
 
 do $$
 begin
-  raise notice 'OK: todas las verificaciones pasaron';
+  if nullif(current_setting('t.third', true), '') is null then
+    raise notice 'AVISO: corrida INCOMPLETA — lo que corrió pasó, pero sin HANDLE_TERCERO (requerido) no se comprobó a un administrador no dueño nombrando, cambiando o sacando administradores';
+  else
+    raise notice 'OK: todas las verificaciones pasaron';
+  end if;
 end $$;
 
 rollback;
