@@ -6,6 +6,7 @@ import { revalidateProjectById } from '@/lib/revalidate-project';
 import { createClient } from './server';
 import { getRequestUser } from './auth';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
+import { rankToRole, hasRole, type ProjectRole } from '@/lib/project-roles';
 
 // Nombre de la cookie que recuerda "con qué proyecto estoy trabajando" —
 // la setea /admin/proyectos al elegir uno. No es un dato sensible: la
@@ -19,40 +20,46 @@ export interface ProjectAccess {
    *  del cliente de service-role. Las rutas deben usar ESTE cliente para
    *  leer/escribir datos de proyecto, no createAdminClient(). */
   supabase: SupabaseClient;
+  /** Rol efectivo del usuario en este proyecto (dueño o miembro aceptado). */
+  role: ProjectRole;
 }
 
 // Reemplaza a requireAdminUser() para todo lo que cuelga de un proyecto:
-// no alcanza con "hay sesión", además hace falta ser el dueño DE ESE
-// proyecto puntual. Devuelve el cliente de sesión del usuario para que
-// la ruta lo use — así, cuando existan políticas RLS de escritura
-// (próximo sprint), quedan aplicadas de verdad y no solo de nombre.
+// no alcanza con "hay sesión", además hace falta tener al menos `minRole`
+// EN ESE proyecto puntual (dueño, o miembro aceptado con rol suficiente).
+// El rango lo calcula la función SQL project_role_rank — la misma que usan
+// las políticas RLS — así app y base nunca discrepan. Devuelve el cliente
+// de sesión del usuario para que la ruta lo use y RLS quede aplicada.
 /**
+ * @param minRole rol mínimo requerido (por defecto 'editor').
  * @param revalidate lo pasan las rutas que ESCRIBEN: además de chequear el
  *   permiso, tiran la caché del microsite público de ese proyecto, que queda
  *   viejo con cualquier cambio. Va por after(), o sea una vez despachada la
  *   respuesta, que es la única forma de que caiga DESPUÉS del write —
  *   invalidar antes dejaría que una visita en el medio volviera a cachear el
- *   contenido viejo.
+ *   contenido viejo. Solo se agenda si el acceso fue concedido.
  */
 export async function requireProjectAccess(
   projectId: string,
-  { revalidate = false }: { revalidate?: boolean } = {}
+  { revalidate = false, minRole = 'editor' }: { revalidate?: boolean; minRole?: ProjectRole } = {}
 ): Promise<ProjectAccess | null> {
   const supabase = await createClient();
   const user = await getRequestUser();
   if (!user) return null;
 
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('owner_id', user.id)
-    .maybeSingle();
-  if (!project) return null;
+  const { data, error } = await supabase.rpc('project_role_rank', { p_project_id: projectId });
+  // Si la RPC falla se niega el acceso (fail-closed), pero se deja rastro:
+  // si no, un error de base se vería igual que "no tenés permiso".
+  if (error) {
+    console.error('[requireProjectAccess] project_role_rank falló:', error);
+    return null;
+  }
+  const role = rankToRole(typeof data === 'number' ? data : 0);
+  if (!role || !hasRole(role, minRole)) return null;
 
   if (revalidate) after(() => revalidateProjectById(projectId));
 
-  return { user, supabase };
+  return { user, supabase, role };
 }
 
 // ─── Resolver el project_id dueño de un recurso anidado ─────────────
@@ -125,6 +132,13 @@ export async function resolveProjectIdFromLead(leadId: string): Promise<string |
 export async function resolveProjectIdFromCollaborator(collaboratorId: string): Promise<string | null> {
   const supabase = await createClient();
   const { data } = await supabase.from('project_collaborators').select('project_id').eq('id', collaboratorId).maybeSingle();
+  return data?.project_id ?? null;
+}
+
+// Las rutas de miembros reciben el id de la membresía, no el del proyecto.
+export async function resolveProjectIdFromMember(memberId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from('project_members').select('project_id').eq('id', memberId).maybeSingle();
   return data?.project_id ?? null;
 }
 

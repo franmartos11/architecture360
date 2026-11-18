@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 
-type NotificationType = 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention';
+type NotificationType =
+  | 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention'
+  | 'project_invite' | 'project_invite_accepted' | 'ownership_transfer' | 'ownership_transfer_accepted';
 
 interface NotifyParams {
   recipientId: string;

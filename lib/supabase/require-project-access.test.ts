@@ -1,92 +1,122 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
 
 // requireProjectAccess es el único punto donde se decide "¿esta cuenta
-// puede tocar este proyecto?" en todas las rutas admin — es la lógica de
-// autorización con más superficie de bug silencioso de toda la app, así
-// que se prueba mockeando el cliente de Supabase en vez de necesitar RLS
-// real corriendo (no hay Supabase CLI/Docker disponible en este entorno).
-vi.mock('./server', () => ({
+// puede tocar este proyecto?" en todas las rutas admin. Se prueba mockeando
+// el cliente de Supabase (y su RPC project_role_rank) en vez de necesitar
+// RLS real corriendo.
+vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
-// requireProjectAccess también usa cookies() indirectamente a través de
-// resolveActiveProjectId/resolveRequestedProjectId — se mockea acá para
-// que esos otros exports del mismo módulo no rompan el import.
+vi.mock('@/lib/supabase/auth', () => ({
+  getRequestUser: vi.fn(),
+}));
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: () => undefined })),
 }));
-// 'server-only' solo existe para romper el build si algo así se importa
-// desde un Client Component — fuera del bundler de Next no tiene sentido,
-// así que se neutraliza en el entorno de test.
+vi.mock('next/server', () => ({ after: vi.fn() }));
+vi.mock('@/lib/revalidate-project', () => ({ revalidateProjectById: vi.fn() }));
+// 'server-only' solo rompe el build si se importa desde un Client Component;
+// fuera del bundler de Next se neutraliza.
 vi.mock('server-only', () => ({}));
 
-import { createClient } from './server';
-import { requireProjectAccess, resolveProjectIdFromBimModel } from './require-project-access';
+import { after } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/auth';
+import {
+  requireProjectAccess,
+  resolveProjectIdFromBimModel,
+  resolveProjectIdFromMember,
+} from '@/lib/supabase/require-project-access';
 
-function mockSupabase({ user, projectRow }: { user: { id: string } | null; projectRow: { id: string } | null }) {
-  return {
-    auth: { getUser: async () => ({ data: { user } }) },
-    from: (_table: string) => ({
-      select: (_cols: string) => ({
-        eq: (_col1: string, _val1: unknown) => ({
-          eq: (_col2: string, _val2: unknown) => ({
-            maybeSingle: async () => ({ data: projectRow }),
-          }),
-        }),
-      }),
-    }),
-  };
+function setup(rank: unknown, { user = { id: 'user-1' } as { id: string } | null, error = null as unknown } = {}) {
+  const supabase = mockSupabase({ user, rpc: [{ data: rank, error }] });
+  vi.mocked(createClient).mockResolvedValue(supabase as never);
+  vi.mocked(getRequestUser).mockResolvedValue(user as never);
+  return supabase;
 }
 
 describe('requireProjectAccess', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(getRequestUser).mockReset();
+    vi.mocked(after).mockReset();
   });
 
   it('devuelve null si no hay sesión', async () => {
-    vi.mocked(createClient).mockResolvedValue(mockSupabase({ user: null, projectRow: null }) as never);
-    const access = await requireProjectAccess('project-1');
-    expect(access).toBeNull();
+    setup(4, { user: null });
+    expect(await requireProjectAccess('project-1')).toBeNull();
   });
 
-  it('devuelve null si el proyecto no pertenece a esta cuenta (o no existe)', async () => {
-    vi.mocked(createClient).mockResolvedValue(mockSupabase({ user: { id: 'user-1' }, projectRow: null }) as never);
-    const access = await requireProjectAccess('project-1');
-    expect(access).toBeNull();
+  it('devuelve null con rango 0 (sin acceso o invitación pendiente)', async () => {
+    setup(0);
+    expect(await requireProjectAccess('project-1')).toBeNull();
   });
 
-  it('devuelve el acceso cuando el proyecto es de esta cuenta', async () => {
-    const supabase = mockSupabase({ user: { id: 'user-1' }, projectRow: { id: 'project-1' } });
-    vi.mocked(createClient).mockResolvedValue(supabase as never);
+  it('devuelve null si el rol no alcanza el mínimo', async () => {
+    setup(1);
+    expect(await requireProjectAccess('project-1', { minRole: 'gestor' })).toBeNull();
+  });
+
+  it("devuelve role 'dueño' con rango 4", async () => {
+    setup(4);
     const access = await requireProjectAccess('project-1');
-    expect(access).not.toBeNull();
+    expect(access?.role).toBe('dueño');
     expect(access?.user.id).toBe('user-1');
+  });
+
+  it('por defecto exige editor', async () => {
+    setup(1);
+    const access = await requireProjectAccess('project-1');
+    expect(access?.role).toBe('editor');
+  });
+
+  it('llama la RPC con p_project_id', async () => {
+    const supabase = setup(2);
+    await requireProjectAccess('project-1');
+    expect(supabase.rpc).toHaveBeenCalledWith('project_role_rank', { p_project_id: 'project-1' });
+  });
+
+  it('devuelve null y loguea si la RPC falla', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setup(null, { error: { message: 'boom' } });
+    expect(await requireProjectAccess('project-1')).toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('con revalidate: true y acceso, agenda la revalidación', async () => {
+    setup(4);
+    await requireProjectAccess('project-1', { revalidate: true });
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin acceso no agenda revalidación', async () => {
+    setup(0);
+    await requireProjectAccess('project-1', { revalidate: true });
+    expect(after).not.toHaveBeenCalled();
   });
 });
 
 describe('resolveProjectIdFromBimModel', () => {
   it('devuelve el project_id de la pieza', async () => {
-    vi.mocked(createClient).mockResolvedValue({
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: { project_id: 'project-1' } }),
-          }),
-        }),
-      }),
-    } as never);
+    vi.mocked(createClient).mockResolvedValue(
+      mockSupabase({ results: [{ data: { project_id: 'project-1' } }] }) as never
+    );
     expect(await resolveProjectIdFromBimModel('bim-1')).toBe('project-1');
   });
 
   it('pieza inexistente: null', async () => {
-    vi.mocked(createClient).mockResolvedValue({
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: null }),
-          }),
-        }),
-      }),
-    } as never);
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: null }] }) as never);
     expect(await resolveProjectIdFromBimModel('bim-404')).toBeNull();
+  });
+});
+
+describe('resolveProjectIdFromMember', () => {
+  it('devuelve el project_id de la fila', async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      mockSupabase({ results: [{ data: { project_id: 'project-9' } }] }) as never
+    );
+    expect(await resolveProjectIdFromMember('member-1')).toBe('project-9');
   });
 });

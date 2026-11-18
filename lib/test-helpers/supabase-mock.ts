@@ -71,6 +71,8 @@ function chain(result: MockResult) {
 export interface MockSupabaseOptions {
   /** Resultados de cada llamada a `.from(...)`, EN ORDEN de aparición en la ruta. */
   results?: MockResult[];
+  /** Resultados de cada llamada a `supabase.rpc(...)`, en orden — cola aparte de `results`. */
+  rpc?: MockResult[];
   /** Usuario logueado para `supabase.auth.getUser()` — `null`/omitido = anónimo. */
   user?: { id: string; email?: string } | null;
   /** Config de `supabase.storage.from(bucket)` — solo hace falta en rutas de upload/delete de archivos. */
@@ -85,7 +87,7 @@ export interface MockSupabaseOptions {
   };
 }
 
-export function mockSupabase({ results = [], user = null, storage }: MockSupabaseOptions = {}) {
+export function mockSupabase({ results = [], user = null, storage, rpc: rpcResults = [] }: MockSupabaseOptions = {}) {
   const queue = [...results];
   const from = vi.fn((table: string) => {
     if (queue.length === 0) {
@@ -97,8 +99,20 @@ export function mockSupabase({ results = [], user = null, storage }: MockSupabas
     return chain(queue.shift()!);
   });
 
+  const rpcQueue = [...rpcResults];
+  const rpc = vi.fn((fn: string) => {
+    if (rpcQueue.length === 0) {
+      throw new Error(
+        `mockSupabase: se quedó sin resultados en la cola de rpc (llamada #${rpc.mock.calls.length} a .rpc('${fn}')). ` +
+          'Agregá una entrada más a `rpc`, en el orden en que la ruta llama a .rpc().'
+      );
+    }
+    return Promise.resolve(rpcQueue.shift()!);
+  });
+
   return {
     from,
+    rpc,
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) },
     storage: {
       from: vi.fn(() => ({
