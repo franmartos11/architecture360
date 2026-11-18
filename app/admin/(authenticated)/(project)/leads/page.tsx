@@ -14,10 +14,13 @@ import {
   type DraggableAttributes,
   type DraggableSyntheticListeners,
 } from '@dnd-kit/core';
+import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 import type { Lead } from '@/types';
 import { downloadCsv } from '@/lib/csv';
 import { PageHeader, Card, SegmentedTabs, btnSecondary } from '@/components/admin/panel-ui';
@@ -191,6 +194,11 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
 
 export default function AdminLeads() {
   const activeProjectId = useActiveProjectId();
+  // Leads es de gestor para arriba (la API responde 401 por debajo). La guarda
+  // vive acá, en el cliente, y no en un layout que lea la cookie: el rol sale
+  // del contexto de ESTA pestaña, que coincide con su proyecto.
+  const router = useRouter();
+  const canSeeLeads = hasRole(useProjectRole(), 'gestor');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -203,13 +211,14 @@ export default function AdminLeads() {
   // Las unidades son un extra (tipología, estado, m², precio): si fallan,
   // los leads se ven igual con el código que dejaron.
   useEffect(() => {
+    if (!canSeeLeads) return;
     fetch(withActiveProject('/api/admin/units', activeProjectId))
       .then(res => (res.ok ? res.json() : []))
       .then((list: UnitInfo[]) => {
         if (Array.isArray(list)) setUnitsByCode(new Map(list.map(u => [u.code, u])));
       })
       .catch(() => {});
-  }, [activeProjectId]);
+  }, [activeProjectId, canSeeLeads]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -237,9 +246,13 @@ export default function AdminLeads() {
   };
 
   useEffect(() => {
+    if (!canSeeLeads) {
+      router.replace('/admin');
+      return;
+    }
     fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, [activeProjectId, canSeeLeads]);
 
   const handleWhatsApp = (phone: string | null, name: string | null) => {
     if (!phone) return;
@@ -276,6 +289,7 @@ export default function AdminLeads() {
     }
   };
 
+  if (!canSeeLeads) return null;
   if (loading) return <LoadingSpinner text="Cargando leads..." tone="light" />;
   if (error) return <ErrorState message="No se pudieron cargar los leads." onRetry={fetchLeads} />;
 

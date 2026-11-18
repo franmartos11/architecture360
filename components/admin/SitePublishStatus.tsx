@@ -5,6 +5,8 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ShareMenu from '@/components/ui/ShareMenu';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePublishState } from '@/lib/publish-state-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 
 // Estado del sitio en el sidebar del panel, en dos piezas:
 //  - SitePublishStatus (arriba, bajo el nombre): si está en línea o en
@@ -29,7 +31,7 @@ export default function SitePublishStatus({ shareUrl, shareText }: { shareUrl: s
         target="_blank"
         rel="noopener noreferrer"
         className="min-w-0 flex-1 flex items-center gap-1.5 min-h-[32px] px-2.5 bg-white border border-gray-200 hover:border-gray-300 rounded-lg text-xs text-gray-700 hover:text-gray-900 transition-colors truncate"
-        title={published ? `Ver el sitio público: ${siteHref}` : 'Vista previa: solo vos podés verlo mientras sea borrador'}
+        title={published ? `Ver el sitio público: ${siteHref}` : 'Vista previa: solo vos y las personas con acceso al proyecto lo ven mientras sea borrador'}
       >
         <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -69,6 +71,8 @@ const READINESS_HREF: Record<string, string> = {
 export function PublishReadinessCard() {
   const { published, requiredItems, canPublish, missingSections, loading, setPublished } = usePublishState();
   const toast = useToast();
+  // Publicar es de administrador para arriba; el resto sigue viendo el estado.
+  const canPublishRole = hasRole(useProjectRole(), 'administrador');
   const [publishing, setPublishing] = useState(false);
 
   const publish = async () => {
@@ -114,7 +118,7 @@ export function PublishReadinessCard() {
           )}
         </p>
       )}
-      {!published && (
+      {!published && canPublishRole && (
         <button
           onClick={publish}
           disabled={publishing || loading || !canPublish}

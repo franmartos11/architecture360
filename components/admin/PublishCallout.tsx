@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePublishState } from '@/lib/publish-state-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 
 // Versión "en página" (fondo claro) del estado de publicación: en borrador
 // lista lo obligatorio con ✓/✗ y deja publicar; publicado, solo avisa de
@@ -12,6 +14,8 @@ import { usePublishState } from '@/lib/publish-state-context';
 export default function PublishCallout({ className = '' }: { className?: string }) {
   const { published, requiredItems, canPublish, missingSections, loading, siteHref, setPublished } = usePublishState();
   const toast = useToast();
+  // Publicar es de administrador para arriba; el resto sigue viendo el estado.
+  const canPublishRole = hasRole(useProjectRole(), 'administrador');
   const [publishing, setPublishing] = useState(false);
 
   if (loading && !published) return null;
@@ -53,14 +57,14 @@ export default function PublishCallout({ className = '' }: { className?: string 
             </a>
           </p>
         </div>
-        <button
+        {canPublishRole && <button
           onClick={publish}
           disabled={publishing || !canPublish}
           title={canPublish ? undefined : 'Completá lo obligatorio para poder publicar'}
           className="h-9 px-4 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {publishing ? 'Publicando…' : 'Publicar sitio'}
-        </button>
+        </button>}
       </div>
       <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
         {requiredItems.map(item => (

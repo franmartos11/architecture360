@@ -33,7 +33,7 @@ export default function DraftPreviewBar({ projectId }: { projectId: string }) {
         Borrador
       </span>
       <p className="min-w-0 flex-1 text-sm leading-snug">
-        Vista previa: solo vos ves este sitio. Publicalo para que el link funcione para todos.
+        Vista previa: solo vos y las personas con acceso al proyecto ven este sitio. Publicalo para que el link funcione para todos.
       </p>
       <button
         onClick={goPublish}

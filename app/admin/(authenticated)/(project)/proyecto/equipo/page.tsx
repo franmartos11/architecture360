@@ -12,6 +12,8 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 
 // Capítulo 7 — Equipo (diseño Ficha · Equipo): quién hizo el proyecto
 // (créditos que la persona confirma y que aparecen en su portfolio), los
@@ -29,6 +31,9 @@ function initials(name: string) {
 
 export default function EquipoPage() {
   const { saleMode } = useProjectTypeConfig();
+  // Créditos y moderación de comentarios: administrador o más (igual que la
+  // RLS de project_collaborators y comments).
+  const canManage = hasRole(useProjectRole(), 'administrador');
   const ficha = useFichaProject();
   const { project, setProject, collaborators, comments, setComments } = ficha;
   const toast = useToast();
@@ -112,6 +117,7 @@ export default function EquipoPage() {
           </p>
         )}
 
+        {canManage ? (
         <form onSubmit={handleAdd} className="flex flex-col gap-2.5 p-4 rounded-2xl border border-gray-200 bg-white">
           <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <PersonSearchSelect selected={selected} onSelect={setSelected} onClear={() => setSelected(null)} placeholder="Buscar persona o estudio…" />
@@ -122,6 +128,9 @@ export default function EquipoPage() {
             <button type="submit" disabled={adding || !selected} className={btnPrimary}>{adding ? 'Agregando...' : 'Agregar'}</button>
           </div>
         </form>
+        ) : (
+          <p className="m-0 px-4 py-3 text-[13px] text-gray-600 bg-white border border-gray-200 rounded-xl">Solo los administradores pueden editar los créditos.</p>
+        )}
 
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
           {collaborators.map((c, i) => {
@@ -152,8 +161,10 @@ export default function EquipoPage() {
                 {editingId !== c.id && (
                   <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                     <Pill tone={c.status === 'accepted' ? 'green' : c.status === 'pending' ? 'warn' : 'neutral'}>{STATUS_LABEL[c.status]}</Pill>
+                    {canManage && (<>
                     <button type="button" onClick={() => { setEditingId(c.id); setEditingContribution(c.contribution); }} className="min-h-[36px] px-2 text-[13px] text-gray-700 hover:text-gray-900">Editar</button>
                     <button type="button" onClick={() => handleRemove(c.id)} className="min-h-[36px] px-2 text-[13px] text-red-700 hover:text-red-800">Quitar</button>
+                    </>)}
                   </div>
                 )}
               </div>
@@ -165,7 +176,7 @@ export default function EquipoPage() {
         </div>
       </SectionRow>
 
-      <SectionRow title="Comentarios en el sitio" description="Lo que dejan los visitantes en la ficha pública. Podés borrar cualquiera.">
+      <SectionRow title="Comentarios en el sitio" description={`Lo que dejan los visitantes en la ficha pública.${canManage ? ' Podés borrar cualquiera.' : ''}`}>
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
           {comments.map((c, i) => (
             <div key={c.id} className={`px-4 py-3.5 flex items-start gap-3.5 ${i > 0 ? 'border-t border-gray-200' : ''}`}>
@@ -182,7 +193,7 @@ export default function EquipoPage() {
                 </div>
                 <p className="m-0 text-sm text-gray-700 mt-0.5 whitespace-pre-line">{c.body}</p>
               </div>
-              <button type="button" onClick={() => handleDeleteComment(c.id)} className="min-h-[36px] px-2 text-[13px] text-gray-600 hover:text-red-700 shrink-0">Borrar</button>
+              {canManage && <button type="button" onClick={() => handleDeleteComment(c.id)} className="min-h-[36px] px-2 text-[13px] text-gray-600 hover:text-red-700 shrink-0">Borrar</button>}
             </div>
           ))}
           {comments.length === 0 && <p className="m-0 px-4 py-6 text-sm text-gray-500 text-center">Todavía no hay comentarios en este proyecto.</p>}

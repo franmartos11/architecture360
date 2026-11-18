@@ -54,6 +54,35 @@ describe('useNewLeadsCount', () => {
     expect(Number(localStorage.getItem(STORAGE_KEY))).toBeGreaterThan(Date.now() - 5000);
   });
 
+  it('enabled=false: no hace fetch ni polling y count es 0', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(leadsResponse(['2026-01-01T00:00:00Z']));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useNewLeadsCount(false));
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.count).toBe(0);
+  });
+
+  it('pasar de false a true arranca el polling', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(leadsResponse(['2026-01-01T00:00:00Z']));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result, rerender } = renderHook(({ on }) => useNewLeadsCount(on), { initialProps: { on: false } });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    rerender({ on: true });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.count).toBe(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('vuelve a chequear cada 30s', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(leadsResponse([]));

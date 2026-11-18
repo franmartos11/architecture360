@@ -10,11 +10,19 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import type { ProjectSaleMode, ProjectType } from '@/types';
 
 export default function SettingsPage() {
   const { showCalculator } = useProjectTypeConfig();
+  const role = useProjectRole();
+  // Publicar y cambiar la dirección pública: administrador o más. Duplicar y
+  // eliminar el proyecto (Zona de peligro): solo el dueño. Nombre local, no
+  // confundir con publishState.canPublish (completitud del sitio).
+  const canPublish = hasRole(role, 'administrador');
+  const isOwner = role === 'dueño';
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
   const publishState = usePublishState();
@@ -128,7 +136,7 @@ export default function SettingsPage() {
             <div role="radiogroup" aria-label="Visibilidad del sitio" className="grid gap-3 sm:grid-cols-2">
               <button type="button" role="radio" aria-checked={publishState.published}
                 onClick={() => { if (!publishState.published) handleTogglePublished(); }}
-                disabled={savingPublished || (!publishState.published && !publishState.canPublish)}
+                disabled={!canPublish || savingPublished || (!publishState.published && !publishState.canPublish)}
                 className={visibilityOption(publishState.published)}>
                 <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><span className="w-2 h-2 rounded-full bg-brand-700" aria-hidden="true" />Publicado</span>
                 <span className="text-xs text-gray-600">
@@ -137,10 +145,10 @@ export default function SettingsPage() {
               </button>
               <button type="button" role="radio" aria-checked={!publishState.published}
                 onClick={() => { if (publishState.published) handleTogglePublished(); }}
-                disabled={savingPublished}
+                disabled={!canPublish || savingPublished}
                 className={visibilityOption(!publishState.published)}>
                 <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><span className="w-2 h-2 rounded-full bg-gray-400" aria-hidden="true" />Borrador</span>
-                <span className="text-xs text-gray-600">Solo vos lo ves, como vista previa. Los demás ven &quot;no disponible&quot;.</span>
+                <span className="text-xs text-gray-600">Solo vos y las personas con acceso al proyecto lo ven, como vista previa. Los demás ven &quot;no disponible&quot;.</span>
               </button>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -150,7 +158,7 @@ export default function SettingsPage() {
                   <span className="text-gray-500 truncate shrink">{urlPrefix}</span>
                   <input id="project-slug" value={slugValue} onChange={e => setSlugDraft(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && slugChanged) handleSaveSlug(); if (e.key === 'Escape') setSlugDraft(null); }}
-                    spellCheck={false} autoComplete="off"
+                    spellCheck={false} autoComplete="off" readOnly={!canPublish}
                     className="min-w-[80px] flex-1 bg-transparent text-gray-900 outline-none" />
                   {urlSuffix && <span className="text-gray-500 shrink-0">{urlSuffix}</span>}
                 </span>
@@ -164,10 +172,13 @@ export default function SettingsPage() {
                     className="shrink-0 min-h-[36px] px-3 rounded-lg text-[13px] font-semibold text-gray-900 hover:bg-gray-100">Copiar</button>
                 )}
               </span>
-              {slugChanged && (
+              {slugChanged && canPublish && (
                 <span className="text-xs text-amber-800">Va a quedar <span className="font-mono">{slugify(slugValue) || '—'}</span>. El link anterior deja de funcionar para quien ya lo tenga.</span>
               )}
             </div>
+            {!canPublish && (
+              <p className="m-0 text-xs text-gray-600">Solo un administrador o el dueño puede publicar o cambiar la dirección.</p>
+            )}
           </div>
         </section>
       )}
@@ -198,6 +209,7 @@ export default function SettingsPage() {
         </section>
       )}
 
+      {isOwner && (
       <section className="rounded-2xl border border-red-200 bg-white px-5 sm:px-6 py-5 flex items-center gap-4 flex-wrap">
         <div className="flex-[1_1_260px] min-w-0 flex flex-col gap-0.5">
           <h2 className="m-0 text-[15px] font-semibold text-red-800">Zona de peligro</h2>
@@ -213,6 +225,7 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+      )}
 
       <DeleteProjectModal
         project={deleteOpen ? project : null}

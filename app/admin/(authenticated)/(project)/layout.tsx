@@ -4,6 +4,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { ActiveProjectIdProvider } from '@/lib/active-project-context';
 import ProjectAdminShell from './ProjectAdminShell';
 import { PublishStateProvider } from '@/lib/publish-state-context';
+import { ProjectRoleProvider } from '@/lib/project-role-context';
 
 // Todo lo que cuelga de este grupo de rutas (dashboard, edificios,
 // inventario, leads, configuración, wizard, proyecto) necesita un
@@ -50,6 +51,9 @@ export default async function ProjectAdminLayout({ children }: { children: React
 
   return (
     <ActiveProjectIdProvider projectId={project.id}>
+      {/* El rol sale de la misma llamada que fija el proyecto de esta pestaña: así
+          nunca puede quedar el rol de un proyecto con el id de otro. */}
+      <ProjectRoleProvider role={access.role}>
       <PublishStateProvider
         projectId={project.id}
         slug={project.slug}
@@ -57,10 +61,11 @@ export default async function ProjectAdminLayout({ children }: { children: React
         projectType={project.project_type}
         saleMode={project.sale_mode}
       >
-        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} singleBuildingHref={singleBuildingHref} unitsCount={unitsCount ?? 0}>
+        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} role={access.role} singleBuildingHref={singleBuildingHref} unitsCount={unitsCount ?? 0}>
           {children}
         </ProjectAdminShell>
       </PublishStateProvider>
+      </ProjectRoleProvider>
     </ActiveProjectIdProvider>
   );
 }

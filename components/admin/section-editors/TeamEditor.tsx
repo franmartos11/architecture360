@@ -7,6 +7,8 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 interface CollaboratorRow {
@@ -39,6 +41,9 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
+  // Gestionar créditos es de administrador para arriba (igual que la RLS de
+  // project_collaborators): los roles menores ven la lista sin controles.
+  const canManage = hasRole(useProjectRole(), 'administrador');
 
   const load = () => {
     fetch(withActiveProject('/api/admin/project', activeProjectId))
@@ -129,7 +134,7 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
                 c.contribution && <p className="text-sm text-gray-500 truncate">{c.contribution}</p>
               )}
             </div>
-            {editingId !== c.id && (
+            {canManage && editingId !== c.id && (
               <div className="flex items-center gap-3 shrink-0">
                 <button onClick={() => startEdit(c)} className="text-sm text-gray-500 hover:text-gray-700">Editar</button>
                 <button onClick={() => handleRemove(c.id)} className="text-sm text-red-500 hover:text-red-700">Quitar</button>
@@ -141,6 +146,7 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
           <p className="p-6 text-sm text-gray-400 text-center">Todavía no acreditaste a nadie en este proyecto.</p>
         )}
       </div>
+      {canManage ? (
       <form onSubmit={handleAdd} className="p-6 bg-gray-50/50 space-y-3">
         <PersonSearchSelect selected={selected} onSelect={setSelected} onClear={() => setSelected(null)} placeholder="Buscar por nombre o handle..." />
         <Input
@@ -156,6 +162,9 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
           </Button>
         </div>
       </form>
+      ) : (
+        <p className="p-6 bg-gray-50/50 text-sm text-gray-500">Solo los administradores pueden editar los créditos.</p>
+      )}
     </div>
   );
 }

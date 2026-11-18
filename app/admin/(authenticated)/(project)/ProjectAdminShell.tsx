@@ -8,6 +8,8 @@ import SitePublishStatus, { PublishReadinessCard } from '@/components/admin/Site
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { hasRole, ROLE_LABELS, type ProjectRole } from '@/lib/project-roles';
+import { Pill } from '@/components/admin/panel-ui';
 
 import { pluralize } from '@/lib/units';
 interface ActiveProject {
@@ -25,12 +27,15 @@ interface ActiveProject {
 export default function ProjectAdminShell({
   project,
   userEmail,
+  role,
   singleBuildingHref,
   unitsCount = 0,
   children,
 }: {
   project: ActiveProject;
   userEmail: string | null;
+  /** Rol del usuario en este proyecto (lo resuelve el layout del servidor). */
+  role: ProjectRole;
   /** Casa / loteo: link directo al editor de datos, resuelto en el server. */
   singleBuildingHref?: string | null;
   /** Unidades cargadas (contado en el layout del servidor) — para "Unidades 48" en el menú. */
@@ -39,9 +44,13 @@ export default function ProjectAdminShell({
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount();
   const typeConfig = getProjectTypeConfig(project.project_type, project.sale_mode);
   const { hasFloorStep, hasUnitStep, buildingLabel, unitLabel, unitIsLand, showLeads } = typeConfig;
+  // Leads es de gestor para arriba: la API responde 401 por debajo, así que ni
+  // el ítem, ni el título "Operación" (si solo existía por Leads), ni el
+  // polling del badge deben existir para un editor.
+  const canSeeLeads = showLeads && hasRole(role, 'gestor');
+  const { count: newLeadsCount, markSeen: markLeadsSeen } = useNewLeadsCount(canSeeLeads);
   // Valor de project_type / sale_mode que no existe en el catálogo — el
   // proyecto se está mostrando como "Edificio — Para vender" por descarte.
   // Casi siempre es dato viejo (valor combinado legacy, migración a medias).
@@ -131,6 +140,7 @@ export default function ProjectAdminShell({
             </Link>
             <p className="font-display text-lg font-semibold tracking-[-0.02em] text-gray-900 mt-1.5 truncate" title={project.name}>{project.name}</p>
             {userEmail && <p className="text-gray-500 text-xs mt-0.5 truncate">{userEmail}</p>}
+            {role !== 'dueño' && <span className="inline-block mt-1.5"><Pill tone="neutral">{ROLE_LABELS[role]}</Pill></span>}
             <SitePublishStatus shareUrl={shareUrl} shareText={`Mirá el proyecto ${project.name}`} />
           </div>
           <button
@@ -200,10 +210,10 @@ export default function ProjectAdminShell({
 
           {/* Operación: Leads primero (lo que hay que atender), después el
               Dashboard — que no aplica cuando el proyecto ES una sola cosa. */}
-          {(showLeads || (hasUnitStep && !typeConfig.singleBuilding)) && (
+          {(canSeeLeads || (hasUnitStep && !typeConfig.singleBuilding)) && (
             <p className="px-2.5 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Operación</p>
           )}
-          {showLeads && (
+          {canSeeLeads && (
             <Link href="/admin/leads" className={itemClass(pathname === '/admin/leads' || pathname.startsWith('/admin/leads/'))}>
               <NavIcon d="M3 12h5l2 3h4l2-3h5M5 5h14l2 7v7H3v-7z" />
               <span className="flex-1">Leads</span>

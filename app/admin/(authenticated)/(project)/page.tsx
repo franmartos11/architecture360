@@ -7,6 +7,8 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { useProjectRole } from '@/lib/project-role-context';
+import { hasRole } from '@/lib/project-roles';
 import { buildingAgreement, unitAgreement } from '@/lib/project-types';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -33,6 +35,9 @@ export default function AdminDashboard() {
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
   const uAgree = unitAgreement(typeConfig);
+  // Por debajo de gestor la API de leads responde 401 y rompería todo el
+  // dashboard: ni se pide ni se muestra la tarjeta.
+  const canSeeLeads = hasRole(useProjectRole(), 'gestor');
   const shareLink = useShareLink();
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
@@ -52,7 +57,9 @@ export default function AdminDashboard() {
     });
     Promise.all([
       fetch(withActiveProject('/api/admin/units', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
-      fetch(withActiveProject('/api/admin/leads', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
+      canSeeLeads
+        ? fetch(withActiveProject('/api/admin/leads', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
+        : Promise.resolve([]),
       fetch(withActiveProject('/api/admin/project', activeProjectId)).then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json(); }),
     ]).then(([unitsData, leadsData, projectData]) => {
       setUnits(Array.isArray(unitsData) ? unitsData : []);
@@ -70,7 +77,7 @@ export default function AdminDashboard() {
       setError(true);
       setLoading(false);
     });
-  }, [activeProjectId]);
+  }, [activeProjectId, canSeeLeads]);
 
   useEffect(load, [load]);
 
@@ -191,7 +198,7 @@ export default function AdminDashboard() {
       <PageHeader
         eyebrow="Visión general"
         title="Dashboard"
-        actions={<SegmentedTabs label="Período de los leads" value={range} onChange={setRange} options={[{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: 'all', label: 'Todo' }]} />}
+        actions={canSeeLeads && <SegmentedTabs label="Período de los leads" value={range} onChange={setRange} options={[{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: 'all', label: 'Todo' }]} />}
       />
 
 
@@ -234,6 +241,7 @@ export default function AdminDashboard() {
           )}
         </section>
 
+        {canSeeLeads && (
         <section className="flex-[2_1_320px] min-w-0 rounded-2xl border border-gray-200 bg-white flex flex-col">
           <div className="px-5 sm:px-[22px] pt-5 pb-3">
             <CardHeader title="Últimos leads" action={<Link href="/admin/leads">Abrir CRM →</Link>} />
@@ -258,6 +266,7 @@ export default function AdminDashboard() {
             );
           })}
         </section>
+        )}
       </div>
 
       <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))' }}>

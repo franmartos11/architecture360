@@ -15,7 +15,9 @@ function getLastSeenAt(): number {
 // Cuenta cuántos leads nuevos entraron desde la última vez que se visitó
 // /admin/leads, para mostrar un badge en el sidebar sin tener que entrar
 // a revisar manualmente.
-export function useNewLeadsCount() {
+// `enabled` es false cuando el rol no puede ver leads (la API respondería
+// 401): no se hace fetch ni polling y el conteo queda en 0.
+export function useNewLeadsCount(enabled = true) {
   const activeProjectId = useActiveProjectId();
   const [count, setCount] = useState(0);
 
@@ -33,17 +35,18 @@ export function useNewLeadsCount() {
   }, [activeProjectId]);
 
   useEffect(() => {
+    if (!enabled) return;
     startTransition(() => {
       check();
     });
     const interval = setInterval(check, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [check]);
+  }, [check, enabled]);
 
   const markSeen = useCallback(() => {
     window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
     setCount(0);
   }, []);
 
-  return { count, markSeen };
+  return { count: enabled ? count : 0, markSeen };
 }
