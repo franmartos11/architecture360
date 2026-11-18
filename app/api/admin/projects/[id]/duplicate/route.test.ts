@@ -20,6 +20,12 @@ describe('POST /api/admin/projects/[id]/duplicate', () => {
     vi.mocked(requireProjectAccess).mockReset();
   });
 
+  it('pide el rol mínimo dueño', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await POST(req('project-1'), params('project-1'));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'dueño' }));
+  });
+
   it('sin acceso al proyecto: 401', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue(null);
     const res = await POST(req('project-1'), params('project-1'));

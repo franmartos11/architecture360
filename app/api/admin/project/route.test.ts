@@ -43,7 +43,7 @@ describe('GET /api/admin/project', () => {
   it('error al buscar el proyecto: 500', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ error: { message: 'db down' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     expect(res.status).toBe(500);
@@ -52,7 +52,7 @@ describe('GET /api/admin/project', () => {
   it('proyecto activo ya no existe: 404, sin disparar el resto de los queries', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     expect(res.status).toBe(404);
@@ -74,7 +74,7 @@ describe('GET /api/admin/project', () => {
         { count: 1 }, // .from('units') con precio
       ],
     });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     expect(res.status).toBe(200);
@@ -107,7 +107,7 @@ describe('GET /api/admin/project', () => {
         { data: [{ id: 'hotspot-1', slide_id: 'slide-1' }] }, // aerial_hotspots
       ],
     });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     const body = await res.json();
@@ -131,7 +131,7 @@ describe('GET /api/admin/project', () => {
         { data: [{ id: 'user-2', handle: 'ana', display_name: 'Ana' }] }, // profiles
       ],
     });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     const body = await res.json();
@@ -158,7 +158,7 @@ describe('GET /api/admin/project: conteo de precios con error', () => {
         { error: { message: 'boom' } }, // units con precio
       ],
     });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await GET(get('http://localhost/api/admin/project'));
     expect(res.status).toBe(200);
@@ -192,7 +192,7 @@ describe('PATCH /api/admin/project', () => {
   it('saleMode fuera del enum aceptado: 400 antes de tocar la base', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { saleMode: 'alquiler' }));
     expect(res.status).toBe(400);
@@ -202,7 +202,7 @@ describe('PATCH /api/admin/project', () => {
   it('nuevo saleMode incompatible con la forma ya guardada: 400, no actualiza', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { project_type: 'unico' } }] }); // 'unico' solo admite 'showcase'
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { saleMode: 'venta' }));
     expect(res.status).toBe(400);
@@ -212,7 +212,7 @@ describe('PATCH /api/admin/project', () => {
   it('actualización simple (sin cambiar saleMode): no consulta project_type, solo actualiza', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-1', name: 'Nuevo nombre' }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'Nuevo nombre' }));
     expect(res.status).toBe(200);
@@ -226,7 +226,7 @@ describe('PATCH /api/admin/project', () => {
       { data: { slug: 'viejo-link' } },                 // slug anterior
       { data: { id: 'project-1', slug: 'torre-del-mar' }, error: null },
     ] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: '  Torre del Mar! ' }));
     expect(res.status).toBe(200);
@@ -239,7 +239,7 @@ describe('PATCH /api/admin/project', () => {
   it('slug largo: se corta a 63 (etiqueta DNS) sin guion final', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: null }, { data: { slug: 'x' } }, { data: { id: 'project-1' }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: `${'a'.repeat(62)} b` }));
     expect(res.status).toBe(200);
@@ -250,7 +250,7 @@ describe('PATCH /api/admin/project', () => {
   it('23505 sin cambio de slug: no se informa como conflicto de link', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: null, error: { code: '23505', message: 'duplicate' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'Otro nombre' }));
     expect(res.status).toBe(500);
@@ -259,7 +259,7 @@ describe('PATCH /api/admin/project', () => {
   it('slug que ya usa otro proyecto: 409, no actualiza', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-2' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: 'torre-del-mar' }));
     expect(res.status).toBe(409);
@@ -269,7 +269,7 @@ describe('PATCH /api/admin/project', () => {
   it('slug sin letras ni números: 400', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: '!!!' }));
     expect(res.status).toBe(400);
@@ -279,7 +279,7 @@ describe('PATCH /api/admin/project', () => {
   it('carrera con otro proyecto al guardar el slug: 409 por la constraint unique', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: null }, { data: { slug: 'viejo' } }, { data: null, error: { code: '23505', message: 'duplicate' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: 'torre-del-mar' }));
     expect(res.status).toBe(409);
@@ -288,7 +288,7 @@ describe('PATCH /api/admin/project', () => {
   it('constructionProgress: se guarda saneado (sin HTML, sin fotos que no sean http, sin etapas huérfanas)', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
       constructionProgress: {
@@ -310,7 +310,7 @@ describe('PATCH /api/admin/project', () => {
   it('constructionProgress vacío: guarda null', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
     expect(supabase.from.mock.results[0].value.update.mock.calls[0][0].construction_progress).toBeNull();
@@ -324,7 +324,7 @@ describe('PATCH /api/admin/project', () => {
         { data: { id: 'project-1', sale_mode: 'showcase' }, error: null },
       ],
     });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { saleMode: 'showcase' }));
     expect(res.status).toBe(200);
@@ -334,7 +334,7 @@ describe('PATCH /api/admin/project', () => {
   it('error de la base al actualizar: 500 con el mensaje', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ error: { message: 'update failed' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'X' }));
     expect(res.status).toBe(500);
@@ -357,7 +357,7 @@ describe('PATCH /api/admin/project: publicar exige el mínimo', () => {
 
   it('loteo sin lotes ni imagen: 422 con lo que falta, no actualiza', async () => {
     const supabase = mockSupabase({ results: [{ data: { slug: 'loteo-norte' } }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
     vi.mocked(getProjectBySlug).mockResolvedValue(loteo({ masterplanImage: undefined, units: [] }) as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: true }));
@@ -369,7 +369,7 @@ describe('PATCH /api/admin/project: publicar exige el mínimo', () => {
 
   it('con el mínimo cargado: publica', async () => {
     const supabase = mockSupabase({ results: [{ data: { slug: 'loteo-norte' } }, { data: { id: 'project-1', published: true }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
     vi.mocked(getProjectBySlug).mockResolvedValue(loteo() as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: true }));
@@ -379,10 +379,55 @@ describe('PATCH /api/admin/project: publicar exige el mínimo', () => {
 
   it('despublicar no valida nada', async () => {
     const supabase = mockSupabase({ results: [{ data: { id: 'project-1', published: false }, error: null }] });
-    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
     expect(res.status).toBe(200);
     expect(getProjectBySlug).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/admin/project: permisos por campo según el rol', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset().mockResolvedValue('project-1');
+    vi.mocked(getProjectBySlug).mockReset();
+  });
+
+  it('showInPortfolio sin ser dueño: 403 sin tocar la base', async () => {
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'administrador' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { showInPortfolio: true }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('Solo el dueño puede cambiar la visibilidad en el portfolio');
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('published siendo editor: 403', async () => {
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'editor' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('Solo un administrador o el dueño puede publicar o cambiar la dirección del sitio');
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('slug siendo editor: 403', async () => {
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'editor' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { slug: 'nuevo-link' }));
+    expect(res.status).toBe(403);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('published siendo administrador: pasa', async () => {
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1', published: false }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'administrador' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
+    expect(res.status).toBe(200);
   });
 });

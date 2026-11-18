@@ -29,6 +29,12 @@ describe('DELETE /api/admin/projects/[id]', () => {
     vi.mocked(deleteBimStorageFiles).mockReset().mockResolvedValue(undefined);
   });
 
+  it('pide el rol mínimo dueño', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await DELETE(req('project-1'), params('project-1'));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'dueño' }));
+  });
+
   it('sin acceso al proyecto: 401, no toca storage ni borra nada', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue(null);
 

@@ -41,6 +41,12 @@ describe('POST /api/admin/collaborators', () => {
     expect(requireProjectAccess).not.toHaveBeenCalled();
   });
 
+  it('pide el rol mínimo administrador', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await POST(req({ handle: 'ana' }));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'administrador' }));
+  });
+
   it('sin acceso al proyecto: 401', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue(null);
     const res = await POST(req({ handle: 'ana' }));

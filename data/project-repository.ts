@@ -302,8 +302,9 @@ export const getSiteProject = cache(async (slug: string): Promise<SiteProjectVie
   const { data: own } = await supabase
     .from('projects')
     .select('id')
+    // Sin filtro por dueño: la RLS del cliente de sesión solo devuelve el
+    // borrador al dueño o a un miembro aceptado del proyecto.
     .eq('slug', slug)
-    .eq('owner_id', user.id)
     .maybeSingle();
   if (!own) return undefined;
 

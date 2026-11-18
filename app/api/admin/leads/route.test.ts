@@ -28,6 +28,13 @@ describe('GET /api/admin/leads', () => {
     expect(requireProjectAccess).not.toHaveBeenCalled();
   });
 
+  it('pide el rol mínimo gestor', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await GET(get('http://localhost/api/admin/leads'));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'gestor' }));
+  });
+
   it('sin acceso al proyecto activo: 401', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     vi.mocked(requireProjectAccess).mockResolvedValue(null);

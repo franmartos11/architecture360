@@ -7,7 +7,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromCollaborator(id);
   if (!projectId) return NextResponse.json({ error: 'Colaborador no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId, { revalidate: true });
+  const access = await requireProjectAccess(projectId, { revalidate: true, minRole: 'administrador' });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
@@ -38,7 +38,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const projectId = await resolveProjectIdFromCollaborator(id);
   if (!projectId) return NextResponse.json({ error: 'Colaborador no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId, { revalidate: true });
+  const access = await requireProjectAccess(projectId, { revalidate: true, minRole: 'administrador' });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

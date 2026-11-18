@@ -2,6 +2,7 @@ import { revalidateProjectBySlug } from '@/lib/revalidate-project';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { hasRole } from '@/lib/project-roles';
 import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { PROJECT_SALE_MODES, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
@@ -145,11 +146,21 @@ export async function PATCH(request: Request) {
 
   const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  const { supabase } = access;
+  const { supabase, role } = access;
 
   const parsed = await parseJsonBody(request, projectPatchSchema);
   if ('error' in parsed) return parsed.error;
   const body = parsed.data;
+
+  // Permisos por campo, antes de cualquier consulta: el editor y el gestor
+  // editan contenido, pero la visibilidad y la dirección del sitio son del
+  // administrador (o más) y el portfolio es solo del dueño.
+  if (body.showInPortfolio !== undefined && role !== 'dueño') {
+    return NextResponse.json({ error: 'Solo el dueño puede cambiar la visibilidad en el portfolio' }, { status: 403 });
+  }
+  if ((body.published !== undefined || body.slug !== undefined) && !hasRole(role, 'administrador')) {
+    return NextResponse.json({ error: 'Solo un administrador o el dueño puede publicar o cambiar la dirección del sitio' }, { status: 403 });
+  }
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = sanitizeText(body.name, 200);

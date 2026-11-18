@@ -7,7 +7,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const projectId = await resolveProjectIdFromLead(id);
   if (!projectId) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
 
-  const access = await requireProjectAccess(projectId, { revalidate: true });
+  const access = await requireProjectAccess(projectId, { revalidate: true, minRole: 'gestor' });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 

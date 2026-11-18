@@ -26,7 +26,15 @@ describe('GET /api/admin/projects', () => {
   });
 
   it('error al listar los proyectos: 500', async () => {
-    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ error: { message: 'db down' } }] });
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ error: { message: 'db down' } }, { data: [] }] });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+
+    const res = await GET();
+    expect(res.status).toBe(500);
+  });
+
+  it('error al listar membresías: 500', async () => {
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ data: [] }, { error: { message: 'db down' } }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
     const res = await GET();
@@ -34,21 +42,22 @@ describe('GET /api/admin/projects', () => {
   });
 
   it('sin proyectos: no consulta leads/comentarios y devuelve lista vacía', async () => {
-    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ data: [] }] });
+    const supabase = mockSupabase({ user: { id: 'user-1' }, results: [{ data: [] }, { data: [] }] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
     vi.mocked(resolveActiveProjectId).mockResolvedValue(null);
 
     const res = await GET();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ projects: [], activeProjectId: null });
-    expect(supabase.from).toHaveBeenCalledTimes(1);
+    expect(supabase.from).toHaveBeenCalledTimes(2);
   });
 
   it('con proyectos: enriquece cada uno con sus leads pendientes y comentarios, y marca el activo', async () => {
     const supabase = mockSupabase({
       user: { id: 'user-1' },
       results: [
-        { data: [{ id: 'project-1', name: 'Torre del Mar' }, { id: 'project-2', name: 'Casa Roble' }] }, // .from('projects')
+        { data: [{ id: 'project-1', name: 'Torre del Mar', created_at: '2026-02-01' }, { id: 'project-2', name: 'Casa Roble', created_at: '2026-01-01' }] }, // .from('projects') propios
+        { data: [] }, // .from('project_members')
         { data: [{ project_id: 'project-1' }, { project_id: 'project-1' }] }, // .from('leads') status=nuevo
         { data: [{ project_id: 'project-2' }] }, // .from('project_comments')
         { data: [] }, // .from('buildings')
@@ -68,11 +77,54 @@ describe('GET /api/admin/projects', () => {
     // typologies/location; before_after/process quedan afuera por no ser showcase).
     expect(await res.json()).toEqual({
       projects: [
-        { id: 'project-1', name: 'Torre del Mar', pendingLeadsCount: 2, commentsCount: 0, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
-        { id: 'project-2', name: 'Casa Roble', pendingLeadsCount: 0, commentsCount: 1, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
+        { id: 'project-1', name: 'Torre del Mar', created_at: '2026-02-01', role: 'dueño', pendingLeadsCount: 2, commentsCount: 0, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
+        { id: 'project-2', name: 'Casa Roble', created_at: '2026-01-01', role: 'dueño', pendingLeadsCount: 0, commentsCount: 1, unitsCount: 0, progress: { done: 0, total: 6 }, missing: ['Portada', 'Sobre el proyecto', 'Equipo', 'Amenidades', 'Explorar 3D', 'Tipologías / unidades', 'Ubicación'] },
       ],
       activeProjectId: 'project-1',
     });
+  });
+
+  const emptyCounts = [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+
+  it('incluye los proyectos compartidos con su rol', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [{ id: 'project-1', name: 'Torre del Mar', created_at: '2026-02-01' }] }, // propios
+        { data: [{ role: 'gestor', project: { id: 'project-2', name: 'Casa Roble', created_at: '2026-03-01' } }] }, // membresías
+        { data: [{ project_id: 'project-2' }] }, // leads (gestor: se consultan)
+        ...emptyCounts,
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(resolveActiveProjectId).mockResolvedValue(null);
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const { projects } = await res.json();
+    expect(projects.map((p: { id: string; role: string }) => [p.id, p.role])).toEqual([['project-2', 'gestor'], ['project-1', 'dueño']]);
+    expect(projects[0].pendingLeadsCount).toBe(1);
+    expect(projects[0].progress).toEqual({ done: 0, total: 6 });
+  });
+
+  it('no consulta leads de proyectos donde el rol es editor', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      results: [
+        { data: [] }, // propios
+        { data: [{ role: 'editor', project: { id: 'project-2', name: 'Casa Roble', created_at: '2026-03-01' } }] },
+        ...emptyCounts, // sin la consulta de leads
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(resolveActiveProjectId).mockResolvedValue(null);
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const tables = supabase.from.mock.calls.map((c: unknown[]) => c[0]);
+    expect(tables).not.toContain('leads');
+    expect(tables).toContain('project_comments');
+    expect((await res.json()).projects[0].pendingLeadsCount).toBe(0);
   });
 });
 

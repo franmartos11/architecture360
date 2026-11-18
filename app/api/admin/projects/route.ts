@@ -7,6 +7,11 @@ import { resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
+import { mergeProjectsWithRoles } from '@/lib/merge-projects';
+import { hasRole, type MemberRole } from '@/lib/project-roles';
+
+// Columnas del listado, comunes a los proyectos propios y a los compartidos.
+const PROJECT_COLUMNS = 'id, slug, name, description, location, masterplan_image, project_type, sale_mode, show_in_portfolio, published, process_gallery, before_after, created_at, updated_at';
 
 // Secciones "de contenido" — las únicas que computeEmptySectionKeys sabe
 // evaluar (calculadora/contacto son toggles de configuración, no algo que
@@ -16,7 +21,8 @@ const CONTENT_SECTION_KEYS: SectionKey[] = ['about', 'before_after', 'process', 
 const PROJECT_TYPE_KEYS = Object.keys(PROJECT_STRUCTURES) as (keyof typeof PROJECT_STRUCTURES)[];
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as (keyof typeof PROJECT_SALE_MODES)[];
 
-// GET  → los proyectos de la cuenta logueada (para "Mis proyectos"), más
+// GET  → los proyectos de la cuenta logueada (propios + compartidos con
+//        membresía aceptada, cada uno con su rol) para "Mis proyectos", más
 //        cuál está activo — para poder marcarlo en la grilla y no hacer
 //        que el usuario adivine en cuál está parado.
 // POST → crea un proyecto nuevo con esa cuenta como dueña.
@@ -25,15 +31,28 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const { data, error } = await supabase
-    .from('projects')
-    .select('id, slug, name, description, location, masterplan_image, project_type, sale_mode, show_in_portfolio, published, process_gallery, before_after, created_at, updated_at')
-    .eq('owner_id', user.id)
-    .order('created_at', { ascending: false });
+  const [{ data: owned, error }, { data: memberships, error: membersError }] = await Promise.all([
+    supabase.from('projects').select(PROJECT_COLUMNS).eq('owner_id', user.id),
+    supabase
+      .from('project_members')
+      .select(`role, project:projects(${PROJECT_COLUMNS})`)
+      .eq('user_id', user.id)
+      .eq('status', 'accepted'),
+  ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
 
-  const projectIds = (data ?? []).map(p => p.id);
+  const data = mergeProjectsWithRoles(
+    owned ?? [],
+    // El cliente no está tipado con el schema: infiere el embed a-uno como
+    // array, pero projects(project_id → id) devuelve un objeto (o null).
+    (memberships ?? []) as unknown as { role: MemberRole; project: NonNullable<typeof owned>[number] | null }[],
+  );
+
+  const projectIds = data.map(p => p.id);
+  // Los leads solo los ve el gestor o más (RLS); para el resto no se consultan.
+  const leadProjectIds = data.filter(p => hasRole(p.role, 'gestor')).map(p => p.id);
   const pendingLeadsByProject = new Map<string, number>();
   const commentsByProject = new Map<string, number>();
   // Para el progreso ("N de M secciones listas") de cada tarjeta — mismo
@@ -56,7 +75,9 @@ export async function GET() {
       { data: pois },
       { data: collaborators },
     ] = await Promise.all([
-      supabase.from('leads').select('project_id').in('project_id', projectIds).eq('status', 'nuevo'),
+      leadProjectIds.length > 0
+        ? supabase.from('leads').select('project_id').in('project_id', leadProjectIds).eq('status', 'nuevo')
+        : Promise.resolve({ data: [] as { project_id: string | null }[] }),
       supabase.from('project_comments').select('project_id').in('project_id', projectIds),
       supabase.from('buildings').select('id, project_id').in('project_id', projectIds),
       supabase.from('amenities').select('project_id').in('project_id', projectIds),
@@ -103,7 +124,7 @@ export async function GET() {
     }
   }
 
-  const projects = (data ?? []).map(p => {
+  const projects = data.map(p => {
     const typeConfig = getProjectTypeConfig(p.project_type, p.sale_mode);
     const availableContentKeys = SECTION_REGISTRY
       .map(s => s.key)

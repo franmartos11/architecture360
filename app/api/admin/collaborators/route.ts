@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!body.handle || typeof body.handle !== 'string') return NextResponse.json({ error: 'Falta el handle de la persona' }, { status: 400 });
   const contribution = sanitizeText(body.contribution, 300);
 
-  const access = await requireProjectAccess(projectId, { revalidate: true });
+  const access = await requireProjectAccess(projectId, { revalidate: true, minRole: 'administrador' });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 

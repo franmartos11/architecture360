@@ -26,6 +26,12 @@ describe('PATCH /api/admin/collaborators/[id]', () => {
     expect(res.status).toBe(404);
   });
 
+  it('pide el rol mínimo administrador', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await PATCH(jsonRequest('http://localhost/api/admin/collaborators/x', { contribution: 'algo' }), params('x'));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'administrador' }));
+  });
+
   it('sin acceso al proyecto: 401', async () => {
     vi.mocked(requireProjectAccess).mockResolvedValue(null);
     const res = await PATCH(jsonRequest('http://localhost/api/admin/collaborators/x', { contribution: 'algo' }), params('x'));
@@ -91,6 +97,12 @@ describe('DELETE /api/admin/collaborators/[id]', () => {
     vi.mocked(resolveProjectIdFromCollaborator).mockResolvedValue(null);
     const res = await DELETE(jsonRequest('http://localhost/api/admin/collaborators/x'), params('x'));
     expect(res.status).toBe(404);
+  });
+
+  it('pide el rol mínimo administrador', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue(null);
+    await DELETE(jsonRequest('http://localhost/api/admin/collaborators/x'), params('x'));
+    expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'administrador' }));
   });
 
   it('sin acceso al proyecto: 401', async () => {
