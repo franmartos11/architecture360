@@ -51,7 +51,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     getSiteProject(slug),
   ]);
   if (!view) notFound();
-  const { project, isDraftPreview } = view;
+  const { project, isDraftPreview, canPublish } = view;
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
@@ -106,7 +106,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         >
           {children}
         </ProjectChrome>
-        {isDraftPreview && <DraftPreviewBar projectId={project.id} />}
+        {isDraftPreview && <DraftPreviewBar projectId={project.id} canPublish={canPublish} />}
       </div>
     </ProjectBasePathProvider>
   );

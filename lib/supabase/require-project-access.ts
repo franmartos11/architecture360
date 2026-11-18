@@ -48,13 +48,32 @@ export async function requireProjectAccess(
   if (!user) return null;
 
   const { data, error } = await supabase.rpc('project_role_rank', { p_project_id: projectId });
-  // Si la RPC falla se niega el acceso (fail-closed), pero se deja rastro:
-  // si no, un error de base se vería igual que "no tenés permiso".
-  if (error) {
+  let role: ProjectRole | null;
+  if (error && isMissingFunctionError(error)) {
+    // Red de seguridad para el orden de deploy: si la app sale antes que el
+    // SQL de roles, la función todavía no existe. En vez de dejar a todos
+    // afuera se vuelve al comportamiento previo a los roles: solo el dueño
+    // (owner_id) entra, y entra como dueño.
+    console.error(
+      '[requireProjectAccess] project_role_rank no existe: el SQL de roles de proyecto NO está aplicado ' +
+        'en esta base. Se usa el chequeo de dueño (pre-roles) hasta que se aplique.',
+      error
+    );
+    const { data: owned } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    role = owned ? 'dueño' : null;
+  } else if (error) {
+    // Cualquier otro error de la RPC niega el acceso (fail-closed), pero se
+    // deja rastro: si no, un error de base se vería igual que "no tenés permiso".
     console.error('[requireProjectAccess] project_role_rank falló:', error);
     return null;
+  } else {
+    role = rankToRole(typeof data === 'number' ? data : 0);
   }
-  const role = rankToRole(typeof data === 'number' ? data : 0);
   if (!role || !hasRole(role, minRole)) return null;
 
   if (revalidate) after(() => revalidateProjectById(projectId));
@@ -62,15 +81,22 @@ export async function requireProjectAccess(
   return { user, supabase, role };
 }
 
+// PGRST202: PostgREST no encuentra la función en su caché de esquema.
+// 42883: undefined_function de Postgres. Las dos = el SQL de roles no está aplicado.
+function isMissingFunctionError(error: { code?: string }): boolean {
+  return error.code === 'PGRST202' || error.code === '42883';
+}
+
 // ─── Resolver el project_id dueño de un recurso anidado ─────────────
 // Las rutas de building/floor/unit reciben el id del recurso, no el del
 // proyecto — hace falta subir la cadena de FKs antes de poder llamar a
 // requireProjectAccess().
 //
-// Estas lecturas TIENEN que ir con el cliente de sesión (./server.ts): desde
-// que las políticas de lectura son `published or owner_id = auth.uid()`, un
-// cliente anónimo no ve las filas de un proyecto sin publicar y el dueño se
-// quedaría sin poder editar su propio borrador. No cambiar a ./public.ts.
+// Estas lecturas TIENEN que ir con el cliente de sesión (./server.ts): un
+// proyecto sin publicar (y sus filas hijas) solo lo leen quienes tienen
+// rango en él — el dueño y los miembros aceptados, por las políticas que
+// usan project_role_rank. Un cliente anónimo no ve esas filas y nadie del
+// proyecto podría editar el borrador. No cambiar a ./public.ts.
 
 export async function resolveProjectIdFromBuilding(buildingId: string): Promise<string | null> {
   const supabase = await createClient();

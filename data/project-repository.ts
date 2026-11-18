@@ -11,6 +11,7 @@ import { hasRoomProgram, roomCounts, allProgramRooms, parseOrientation } from '@
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { polygonCenter } from '@/lib/amenities';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { hasRole, rankToRole } from '@/lib/project-roles';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -277,8 +278,11 @@ class PublicProjectNotFound extends Error {}
 
 export interface SiteProjectView {
   project: Project;
-  /** true cuando es un borrador que ve su dueño: el sitio NO es público. */
+  /** true cuando es un borrador que ve su dueño o un miembro: el sitio NO es público. */
   isDraftPreview: boolean;
+  /** Solo en la vista previa: si quien mira puede publicar (administrador o
+   *  más). Con el sitio publicado es siempre false — no hay nada que publicar. */
+  canPublish: boolean;
 }
 
 /**
@@ -293,7 +297,7 @@ export interface SiteProjectView {
  */
 export const getSiteProject = cache(async (slug: string): Promise<SiteProjectView | undefined> => {
   const published = await getPublicProjectBySlug(slug);
-  if (published) return { project: published, isDraftPreview: false };
+  if (published) return { project: published, isDraftPreview: false, canPublish: false };
   if (!SUPABASE_CONFIGURED) return undefined;
 
   const user = await getRequestUser();
@@ -301,15 +305,25 @@ export const getSiteProject = cache(async (slug: string): Promise<SiteProjectVie
   const supabase = await createClient();
   const { data: own } = await supabase
     .from('projects')
-    .select('id')
+    .select('id, owner_id')
     // Sin filtro por dueño: la RLS del cliente de sesión solo devuelve el
     // borrador al dueño o a un miembro aceptado del proyecto.
     .eq('slug', slug)
     .maybeSingle();
   if (!own) return undefined;
 
+  // Publicar pide administrador o más (el mismo corte que la ruta y el
+  // trigger). Al dueño no hace falta preguntarle a la RPC; si la RPC falla,
+  // el miembro queda sin el botón (la barra se sigue viendo igual).
+  let canPublish = own.owner_id === user.id;
+  if (!canPublish) {
+    const { data: rank, error } = await supabase.rpc('project_role_rank', { p_project_id: own.id });
+    if (error) console.error('[getSiteProject] project_role_rank falló:', error);
+    canPublish = hasRole(rankToRole(typeof rank === 'number' ? rank : 0), 'administrador');
+  }
+
   const draft = await getProjectBySlug(slug);
-  return draft ? { project: draft, isDraftPreview: true } : undefined;
+  return draft ? { project: draft, isDraftPreview: true, canPublish } : undefined;
 });
 
 /** Atajo de getSiteProject para las páginas que solo necesitan el proyecto. */

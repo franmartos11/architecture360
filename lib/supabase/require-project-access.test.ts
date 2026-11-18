@@ -79,9 +79,47 @@ describe('requireProjectAccess', () => {
 
   it('devuelve null y loguea si la RPC falla', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    setup(null, { error: { message: 'boom' } });
+    const supabase = setup(null, { error: { code: '57014', message: 'boom' } });
     expect(await requireProjectAccess('project-1')).toBeNull();
     expect(spy).toHaveBeenCalled();
+    // Un error genérico no cae al chequeo de dueño: sigue fail-closed.
+    expect(supabase.from).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('si la RPC no existe (PGRST202), cae al chequeo de dueño y devuelve dueño', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      rpc: [{ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }],
+      results: [{ data: { id: 'project-1' } }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(getRequestUser).mockResolvedValue({ id: 'user-1' } as never);
+
+    const access = await requireProjectAccess('project-1', { minRole: 'administrador' });
+    expect(access?.role).toBe('dueño');
+    expect(supabase.from).toHaveBeenCalledWith('projects');
+    const query = supabase.from.mock.results[0].value;
+    expect(query.eq).toHaveBeenCalledWith('id', 'project-1');
+    expect(query.eq).toHaveBeenCalledWith('owner_id', 'user-1');
+    expect(spy).toHaveBeenCalled();
+    expect(String(spy.mock.calls[0][0])).toMatch(/SQL de roles/);
+    spy.mockRestore();
+  });
+
+  it('si la RPC no existe y no es dueño, devuelve null', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = mockSupabase({
+      user: { id: 'user-1' },
+      rpc: [{ data: null, error: { code: '42883', message: 'function does not exist' } }],
+      results: [{ data: null }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.mocked(getRequestUser).mockResolvedValue({ id: 'user-1' } as never);
+
+    expect(await requireProjectAccess('project-1')).toBeNull();
+    expect(supabase.from).toHaveBeenCalledWith('projects');
     spy.mockRestore();
   });
 

@@ -256,6 +256,19 @@ describe('PATCH /api/admin/project', () => {
     expect(res.status).toBe(500);
   });
 
+  it('42501 del trigger de guarda al actualizar: 403 con mensaje en castellano, no 500', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({
+      results: [{ data: null, error: { code: '42501', message: 'Solo un administrador o el dueño puede publicar' } }],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'Otro nombre' }));
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toBe('No tenés permiso para hacer este cambio en el proyecto.');
+  });
+
   it('slug que ya usa otro proyecto: 409, no actualiza', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-2' } }] });

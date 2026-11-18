@@ -243,6 +243,11 @@ export async function PATCH(request: Request) {
 
   // Carrera entre el chequeo de arriba y el update: la constraint unique decide.
   if (error?.code === '23505' && body.slug !== undefined) return NextResponse.json({ error: 'Ese link ya lo usa otro proyecto. Probá con otro.' }, { status: 409 });
+  // 42501: lo rechazó el trigger guard_project_owner_fields (o RLS) — un
+  // permiso que cambió entre el chequeo de arriba y el update. No es un 500.
+  if (error?.code === '42501') {
+    return NextResponse.json({ error: 'No tenés permiso para hacer este cambio en el proyecto.' }, { status: 403 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (previousSlug) revalidateProjectBySlug(previousSlug);
   return NextResponse.json(data);

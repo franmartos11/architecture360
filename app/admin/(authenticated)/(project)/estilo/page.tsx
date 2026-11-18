@@ -13,6 +13,7 @@ import { CURATED_FONTS, ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { resolveTheme, getContrastWarnings } from '@/lib/resolve-theme';
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
+import { useProjectRole } from '@/lib/project-role-context';
 import { pluralize } from '@/lib/units';
 import type { ThemeConfig, ThemeColorOverrides, CustomFont, SavedTheme, Project } from '@/types';
 
@@ -33,6 +34,17 @@ const COLOR_FIELDS: { key: keyof ThemeColorOverrides; label: string }[] = [
 // que eligen, ese es RADIUS_OPTIONS[i].value) — mismo orden creciente.
 const BUTTON_RADIUS_PREVIEW = [4, 6, 10, 16];
 
+// Un tema guardado es de la cuenta de quien lo guardó: si lo aplica un
+// miembro, sus tipografías propias no existen para el sitio de este
+// proyecto (se resuelven contra las del dueño), así que caen a la del tema.
+function withoutMemberCustomFonts(config: ThemeConfig): ThemeConfig {
+  return {
+    ...config,
+    headingFont: config.headingFont?.startsWith('custom:') ? undefined : config.headingFont,
+    bodyFont: config.bodyFont?.startsWith('custom:') ? undefined : config.bodyFont,
+  };
+}
+
 type Device = 'desktop' | 'mobile';
 type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 
@@ -41,11 +53,18 @@ type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 // aparte de /api/admin/project/preview, y lo que se suba/guarde acá va a
 // aparecer también en cualquier otro proyecto del mismo dueño.
 //
+// Como el sitio resuelve `custom:<id>` contra las tipografías del DUEÑO del
+// proyecto, las de un miembro no se verían en público (caería a la del
+// tema sin aviso). Por eso, si quien edita no es el dueño, no se ofrece
+// subir ni elegir tipografías propias; si el proyecto ya usa una del
+// dueño, se muestra como "Tipografía propia del dueño" y se respeta.
+//
 // No hay "publicar" — cada cambio hace PATCH a /api/admin/project apenas
 // se toca (mismo autosave que el resto del admin). El preview de abajo
 // muestra exactamente lo que ya está guardado, no un borrador aparte.
 export default function AdminEstiloPage() {
   const typeConfig = useProjectTypeConfig();
+  const isOwner = useProjectRole() === 'dueño';
   const [project, setProject] = useState<Project | null>(null);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig | null>(null);
   const [ownerFonts, setOwnerFonts] = useState<CustomFont[]>([]);
@@ -71,7 +90,8 @@ export default function AdminEstiloPage() {
     });
     Promise.all([
       fetch(withActiveProject('/api/admin/project/preview', activeProjectId)).then(r => r.json()),
-      fetch('/api/admin/fonts').then(r => r.json()),
+      // /api/admin/fonts devuelve las de quien está logueado: solo sirven si es el dueño.
+      isOwner ? fetch('/api/admin/fonts').then(r => r.json()) : Promise.resolve({ fonts: [] }),
       fetch('/api/admin/saved-themes').then(r => r.json()),
     ])
       .then(([projectData, fontsData, themesData]) => {
@@ -93,7 +113,7 @@ export default function AdminEstiloPage() {
       });
   };
 
-  useEffect(load, [activeProjectId]);
+  useEffect(load, [activeProjectId, isOwner]);
 
   const persist = async (next: ThemeConfig) => {
     setThemeConfig(next);
@@ -164,7 +184,9 @@ export default function AdminEstiloPage() {
   const bodyOptions = Object.values(CURATED_FONTS).filter(f => f.role === 'body' || f.role === 'both');
   const fontLabel = (key: string | undefined, fallback: typeof preset.headingFont) => {
     if (!key) return `Del preset (${CURATED_FONTS[fallback].label})`;
-    if (key.startsWith('custom:')) return ownerFonts.find(f => f.id === key.slice(7))?.name ?? 'Tipografía propia';
+    if (key.startsWith('custom:')) {
+      return ownerFonts.find(f => f.id === key.slice(7))?.name ?? (isOwner ? 'Tipografía propia' : 'Tipografía propia del dueño');
+    }
     return key in CURATED_FONTS ? CURATED_FONTS[key as keyof typeof CURATED_FONTS].label : CURATED_FONTS[fallback].label;
   };
   const displayUrl = typeof window !== 'undefined'
@@ -320,7 +342,12 @@ export default function AdminEstiloPage() {
                 >
                   <option value="">Del tema ({CURATED_FONTS[fallback].label})</option>
                   {options.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                  {ownerFonts.length > 0 && (
+                  {/* Tipografía propia ya elegida que no está en la lista (la del
+                      dueño, vista por un miembro): queda seleccionada igual. */}
+                  {themeConfig[field]?.startsWith('custom:') && !ownerFonts.some(f => `custom:${f.id}` === themeConfig[field]) && (
+                    <option value={themeConfig[field]}>{fontLabel(themeConfig[field], fallback)}</option>
+                  )}
+                  {isOwner && ownerFonts.length > 0 && (
                     <optgroup label="Mis tipografías">
                       {ownerFonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
                     </optgroup>
@@ -329,11 +356,17 @@ export default function AdminEstiloPage() {
               </label>
             ))}
           </div>
-          <button type="button" onClick={() => toggleGroup('type')} aria-expanded={open.type}
-            className="self-start min-h-[36px] text-[13px] font-semibold text-brand-700">
-            {open.type ? '− Cerrar' : '+ Subir mi tipografía'}
-          </button>
-          {open.type && (
+          {isOwner ? (
+            <button type="button" onClick={() => toggleGroup('type')} aria-expanded={open.type}
+              className="self-start min-h-[36px] text-[13px] font-semibold text-brand-700">
+              {open.type ? '− Cerrar' : '+ Subir mi tipografía'}
+            </button>
+          ) : (
+            <p className="m-0 text-xs leading-relaxed text-gray-600">
+              Las tipografías propias solo las puede subir y elegir el dueño del proyecto.
+            </p>
+          )}
+          {isOwner && open.type && (
             <form onSubmit={handleUploadFont} className="flex flex-col gap-2 p-3 rounded-xl border border-gray-200 bg-white">
               <Input value={newFontName} onChange={e => setNewFontName(e.target.value)} placeholder="Nombre, ej: Neue Haas Grotesk" aria-label="Nombre de la tipografía" />
               <div
@@ -426,7 +459,7 @@ export default function AdminEstiloPage() {
                   {[tTokens.bg, tTokens.accent, tTokens.bgAccent, tTokens.bgAlt].map((c, i) => <span key={i} className="flex-1" style={{ background: c }} />)}
                 </span>
                 <span className="flex-1 min-w-0 text-[13px] font-medium text-gray-900 truncate">{t.name}</span>
-                <button type="button" onClick={() => persist(t.config)} disabled={saving}
+                <button type="button" onClick={() => persist(isOwner ? t.config : withoutMemberCustomFonts(t.config))} disabled={saving}
                   className="min-h-[34px] px-3 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900 hover:border-gray-400 shrink-0">
                   Aplicar
                 </button>
