@@ -7,7 +7,8 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 
 interface NotificationRow {
   id: string;
-  type: 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention';
+  type: 'follow' | 'like' | 'comment' | 'collaboration_invite' | 'collaboration_accepted' | 'message' | 'mention'
+    | 'project_invite' | 'project_invite_accepted' | 'ownership_transfer' | 'ownership_transfer_accepted';
   entity_id: string | null;
   read_at: string | null;
   created_at: string;
@@ -18,6 +19,8 @@ interface NotificationRow {
 // app/api/conversations/[id]/messages/route.ts) — antes esto ignoraba el
 // campo y mandaba siempre al perfil del que escribió, nunca al hilo.
 function notificationHref(n: NotificationRow): string {
+  // Invitaciones y transferencias de proyecto se resuelven en "Mis proyectos".
+  if (n.type === 'project_invite' || n.type === 'project_invite_accepted' || n.type === 'ownership_transfer' || n.type === 'ownership_transfer_accepted') return '/admin/proyectos';
   if (n.type === 'collaboration_invite') return '/admin/portfolio';
   if (n.type === 'message' && n.entity_id) return `/mensajes/${n.entity_id}`;
   if (n.actor) return `/portfolio/${n.actor.handle}`;
@@ -32,6 +35,10 @@ const TEXT_BY_TYPE: Record<NotificationRow['type'], string> = {
   collaboration_accepted: 'confirmó su crédito en tu proyecto',
   message: 'te mandó un mensaje',
   mention: 'te mencionó en un post',
+  project_invite: 'te invitó a editar un proyecto',
+  project_invite_accepted: 'aceptó tu invitación al proyecto',
+  ownership_transfer: 'quiere transferirte un proyecto',
+  ownership_transfer_accepted: 'aceptó la transferencia: ahora es el dueño',
 };
 
 // Contenido del panel de la campanita — se carga recién cuando se abre

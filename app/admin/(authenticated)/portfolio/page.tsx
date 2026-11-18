@@ -167,7 +167,8 @@ export default function AdminPortfolioPage() {
           featuredProjectId: p.featured_project_id ?? null,
         });
       }
-      setProjects(projectsData.projects ?? []);
+      // Solo los propios: el toggle de portfolio es del dueño (la API rechaza al resto).
+      setProjects((projectsData.projects ?? []).filter((p: { role?: string }) => p.role === 'dueño'));
       setCollaborations(colsData.collaborations ?? []);
       setLoading(false);
     }).catch(() => setLoading(false));

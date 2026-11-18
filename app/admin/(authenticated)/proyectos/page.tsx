@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/ToastProvider';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
+import PendingInvitations from '@/components/admin/PendingInvitations';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { ROLE_LABELS, type ProjectRole } from '@/lib/project-roles';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { getProjectHref, getProjectPreviewHref } from '@/lib/project-url';
 import { slugify } from '@/lib/slug';
@@ -23,6 +26,10 @@ interface ProjectRow {
   updated_at: string;
   pendingLeadsCount: number;
   commentsCount: number;
+  /** Rol de quien mira en este proyecto. */
+  role: ProjectRole;
+  /** Id de la fila de project_members de quien mira; no existe en los proyectos propios. */
+  membershipId?: string;
   unitsCount?: number;
   progress: { done: number; total: number };
   /** Lo que falta cargar, en el orden en que conviene hacerlo — ver GET /api/admin/projects. */
@@ -47,6 +54,8 @@ export default function MisProyectosPage() {
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [leavingId, setLeavingId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
   const newPanelRef = useRef<HTMLInputElement>(null);
   const focusNewProject = () => {
     newPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -55,6 +64,7 @@ export default function MisProyectosPage() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectRow | null>(null);
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = () => {
     startTransition(() => setLoading(true));
@@ -66,11 +76,13 @@ export default function MisProyectosPage() {
       .then((data: { projects: ProjectRow[]; activeProjectId: string | null }) => {
         setProjects(data.projects);
         setActiveProjectId(data.activeProjectId);
+        setLoadError('');
         setLoading(false);
       })
       .catch((err) => {
         if (err?.message === '401') { window.location.href = '/admin/login'; return; }
         console.error(err);
+        setLoadError('No se pudieron cargar tus proyectos.');
         setLoading(false);
       });
   };
@@ -109,6 +121,32 @@ export default function MisProyectosPage() {
     } else {
       const data = await res.json().catch(() => ({}));
       toast(data.error ?? 'No se pudo duplicar el proyecto.', 'error');
+    }
+  };
+
+  const handleLeave = async (p: ProjectRow) => {
+    setMenuOpenId(null);
+    if (!p.membershipId) return;
+    const ok = await confirmDialog({
+      message: `Vas a dejar de tener acceso a «${p.name}». Para volver, alguien con permiso te tiene que invitar de nuevo.`,
+      confirmLabel: 'Salir del proyecto',
+      danger: true,
+    });
+    if (!ok) return;
+    setLeavingId(p.id);
+    try {
+      const res = await fetch(`/api/members/${p.membershipId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast('Saliste del proyecto.');
+        load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error ?? 'No se pudo salir del proyecto.', 'error');
+      }
+    } catch {
+      toast('No se pudo salir del proyecto.', 'error');
+    } finally {
+      setLeavingId(null);
     }
   };
 
@@ -156,10 +194,19 @@ export default function MisProyectosPage() {
           </div>
         </div>
 
+        <PendingInvitations onChange={load} />
+
+        {loadError && (
+          <div role="alert" className="rounded-2xl border border-red-200 bg-white px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="m-0 text-sm text-red-700">{loadError}</p>
+            <button type="button" onClick={load} className="min-h-[40px] px-3 rounded-[10px] border border-gray-300 text-sm font-medium text-gray-900 hover:border-gray-400">Reintentar</button>
+          </div>
+        )}
+
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
           {visible.map(p => {
             const isActive = p.id === activeProjectId;
-            const isBusy = selectingId !== null || deleteTarget !== null || duplicatingId !== null;
+            const isBusy = selectingId !== null || deleteTarget !== null || duplicatingId !== null || leavingId !== null;
             const pct = p.progress.total > 0 ? Math.round((p.progress.done / p.progress.total) * 100) : 0;
             const structure = PROJECT_STRUCTURES[p.project_type];
             const units = p.unitsCount ?? 0;
@@ -192,6 +239,9 @@ export default function MisProyectosPage() {
                     <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${p.published ? 'bg-gray-900 text-white' : 'bg-white text-amber-800'}`}>
                       {p.published ? 'Publicado' : 'Borrador'}
                     </span>
+                    {p.role !== 'dueño' && (
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white text-gray-900">{ROLE_LABELS[p.role]}</span>
+                    )}
                     {p.pendingLeadsCount > 0 && (
                       <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-brand-700 text-white">
                         {p.pendingLeadsCount} lead{p.pendingLeadsCount === 1 ? '' : 's'}
@@ -214,9 +264,18 @@ export default function MisProyectosPage() {
                   >
                     <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Seguir cargando</button>
                     <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
-                    <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Duplicar</button>
-                    <div className="h-px bg-gray-200 my-1 mx-1.5" />
-                    <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-red-700 hover:bg-red-50">Eliminar proyecto</button>
+                    {p.role === 'dueño' ? (
+                      <>
+                        <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Duplicar</button>
+                        <div className="h-px bg-gray-200 my-1 mx-1.5" />
+                        <button type="button" onClick={() => { setMenuOpenId(null); setDeleteTarget(p); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-red-700 hover:bg-red-50">Eliminar proyecto</button>
+                      </>
+                    ) : p.membershipId ? (
+                      <>
+                        <div className="h-px bg-gray-200 my-1 mx-1.5" />
+                        <button type="button" onClick={() => handleLeave(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-red-700 hover:bg-red-50">Salir del proyecto</button>
+                      </>
+                    ) : null}
                   </div>
                 )}
 

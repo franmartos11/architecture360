@@ -6,6 +6,8 @@ import { PageHeader, SegmentedTabs, btnSecondary } from '@/components/admin/pane
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
+import TeamMembersCard from '@/components/admin/TeamMembersCard';
+import TransferOwnershipCard from '@/components/admin/TransferOwnershipCard';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
@@ -208,6 +210,10 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {canPublish && <TeamMembersCard />}
+
+      {isOwner && project && <TransferOwnershipCard projectId={project.id} />}
 
       {isOwner && (
       <section className="rounded-2xl border border-red-200 bg-white px-5 sm:px-6 py-5 flex items-center gap-4 flex-wrap">
