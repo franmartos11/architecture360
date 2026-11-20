@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { AnimatePresence } from 'framer-motion';
 import { TransitionLink } from '@/components/ui/TransitionUtils';
 import ShareMenu from '@/components/ui/ShareMenu';
+import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import { formatPrice, getStatusColor, getStatusLabel, cocheraLabel } from '@/lib/units';
 import type { Amenity, Unit, UnitViewTab } from '@/types';
 
@@ -77,6 +78,8 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
     mediaTabs, mediaTab, onMediaTabChange, renderMedia, amenities, hasPointsOfInterest,
     scrollToSection, shareUrl, shareText, onBack, backLabel, onCompare, onContact,
   } = props;
+  // Sin bot de WhatsApp conectado al proyecto no se ofrece WhatsApp.
+  const whatsappNumber = useProjectWhatsapp();
 
   const price = showPrice && unit.price ? unit.price : undefined;
   const currency = unit.currency ?? 'USD';
@@ -316,14 +319,16 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
             <span className="text-[17px] font-bold truncate tabular-nums">{price ? formatPrice(price, currency) : title}</span>
             <span className="text-xs text-[#5B6472] truncate">{[typeLabel, `${unit.totalArea} m²`].filter(Boolean).join(' · ')}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => onContact('whatsapp')}
-            aria-label="Consultar por WhatsApp"
-            className="m-btn m-btn--whatsapp !w-[52px] !px-0 shrink-0"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={WHATSAPP_GLYPH} /></svg>
-          </button>
+          {whatsappNumber && (
+            <button
+              type="button"
+              onClick={() => onContact('whatsapp')}
+              aria-label="Consultar por WhatsApp"
+              className="m-btn m-btn--whatsapp !w-[52px] !px-0 shrink-0"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={WHATSAPP_GLYPH} /></svg>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onContact()}

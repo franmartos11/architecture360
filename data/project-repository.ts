@@ -369,7 +369,7 @@ export const getProjectBySlug = cache(async (slug: string): Promise<Project | un
   return fetchProjectBySlug(await createClient(), slug);
 });
 
-type ProjectQueryClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
+type ProjectQueryClient = Pick<Awaited<ReturnType<typeof createClient>>, 'from' | 'rpc'>;
 
 /** Las consultas en sí, sin decidir con qué cliente ni si se cachean. */
 async function fetchProjectBySlug(
@@ -433,7 +433,19 @@ async function fetchProjectBySlug(
     (buildingsResult.data ?? []) as NestedBuildingRow[]
   );
 
-  return mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
+  const mapped = mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
+  if (onlyPublished) {
+    // Número del bot de WhatsApp conectado (null si no hay o está desconectado).
+    // Si la función no existe todavía o falla, simplemente no hay número.
+    try {
+      const { data: numero } = await supabase.rpc('public_project_whatsapp', { p_project_id: project.id });
+      const digits = typeof numero === 'string' ? numero.replace(/\D/g, '') : '';
+      if (digits) mapped.whatsappNumber = digits;
+    } catch {
+      // sin número
+    }
+  }
+  return mapped;
 }
 
 export const getBuildingById = cache(async (slug: string, buildingId: string): Promise<Building | undefined> => {

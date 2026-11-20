@@ -6,6 +6,7 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit } from '@/types';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
+import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import ModalPortal from '@/components/ui/ModalPortal';
 import { formatPrice } from '@/lib/units';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
@@ -56,6 +57,8 @@ export default function LeadCaptureModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // Número del bot conectado al proyecto; sin bot no se ofrece WhatsApp.
+  const whatsappNumber = useProjectWhatsapp();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, unitIsLand, showPrice } = typeConfig;
   const isNarrow = useIsNarrow();
@@ -100,8 +103,8 @@ export default function LeadCaptureModal({
 
   const handleWhatsApp = () => {
     const text = encodeURIComponent(message || defaultMessage);
-    const phoneNumber = '5491100000000';
-    window.open(`https://wa.me/${phoneNumber}?text=${text}`, '_blank');
+    if (!whatsappNumber) return;
+    window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${text}`, '_blank');
     onClose();
   };
 
@@ -233,20 +236,26 @@ export default function LeadCaptureModal({
                     onSubmit={handleSubmit}
                     className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-3.5 px-4 pt-4 pb-3"
                   >
-                    <button
-                      type="button"
-                      onClick={handleWhatsApp}
-                      className="m-btn m-btn--whatsapp shrink-0 w-full"
-                    >
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d={WHATSAPP_PATH} /></svg>
-                      Escribir por WhatsApp
-                    </button>
+                    {/* Sin bot conectado no hay a qué número escribir: ni el
+                        botón ni el separador "o dejá tus datos". */}
+                    {whatsappNumber && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleWhatsApp}
+                          className="m-btn m-btn--whatsapp shrink-0 w-full"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d={WHATSAPP_PATH} /></svg>
+                          Escribir por WhatsApp
+                        </button>
 
-                    <div className="flex items-center gap-2.5 text-xs font-medium text-[#5B6472]">
-                      <span className="flex-1 h-px bg-[#E6E8EB]" />
-                      o dejá tus datos y te llamamos
-                      <span className="flex-1 h-px bg-[#E6E8EB]" />
-                    </div>
+                        <div className="flex items-center gap-2.5 text-xs font-medium text-[#5B6472]">
+                          <span className="flex-1 h-px bg-[#E6E8EB]" />
+                          o dejá tus datos y te llamamos
+                          <span className="flex-1 h-px bg-[#E6E8EB]" />
+                        </div>
+                      </>
+                    )}
 
                     <div className="flex flex-col gap-1.5">
                       <label htmlFor="lead-m-name" className="text-[13px] font-semibold">Nombre y apellido</label>
@@ -450,6 +459,7 @@ export default function LeadCaptureModal({
                       )}
                     </button>
                     
+                    {whatsappNumber && (
                     <button
                       type="button"
                       onClick={handleWhatsApp}
@@ -460,6 +470,7 @@ export default function LeadCaptureModal({
                       </svg>
                       Consultar por WhatsApp
                     </button>
+                    )}
                   </div>
                 </div>
               )}

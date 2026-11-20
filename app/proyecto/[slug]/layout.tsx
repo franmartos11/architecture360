@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import ProjectChrome from '@/components/ui/ProjectChrome';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { ProjectBasePathProvider } from '@/lib/project-base-path-context';
+import { ProjectWhatsappProvider } from '@/lib/project-whatsapp-context';
 import type { Metadata } from 'next';
 import { getSiteProject } from '@/data/project-repository';
 import DraftPreviewBar from '@/components/project-landing/DraftPreviewBar';
@@ -63,6 +64,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   return (
     <ProjectBasePathProvider basePath={basePath}>
+      <ProjectWhatsappProvider numero={project.whatsappNumber}>
       <div
         data-project-theme
         className={`${ALL_FONT_CLASSNAMES} theme-bg-image theme-bg-image--fixed bg-[var(--theme-bg)] min-h-screen`}
@@ -108,6 +110,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         </ProjectChrome>
         {isDraftPreview && <DraftPreviewBar projectId={project.id} canPublish={canPublish} />}
       </div>
+      </ProjectWhatsappProvider>
     </ProjectBasePathProvider>
   );
 }

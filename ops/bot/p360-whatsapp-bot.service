@@ -1,0 +1,21 @@
+[Unit]
+Description=360Proyects - puente de WhatsApp (bot IA por proyecto)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=p360
+WorkingDirectory=/home/p360/architecture360
+# El instalador reemplaza /usr/bin/pnpm por la ruta real de pnpm (corepack) en esta máquina.
+ExecStart=/usr/bin/pnpm bot
+Environment=NODE_ENV=production
+Environment=COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Las variables viven en .env.bot (las lee tsx con --env-file), no acá.
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

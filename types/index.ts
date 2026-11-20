@@ -525,6 +525,8 @@ export interface PortfolioProjectSummary {
 // ─── Project ───────────────────────────────────────────────────────
 export interface Project {
   id: string;
+  /** Número (solo dígitos) del bot de WhatsApp conectado; ausente si no hay bot conectado. */
+  whatsappNumber?: string;
   slug: string;
   name: string;
   description: string;
@@ -588,6 +590,7 @@ export interface Lead {
   message: string | null;
   source: string | null;
   status: string;
+  wa_conversacion_id: string | null;
   created_at: string;
 }
 

@@ -1,0 +1,13 @@
+diff --git a/src/util/Injected/Utils.js b/src/util/Injected/Utils.js
+index 540078a9d07b3df07ccd51b030556a72af4cf650..e29af862e0205f7851bee1710e01a0826ea71547 100644
+--- a/src/util/Injected/Utils.js
++++ b/src/util/Injected/Utils.js
+@@ -482,6 +482,8 @@ exports.LoadUtils = () => {
+             ...botOptions,
+             ...extraOptions,
+         };
++        // MediaData trae su __x_id privado y pisa el id del Msg (wwebjs #201922, arreglado en #201923 sin release todavía).
++        delete message.__x_id;
+ 
+         // Bot's won't reply if canonicalUrl is set (linking)
+         if (botOptions) {

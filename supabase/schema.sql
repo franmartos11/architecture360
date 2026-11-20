@@ -2348,3 +2348,361 @@ alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
   check (type in ('follow', 'like', 'comment', 'collaboration_invite', 'collaboration_accepted', 'message', 'mention',
                   'project_invite', 'project_invite_accepted', 'ownership_transfer', 'ownership_transfer_accepted'));
+
+-- ═══════════════════════════════════════════════════════════════════
+-- WhatsApp bot por proyecto
+-- ═══════════════════════════════════════════════════════════════════
+-- Un bot de WhatsApp (puente Baileys/whatsapp-web.js corriendo fuera de
+-- Next) por proyecto. El puente escribe con la service_role key; el equipo
+-- del proyecto lee/controla desde el panel con su sesión (RLS por rango:
+-- va después del bloque "Roles de proyecto" porque usa project_role_rank).
+-- Spec: docs/superpowers/specs/2026-11-20-bot-whatsapp-por-proyecto-design.md
+
+create table if not exists wa_bots (
+  id                uuid primary key default gen_random_uuid(),
+  project_id        uuid not null unique references projects(id) on delete cascade,
+  estado            text not null default 'desconectado'
+                      check (estado in ('desconectado','esperando_qr','conectado','error')),
+  numero            text,
+  qr                text,
+  qr_at             timestamptz,
+  vinculado_at      timestamptz,
+  heartbeat_at      timestamptz,
+  puente_host       text,
+  puente_hasta      timestamptz,
+  -- null = nadie puede tomar el bot. Solo lo cambia la service_role (ver
+  -- trigger wa_bots_guard_host_permitido más abajo).
+  host_permitido    text,
+  ultimo_error      text,
+  pedido            text check (pedido is null or pedido in ('conectar','desconectar','reiniciar')),
+  pedido_at         timestamptz,
+  activo            boolean not null default false,
+  nombre_bot        text,
+  vendedor_nombre   text,
+  vendedor_whatsapp text,
+  vendedor_user_id  uuid references auth.users(id),
+  conocimiento      text,
+  criterio_aviso    text,
+  mensajes_hoy      int not null default 0,
+  mensajes_hoy_fecha date,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+create table if not exists wa_conversaciones (
+  id                  uuid primary key default gen_random_uuid(),
+  bot_id              uuid not null references wa_bots(id) on delete cascade,
+  project_id          uuid not null references projects(id) on delete cascade,
+  contacto_numero     text not null,
+  -- id serializado de WhatsApp para responder (incluye @lid / @c.us).
+  contacto_wid        text,
+  contacto_nombre     text,
+  creada_post_vinculo boolean not null,
+  modo                text not null default 'bot' check (modo in ('bot','humano')),
+  humano_hasta        timestamptz,
+  avisado_at          timestamptz,
+  lead_id             uuid references leads(id) on delete set null,
+  resumen             text,
+  ultimo_mensaje      text,
+  ultimo_mensaje_at   timestamptz,
+  ultimo_entrante_at  timestamptz,
+  no_leidos           int not null default 0,
+  ia_pausada_motivo   text,
+  created_at          timestamptz not null default now(),
+  unique (bot_id, contacto_numero)
+);
+
+-- leads existe desde antes; se enlaza recién ahora que wa_conversaciones existe.
+alter table leads add column if not exists wa_conversacion_id uuid
+  references wa_conversaciones(id) on delete set null;
+
+create table if not exists wa_mensajes (
+  id              uuid primary key default gen_random_uuid(),
+  conversacion_id uuid not null references wa_conversaciones(id) on delete cascade,
+  wa_id           text unique,
+  direccion       text not null check (direccion in ('entrante','saliente')),
+  autor           text not null check (autor in ('cliente','bot','vendedor','telefono')),
+  tipo            text not null default 'texto'
+                    check (tipo in ('texto','imagen','audio','documento','otro')),
+  cuerpo          text,
+  media_path      text,
+  enviado_at      timestamptz not null,
+  ack             int,
+  created_at      timestamptz not null default now()
+);
+create index if not exists idx_wa_mensajes_conv on wa_mensajes(conversacion_id, enviado_at);
+
+create table if not exists wa_salida (
+  id                uuid primary key default gen_random_uuid(),
+  bot_id            uuid not null references wa_bots(id) on delete cascade,
+  conversacion_id   uuid references wa_conversaciones(id) on delete cascade,
+  destino           text not null,
+  cuerpo            text,
+  adjunto_url       text,
+  origen            text not null check (origen in ('bot','vendedor','aviso')),
+  autor_id          uuid,
+  estado            text not null default 'pendiente'
+                      check (estado in ('pendiente','enviando','enviado','error')),
+  intentos          int not null default 0,
+  proximo_intento_at timestamptz default now(),
+  tomado_at         timestamptz,
+  error             text,
+  wa_id             text,
+  created_at        timestamptz not null default now(),
+  enviado_at        timestamptz
+);
+create index if not exists idx_wa_salida_cola on wa_salida(bot_id, proximo_intento_at)
+  where estado in ('pendiente','enviando');
+
+-- Orden lógico en el historial que ve la IA (null = usar enviado_at). Una
+-- respuesta del bot lleva el enviado_at del último mensaje del cliente que vio
+-- ese turno + 1 ms: así un mensaje del cliente que llegó mientras la IA
+-- respondía queda después de la respuesta y dispara un turno más.
+alter table wa_mensajes add column if not exists orden_at timestamptz;
+alter table wa_salida add column if not exists orden_at timestamptz;
+
+-- Salida de la cola que originó el mensaje (null = entrante o escrito desde el
+-- teléfono). Permite deduplicar el historial y no reenviar un ítem 'enviando'
+-- colgado que en realidad ya se mandó y se registró.
+alter table wa_mensajes add column if not exists salida_id uuid
+  references wa_salida(id) on delete set null;
+create index if not exists idx_wa_mensajes_salida on wa_mensajes(salida_id)
+  where salida_id is not null;
+
+-- Hasta qué mensaje del cliente (su enviado_at) ya evaluó un turno de la IA.
+-- La detección de contestadores mira solo lo posterior: un mensaje que ya
+-- calló un turno no vuelve a callar los siguientes.
+alter table wa_conversaciones add column if not exists ia_visto_hasta timestamptz;
+
+create index if not exists idx_wa_conversaciones_project on wa_conversaciones(project_id, ultimo_mensaje_at desc);
+create index if not exists idx_leads_wa_conversacion on leads(wa_conversacion_id);
+
+-- ─── RLS ─────────────────────────────────────────────────────────────
+-- El puente usa la service_role key (se saltea RLS). Desde el panel, con la
+-- sesión, se usa el mismo rango que el resto del proyecto (project_role_rank,
+-- bloque "Roles de proyecto" de más arriba):
+--   - conversaciones, mensajes y envíos del vendedor: gestor en adelante
+--     (rango >= 2), igual que leads;
+--   - configuración del bot, vincular el número y ver el QR (wa_bots):
+--     administrador en adelante (rango >= 3).
+-- anon no ve nada.
+alter table wa_bots enable row level security;
+alter table wa_conversaciones enable row level security;
+alter table wa_mensajes enable row level security;
+alter table wa_salida enable row level security;
+
+-- Proyecto de un bot, sin pasar por la RLS de wa_bots: un gestor no lee
+-- wa_bots (es de administrador), pero las políticas de wa_conversaciones y
+-- wa_salida necesitan saber a qué proyecto pertenece el bot de la fila.
+-- security definer por el mismo motivo que project_role_rank.
+-- Solo responde a quien tiene rango de gestor o más en ese proyecto (null para
+-- el resto): así no sirve para averiguar el proyecto de un bot ajeno.
+create or replace function wa_bot_project_id(p_bot_id uuid) returns uuid
+language sql stable security definer set search_path = public, pg_temp as $$
+  select project_id from wa_bots
+  where id = p_bot_id and project_role_rank(project_id) >= 2
+$$;
+
+revoke execute on function wa_bot_project_id(uuid) from public, anon;
+grant execute on function wa_bot_project_id(uuid) to authenticated;
+
+drop policy if exists "owner read wa_bots" on wa_bots;
+create policy "owner read wa_bots" on wa_bots for select to authenticated
+  using ((select project_role_rank(wa_bots.project_id)) >= 3);
+
+-- La API crea el bot con la sesión de un administrador; host_permitido solo
+-- puede nacer en null (nadie toma el bot hasta que lo habilite la service_role).
+drop policy if exists "owner insert wa_bots" on wa_bots;
+create policy "owner insert wa_bots" on wa_bots for insert to authenticated
+  with check (
+    host_permitido is null
+    and (select project_role_rank(wa_bots.project_id)) >= 3
+  );
+
+drop policy if exists "owner update wa_bots" on wa_bots;
+create policy "owner update wa_bots" on wa_bots for update to authenticated
+  using ((select project_role_rank(wa_bots.project_id)) >= 3)
+  with check ((select project_role_rank(wa_bots.project_id)) >= 3);
+
+-- host_permitido no es editable desde el panel: solo la service_role (o un
+-- rol de admin de la base, p. ej. el SQL Editor) puede cambiarlo.
+-- No se usa auth.role(): en versiones nuevas de Supabase puede no estar
+-- disponible; se lee el claim "role" del JWT desde los dos GUC posibles
+-- (request.jwt.claim.role, formato viejo, y request.jwt.claims, JSON).
+create or replace function wa_bots_guard_host_permitido() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(
+       nullif(current_setting('request.jwt.claim.role', true), ''),
+       (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+     ) is distinct from 'service_role'
+     and current_user not in ('postgres', 'service_role', 'supabase_admin') then
+    -- Estado del vínculo y del puente: solo lo escribe el puente (service_role).
+    -- pedido/pedido_at y la configuración siguen siendo editables por el dueño.
+    if tg_op = 'UPDATE' then
+      new.host_permitido := old.host_permitido;
+      new.estado := old.estado;
+      new.numero := old.numero;
+      new.qr := old.qr;
+      new.qr_at := old.qr_at;
+      new.vinculado_at := old.vinculado_at;
+      new.heartbeat_at := old.heartbeat_at;
+      new.puente_host := old.puente_host;
+      new.puente_hasta := old.puente_hasta;
+      new.mensajes_hoy := old.mensajes_hoy;
+      new.mensajes_hoy_fecha := old.mensajes_hoy_fecha;
+      new.ultimo_error := old.ultimo_error;
+    else
+      new.host_permitido := null;
+      new.estado := 'desconectado';
+      new.numero := null;
+      new.qr := null;
+      new.qr_at := null;
+      new.vinculado_at := null;
+      new.heartbeat_at := null;
+      new.puente_host := null;
+      new.puente_hasta := null;
+      new.mensajes_hoy := 0;
+      new.mensajes_hoy_fecha := null;
+      new.ultimo_error := null;
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists wa_bots_guard_host_permitido on wa_bots;
+create trigger wa_bots_guard_host_permitido
+  before insert or update on wa_bots
+  for each row execute function wa_bots_guard_host_permitido();
+
+drop policy if exists "owner read wa_conversaciones" on wa_conversaciones;
+create policy "owner read wa_conversaciones" on wa_conversaciones for select to authenticated
+  using ((select project_role_rank(wa_conversaciones.project_id)) >= 2);
+
+-- El bot y el lead de la conversación tienen que ser del mismo proyecto que
+-- la conversación (un gestor no puede colgarla de otro bot ni de otro lead).
+drop policy if exists "owner update wa_conversaciones" on wa_conversaciones;
+create policy "owner update wa_conversaciones" on wa_conversaciones for update to authenticated
+  using ((select project_role_rank(wa_conversaciones.project_id)) >= 2)
+  with check (
+    (select project_role_rank(wa_conversaciones.project_id)) >= 2
+    and wa_bot_project_id(wa_conversaciones.bot_id) = wa_conversaciones.project_id
+    and (lead_id is null or exists (select 1 from leads l where l.id = wa_conversaciones.lead_id and l.project_id = wa_conversaciones.project_id))
+  );
+
+-- La política de update deja escribir la fila entera, pero desde el panel
+-- solo se toma o devuelve el chat (modo, humano_hasta) y se marca leído
+-- (no_leidos). Sin esto un gestor, por PostgREST directo, podría cambiar
+-- contacto_wid/contacto_numero y la política de insert de wa_salida le
+-- dejaría escribirle desde el número del proyecto a cualquiera. Para todo
+-- rol que no sea la service_role (el puente), cualquier otra columna vuelve
+-- a su valor anterior — también las que se agreguen más adelante: la lista
+-- es de lo permitido, no de lo prohibido. Misma detección de rol que
+-- wa_bots_guard_host_permitido.
+create or replace function wa_conversaciones_guard_panel() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(
+       nullif(current_setting('request.jwt.claim.role', true), ''),
+       (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+     ) is distinct from 'service_role'
+     and current_user not in ('postgres', 'service_role', 'supabase_admin') then
+    new := jsonb_populate_record(old, jsonb_build_object(
+      'modo', new.modo,
+      'humano_hasta', new.humano_hasta,
+      'no_leidos', new.no_leidos
+    ));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists wa_conversaciones_guard_panel on wa_conversaciones;
+create trigger wa_conversaciones_guard_panel
+  before update on wa_conversaciones
+  for each row execute function wa_conversaciones_guard_panel();
+
+drop policy if exists "owner read wa_mensajes" on wa_mensajes;
+create policy "owner read wa_mensajes" on wa_mensajes for select to authenticated
+  using ((select project_role_rank(
+    (select c.project_id from wa_conversaciones c where c.id = wa_mensajes.conversacion_id)
+  )) >= 2);
+
+drop policy if exists "owner read wa_salida" on wa_salida;
+create policy "owner read wa_salida" on wa_salida for select to authenticated
+  using ((select project_role_rank(wa_bot_project_id(wa_salida.bot_id))) >= 2);
+
+-- Desde el panel solo se pueden encolar mensajes escritos por uno mismo
+-- ('vendedor'), dentro de una conversación existente y al contacto de esa
+-- conversación: el bot nunca le escribe primero a nadie. Los del bot y los
+-- avisos los encola el servidor con la service_role.
+drop policy if exists "owner insert wa_salida" on wa_salida;
+create policy "owner insert wa_salida" on wa_salida for insert to authenticated
+  with check (
+    origen = 'vendedor'
+    and autor_id = auth.uid()
+    and adjunto_url is null
+    and char_length(cuerpo) between 1 and 4000
+    and conversacion_id is not null
+    and exists (
+      select 1 from wa_conversaciones c
+      where c.id = wa_salida.conversacion_id
+        and c.bot_id = wa_salida.bot_id
+        and wa_salida.destino = coalesce(c.contacto_wid, c.contacto_numero)
+    )
+    and (select project_role_rank(wa_bot_project_id(wa_salida.bot_id))) >= 2
+  );
+
+-- ─── Bucket de medios (privado, URL firmada; mismo patrón que message-attachments) ───
+insert into storage.buckets (id, name, public)
+values ('wa-medios', 'wa-medios', false)
+on conflict (id) do nothing;
+
+-- ─── Realtime ────────────────────────────────────────────────────────
+-- Mismo patrón que messages/conversations/notifications: alter publication
+-- no admite "if not exists", así que se guarda contra pg_publication_tables.
+-- Realtime aplica a cada suscriptor las políticas de select de arriba, así
+-- que los eventos le llegan a cualquier miembro con rango suficiente
+-- (gestores incluidos para conversaciones y mensajes), no solo al dueño.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wa_bots'
+  ) then
+    alter publication supabase_realtime add table wa_bots;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wa_conversaciones'
+  ) then
+    alter publication supabase_realtime add table wa_conversaciones;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wa_mensajes'
+  ) then
+    alter publication supabase_realtime add table wa_mensajes;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wa_salida'
+  ) then
+    alter publication supabase_realtime add table wa_salida;
+  end if;
+end $$;
+
+-- ─── Número público de WhatsApp del proyecto ─────────────────────────
+-- Solo devuelve el número si el bot está conectado y el proyecto publicado,
+-- así el sitio público puede mostrar el botón sin leer wa_bots (RLS).
+create or replace function public_project_whatsapp(p_project_id uuid) returns text
+language sql security definer stable
+set search_path = public
+as $$
+  select b.numero
+  from wa_bots b
+  join projects p on p.id = b.project_id
+  where b.project_id = p_project_id
+    and b.estado = 'conectado'
+    and p.published
+$$;
+grant execute on function public_project_whatsapp(uuid) to anon, authenticated;

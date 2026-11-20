@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.local.example
+!.env.bot.example
+.env.bot
+
+# whatsapp-web.js (logins y caché del puente del bot de WhatsApp)
+.wwebjs_auth/
+.wwebjs_cache/
 
 # vercel
 .vercel
