@@ -13,7 +13,7 @@ import { partirRespuesta } from '../reglas';
 import { consignaSeguimiento, debeHacerSeguimiento, esSinSeguimiento } from '../seguimiento';
 import type { DepsTurnoBot } from './turno-bot';
 
-export type DepsSeguimiento = Pick<DepsTurnoBot, 'sb' | 'responderTurno' | 'ahora' | 'urlSitio' | 'log'> & {
+export type DepsSeguimiento = Pick<DepsTurnoBot, 'sb' | 'responderTurno' | 'registrarUso' | 'ahora' | 'urlSitio' | 'log'> & {
   repo: Pick<typeof Repo, 'leerBot' | 'leerConversacion' | 'historial' | 'encolar' | 'marcarSeguimiento'>;
   cargarDatosProyecto(sb: SupabaseClient, projectId: string): Promise<DatosProyecto>;
 };
@@ -57,6 +57,17 @@ export async function correrSeguimiento(deps: DepsSeguimiento, botId: string, co
       avisar: async () => 'ya_avisado',
     },
   });
+
+  if (r.uso && deps.registrarUso) {
+    await deps.registrarUso({
+      projectId: bot.project_id,
+      botId: bot.id,
+      conversacionId: conv.id,
+      origen: 'seguimiento',
+      uso: r.uso,
+      motivoSinRespuesta: r.motivoSinRespuesta ?? null,
+    });
+  }
 
   // Haya o no mensaje, este silencio ya se evaluó: no se vuelve a intentar.
   const marcar = () => repo.marcarSeguimiento(sb, conv.id, ahora);

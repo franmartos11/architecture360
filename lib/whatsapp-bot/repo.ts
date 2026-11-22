@@ -16,6 +16,7 @@ import type {
 import { escapeHtml } from '@/lib/sanitize';
 import { leadRecipientIds } from '@/lib/lead-recipients';
 import { LEAD_COLUMNS, phoneTail } from '@/lib/lead-columns';
+import type { RegistroUsoIa } from './ia/uso';
 import type { MemberRole } from '@/lib/project-roles';
 import {
   buscarLeadPorTelefono,
@@ -611,6 +612,33 @@ export type NuevaSalida = Pick<
   /** Índice (desde 0) de la parte/imagen dentro del turno: orden_at = base + parte ms. */
   parte?: number;
 };
+
+/**
+ * Guarda el uso de tokens de un turno (wa_uso_ia) para medir el costo del bot.
+ * Nunca rechaza: si falla (por ejemplo, la tabla todavía no existe) se anota en
+ * el log y el bot sigue; medir no puede costar una respuesta.
+ */
+export async function registrarUsoIa(sb: SupabaseClient, r: RegistroUsoIa, log?: (m: string) => void): Promise<void> {
+  if (r.uso.llamadas === 0) return;
+  try {
+    const { error } = await sb.from('wa_uso_ia').insert({
+      project_id: r.projectId,
+      bot_id: r.botId,
+      conversacion_id: r.conversacionId,
+      origen: r.origen,
+      modelo: r.uso.modelo,
+      llamadas: r.uso.llamadas,
+      input_tokens: r.uso.inputTokens,
+      output_tokens: r.uso.outputTokens,
+      cache_read_tokens: r.uso.cacheReadTokens,
+      cache_write_tokens: r.uso.cacheWriteTokens,
+      motivo_sin_respuesta: r.motivoSinRespuesta ?? null,
+    });
+    if (error) log?.(`[uso-ia] no se pudo guardar: ${error.message}`);
+  } catch (e) {
+    log?.(`[uso-ia] no se pudo guardar: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
 export async function encolar(sb: SupabaseClient, s: NuevaSalida): Promise<WaSalida> {
   const { parte = 0, orden_at, ...fila } = s;

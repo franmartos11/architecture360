@@ -8,7 +8,7 @@ import { PedidoSimulacion } from '@/lib/whatsapp-bot/esquemas';
 import { crearClienteClaude } from '@/lib/whatsapp-bot/ia/cliente';
 import { responderTurno } from '@/lib/whatsapp-bot/ia/turno';
 import { simularTurno } from '@/lib/whatsapp-bot/simulador';
-import { visitasActivas } from '@/lib/whatsapp-bot/repo';
+import { registrarUsoIa, visitasActivas } from '@/lib/whatsapp-bot/repo';
 import { normalizarConfigVisitas } from '@/lib/whatsapp-bot/visitas';
 import { serverError } from '@/lib/api-errors';
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
   const { data: bot, error: errBot } = await supabase
     .from('wa_bots')
-    .select('nombre_bot, criterio_aviso, conocimiento, visitas')
+    .select('id, nombre_bot, criterio_aviso, conocimiento, visitas')
     .eq('project_id', projectId)
     .maybeSingle();
   if (errBot) return serverError(errBot);
@@ -74,7 +74,21 @@ export async function POST(request: Request) {
       mensajes: parsed.data.mensajes,
       yaAvisado: parsed.data.yaAvisado,
       visitas: { config, ocupados, ahora },
-      responder: (x) => responderTurno({ cliente, ...x, signal: limiteTurno }),
+      responder: async (x) => {
+        const res = await responderTurno({ cliente, ...x, signal: limiteTurno });
+        if (res.uso) {
+          // Aparte del bot real (origen 'simulador'), para no mezclar pruebas con el costo de las charlas.
+          await registrarUsoIa(admin, {
+            projectId,
+            botId: bot?.id ?? null,
+            conversacionId: null,
+            origen: 'simulador',
+            uso: res.uso,
+            motivoSinRespuesta: res.motivoSinRespuesta ?? null,
+          }, (m) => console.error(m));
+        }
+        return res;
+      },
     });
     return NextResponse.json(r);
   } catch (e) {

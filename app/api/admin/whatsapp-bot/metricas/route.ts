@@ -3,6 +3,8 @@ import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/
 import {
   conversion,
   RANGOS_METRICAS,
+  resumenCostoIa,
+  type FilaUsoIa,
   serieDiaria,
   unidadesMasPedidas,
   type MetricasBot,
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
         .gte('enviado_at', desde),
     );
 
-  const [conversacionesRes, mensajesClientes, respuestasBot, leadsRes, leadsCalientes, visitasAgendadas, visitasRealizadas, preguntasPendientes] =
+  const [conversacionesRes, mensajesClientes, respuestasBot, leadsRes, leadsCalientes, visitasAgendadas, visitasRealizadas, preguntasPendientes, usoRes] =
     await Promise.all([
       supabase.from('wa_conversaciones').select('created_at').eq('project_id', projectId).gte('created_at', desde).limit(MAX_FILAS),
       mensajes('cliente'),
@@ -61,6 +63,12 @@ export async function GET(request: Request) {
         supabase.from('wa_visitas').select('id', cabeza).eq('project_id', projectId).eq('estado', 'realizada').gte('inicio', desde),
       ),
       contar(supabase.from('wa_preguntas').select('id', cabeza).eq('project_id', projectId).eq('estado', 'pendiente')),
+      supabase
+        .from('wa_uso_ia')
+        .select('origen, conversacion_id, modelo, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens')
+        .eq('project_id', projectId)
+        .gte('created_at', desde)
+        .limit(MAX_FILAS * 4),
     ]);
 
   const creadas = conversacionesRes.error ? null : ((conversacionesRes.data ?? []) as { created_at: string }[]).map((c) => c.created_at);
@@ -80,6 +88,7 @@ export async function GET(request: Request) {
     conversion: conversion(leads ? leads.length : null, conversaciones),
     porDia: serieDiaria(creadas ?? [], dias, ahora),
     unidades: unidadesMasPedidas((leads ?? []).map((l) => l.unit_name)),
+    costoIa: usoRes.error ? null : resumenCostoIa((usoRes.data ?? []) as FilaUsoIa[]),
   };
   return NextResponse.json(m);
 }

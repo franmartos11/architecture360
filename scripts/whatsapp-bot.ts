@@ -74,6 +74,7 @@ const depsTurno: DepsTurnoBot = {
   repo,
   cargarDatosProyecto,
   responderTurno: (i) => responderTurno({ cliente: anthropic, ...i }),
+  registrarUso: (r) => repo.registrarUsoIa(sb, r, logError),
   ahora: () => new Date(),
   urlAdmin: ADMIN_BASE_URL,
   urlSitio: (slug: string) => urlSitioProyecto(slug, ADMIN_BASE_URL, process.env.NEXT_PUBLIC_ROOT_DOMAIN),

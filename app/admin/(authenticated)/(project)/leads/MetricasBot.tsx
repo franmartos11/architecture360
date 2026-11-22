@@ -6,6 +6,31 @@ import { RANGOS_METRICAS, type MetricasBot as Metricas, type RangoMetricas } fro
 
 const num = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('es-AR').format(n));
 const diaCorto = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
+// Montos chicos (un turno cuesta centavos): con 2 decimales, y con 3 por debajo de 1 USD.
+const usd = (n: number | null) =>
+  n === null ? '—' : `US$ ${new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 3 : 2 }).format(n)}`;
+
+/** Costo estimado de la IA en el período (precios de lista, ver lib/whatsapp-bot/ia/uso.ts). */
+function CostoIa({ c }: { c: NonNullable<Metricas['costoIa']> }) {
+  if (c.turnos === 0 && c.simuladorUsd === null) {
+    return <p className="m-0 text-[13px] text-gray-600">Todavía no hay uso de la IA registrado en este período.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      <span className="text-[13px] font-semibold text-gray-900">Costo de la IA (estimado)</span>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <Cifra valor={usd(c.usd)} label="Total del bot" detalle={`${num(c.turnos)} ${c.turnos === 1 ? 'respuesta' : 'respuestas'} de la IA`} />
+        <Cifra valor={usd(c.usdPorConversacion)} label="Por conversación" detalle={`${num(c.conversaciones)} ${c.conversaciones === 1 ? 'conversación' : 'conversaciones'}`} />
+        <Cifra valor={c.cachePct === null ? '—' : `${c.cachePct}%`} label="Leído de la caché" detalle="Más alto, más barato" />
+      </div>
+      <span className="text-xs text-gray-600">
+        Con precios de lista de Anthropic; la factura real puede variar.
+        {c.simuladorUsd !== null && ` Pruebas del simulador aparte: ${usd(c.simuladorUsd)}.`}
+        {c.incompleto && ' Algunas respuestas las dio un modelo sin precio cargado y no están en el total.'}
+      </span>
+    </div>
+  );
+}
 
 function Cifra({ valor, label, detalle }: { valor: string; label: string; detalle?: string }) {
   return (
@@ -163,6 +188,11 @@ export default function MetricasBot() {
               </span>
             )}
           </div>
+        </div>
+      )}
+      {m?.costoIa && (
+        <div className="border-t border-gray-200 pt-5">
+          <CostoIa c={m.costoIa} />
         </div>
       )}
     </section>

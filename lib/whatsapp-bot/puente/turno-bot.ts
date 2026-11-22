@@ -15,6 +15,7 @@ import { registrarPregunta } from '../preguntas';
 import { prepararMediosIa, type DepsMediosIa } from '../medios-ia';
 import { normalizarConfigVisitas } from '../visitas';
 import type { ResultadoTurno } from '../ia/turno';
+import type { RegistroUsoIa } from '../ia/uso';
 import type * as Repo from '../repo';
 import { fechaBuenosAires } from '../repo';
 import { debeResponder, esContestadorAutomatico, estaEnModoHumano, partirRespuesta } from '../reglas';
@@ -42,6 +43,8 @@ export type DepsTurnoBot = {
     mensajes: Anthropic.Beta.BetaMessageParam[];
     deps: DepsHerramientas;
   }): Promise<ResultadoTurno>;
+  /** Guarda el uso de tokens del turno (repo.registrarUsoIa); sin esto no se mide. */
+  registrarUso?: (r: RegistroUsoIa) => Promise<void>;
   ahora(): Date;
   /** Base del link "Ver chat" del aviso al vendedor. */
   urlAdmin: string;
@@ -244,6 +247,17 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
         ),
     },
   });
+
+  if (r.uso && deps.registrarUso) {
+    await deps.registrarUso({
+      projectId: bot.project_id,
+      botId: bot.id,
+      conversacionId: conv.id,
+      origen: 'respuesta',
+      uso: r.uso,
+      motivoSinRespuesta: r.motivoSinRespuesta ?? null,
+    });
+  }
 
   if (r.motivoSinRespuesta) {
     // No se le manda nada al cliente; el panel muestra por qué.

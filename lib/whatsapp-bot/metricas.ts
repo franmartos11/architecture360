@@ -1,5 +1,6 @@
 // Métricas del bot para el panel: cálculos puros sobre lo que lee la ruta.
 // Sin imports de next/react.
+import { costoEstimadoUsd } from './ia/uso';
 
 export const RANGOS_METRICAS = [7, 30, 90] as const;
 export type RangoMetricas = (typeof RANGOS_METRICAS)[number];
@@ -20,7 +21,73 @@ export type MetricasBot = {
   porDia: { fecha: string; conversaciones: number }[];
   /** Unidades que más aparecen en los leads del bot. */
   unidades: { unidad: string; leads: number }[];
+  /** Costo de la IA en el período (null si wa_uso_ia todavía no existe). */
+  costoIa: CostoIa | null;
 };
+
+export type CostoIa = {
+  /** USD estimados del bot real (respuestas y seguimientos); null si ningún turno tiene precio. */
+  usd: number | null;
+  /** Hubo turnos de un modelo sin precio cargado: el total se queda corto. */
+  incompleto: boolean;
+  turnos: number;
+  /** Conversaciones distintas con al menos un turno de la IA. */
+  conversaciones: number;
+  usdPorConversacion: number | null;
+  /** De todo lo que entró al modelo, cuánto se leyó de la caché (0–100). */
+  cachePct: number | null;
+  /** USD estimados de las pruebas del simulador (aparte). */
+  simuladorUsd: number | null;
+};
+
+export type FilaUsoIa = {
+  origen: string;
+  conversacion_id: string | null;
+  modelo: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+};
+
+/** Resume las filas de wa_uso_ia del período en el costo que muestra Métricas. */
+export function resumenCostoIa(filas: FilaUsoIa[]): CostoIa {
+  let usd: number | null = null;
+  let simuladorUsd: number | null = null;
+  let incompleto = false;
+  let turnos = 0;
+  let entrada = 0;
+  let deCache = 0;
+  const convs = new Set<string>();
+  for (const f of filas) {
+    const c = costoEstimadoUsd({
+      modelo: f.modelo,
+      inputTokens: f.input_tokens,
+      outputTokens: f.output_tokens,
+      cacheReadTokens: f.cache_read_tokens,
+      cacheWriteTokens: f.cache_write_tokens,
+    });
+    if (f.origen === 'simulador') {
+      if (c !== null) simuladorUsd = (simuladorUsd ?? 0) + c;
+      continue;
+    }
+    turnos++;
+    if (f.conversacion_id) convs.add(f.conversacion_id);
+    if (c === null) incompleto = true;
+    else usd = (usd ?? 0) + c;
+    entrada += f.input_tokens + f.cache_read_tokens + f.cache_write_tokens;
+    deCache += f.cache_read_tokens;
+  }
+  return {
+    usd,
+    incompleto,
+    turnos,
+    conversaciones: convs.size,
+    usdPorConversacion: usd !== null && convs.size > 0 ? usd / convs.size : null,
+    cachePct: entrada > 0 ? Math.round((deCache / entrada) * 100) : null,
+    simuladorUsd,
+  };
+}
 
 const fechaAR = (d: Date) => new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
 

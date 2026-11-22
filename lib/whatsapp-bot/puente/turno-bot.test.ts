@@ -89,6 +89,24 @@ function deps(p: { historial?: WaMensaje[]; responder?: Turno } & Pick<Partial<D
 }
 
 describe('correrTurnoIA', () => {
+  it('guarda el uso de tokens del turno con el bot, la conversación y origen respuesta', async () => {
+    const uso = { modelo: 'claude-opus-5-5', llamadas: 2, inputTokens: 100, outputTokens: 50, cacheReadTokens: 9000, cacheWriteTokens: 300 };
+    const registrarUso = vi.fn(async () => {});
+    const d = { ...deps({ responder: async () => ({ texto: 'Hola', uso }) }), registrarUso };
+    await correrTurnoIA(d, 'bot1', 'conv1');
+    expect(registrarUso).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: 'bot1', conversacionId: 'conv1', origen: 'respuesta', uso, motivoSinRespuesta: null }),
+    );
+  });
+
+  it('también guarda el uso cuando la IA no respondió (se pagó igual)', async () => {
+    const uso = { modelo: 'claude-opus-5-5', llamadas: 2, inputTokens: 100, outputTokens: 50, cacheReadTokens: 9000, cacheWriteTokens: 300 };
+    const registrarUso = vi.fn(async () => {});
+    const d = { ...deps({ responder: async () => ({ texto: null, motivoSinRespuesta: 'refusal' as const, uso }) }), registrarUso };
+    await correrTurnoIA(d, 'bot1', 'conv1');
+    expect(registrarUso).toHaveBeenCalledWith(expect.objectContaining({ motivoSinRespuesta: 'refusal' }));
+  });
+
   it('links del sitio solo con el proyecto publicado', async () => {
     const urlSitio = (slug: string) => `https://sitio.ejemplo.com/proyecto/${slug}`;
     const publicado = { ...datosProyecto, proyecto: { ...datosProyecto.proyecto, slug: 'torre-sol', published: true } as ProjectRow };

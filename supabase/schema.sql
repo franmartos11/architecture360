@@ -2953,3 +2953,32 @@ create index if not exists idx_leads_project_phone_tail on leads(project_id, pho
 -- historial() lee los mensajes salientes de una conversación en cada turno del
 -- bot, y la FK con on delete cascade también lo necesita al borrar una.
 create index if not exists idx_wa_salida_conversacion on wa_salida(conversacion_id);
+
+-- ─── Uso de la IA del bot ────────────────────────────────────────────────
+-- Una fila por turno de la IA (respuesta, seguimiento o prueba del
+-- simulador) con los tokens de todas sus llamadas a la API, para saber cuánto
+-- cuesta el bot por conversación y si la caché del prompt rinde. La escribe
+-- solo el servidor (puente y ruta del simulador, con service-role); la lee la
+-- pestaña Métricas, de administrador en adelante, igual que el resto del bot.
+create table if not exists wa_uso_ia (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  bot_id uuid references wa_bots(id) on delete set null,
+  conversacion_id uuid references wa_conversaciones(id) on delete set null,
+  origen text not null check (origen in ('respuesta', 'seguimiento', 'simulador')),
+  modelo text,
+  llamadas int not null default 0,
+  input_tokens int not null default 0,
+  output_tokens int not null default 0,
+  cache_read_tokens int not null default 0,
+  cache_write_tokens int not null default 0,
+  motivo_sin_respuesta text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_wa_uso_ia_project_created on wa_uso_ia(project_id, created_at desc);
+
+alter table wa_uso_ia enable row level security;
+
+drop policy if exists "admin read wa_uso_ia" on wa_uso_ia;
+create policy "admin read wa_uso_ia" on wa_uso_ia for select to authenticated
+  using ((select project_role_rank(wa_uso_ia.project_id)) >= 3);

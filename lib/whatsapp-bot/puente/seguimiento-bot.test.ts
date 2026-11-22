@@ -50,6 +50,15 @@ describe('correrSeguimiento', () => {
     expect(repo.marcarSeguimiento).toHaveBeenCalledWith(d.sb, 'conv1', AHORA);
   });
 
+  it('guarda el uso de tokens con origen seguimiento', async () => {
+    const { d, responderTurno } = deps('¡Hola Ana!');
+    const uso = { modelo: 'claude-opus-5-5', llamadas: 2, inputTokens: 100, outputTokens: 50, cacheReadTokens: 9000, cacheWriteTokens: 300 };
+    responderTurno.mockResolvedValueOnce({ texto: '¡Hola Ana!', uso });
+    const registrarUso = vi.fn(async () => {});
+    await correrSeguimiento({ ...d, registrarUso }, 'bot1', 'conv1');
+    expect(registrarUso).toHaveBeenCalledWith(expect.objectContaining({ conversacionId: 'conv1', origen: 'seguimiento', uso }));
+  });
+
   it('la IA dice que no hubo interés: no manda nada pero marca', async () => {
     const { d, repo } = deps('NO_SEGUIMIENTO');
     expect(await correrSeguimiento(d, 'bot1', 'conv1')).toBe('sin_interes');

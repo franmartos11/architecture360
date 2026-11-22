@@ -31,6 +31,7 @@ import {
   obtenerOCrearConversacion,
   pausarIa,
   registrarAviso,
+  registrarUsoIa,
   registrarSalidaEnviada,
   subirMedio,
   sumarMensajeDelDia,
@@ -281,6 +282,35 @@ function responderAviso(extra: (q: Consulta) => Respuesta | undefined = () => un
     return undefined;
   };
 }
+
+describe('registrarUsoIa', () => {
+  const uso = { modelo: 'claude-opus-5-5', llamadas: 1, inputTokens: 5, outputTokens: 7, cacheReadTokens: 100, cacheWriteTokens: 0 };
+
+  it('inserta una fila en wa_uso_ia con los tokens', async () => {
+    const f = sbFalso();
+    await registrarUsoIa(f.sb, { projectId: 'proj1', botId: 'bot1', conversacionId: 'conv1', origen: 'respuesta', uso });
+    expect(f.escrituras()).toEqual([
+      expect.objectContaining({
+        tabla: 'wa_uso_ia',
+        op: 'insert',
+        valores: expect.objectContaining({ project_id: 'proj1', origen: 'respuesta', input_tokens: 5, output_tokens: 7, cache_read_tokens: 100 }),
+      }),
+    ]);
+  });
+
+  it('si falla (p. ej. la tabla no existe) no rechaza: lo anota y sigue', async () => {
+    const f = sbFalso(() => ({ error: { message: 'relation "wa_uso_ia" does not exist', code: '42P01' } }));
+    const log = vi.fn();
+    await expect(registrarUsoIa(f.sb, { projectId: 'proj1', botId: null, conversacionId: null, origen: 'simulador', uso }, log)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('wa_uso_ia'));
+  });
+
+  it('un turno sin llamadas a la API no se guarda', async () => {
+    const f = sbFalso();
+    await registrarUsoIa(f.sb, { projectId: 'proj1', botId: null, conversacionId: null, origen: 'respuesta', uso: { ...uso, llamadas: 0 } });
+    expect(f.consultas).toHaveLength(0);
+  });
+});
 
 describe('registrarAviso', () => {
   it('busca el lead solo entre los que terminan en los mismos 6 dígitos, sin bajar todos ni ip_address', async () => {

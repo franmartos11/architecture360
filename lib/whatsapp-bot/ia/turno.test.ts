@@ -67,7 +67,8 @@ describe('responderTurno', () => {
     const { cliente, create } = clienteFalso(primera, fin('Por ahora no hay unidades.'));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
 
-    expect(r).toEqual({ texto: 'Por ahora no hay unidades.' });
+    expect(r).toMatchObject({ texto: 'Por ahora no hay unidades.' });
+    expect(r.motivoSinRespuesta).toBeUndefined();
     expect(create).toHaveBeenCalledTimes(2);
     const segunda = create.mock.calls[1][0];
     expect(segunda.messages).toHaveLength(3);
@@ -136,13 +137,38 @@ describe('responderTurno', () => {
     ]);
     const { cliente } = clienteFalso(r0);
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: 'Hola. Te cuento.' });
+    expect(r).toMatchObject({ texto: 'Hola. Te cuento.' });
   });
 
   it('refusal → sin respuesta', async () => {
     const { cliente } = clienteFalso(respuesta('refusal', []));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'refusal' });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'refusal' });
+  });
+
+  it('suma el uso de tokens de todas las llamadas del turno', async () => {
+    const conUso = <T extends object>(r: T, u: object) => ({ ...r, usage: u });
+    const { cliente } = clienteFalso(
+      conUso(usoBuscar(), { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 3000, cache_creation_input_tokens: 0 }),
+      conUso(fin('Listo'), { input_tokens: 50, output_tokens: 10, cache_read_input_tokens: 3200, cache_creation_input_tokens: 400 }),
+    );
+    const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
+    expect(r.uso).toEqual({
+      modelo: 'claude-opus-5-5',
+      llamadas: 2,
+      inputTokens: 150,
+      outputTokens: 30,
+      cacheReadTokens: 6200,
+      cacheWriteTokens: 400,
+    });
+  });
+
+  it('si la API falla, el uso de las llamadas que sí respondieron igual vuelve', async () => {
+    const err = new Anthropic.APIError(500, undefined, 'caído', new Headers());
+    const { cliente } = clienteFalso({ ...usoBuscar(), usage: { input_tokens: 10, output_tokens: 5 } }, err, err);
+    const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'error' });
+    expect(r.uso).toMatchObject({ llamadas: 1, inputTokens: 10, outputTokens: 5 });
   });
 
   it('con el límite del turno vencido no llama a la API ni reintenta: sin respuesta', async () => {
@@ -150,7 +176,7 @@ describe('responderTurno', () => {
     const controller = new AbortController();
     controller.abort();
     const r = await responderTurno({ cliente, system: [], mensajes: [{ role: 'user', content: 'hola' }], deps: {} as never, signal: controller.signal });
-    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'error' });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'error' });
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -164,7 +190,7 @@ describe('responderTurno', () => {
   it('8 tool_use seguidos → corta en 6 iteraciones con max_iteraciones', async () => {
     const { cliente, create } = clienteFalso(...Array.from({ length: 8 }, usoBuscar));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'max_iteraciones' });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'max_iteraciones' });
     expect(create).toHaveBeenCalledTimes(6);
   });
 
@@ -172,7 +198,7 @@ describe('responderTurno', () => {
     const err = new Anthropic.RateLimitError(429, undefined, 'rate limited', new Headers());
     const { cliente, create } = clienteFalso(err, fin('Hola'));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: 'Hola' });
+    expect(r).toMatchObject({ texto: 'Hola' });
     expect(create).toHaveBeenCalledTimes(2);
   });
 
@@ -181,7 +207,7 @@ describe('responderTurno', () => {
     const e2 = new Anthropic.APIConnectionError({ message: 'sin red' });
     const { cliente, create } = clienteFalso(e1, e2, fin('no debería llegar'));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'error' });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'error' });
     expect(create).toHaveBeenCalledTimes(2);
   });
 
@@ -200,13 +226,13 @@ describe('responderTurno', () => {
       mensajes: [...MENSAJES, { role: 'assistant', content: 'hola' }],
       deps: deps(),
     });
-    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'error' });
+    expect(r).toMatchObject({ texto: null, motivoSinRespuesta: 'error' });
     expect(create).not.toHaveBeenCalled();
   });
 
   it('respuesta final sin texto → texto null', async () => {
     const { cliente } = clienteFalso(respuesta('end_turn', [{ type: 'thinking', thinking: '', signature: 's' }]));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });
-    expect(r).toEqual({ texto: null });
+    expect(r).toMatchObject({ texto: null });
   });
 });

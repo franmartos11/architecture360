@@ -2,13 +2,19 @@
 // Sin imports de next/react: corre con tsx fuera de Next.
 import Anthropic from '@anthropic-ai/sdk';
 import { ejecutarHerramienta, HERRAMIENTAS, type DepsHerramientas } from './herramientas';
+import { sumarUso, USO_VACIO, type UsoTurno } from './uso';
 
 export const MODELO = 'claude-opus-5-5';
 /** Llamadas a la API por turno, como mucho. */
 export const MAX_ITERACIONES = 6;
 
 export type MotivoSinRespuesta = 'refusal' | 'error' | 'max_iteraciones';
-export type ResultadoTurno = { texto: string | null; motivoSinRespuesta?: MotivoSinRespuesta };
+export type ResultadoTurno = {
+  texto: string | null;
+  motivoSinRespuesta?: MotivoSinRespuesta;
+  /** Tokens de todas las llamadas del turno (para medir el costo, ver uso.ts). */
+  uso?: UsoTurno;
+};
 
 type Cliente = Pick<Anthropic, 'beta'>;
 
@@ -71,13 +77,15 @@ export async function responderTurno(i: {
     return { texto: null, motivoSinRespuesta: 'error' };
   }
 
+  let uso: UsoTurno = USO_VACIO;
   for (let n = 0; n < MAX_ITERACIONES; n++) {
     const r = await llamarConReintento(i.cliente, i.system, [...historial], i.signal);
-    if (!r) return { texto: null, motivoSinRespuesta: 'error' };
+    if (!r) return { texto: null, motivoSinRespuesta: 'error', uso };
+    uso = sumarUso(uso, r);
 
     switch (r.stop_reason) {
       case 'refusal':
-        return { texto: null, motivoSinRespuesta: 'refusal' };
+        return { texto: null, motivoSinRespuesta: 'refusal', uso };
 
       case 'end_turn':
       case 'stop_sequence':
@@ -87,7 +95,7 @@ export async function responderTurno(i: {
           .map(b => b.text)
           .join('')
           .trim();
-        return { texto: texto || null };
+        return { texto: texto || null, uso };
       }
 
       case 'pause_turn':
@@ -96,7 +104,7 @@ export async function responderTurno(i: {
 
       case 'tool_use': {
         const usos = r.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
-        if (usos.length === 0) return { texto: null, motivoSinRespuesta: 'error' };
+        if (usos.length === 0) return { texto: null, motivoSinRespuesta: 'error', uso };
         // Se reenvía el contenido completo (incluye los bloques thinking).
         historial.push({ role: 'assistant', content: r.content });
         // En orden: encolar imágenes y avisar tienen efectos que conviene no cruzar.
@@ -110,8 +118,8 @@ export async function responderTurno(i: {
       }
 
       default:
-        return { texto: null, motivoSinRespuesta: 'error' };
+        return { texto: null, motivoSinRespuesta: 'error', uso };
     }
   }
-  return { texto: null, motivoSinRespuesta: 'max_iteraciones' };
+  return { texto: null, motivoSinRespuesta: 'max_iteraciones', uso };
 }
