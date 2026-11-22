@@ -54,10 +54,14 @@ function Segmented<T extends string | number>({ label, options, value, onChange,
   );
 }
 
+// Índice de "Otro monto" dentro del selector de modelos.
+const CUSTOM = -1;
+
 /**
  * Cotizador de cuota. `models` sale de las unidades con precio del proyecto
  * (ver CalculatorSection); si no hay ninguna, se tipea el valor a mano en
- * vez de inventar modelos con precios que no existen.
+ * vez de inventar modelos con precios que no existen. Con modelos, la opción
+ * "Otro monto" deja tipear un valor propio igual.
  */
 export default function Calculator({ projectSlug, models }: { projectSlug: string; models: CalculatorModel[] }) {
   const [modelIndex, setModelIndex] = useState(0);
@@ -93,9 +97,10 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
       });
   }, [projectSlug]);
 
-  const model = models[modelIndex];
-  const currency = model?.currency ?? 'USD';
+  const model = modelIndex === CUSTOM ? undefined : models[modelIndex];
+  const currency = model?.currency ?? models[0]?.currency ?? 'USD';
   const price = model ? model.price : Number(manualPrice.replace(/\D/g, '')) || 0;
+  const showManual = !model;
 
   // Monto: valor - anticipo.
   const monto = price - (price * prima / 100);
@@ -110,7 +115,7 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
   })();
 
   const fmt = (n: number) => formatPrice(Math.round(n), currency);
-  const summary = [model?.label, `${prima}% de anticipo`, `${fmtPct(tasa)} anual`, `${plazo} años`].filter(Boolean).join(' · ');
+  const summary = [model?.label ?? (models.length > 0 && price > 0 ? `Valor ${fmt(price)}` : undefined), `${prima}% de anticipo`, `${fmtPct(tasa)} anual`, `${plazo} años`].filter(Boolean).join(' · ');
 
   return (
     <section id="cotizador" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
@@ -118,19 +123,21 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
         <SectionHeading eyebrow="Cotizador" title="Calculá tu cuota." muted="En segundos." className="mb-12" />
         <div className="flex flex-wrap gap-5">
           <div className="flex-[999_1_520px] min-w-0 border border-[var(--theme-border)] rounded-[calc(var(--theme-radius)*1.4)] p-5 sm:p-8 flex flex-col gap-7">
-            {models.length > 0 ? (
+            {models.length > 0 && (
               <Segmented
                 label="Modelo"
-                options={models.map((_, i) => i)}
+                options={[...models.map((_, i) => i), CUSTOM]}
                 value={modelIndex}
                 onChange={setModelIndex}
-                format={i => `${models[i].label} · ${formatPrice(models[i].price, models[i].currency)}`}
+                format={i => (i === CUSTOM ? 'Otro monto' : `${models[i].label} · ${formatPrice(models[i].price, models[i].currency)}`)}
               />
-            ) : (
+            )}
+            {showManual && (
               <label className="flex flex-col gap-3 text-[13px] font-semibold text-[var(--theme-text-muted)]">
-                Valor de la propiedad (USD)
+                {models.length > 0 ? `Monto (${currency})` : `Valor de la propiedad (${currency})`}
                 <input
                   inputMode="numeric"
+                  autoFocus={models.length > 0}
                   value={manualPrice}
                   onChange={e => setManualPrice(e.target.value.replace(/\D/g, '') ? Number(e.target.value.replace(/\D/g, '')).toLocaleString('es-AR') : '')}
                   placeholder="Ej. 120.000"
@@ -145,6 +152,10 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
 
           <div className="flex-[1_1_340px] bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)] rounded-[calc(var(--theme-radius)*1.4)] p-6 sm:p-8 flex flex-col justify-between gap-8">
             <div className="flex flex-col gap-5" aria-live="polite">
+              <div className="flex justify-between gap-3 text-sm text-[var(--theme-text-on-dark-muted)]">
+                <span>Anticipo ({prima}%)</span>
+                <strong className="text-[var(--theme-text-on-dark)] font-semibold">{price > 0 ? fmt(price - monto) : '—'}</strong>
+              </div>
               <div className="flex justify-between gap-3 text-sm text-[var(--theme-text-on-dark-muted)] pb-4 border-b border-[var(--theme-border-on-dark)]">
                 <span>Monto a financiar</span>
                 <strong className="text-[var(--theme-text-on-dark)] font-semibold">{price > 0 ? fmt(monto) : '—'}</strong>
@@ -170,7 +181,7 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
         onClose={() => setIsLeadModalOpen(false)}
         unit={null}
         projectSlug={projectSlug}
-        initialMessage={`Hola, me interesa recibir información sobre financiación${model ? ` del modelo ${model.label}` : ''}. Cuota mensual estimada: ${fmt(resultado)} (monto a financiar: ${fmt(monto)}, ${plazo} años, ${tasa}% de interés).`}
+        initialMessage={`Hola, me interesa recibir información sobre financiación${model ? ` del modelo ${model.label}` : price > 0 ? ` para un valor de ${fmt(price)}` : ''}. Cuota mensual estimada: ${fmt(resultado)} (monto a financiar: ${fmt(monto)}, ${plazo} años, ${tasa}% de interés).`}
       />
     </section>
   );
