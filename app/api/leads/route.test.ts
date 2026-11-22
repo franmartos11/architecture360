@@ -121,7 +121,7 @@ describe('POST /api/leads', () => {
 
   it('notifica también a gestores y administradores aceptados, no a editores ni pendientes', async () => {
     const supabase = mockSupabase({
-      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, { error: null }],
+      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
     const members = [
@@ -131,7 +131,7 @@ describe('POST /api/leads', () => {
       { user_id: 'gestor-pend', role: 'gestor', status: 'pending' },
     ];
     const admin = {
-      ...mockSupabase({ results: [{ data: members }] }),
+      ...mockSupabase({ results: [{ error: null }, { data: members }] }), // insert del lead, miembros
       auth: { admin: { getUserById: vi.fn((id: string) => Promise.resolve({ data: { user: { email: `${id}@example.com` } } })) } },
     };
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
@@ -146,11 +146,11 @@ describe('POST /api/leads', () => {
 
   it('si falla la lectura de miembros, igual avisa al dueño', async () => {
     const supabase = mockSupabase({
-      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }, { error: null }],
+      results: [{ data: { id: 'project-1', name: 'Torre del Mar', owner_id: 'owner-1' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
     const admin = {
-      ...mockSupabase({ results: [{ data: null, error: { message: 'boom' } }] }),
+      ...mockSupabase({ results: [{ error: null }, { data: null, error: { message: 'boom' } }] }), // insert del lead, miembros
       auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'dueño@example.com' } } }) } },
     };
     vi.mocked(createAdminClient).mockReturnValue(admin as never);

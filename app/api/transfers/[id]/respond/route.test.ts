@@ -42,7 +42,7 @@ describe('PATCH /api/transfers/[id]/respond', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ projectId: 'project-9' });
     expect(supabase.rpc).toHaveBeenCalledWith('accept_ownership_transfer', { p_transfer_id: 'transfer-1' });
-    expect(notify).toHaveBeenCalledWith(supabase, expect.objectContaining({
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       recipientId: 'owner-1', actorId: 'target-1', type: 'ownership_transfer_accepted', entityId: 'project-9',
     }));
   });

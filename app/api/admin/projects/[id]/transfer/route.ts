@@ -89,7 +89,7 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   // Dos canales, cada uno best-effort por separado.
-  await notify(supabase, { recipientId: targetId, actorId: user.id, type: 'ownership_transfer', entityId: id });
+  await notify({ recipientId: targetId, actorId: user.id, type: 'ownership_transfer', entityId: id });
   try {
     const { data: { user: recipient } } = await createAdminClient().auth.admin.getUserById(targetId);
     if (recipient?.email) {

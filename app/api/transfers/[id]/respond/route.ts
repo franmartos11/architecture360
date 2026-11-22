@@ -46,6 +46,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data: projectId, error } = await supabase.rpc('accept_ownership_transfer', { p_transfer_id: id });
   if (error) return NextResponse.json({ error: error.message }, { status: 409 });
 
-  await notify(supabase, { recipientId: transfer.from_user, actorId: user.id, type: 'ownership_transfer_accepted', entityId: projectId });
+  await notify({ recipientId: transfer.from_user, actorId: user.id, type: 'ownership_transfer_accepted', entityId: projectId });
   return NextResponse.json({ projectId });
 }

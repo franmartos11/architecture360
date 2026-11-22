@@ -122,7 +122,7 @@ describe('/api/admin/projects/[id]/transfer', () => {
 
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ pending: { id: 'transfer-1', created_at: '2026-11-16T00:00:00Z' } });
-    expect(notify).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       recipientId: 'target-1', actorId: 'owner-1', type: 'ownership_transfer', entityId: 'project-1',
     }));
     const email = vi.mocked(sendEmail).mock.calls[0][0];

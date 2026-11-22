@@ -8,10 +8,8 @@ import { parseJsonBody } from '@/lib/api-validate';
 import { z } from 'zod';
 import { planMemberInvite } from '@/lib/member-invite';
 import { escapeHtml } from '@/lib/sanitize';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 
-const RATE_LIMIT_WINDOW_MINUTES = 10;
-const RATE_LIMIT_MAX_INVITES = 10;
 const bodySchema = z.object({
   handle: z.string().min(1, 'Falta el handle de la persona'),
   role: z.enum(['editor', 'gestor', 'administrador'], { message: 'Rol inválido' }),
@@ -20,12 +18,11 @@ const bodySchema = z.object({
 const MEMBER_SELECT = '*, profile:profiles(handle, display_name, avatar_image)';
 
 async function notifyInvitee(
-  supabase: SupabaseClient,
   { profileId, actorId, projectId, projectName, role }: { profileId: string; actorId: string; projectId: string; projectName: string; role: MemberRole },
 ) {
   // Dos canales, cada uno best-effort por separado — que falle el mail no
   // debe tapar la notificación in-app, ni al revés.
-  await notify(supabase, { recipientId: profileId, actorId, type: 'project_invite', entityId: projectId });
+  await notify({ recipientId: profileId, actorId, type: 'project_invite', entityId: projectId });
   try {
     const { data: { user: invitee } } = await createAdminClient().auth.admin.getUserById(profileId);
     if (!invitee?.email) return;
@@ -87,18 +84,14 @@ export async function POST(request: Request) {
   const plan = planMemberInvite({ actorRole, role: memberRole, targetId: profile.id, ownerId: project.owner_id, existing });
   if ('error' in plan) return NextResponse.json({ error: plan.error }, { status: plan.status });
 
-  // El límite corre antes de ambos caminos y cuenta por updated_at: un insert
-  // nace con updated_at = now() y una reinvitación lo setea (y el trigger
-  // pone invited_by := quien llama), así que las dos cuentan.
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
-  const { count: recentCount } = await supabase
-    .from('project_members')
-    .select('id', { count: 'exact', head: true })
-    .eq('invited_by', user.id)
-    .gte('updated_at', since);
-  if ((recentCount ?? 0) >= RATE_LIMIT_MAX_INVITES) {
-    return NextResponse.json({ error: 'Mandaste muchas invitaciones seguidas — esperá unos minutos.' }, { status: 429 });
-  }
+  // El límite corre antes de ambos caminos (invitación nueva y reinvitación).
+  // Atómico en Postgres (check_rate_limit): contar filas y después escribir
+  // dejaba pasar varios pedidos simultáneos por debajo del tope.
+  const limited = await rateLimitOrRespond(
+    { key: `members-invite:user:${user.id}`, windowSeconds: 600, max: 10 },
+    'Mandaste muchas invitaciones seguidas — esperá unos minutos.',
+  );
+  if (limited) return limited;
 
   if (plan.action === 'reinvite') {
     // Un solo update: el trigger de la base permite, en una fila ajena, pasar
@@ -117,7 +110,7 @@ export async function POST(request: Request) {
       if (error.code === '42501') return NextResponse.json({ error: 'No podés invitar a esa persona' }, { status: 403 });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
+    await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
     return NextResponse.json(data, { status: 201 });
   }
 
@@ -132,6 +125,6 @@ export async function POST(request: Request) {
     if (error.code === '42501') return NextResponse.json({ error: 'No podés invitar a esa persona' }, { status: 403 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  await notifyInvitee(supabase, { profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
+  await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
   return NextResponse.json(data, { status: 201 });
 }

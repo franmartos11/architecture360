@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
@@ -13,6 +14,7 @@ import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { notify } from '@/lib/notify';
+import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
 
@@ -69,6 +71,7 @@ describe('POST /api/admin/members', () => {
     vi.mocked(createAdminClient).mockReset();
     vi.mocked(sendEmail).mockReset().mockResolvedValue(undefined);
     vi.mocked(notify).mockReset().mockResolvedValue(undefined);
+    vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
   });
 
   it('body inválido: 400 antes de chequear acceso', async () => {
@@ -115,14 +118,22 @@ describe('POST /api/admin/members', () => {
     expect(res.status).toBe(409);
   });
 
-  it('rate limit: 429', async () => {
-    grant(
-      mockSupabase({
-        results: [{ data: { id: 'p1' } }, { data: { name: 'Torre', owner_id: 'o1' } }, { data: null }, { count: 10 }],
-      }),
+  it('rate limit: 429, no inserta ni notifica', async () => {
+    const supabase = mockSupabase({
+      results: [{ data: { id: 'p1' } }, { data: { name: 'Torre', owner_id: 'o1' } }, { data: null }],
+    });
+    grant(supabase);
+    vi.mocked(rateLimitOrRespond).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'Mandaste muchas invitaciones' }), { status: 429 }) as never,
     );
     const res = await POST(req({ handle: 'ana', role: 'editor' }));
     expect(res.status).toBe(429);
+    expect(rateLimitOrRespond).toHaveBeenCalledWith(
+      { key: 'members-invite:user:user-1', windowSeconds: 600, max: 10 },
+      expect.any(String),
+    );
+    expect(supabase.from).toHaveBeenCalledTimes(3); // profiles, projects, miembro existente: no llegó a escribir
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it('reinvita a quien rechazó con un solo update, 201', async () => {
@@ -132,7 +143,6 @@ describe('POST /api/admin/members', () => {
         { data: { id: 'p1' } },
         { data: { name: 'Torre', owner_id: 'o1' } },
         { data: { id: 'm1', status: 'declined' } },
-        { count: 0 },
         { data: row },
       ],
     });
@@ -156,8 +166,7 @@ describe('POST /api/admin/members', () => {
           { data: { id: 'p1' } },
           { data: { name: 'Torre', owner_id: 'o1' } },
           { data: { id: 'm1', status: 'declined' } },
-          { count: 0 },
-          { data: null, error: { code: '42501', message: 'x' } },
+            { data: null, error: { code: '42501', message: 'x' } },
         ],
       }),
     );
@@ -173,7 +182,6 @@ describe('POST /api/admin/members', () => {
         { data: { id: 'p1' } },
         { data: { name: 'Torre', owner_id: 'o1' } },
         { data: null },
-        { count: 0 },
         { data: row },
       ],
     });
@@ -183,7 +191,6 @@ describe('POST /api/admin/members', () => {
     const res = await POST(req({ handle: 'ana', role: 'editor' }));
     expect(res.status).toBe(201);
     expect(notify).toHaveBeenCalledWith(
-      supabase,
       expect.objectContaining({ recipientId: 'p1', type: 'project_invite', entityId: 'project-1' }),
     );
     expect(sendEmail).toHaveBeenCalled();
@@ -196,8 +203,7 @@ describe('POST /api/admin/members', () => {
           { data: { id: 'p1' } },
           { data: { name: 'Torre', owner_id: 'o1' } },
           { data: null },
-          { count: 0 },
-          { data: null, error: { code: '42501', message: 'x' } },
+            { data: null, error: { code: '42501', message: 'x' } },
         ],
       }),
     );

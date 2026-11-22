@@ -64,7 +64,7 @@ describe('PATCH /api/members/[id]/respond', () => {
 
     const res = await PATCH(req({ status: 'accepted' }), params);
     expect(res.status).toBe(200);
-    expect(notify).toHaveBeenCalledWith(supabase, {
+    expect(notify).toHaveBeenCalledWith({
       recipientId: 'inviter',
       actorId: 'me',
       type: 'project_invite_accepted',
