@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import type { WaVisita } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if ((error as { code?: string }).code === '23505') {
       return NextResponse.json({ error: 'Ese horario ya tiene otra visita agendada' }, { status: 409 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json(data as WaVisita);
 }

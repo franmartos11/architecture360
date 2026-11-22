@@ -1,8 +1,10 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, btnPrimary, fieldClass } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -30,6 +32,7 @@ function initials(name: string) {
 }
 
 export default function EquipoPage() {
+  const contentIn = useContentIn();
   const { saleMode } = useProjectTypeConfig();
   // Créditos y moderación de comentarios: administrador o más (igual que la
   // RLS de project_collaborators y comments).
@@ -48,7 +51,7 @@ export default function EquipoPage() {
   const [editingContribution, setEditingContribution] = useState('');
   const [academicOpen, setAcademicOpen] = useState(false);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando equipo..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton rows={3} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -99,6 +102,7 @@ export default function EquipoPage() {
   const academicFilled = !!(project.academic_institution || project.academic_career || project.academic_tutor || project.academic_year);
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Equipo"
@@ -239,5 +243,6 @@ export default function EquipoPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

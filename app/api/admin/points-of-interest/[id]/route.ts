@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { resolveProjectIdFromPoi, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { isValidEnum, POI_CATEGORIES } from '@/lib/validate';
 import { sanitizeText } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { poiPatchSchema } from '@/lib/content-schemas';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,10 +15,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (body.category !== undefined && !isValidEnum(body.category, POI_CATEGORIES)) {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (raw.data.category !== undefined && !isValidEnum(raw.data.category, POI_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${POI_CATEGORIES.join(', ')}` }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, poiPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = sanitizeText(body.name, 150);
@@ -31,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.bikeMinutes !== undefined) updates.bike_minutes = body.bikeMinutes != null ? Number(body.bikeMinutes) : null;
 
   const { data, error } = await supabase.from('points_of_interest').update(updates).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -45,6 +52,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { supabase } = access;
 
   const { error } = await supabase.from('points_of_interest').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

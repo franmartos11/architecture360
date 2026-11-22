@@ -1,11 +1,13 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
 import VideoUploader from '@/components/admin/VideoUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, btnPrimary, btnSecondary, fieldClass } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -24,6 +26,7 @@ import { pluralize } from '@/lib/units';
 // por la barra de cambios sin guardar, como el resto de la ficha.
 
 export default function GaleriaPage() {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { saleMode, buildingLabel, hasUnitStep, aerialLabel, aerialLabelPlural } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -40,7 +43,7 @@ export default function GaleriaPage() {
   const [newSlideImageUploading, setNewSlideImageUploading] = useState(false);
   const [newSlideVideoUploading, setNewSlideVideoUploading] = useState(false);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando galería..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton rows={3} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const handleAddSlide = async (e: React.FormEvent) => {
@@ -88,6 +91,7 @@ export default function GaleriaPage() {
   };
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Galería"
@@ -182,5 +186,6 @@ export default function GaleriaPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

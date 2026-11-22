@@ -137,4 +137,34 @@ describe('usePublishState', () => {
     expect(r).toEqual({ ok: false, error: 'Todavía no se puede publicar.' });
     expect(result.current.published).toBe(false);
   });
+
+  describe('"Ver sitio" con dominio propio', () => {
+    const wrapperWith = (props: { initialPublished: boolean; customDomain?: string | null }) => {
+      function Wrapper({ children }: { children: React.ReactNode }) {
+        return createElement(PublishStateProvider, { projectId: 'p1', slug: 'mi-proyecto', projectType: 'edificio', saleMode: 'venta', ...props }, children);
+      }
+      return Wrapper;
+    };
+
+    it('publicado con dominio activo: lleva directo a ese dominio', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(previewResponse(EMPTY_PROJECT)));
+      const { result } = renderHook(() => usePublishState(), { wrapper: wrapperWith({ initialPublished: true, customDomain: 'www.torre.com' }) });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.siteHref).toBe('https://www.torre.com');
+    });
+
+    it('borrador con dominio: sigue yendo a la vista previa del panel (necesita la sesión del dueño)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(previewResponse(EMPTY_PROJECT)));
+      const { result } = renderHook(() => usePublishState(), { wrapper: wrapperWith({ initialPublished: false, customDomain: 'www.torre.com' }) });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.siteHref).toBe('/proyecto/mi-proyecto');
+    });
+
+    it('publicado sin dominio: el link de siempre', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(previewResponse(EMPTY_PROJECT)));
+      const { result } = renderHook(() => usePublishState(), { wrapper: wrapperWith({ initialPublished: true }) });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.siteHref).toBe('/proyecto/mi-proyecto');
+    });
+  });
 });

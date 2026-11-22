@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { planMemberInvite } from '@/lib/member-invite';
 import { escapeHtml } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 const bodySchema = z.object({
   handle: z.string().min(1, 'Falta el handle de la persona'),
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     supabase.from('profiles').select('id, handle, display_name, avatar_image').eq('id', project.owner_id).maybeSingle(),
     supabase.from('project_members').select(MEMBER_SELECT).eq('project_id', projectId).order('created_at', { ascending: true }),
   ]);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ owner, members: members ?? [], myRole: role });
 }
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       // 42501: el trigger rechazó la reinvitación (p. ej. la fila rechazada
       // tenía un rol que quien invita no puede gestionar).
       if (error.code === '42501') return NextResponse.json({ error: 'No podés invitar a esa persona' }, { status: 403 });
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError(error);
     }
     await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
     return NextResponse.json(data, { status: 201 });
@@ -123,7 +124,7 @@ export async function POST(request: Request) {
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Esa persona ya fue invitada a este proyecto.' }, { status: 409 });
     if (error.code === '42501') return NextResponse.json({ error: 'No podés invitar a esa persona' }, { status: 403 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   await notifyInvitee({ profileId: profile.id, actorId: user.id, projectId, projectName: project.name, role: memberRole });
   return NextResponse.json(data, { status: 201 });

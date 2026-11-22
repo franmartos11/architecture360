@@ -8,6 +8,7 @@ import CalculatorEditor from '@/components/admin/section-editors/CalculatorEdito
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import TeamMembersCard from '@/components/admin/TeamMembersCard';
 import TransferOwnershipCard from '@/components/admin/TransferOwnershipCard';
+import CustomDomainsSection from '@/components/admin/CustomDomainsSection';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
@@ -16,8 +17,10 @@ import { useProjectRole } from '@/lib/project-role-context';
 import { hasRole } from '@/lib/project-roles';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import type { ProjectSaleMode, ProjectType } from '@/types';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 
 export default function SettingsPage() {
+  const customDomain = useCustomDomain();
   const { showCalculator } = useProjectTypeConfig();
   const role = useProjectRole();
   // Publicar y cambiar la dirección pública: administrador o más. Duplicar y
@@ -91,7 +94,7 @@ export default function SettingsPage() {
   };
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const publicUrl = project ? getProjectDisplayUrl(project.slug, origin) : '';
+  const publicUrl = project ? getProjectDisplayUrl(project.slug, origin, customDomain) : '';
   // El link se arma alrededor del slug: /proyecto/[slug] o [slug].dominio.
   const [urlPrefix, urlSuffix] = getProjectDisplayUrl('__SLUG__', origin).replace(/^https?:\/\//, '').split('__SLUG__');
   const slugValue = slugDraft ?? project?.slug ?? '';
@@ -174,6 +177,11 @@ export default function SettingsPage() {
                     className="shrink-0 min-h-[36px] px-3 rounded-lg text-[13px] font-semibold text-gray-900 hover:bg-gray-100">Copiar</button>
                 )}
               </span>
+              {customDomain && (
+                <span className="text-xs text-gray-600">
+                  Tenés un dominio propio activo: este link redirige a <span className="font-mono">{customDomain}</span>, y esa es la dirección que se copia y se comparte.
+                </span>
+              )}
               {slugChanged && canPublish && (
                 <span className="text-xs text-amber-800">Va a quedar <span className="font-mono">{slugify(slugValue) || '—'}</span>. El link anterior deja de funcionar para quien ya lo tenga.</span>
               )}
@@ -184,6 +192,8 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {isOwner && project && <CustomDomainsSection projectId={project.id} />}
 
       {project && (
         <section className="rounded-2xl border border-gray-200 bg-white">

@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, startTransition } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { GripVertical, ChevronUp, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -70,6 +72,7 @@ const STATUS_DOT: Record<Status, string> = {
 // esto vivía partido en dos pantallas (/admin/sitio para el contenido,
 // /admin/sitio/secciones para orden/visibilidad); ver lib/project-sections.ts.
 export default function AdminSitioPage() {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const publishState = usePublishState();
   const [project, setProject] = useState<Project | null>(null);
@@ -152,7 +155,16 @@ export default function AdminSitioPage() {
   // vez, al soltar, para no mandar un PATCH por cada micro-paso.
   const handleDragEnd = () => { if (sectionsRef.current) persist(sectionsRef.current); };
 
-  if (loading) return <LoadingSpinner text="Cargando el sitio..." tone="light" />;
+  if (loading) return (
+    <div role="status" aria-label="Cargando" className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+      <div aria-hidden="true" className="flex flex-col gap-3">
+        <Skeleton className="h-8 w-40" />
+        {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+      </div>
+      <Skeleton className="h-[480px] w-full rounded-2xl" />
+      <div aria-hidden="true" className="rounded-2xl border border-gray-200 bg-white p-5"><SkeletonForm rows={5} /></div>
+    </div>
+  );
   if (loadError || !project || !sections) return <ErrorState message="No se pudo cargar el sitio." onRetry={() => load(true)} />;
 
   const theme = resolveTheme(project.themeConfig, ownerFonts);
@@ -206,7 +218,7 @@ export default function AdminSitioPage() {
     // listas largas); debajo de xl se apilan con scroll de página. -m-6
     // md:-m-8 anula el padding del shell para que las columnas lleguen a
     // los bordes como en el diseño.
-    <div className="-m-6 md:-m-8 flex flex-col xl:flex-row xl:h-screen bg-[#F5F3EE]">
+    <m.div {...contentIn} className="-m-6 md:-m-8 flex flex-col xl:flex-row xl:h-screen bg-[#F5F3EE]">
       {/* ── Lista ─────────────────────────────────────────────── */}
       <section aria-label="Secciones" className="xl:w-[320px] shrink-0 px-4 sm:px-6 py-8 flex flex-col gap-4 xl:overflow-y-auto border-b xl:border-b-0 xl:border-r border-gray-200">
         <div className="flex flex-col gap-2">
@@ -394,7 +406,7 @@ export default function AdminSitioPage() {
           </button>
         </div>
       </aside>
-    </div>
+    </m.div>
   );
 }
 

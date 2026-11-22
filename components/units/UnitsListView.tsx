@@ -860,8 +860,20 @@ function UnitCard({
     estado: 'available',
   });
 
+  // Hover que anticipa lo que se abre, en vez de levantar la tarjeta: la
+  // foto se acerca despacio (HOVER_SLOW de lib/motion.ts: 700 ms, EASE_OUT)
+  // y "Ver unidad →" se subraya con la curva corta (la de POPOVER, 160 ms).
+  // Sin sombra ni desplazamiento: la grilla queda quieta y lo que cambia es
+  // el contenido. Con teclado vale lo mismo (has-[:focus-visible], para que
+  // un clic en "Comparar" no deje la foto acercada). Una vendida no invita
+  // a entrar: su foto no se acerca. Movimiento reducido: sin escala (la
+  // escala va con motion-safe: en Tailwind 4 `scale-*` es la propiedad
+  // `scale`, que `transform-none` no anula).
+  const zoom = sold ? '' : ' motion-safe:group-hover/card:scale-[1.03] motion-safe:group-has-[:focus-visible]/card:scale-[1.03]';
+  const linkAccent = 'underline decoration-transparent underline-offset-[3px] transition-[text-decoration-color] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none';
+
   return (
-    <div className={'rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[.1] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-[3px]' + (sold ? ' opacity-[.62]' : '')}>
+    <div className={'group/card rounded-[16px] overflow-hidden bg-white border border-trevo-dark/[.1] flex flex-col' + (sold ? ' opacity-[.62]' : '')}>
       <Link href={href} className="relative w-full aspect-[4/3] bg-trevo-dark/10 block overflow-hidden">
         {img ? (
           <Image
@@ -871,7 +883,7 @@ function UnitCard({
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             placeholder="blur"
             blurDataURL={shimmerDataUrl()}
-            className={'object-cover' + (sold ? ' grayscale' : '')}
+            className={'object-cover transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none' + (sold ? ' grayscale' : zoom)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-trevo-dark/20 text-xs">Sin foto</div>
@@ -940,16 +952,16 @@ function UnitCard({
           </button>
           {sold ? (
             similares.length > 0 ? (
-              <Link href={similaresHref} className="text-[11.5px] font-semibold text-trevo-dark/50">
+              <Link href={similaresHref} className={'text-[11.5px] font-semibold text-trevo-dark/50 hover:decoration-current focus-visible:decoration-current ' + linkAccent}>
                 Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
               </Link>
             ) : (
-              <Link href={href} className="text-[11.5px] font-semibold text-trevo-dark/50">
+              <Link href={href} className={'text-[11.5px] font-semibold text-trevo-dark/50 hover:decoration-current focus-visible:decoration-current ' + linkAccent}>
                 Ver {unitLabelLower} →
               </Link>
             )
           ) : (
-            <Link href={href} className="text-[11.5px] font-semibold text-trevo-green">
+            <Link href={href} className={'text-[11.5px] font-semibold text-trevo-green group-hover/card:decoration-current group-has-[:focus-visible]/card:decoration-current ' + linkAccent}>
               Ver {unitLabelLower} →
             </Link>
           )}
@@ -1062,7 +1074,9 @@ function UnitRow({
 
   return (
     <div
-      className={'grid gap-[12px] p-[11px_18px] border-b border-trevo-dark/[.06] transition-colors hover:bg-trevo-light/60' + (sold ? ' opacity-[.62]' : '')}
+      // En la tabla, solo un fondo sutil al pasar (o al llegar con teclado):
+      // las filas son densas y cualquier movimiento haría bailar la lista.
+      className={'grid gap-[12px] p-[11px_18px] border-b border-trevo-dark/[.06] transition-colors duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-trevo-light/60 has-[:focus-visible]:bg-trevo-light/60 motion-reduce:transition-none' + (sold ? ' opacity-[.62]' : '')}
       style={{ gridTemplateColumns: gridTemplate }}
     >
       {columns.map(c => (

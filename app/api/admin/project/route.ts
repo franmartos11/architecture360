@@ -8,16 +8,22 @@ import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { PROJECT_SALE_MODES, isValidTypeCombo, getProjectTypeConfig } from '@/lib/project-types';
 import { getPublishReadiness, describeMissing } from '@/lib/publish-readiness';
 import { getProjectBySlug } from '@/data/project-repository';
-import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { parseConstructionProgress, stampConstructionProgress } from '@/lib/construction-progress-sanitize';
 import { slugify } from '@/lib/slug';
+import { safeUrl } from '@/lib/schema-parts';
+import { themeConfigSchema, sectionConfigSchema, processGallerySchema, beforeAfterSchema, commonAreasTourSchema, constructionProgressSchema } from '@/lib/project-schemas';
+import { serverError } from '@/lib/api-errors';
+import { removeOrphanedMedia } from '@/lib/storage-cleanup';
+import type { ConstructionProgress } from '@/types';
 
 const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as [string, ...string[]];
 
 // sectionConfig/themeConfig/commonAreasTour/processGallery/beforeAfter son
-// blobs JSON grandes y con forma propia (config del sitio, tour 360°,
-// galería de proceso) — se aceptan sin validar su estructura interna acá
-// (fuera de alcance de este endurecimiento puntual); lo que sí se valida
-// es todo el texto libre que termina en la ficha pública del proyecto.
+// blobs JSON con forma propia (config del sitio, tema, tour 360°, galería de
+// proceso): su forma y sus topes viven en lib/project-schemas.ts. Antes eran
+// z.unknown() y entraba cualquier cosa de cualquier tamaño, que después se
+// servía (con caché) a cada visitante — en el tema, además, los valores
+// terminan como variables CSS del sitio público.
 const projectPatchSchema = z.object({
   name: z.string().max(200).optional(),
   // Link público (/proyecto/[slug]) — editable desde Configuración. Se
@@ -34,28 +40,37 @@ const projectPatchSchema = z.object({
   // no rechazar ese null — el handler lo sanea a '' igual.
   description: z.string().max(5000).nullable().optional(),
   tagline: z.string().max(300).nullable().optional(),
-  sectionConfig: z.unknown().optional(),
-  themeConfig: z.unknown().optional(),
+  sectionConfig: sectionConfigSchema.optional(),
+  themeConfig: themeConfigSchema.optional(),
   location: z.string().max(300).nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  masterplanImage: z.string().max(1000).nullable().optional(),
-  briefPdfUrl: z.string().max(1000).nullable().optional(),
-  commonAreasTour: z.unknown().optional(),
+  masterplanImage: safeUrl.nullable().optional(),
+  briefPdfUrl: safeUrl.nullable().optional(),
+  commonAreasTour: commonAreasTourSchema.optional(),
   tourOrientationDegrees: z.number().min(0).max(360).nullable().optional(),
   academicInstitution: z.string().max(200).nullable().optional(),
   academicCareer: z.string().max(200).nullable().optional(),
   academicTutor: z.string().max(200).nullable().optional(),
   academicYear: z.string().max(20).nullable().optional(),
   academicTeam: z.string().max(500).nullable().optional(),
-  processGallery: z.unknown().optional(),
-  beforeAfter: z.unknown().optional(),
-  // Avance de obra: la forma se valida y se sanea entera en
-  // parseConstructionProgress (null = sin avance cargado).
-  constructionProgress: z.unknown().optional(),
+  processGallery: processGallerySchema.optional(),
+  beforeAfter: beforeAfterSchema.optional(),
+  // Avance de obra: el schema corta la forma y el tamaño; el contenido lo
+  // sanea entero parseConstructionProgress (null = sin avance cargado).
+  constructionProgress: constructionProgressSchema.optional(),
+  // updatedAt del avance tal como lo cargó el panel. Si viene y no coincide
+  // con lo guardado, otra persona guardó en el medio: 409, no se pisa.
+  // Sin este campo el guardado es incondicional (panel viejo, scripts).
+  constructionProgressBase: z.string().max(40).nullable().optional(),
   showInPortfolio: z.boolean().optional(),
   published: z.boolean().optional(),
 });
+
+/** Todas las fotos y clips de un avance (con repetidos: una URL puede estar en dos entradas). */
+function progressMediaUrls(progress: ConstructionProgress): string[] {
+  return progress.updates.flatMap(u => [...u.images, ...(u.video ? [u.video] : [])]);
+}
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -66,7 +81,7 @@ export async function GET(request: Request) {
   const { supabase } = access;
 
   const { data: project, error } = await supabase.from('projects').select('*').eq('id', projectId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
 
   const [{ data: buildings }, { slides, hotspots }, { data: amenities }, { data: pointsOfInterest }, { data: collaborators }, comments, unitsTotal, unitsPriced] = await Promise.all([
@@ -210,7 +225,23 @@ export async function PATCH(request: Request) {
   if (body.academicTeam !== undefined) updates.academic_team = sanitizeText(body.academicTeam, 500);
   if (body.processGallery !== undefined) updates.process_gallery = body.processGallery;
   if (body.beforeAfter !== undefined) updates.before_after = body.beforeAfter;
-  if (body.constructionProgress !== undefined) updates.construction_progress = parseConstructionProgress(body.constructionProgress);
+  // Avance guardado antes de este PATCH: sirve para el chequeo de conflicto y
+  // para saber qué fotos dejaron de usarse (se borran después del update).
+  let previousProgress: ConstructionProgress | null = null;
+  let nextProgress: ConstructionProgress | null = null;
+  if (body.constructionProgress !== undefined) {
+    const { data: row } = await supabase.from('projects').select('construction_progress').eq('id', projectId).maybeSingle();
+    previousProgress = parseConstructionProgress(row?.construction_progress);
+    if (body.constructionProgressBase !== undefined && (previousProgress?.updatedAt ?? null) !== body.constructionProgressBase) {
+      return NextResponse.json(
+        { error: 'Alguien más guardó el avance de obra mientras lo editabas. Recargá para ver lo nuevo antes de volver a guardar.', code: 'construction_progress_conflict' },
+        { status: 409 }
+      );
+    }
+    const parsed = parseConstructionProgress(body.constructionProgress);
+    nextProgress = parsed ? stampConstructionProgress(parsed) : null;
+    updates.construction_progress = nextProgress;
+  }
   if (body.showInPortfolio !== undefined) updates.show_in_portfolio = body.showInPortfolio;
   if (body.published !== undefined) {
     // Publicar exige el mínimo de lib/publish-readiness — el mismo que
@@ -250,7 +281,12 @@ export async function PATCH(request: Request) {
   if (error?.code === '42501') {
     return NextResponse.json({ error: 'No tenés permiso para hacer este cambio en el proyecto.' }, { status: 403 });
   }
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (previousSlug) revalidateProjectBySlug(previousSlug);
+  // Recién con el guardado hecho: si el borrado falla queda un archivo suelto,
+  // no un avance perdido. Nunca lanza.
+  if (body.constructionProgress !== undefined && previousProgress) {
+    await removeOrphanedMedia(progressMediaUrls(previousProgress), nextProgress ? progressMediaUrls(nextProgress) : [], { bucket: 'project-media', folder: 'construction' });
+  }
   return NextResponse.json(data);
 }

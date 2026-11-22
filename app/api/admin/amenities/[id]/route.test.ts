@@ -100,7 +100,7 @@ describe('PATCH /api/admin/amenities/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/amenities/amenity-1', { name: 'Nueva' }), params('amenity-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -142,6 +142,25 @@ describe('DELETE /api/admin/amenities/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/amenities/amenity-1'), params('amenity-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
+  });
+});
+
+describe('PATCH /api/admin/amenities/[id]: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromAmenity).mockReset();
+  });
+
+  it.each([
+    ['images no es un array', { images: 'https://a.com/x.jpg' }],
+    ['specs con un valor que no es texto', { specs: [{ key: 'SUPERFICIE', value: 240 }] }],
+    ['pin con coordenadas de texto', { pin: { x: 'a', y: 'b' } }],
+    ['polígono con más de 500 puntos', { polygon: Array(501).fill({ x: 1, y: 1 }) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromAmenity).mockResolvedValue('project-1');
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/amenities/amenity-1', body, { method: 'PATCH' }), params('amenity-1'));
+    expect(res.status).toBe(400);
+    expect(requireProjectAccess).not.toHaveBeenCalled();
   });
 });

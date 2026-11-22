@@ -8,6 +8,7 @@ import { escapeHtml } from '@/lib/sanitize';
 import { validateTransferTarget } from '@/lib/transfer';
 import { parseJsonBody } from '@/lib/api-validate';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -31,7 +32,7 @@ export async function GET(_request: Request, { params }: Ctx) {
     .eq('project_id', id)
     .eq('status', 'pending')
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!data) return NextResponse.json({ pending: null });
 
   const to = Array.isArray(data.to) ? data.to[0] : data.to;
@@ -63,7 +64,7 @@ export async function POST(request: Request, { params }: Ctx) {
   ]);
   // Un error de lectura no es "no existe" ni "no hay pendiente": se corta con 500.
   const lookupError = projectRes.error ?? ownerRes.error ?? targetRes.error ?? pendingRes.error;
-  if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
+  if (lookupError) return serverError(lookupError);
 
   const project = projectRes.data;
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
@@ -85,7 +86,7 @@ export async function POST(request: Request, { params }: Ctx) {
   if (error) {
     // Carrera con otra pestaña: el índice único parcial frena la 2ª pendiente.
     if (error.code === '23505') return NextResponse.json({ error: 'Ya hay una transferencia pendiente: cancelala primero' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   // Dos canales, cada uno best-effort por separado.
@@ -122,7 +123,7 @@ export async function DELETE(_request: Request, { params }: Ctx) {
     .eq('from_user', user.id)
     .eq('status', 'pending')
     .select('id');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!data?.length) return NextResponse.json({ error: 'No hay una transferencia pendiente' }, { status: 404 });
   return NextResponse.json({ success: true });
 }

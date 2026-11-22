@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -25,6 +27,7 @@ const EMPTY: AboutForm = {
 // único estado de página) — acá se hace fetch y PATCH parcial propios,
 // solo de los campos que le corresponden a "Sobre el proyecto".
 export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const { saleMode } = useProjectTypeConfig();
   const [form, setForm] = useState<AboutForm | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,10 +71,10 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !form) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !form) return <EditorSkeleton rows={3} />;
 
   return (
-    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+    <m.div {...contentIn} onSubmit={handleSubmit} className="p-6 space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {saleMode === 'showcase' ? 'Memoria del proyecto' : 'Descripción'}
@@ -127,6 +130,6 @@ export default function AboutEditor({ onSaved }: { onSaved: () => void }) {
           {saving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
-    </form>
+    </m.div>
   );
 }

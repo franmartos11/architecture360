@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import ImageUploader from '@/components/admin/ImageUploader';
 import BeforeAfterSlider from '@/components/BeforeAfterSlider';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { fieldClass } from '@/components/admin/panel-ui';
 import type { BeforeAfterPair } from '@/types';
@@ -15,6 +17,7 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 // (PATCH beforeAfter), igual que antes. Vive en Obra y en el panel de
 // Secciones (/admin/sitio).
 export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [pairs, setPairs] = useState<BeforeAfterPair[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,10 +61,14 @@ export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) 
     if (res.ok) { setDirty(false); toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !pairs) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !pairs) return (
+      <div role="status" aria-label="Cargando" className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))' }}>
+        {Array.from({ length: 2 }, (_, i) => <Skeleton key={i} aria-hidden="true" className="aspect-[16/10] rounded-2xl" />)}
+      </div>
+    );
 
   return (
-    <div className="flex flex-col gap-4">
+    <m.div {...contentIn} className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <h2 className="m-0 text-[15px] font-semibold text-gray-900">
           Antes / Después <span className="font-normal text-gray-600">— pares de render y foto real desde el mismo punto</span>
@@ -121,6 +128,6 @@ export default function BeforeAfterEditor({ onSaved }: { onSaved: () => void }) 
           </button>
         </div>
       )}
-    </div>
+    </m.div>
   );
 }

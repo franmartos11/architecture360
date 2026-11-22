@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { esTablaFaltante } from '@/lib/whatsapp-bot/preguntas';
 import type { WaVisita } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 /** Cuánto para atrás se muestran las visitas pasadas. */
 const DIAS_ATRAS = 30;
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     if (esTablaFaltante(error, 'wa_visitas')) {
       return NextResponse.json({ visitas: [], faltaTabla: true });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ visitas: (data ?? []) as WaVisita[] });
 }

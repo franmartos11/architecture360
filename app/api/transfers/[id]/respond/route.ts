@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { parseJsonBody } from '@/lib/api-validate';
+import { serverError } from '@/lib/api-errors';
 
 const respondSchema = z.object({
   status: z.enum(['accepted', 'declined'], { message: 'Estado inválido' }),
@@ -27,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .eq('to_user', user.id)
       .eq('status', 'pending')
       .select('id');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     if (!data?.length) return NextResponse.json({ error: 'Transferencia no encontrada' }, { status: 404 });
     return NextResponse.json({ success: true });
   }
@@ -40,11 +41,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .eq('id', id)
     .eq('to_user', user.id)
     .maybeSingle();
-  if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+  if (readError) return serverError(readError);
   if (!transfer) return NextResponse.json({ error: 'Transferencia no encontrada' }, { status: 404 });
 
   const { data: projectId, error } = await supabase.rpc('accept_ownership_transfer', { p_transfer_id: id });
-  if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+  if (error) {
+    // Los raise de accept_ownership_transfer() llevan un mensaje escrito para
+    // el usuario y un código propio; cualquier otro error no se filtra.
+    const status = ({ P0002: 404, '42501': 403, '55000': 409 } as Record<string, number>)[error.code ?? ''];
+    const raised = error.message; // texto del raise, escrito para el usuario
+    if (status) return NextResponse.json({ error: raised }, { status });
+    return serverError(error);
+  }
 
   await notify({ recipientId: transfer.from_user, actorId: user.id, type: 'ownership_transfer_accepted', entityId: projectId });
   return NextResponse.json({ projectId });

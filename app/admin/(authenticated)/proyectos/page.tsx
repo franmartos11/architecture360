@@ -1,7 +1,9 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import PendingInvitations from '@/components/admin/PendingInvitations';
@@ -23,6 +25,8 @@ interface ProjectRow {
   project_type: ProjectType;
   sale_mode: ProjectSaleMode;
   published: boolean;
+  /** Dominio propio activo (www.torre.com), si tiene — ver GET /api/admin/projects. */
+  customDomain?: string | null;
   updated_at: string;
   pendingLeadsCount: number;
   commentsCount: number;
@@ -47,6 +51,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 const STRIPES = 'repeating-linear-gradient(135deg, #EFECE6 0 12px, #F5F3EE 12px 24px)';
 
 export default function MisProyectosPage() {
+  const contentIn = useContentIn();
   const [projects, setProjects] = useState<ProjectRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -158,13 +163,23 @@ export default function MisProyectosPage() {
     return true;
   }), [projects, q, filter]);
 
-  if (loading) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading) return (
+    <div className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
+      <main className="flex-[999_1_640px] min-w-0 px-4 py-8 sm:px-10 sm:py-10">
+        <PageSkeleton eyebrow={false} actions={1}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))' }}>
+            {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} lines={2} />)}
+          </div>
+        </PageSkeleton>
+      </main>
+    </div>
+  );
 
   const total = projects?.length ?? 0;
   const publishedCount = (projects ?? []).filter(p => p.published).length;
 
   return (
-    <div className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
+    <m.div {...contentIn} className="carga-guiada min-h-[calc(100vh-64px)] bg-[#F5F3EE] flex flex-wrap items-stretch">
       <main className="flex-[999_1_640px] min-w-0 px-4 py-8 sm:px-10 sm:py-10 flex flex-col gap-6">
         <div className="flex items-end justify-between gap-x-6 gap-y-4 flex-wrap">
           <div className="min-w-0">
@@ -263,7 +278,7 @@ export default function MisProyectosPage() {
                     className="absolute top-12 right-2.5 w-[188px] bg-white border border-gray-200 rounded-xl shadow-[0_16px_34px_-14px_rgba(23,25,26,.3)] p-1.5 z-10"
                   >
                     <button type="button" onClick={() => { setMenuOpenId(null); enterProject(p.id); }} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Seguir cargando</button>
-                    <a href={p.published ? getProjectHref(p.slug) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
+                    <a href={p.published ? getProjectHref(p.slug, p.customDomain) : getProjectPreviewHref(p.slug)} target="_blank" rel="noreferrer" onClick={() => setMenuOpenId(null)} className="flex items-center w-full min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">{p.published ? 'Ver sitio público' : 'Vista previa (borrador)'}</a>
                     {p.role === 'dueño' ? (
                       <>
                         <button type="button" onClick={() => handleDuplicate(p)} className="w-full text-left min-h-[36px] px-2.5 rounded-lg text-[13px] text-gray-900 hover:bg-gray-100">Duplicar</button>
@@ -323,7 +338,7 @@ export default function MisProyectosPage() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={() => { setDeleteTarget(null); load(); }}
       />
-    </div>
+    </m.div>
   );
 }
 

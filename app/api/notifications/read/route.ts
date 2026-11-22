@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api-errors';
 
 // POST /api/notifications/read → marca TODAS las no leídas del usuario
 // como leídas, de una — el mismo gesto de "abrí la campanita" ya implica
@@ -15,6 +16,6 @@ export async function POST() {
     .eq('recipient_id', user.id)
     .is('read_at', null);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

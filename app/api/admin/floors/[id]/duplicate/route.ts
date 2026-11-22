@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromFloor, requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
+import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { floorDuplicateSchema } from '@/lib/structure-schemas';
 
 // Duplica un piso entero: clona cada unidad del piso de origen —incluyendo
 // polígono, ambientes, tour 360° y fotos— porque cuando el layout se repite,
@@ -26,10 +29,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (body.number === undefined || !body.label || typeof body.label !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (raw.data.number === undefined || !raw.data.label || typeof raw.data.label !== 'string') {
     return NextResponse.json({ error: 'Faltan number y/o label para el piso nuevo' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, floorDuplicateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const label = sanitizeText(body.label, 100);
 
   const { data: sourceFloor, error: floorErr } = await supabase
@@ -37,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .select('*')
     .eq('id', sourceFloorId)
     .maybeSingle();
-  if (floorErr) return NextResponse.json({ error: floorErr.message }, { status: 500 });
+  if (floorErr) return serverError(floorErr);
   if (!sourceFloor) return NextResponse.json({ error: 'Piso de origen no encontrado' }, { status: 404 });
 
   const { data: existingFloor, error: existingErr } = await supabase
@@ -46,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq('building_id', sourceFloor.building_id)
     .eq('number', body.number)
     .maybeSingle();
-  if (existingErr) return NextResponse.json({ error: existingErr.message }, { status: 500 });
+  if (existingErr) return serverError(existingErr);
   if (existingFloor?.id === sourceFloorId) {
     return NextResponse.json({ error: `El piso de origen ya es el número ${body.number}` }, { status: 400 });
   }
@@ -102,7 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .select()
       .single();
-    if (newFloorErr) return NextResponse.json({ error: newFloorErr.message }, { status: 500 });
+    if (newFloorErr) return serverError(newFloorErr);
 
     let unitsCopied = 0;
     if (includeUnits) {
@@ -110,12 +117,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .from('units')
         .select('*')
         .eq('floor_id', sourceFloorId);
-      if (unitsErr) return NextResponse.json({ error: unitsErr.message }, { status: 500 });
+      if (unitsErr) return serverError(unitsErr);
 
       if (sourceUnits && sourceUnits.length > 0) {
         const clones = sourceUnits.map(u => cloneUnit(u, newFloor.id));
         const { error: insertErr } = await supabase.from('units').insert(clones);
-        if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+        if (insertErr) return serverError(insertErr);
         unitsCopied = clones.length;
       }
     }
@@ -134,8 +141,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       supabase.from('units').select('*').eq('floor_id', sourceFloorId),
       supabase.from('units').select('code').eq('floor_id', existingFloor.id),
     ]);
-    if (sourceUnitsErr) return NextResponse.json({ error: sourceUnitsErr.message }, { status: 500 });
-    if (targetUnitsErr) return NextResponse.json({ error: targetUnitsErr.message }, { status: 500 });
+    if (sourceUnitsErr) return serverError(sourceUnitsErr);
+    if (targetUnitsErr) return serverError(targetUnitsErr);
 
     const existingCodes = new Set((targetUnits ?? []).map(u => u.code));
     const toClone = (sourceUnits ?? []).filter(u => !existingCodes.has(remapCode(u.code)));
@@ -144,7 +151,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (toClone.length > 0) {
       const clones = toClone.map(u => cloneUnit(u, existingFloor.id));
       const { error: insertErr } = await supabase.from('units').insert(clones);
-      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      if (insertErr) return serverError(insertErr);
       unitsCopied = clones.length;
       clonedCodes = new Set(clones.map(c => c.code));
     }
@@ -171,7 +178,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq('id', existingFloor.id)
     .select()
     .single();
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  if (updateErr) return serverError(updateErr);
 
   return NextResponse.json({ floor: filledFloor, unitsCopied, skipped, mode: 'filled' });
 }

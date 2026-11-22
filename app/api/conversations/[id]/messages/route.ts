@@ -8,6 +8,7 @@ import { sanitizeMultiline } from '@/lib/sanitize';
 import { isBlockedEitherWay } from '@/lib/blocks';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { getConversationIfParticipant } from '@/lib/conversations';
+import { serverError } from '@/lib/api-errors';
 
 const PAGE_SIZE = 30;
 const MAX_BODY_LENGTH = 2000;
@@ -147,7 +148,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   );
   if (limited) return limited;
 
-  const { data, error } = await supabase
+  // Con service-role: sin policy de INSERT para usuarios (ver comentario en supabase/schema.sql).
+  // Que seas participante y que no haya un bloqueo ya se verificó arriba.
+  const { data, error } = await createAdminClient()
     .from('messages')
     .insert({
       conversation_id: id, sender_id: user.id, body: text || null, shared_post_id: sharedPostId,
@@ -155,7 +158,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
     .select(MESSAGE_SELECT)
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const [resolved] = await resolveAttachmentUrls([data as unknown as MessageRow]);
 

@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useCallback, startTransition } from 'react';
-import type { Lead } from '@/types';
+import type { ConstructionProgress, Lead } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonStatStrip, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { useProjectRole } from '@/lib/project-role-context';
@@ -17,10 +19,15 @@ import { getProjectDisplayUrl } from '@/lib/project-url';
 import { PageHeader, Card, CardHeader, StatStrip, Pill, SegmentedTabs, btnPrimary } from '@/components/admin/panel-ui';
 
 import { pluralize } from '@/lib/units';
+import { useCustomDomain } from '@/lib/custom-domain-context';
+import ObraDashboardCard from '@/components/admin/construction-progress/ObraDashboardCard';
+import { editableProgress, toIsoDate } from '@/lib/construction-progress-editor';
 interface ProjectSummary {
   slug: string;
   name: string;
   buildingCount: number;
+  /** Avance de obra (viene en el mismo GET del proyecto, sin pedido aparte). null = sin cargar. */
+  progress: ConstructionProgress | null;
 }
 
 // building_name/floor_number no son columnas reales de `units` — las agrega
@@ -31,6 +38,8 @@ type Unit = Pick<DbUnitRow, 'id' | 'code' | 'total_area' | 'status' | 'price' | 
 };
 
 export default function AdminDashboard() {
+  const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { hasUnitStep } = typeConfig;
   const agree = buildingAgreement(typeConfig);
@@ -65,7 +74,12 @@ export default function AdminDashboard() {
       setUnits(Array.isArray(unitsData) ? unitsData : []);
       setLeads(Array.isArray(leadsData) ? leadsData : []);
       setLoadedAt(Date.now());
-      setProject({ slug: projectData.project.slug, name: projectData.project.name ?? '', buildingCount: (projectData.buildings ?? []).length });
+      setProject({
+        slug: projectData.project.slug,
+        name: projectData.project.name ?? '',
+        buildingCount: (projectData.buildings ?? []).length,
+        progress: projectData.project.construction_progress ? editableProgress(projectData.project.construction_progress) : null,
+      });
       setLoading(false);
     }).catch((err) => {
       // If unauthorized, redirect to login
@@ -81,7 +95,12 @@ export default function AdminDashboard() {
 
   useEffect(load, [load]);
 
-  if (loading) return <LoadingSpinner text="Cargando dashboard..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <SkeletonStatStrip count={4} />
+      <div className="grid gap-4 md:grid-cols-2"><SkeletonCard lines={4} /><SkeletonCard lines={4} /></div>
+    </PageSkeleton>
+  );
   if (error || !project) return <ErrorState message="No se pudo cargar el dashboard." onRetry={load} />;
 
   const totalUnits = units.length;
@@ -89,8 +108,8 @@ export default function AdminDashboard() {
   const reserved = units.filter(u => u.status === 'reserved').length;
   const sold = units.filter(u => u.status === 'sold').length;
   const unitWord = (count: number) => count === 1 ? typeConfig.unitLabel.toLowerCase() : `${pluralize(typeConfig.unitLabel.toLowerCase())}`;
-  const displayUrl = getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '');
-  const shareUrl = () => getProjectDisplayUrl(project.slug, window.location.origin);
+  const displayUrl = getProjectDisplayUrl(project.slug, typeof window !== 'undefined' ? window.location.origin : '', customDomain);
+  const shareUrl = () => getProjectDisplayUrl(project.slug, window.location.origin, customDomain);
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl());
@@ -99,6 +118,8 @@ export default function AdminDashboard() {
       shareLink(shareUrl(), project.name || 'Mi proyecto', 'Mirá mi proyecto');
     }
   };
+  // "Hoy" sale de la hora de la carga (loadedAt), no de un Date en el render.
+  const obraCard = <ObraDashboardCard progress={project.progress} today={toIsoDate(new Date(loadedAt))} />;
   const whatsappHref = () => `https://wa.me/?text=${encodeURIComponent(`${project.name ? `Mirá ${project.name}` : 'Mirá mi proyecto'}: ${shareUrl()}`)}`;
 
   // Un proyecto showcase no tiene precio/estado/leads comerciales — mostrar
@@ -123,7 +144,7 @@ export default function AdminDashboard() {
 
   if (totalUnits === 0) {
     return (
-      <div className="flex flex-col gap-6">
+      <m.div {...contentIn} className="flex flex-col gap-6">
         <PageHeader eyebrow="Visión general" title="Dashboard" />
         <Card className="flex flex-col items-start gap-3">
           <h2 className="m-0 text-[15px] font-semibold text-gray-900">
@@ -138,13 +159,13 @@ export default function AdminDashboard() {
           </p>
           <Link href="/admin/carga" className={btnPrimary}>Empezar la carga guiada →</Link>
         </Card>
-      </div>
+      </m.div>
     );
   }
 
   if (!showsCommercialMetrics) {
     return (
-      <div className="flex flex-col gap-6">
+      <m.div {...contentIn} className="flex flex-col gap-6">
         <PageHeader eyebrow="Visión general" title="Dashboard" />
         {/* Para "casa" (una sola unidad) el conteo no aporta — se va directo
             al link para compartir. Para el resto, las cifras. */}
@@ -154,8 +175,9 @@ export default function AdminDashboard() {
             { label: `${pluralize(typeConfig.unitLabel)} ${uAgree.cargado}s`, value: totalUnits },
           ]} />
         )}
+        {obraCard}
         {shareCard}
-      </div>
+      </m.div>
     );
   }
 
@@ -194,7 +216,7 @@ export default function AdminDashboard() {
     .slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-6">
+    <m.div {...contentIn} className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Visión general"
         title="Dashboard"
@@ -285,9 +307,10 @@ export default function AdminDashboard() {
             <Link href="/admin/inventory" className="text-[13px] font-semibold text-gray-900 underline underline-offset-2">Ver inventario</Link>
           </section>
         )}
+        {obraCard}
         {shareCard}
       </div>
-    </div>
+    </m.div>
   );
 }
 

@@ -45,7 +45,7 @@ describe('POST /api/admin/floors', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/floors', VALID_BODY));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida: inserta y devuelve 201 con la fila creada', async () => {
@@ -58,5 +58,22 @@ describe('POST /api/admin/floors', () => {
     const res = await POST(jsonRequest('http://localhost/api/admin/floors', VALID_BODY));
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'floor-1', number: 3, label: 'Piso 3' });
+  });
+});
+
+describe('POST /api/admin/floors: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+
+  it.each([
+    ['number como texto', { buildingId: 'building-1', number: '3', label: 'Piso 3' }],
+    ['floorKind inventado', { buildingId: 'building-1', number: 3, label: 'Piso 3', floorKind: 'sotano' }],
+    ['label gigante', { buildingId: 'building-1', number: 3, label: 'x'.repeat(301) }],
+  ])('400 con %s, antes de resolver el proyecto', async (_n, body) => {
+    const res = await POST(jsonRequest('http://localhost/api/admin/floors', body));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromBuilding).not.toHaveBeenCalled();
   });
 });

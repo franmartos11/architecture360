@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { HeadCheck } from '@/components/ui/HeadCheck';
@@ -62,6 +64,7 @@ const DWELLING_CSV_TEMPLATE_ROW = [
 // es un registro único, sin lista que mostrar. El polígono propio de la
 // unidad se sigue delimitando aparte, en /plano — eso no cambia acá.
 export default function UnitsEditor({ buildingId, floorId, buildingName }: { buildingId: string; floorId: string; buildingName: string }) {
+  const contentIn = useContentIn();
   const router = useRouter();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel, showStatus, showPrice, unitIsLand } = typeConfig;
@@ -309,11 +312,16 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
 
   const planoHref = `/admin/edificios/${buildingId}/pisos/${floorId}/plano`;
 
-  if (loading) return <LoadingSpinner text={`Cargando ${pluralize(unitLabelLower)}...`} tone="light" />;
+  if (loading) return (
+      <div role="status" aria-label="Cargando" className="flex flex-col gap-4">
+        <Skeleton className="h-11 w-full max-w-[420px] rounded-[10px]" />
+        <SkeletonTable rows={6} cols={5} />
+      </div>
+    );
   if (loadError) return <ErrorState message={`No se pudieron cargar ${losLas} ${pluralize(unitLabelLower)}.`} onRetry={load} />;
 
   return (
-    <div className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
+    <m.div {...contentIn} className="flex flex-col gap-4 xl:h-[calc(100vh-4rem)]">
       {/* ── Lista ─────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 w-full flex flex-col gap-4 xl:h-full xl:overflow-hidden">
         <div className="shrink-0 flex items-start justify-between gap-4 flex-wrap">
@@ -572,6 +580,6 @@ export default function UnitsEditor({ buildingId, floorId, buildingName }: { bui
           </div>
         )}
       </div>
-    </div>
+    </m.div>
   );
 }

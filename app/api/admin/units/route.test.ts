@@ -101,6 +101,25 @@ describe('POST /api/admin/units', () => {
     expect(res.status).toBe(400);
   });
 
+  it.each([
+    ['price negativo', { price: -5 }],
+    ['área como texto', { totalArea: '70' }],
+    ['javascript: en una URL', { interiorImageUrl: 'javascript:alert(1)' }],
+    ['galería con más de 100 imágenes', { galleryImages: Array(101).fill('https://x.com/a.jpg') }],
+  ])('%s: 400 antes de tocar la base', async (_n, extra) => {
+    const res = await POST(
+      jsonRequest('http://localhost/api/admin/units', { floorId: 'floor-1', code: 'A1', type: 'monoambiente', ...extra })
+    );
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromFloor).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    const res = await POST(new Request('http://localhost/api/admin/units', { method: 'POST', body: '{roto' }));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromFloor).not.toHaveBeenCalled();
+  });
+
   it('sin acceso al proyecto del piso: 401', async () => {
     vi.mocked(resolveProjectIdFromFloor).mockResolvedValue('project-1');
     vi.mocked(requireProjectAccess).mockResolvedValue(null);

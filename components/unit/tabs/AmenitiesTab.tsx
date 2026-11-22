@@ -32,7 +32,8 @@ export default function AmenitiesTab({
   onViewModeChange: (mode: AmenityViewMode) => void;
   listOpen: boolean;
   onListOpenChange: (open: boolean) => void;
-  onOpenLightbox: () => void;
+  /** `rect`: dónde estaba la foto tocada, para que el lightbox abra desde ahí. */
+  onOpenLightbox: (rect: DOMRect) => void;
 }) {
   const basePath = useProjectBasePath();
   const thumbsRef = useRef<HTMLDivElement>(null);
@@ -163,7 +164,7 @@ export default function AmenitiesTab({
                 <>
                   <div
                     className="absolute inset-0 cursor-zoom-in"
-                    onClick={onOpenLightbox}
+                    onClick={e => onOpenLightbox(e.currentTarget.getBoundingClientRect())}
                   >
                     <Image
                       src={activeAmenity.images[imageIndex]}

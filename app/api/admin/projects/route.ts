@@ -9,6 +9,10 @@ import { sanitizeText } from '@/lib/sanitize';
 import { provisionSingleUnitStructure } from '@/lib/provision-structure';
 import { mergeProjectsWithRoles } from '@/lib/merge-projects';
 import { hasRole, type MemberRole } from '@/lib/project-roles';
+import { serverError } from '@/lib/api-errors';
+import { getActiveDomains } from '@/lib/project-domains';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { projectCreateSchema } from '@/lib/content-schemas';
 
 // Columnas del listado, comunes a los proyectos propios y a los compartidos.
 const PROJECT_COLUMNS = 'id, slug, name, description, location, masterplan_image, project_type, sale_mode, show_in_portfolio, published, process_gallery, before_after, created_at, updated_at';
@@ -40,8 +44,8 @@ export async function GET() {
       .eq('status', 'accepted'),
   ]);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
+  if (error) return serverError(error);
+  if (membersError) return serverError(membersError);
 
   const data = mergeProjectsWithRoles(
     owned ?? [],
@@ -124,6 +128,9 @@ export async function GET() {
     }
   }
 
+  // Dominio propio activo de cada proyecto (para que "Ver sitio público" lleve ahí).
+  const activeDomains = await getActiveDomains(supabase, projectIds);
+
   const projects = data.map(p => {
     const typeConfig = getProjectTypeConfig(p.project_type, p.sale_mode);
     const availableContentKeys = SECTION_REGISTRY
@@ -153,6 +160,7 @@ export async function GET() {
 
     return {
       ...p,
+      customDomain: activeDomains.get(p.id) ?? null,
       pendingLeadsCount: pendingLeadsByProject.get(p.id) ?? 0,
       commentsCount: commentsByProject.get(p.id) ?? 0,
       unitsCount: unitsByProject.get(p.id) ?? 0,
@@ -170,7 +178,11 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, projectCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const name = sanitizeText(body.name, 150);
   if (!name) {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
@@ -208,7 +220,7 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Ese slug ya está en uso.' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   // Formas "de una sola cosa" (casa): la casa ES el proyecto, así que se

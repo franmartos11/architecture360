@@ -1,11 +1,13 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -41,6 +43,7 @@ type EditableLevel = { key: 'base' | string; label: string; planImage: string; p
 // posible en casa), arriba del plano aparece un selector de planta — cada
 // una con su propio plano y sus propios ambientes delimitados encima.
 export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { buildingId: string; floorId: string; unitId: string }) {
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel } = typeConfig;
   const unitLabelLower = unitLabel.toLowerCase();
@@ -327,11 +330,11 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     [rooms, points]
   );
 
-  if (loading) return <LoadingSpinner text="Cargando unidad..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudo cargar la unidad." onRetry={load} />;
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -523,6 +526,6 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             </div>
           </div>
       </div>
-    </div>
+    </m.div>
   );
 }

@@ -6,6 +6,7 @@ import { notify } from '@/lib/notify';
 import { escapeHtml } from '@/lib/sanitize';
 import { parseJsonBody } from '@/lib/api-validate';
 import { z } from 'zod';
+import { serverError } from '@/lib/api-errors';
 
 const bodySchema = z.object({
   status: z.enum(['accepted', 'declined'], { message: "status debe ser 'accepted' o 'declined'" }),
@@ -37,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) {
     // 42501: el trigger guard_project_members rechazó el cambio.
     if (error.code === '42501') return NextResponse.json({ error: 'No tenés permiso para responder esta invitación' }, { status: 403 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!data) return NextResponse.json({ error: 'Invitación no encontrada' }, { status: 404 });
 

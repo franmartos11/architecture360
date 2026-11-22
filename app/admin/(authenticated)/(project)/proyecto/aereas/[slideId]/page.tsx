@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, use, useMemo, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -37,6 +39,7 @@ function keyOf(slideId: string, buildingId: string) {
 }
 
 export default function AdminAerialSlidePolygonsPage({ params }: { params: Promise<{ slideId: string }> }) {
+  const contentIn = useContentIn();
   const { slideId: initialSlideId } = use(params);
   const searchParams = useSearchParams();
   const initialBuildingId = searchParams.get('building');
@@ -342,7 +345,14 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
     bumpVersion(key);
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${aerialLower}...`} tone="light" />;
+  if (loading) return (
+    <PageSkeleton eyebrow={false} actions={1}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] items-start">
+        <Skeleton className="aspect-[16/10] w-full rounded-2xl" />
+        <SkeletonCard lines={4} />
+      </div>
+    </PageSkeleton>
+  );
   if (loadError) return <ErrorState message={`No se pudo cargar la ${aerialLower}.`} onRetry={load} />;
   if (!activeSlide) return <ErrorState message={`${typeConfig.aerialLabel} no encontrada.`} />;
 
@@ -350,7 +360,7 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
   const activePinPoints = activePinKey ? points[activePinKey] ?? [] : [];
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <button type="button" onClick={() => guardedNavigate('/admin/proyecto')} className="text-sm text-gray-500 hover:text-gray-700">
@@ -515,6 +525,6 @@ export default function AdminAerialSlidePolygonsPage({ params }: { params: Promi
           </div>
         </>
       )}
-    </div>
+    </m.div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api-errors';
 
 // Créditos donde la cuenta logueada es la persona acreditada (no el
 // dueño del proyecto) — usado por /admin/portfolio para mostrar
@@ -15,6 +16,6 @@ export async function GET() {
     .eq('profile_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ collaborations: data ?? [] });
 }

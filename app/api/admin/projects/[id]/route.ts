@@ -3,6 +3,7 @@ import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteProjectStorageFiles } from '@/lib/supabase/delete-project-storage';
 import { deleteBimStorageFiles } from '@/lib/supabase/delete-bim-storage';
+import { serverError } from '@/lib/api-errors';
 
 // Borra un proyecto entero. El cascade de la base (ver supabase/schema.sql)
 // se lleva edificios/pisos/unidades, vistas aéreas, amenidades, ubicación,
@@ -40,6 +41,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   await admin.from('leads').delete().eq('project_id', id);
 
   const { error } = await admin.from('projects').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

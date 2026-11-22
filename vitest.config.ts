@@ -14,7 +14,8 @@ export default defineConfig({
     // un comentario `// @vitest-environment jsdom` al principio, en vez de
     // cambiar el default global (Vitest v4 sacó `environmentMatchGlobs`).
     environment: 'node',
-    include: ['**/*.test.ts'],
+    // .tsx también: los componentes de components/ui se prueban con RTL.
+    include: ['**/*.test.ts', '**/*.test.tsx'],
     // .claude/worktrees son copias completas del repo: sin excluirlas Vitest
     // corría la suite varias veces (919 archivos en vez de 110, 13.6s en vez
     // de 2.1s) y sumaba ~40 archivos "fallando" que eran de ramas en progreso

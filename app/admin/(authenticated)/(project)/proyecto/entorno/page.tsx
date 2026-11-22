@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState } from 'react';
 import LocationPicker from '@/components/admin/LocationPicker';
 import LocationEditor from '@/components/admin/section-editors/LocationEditor';
 import AmenitiesEditor from '@/components/admin/section-editors/AmenitiesEditor';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -16,11 +18,12 @@ import { useFichaProject, UnsavedBar, FichaLayout } from '@/components/admin/sec
 // amenidades como grilla. /admin/proyecto/ubicacion y /amenities redirigen acá.
 
 export default function EntornoPage() {
+  const contentIn = useContentIn();
   const ficha = useFichaProject();
   const { project, setProject, savedProject } = ficha;
   const [pinOpen, setPinOpen] = useState(false);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando entorno..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton rows={4} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
   const hasPin = project.latitude != null && project.longitude != null;
@@ -29,6 +32,7 @@ export default function EntornoPage() {
   const centerKey = `${savedProject?.latitude ?? ''},${savedProject?.longitude ?? ''}`;
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout>
       <ChapterHeader
         title="Entorno"
@@ -71,5 +75,6 @@ export default function EntornoPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

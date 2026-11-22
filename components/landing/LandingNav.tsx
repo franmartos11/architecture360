@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { Menu, X } from 'lucide-react';
+import Collapse from '@/components/ui/Collapse';
 
 const ANCHOR_LINKS = [
   { href: '#producto', label: 'Producto' },
@@ -48,6 +49,7 @@ export default function LandingNav() {
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={open}
+            aria-controls="landing-menu-movil"
             className="md:hidden p-2 text-white/80 hover:text-white"
           >
             {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -55,8 +57,9 @@ export default function LandingNav() {
         </div>
       </div>
 
-      {open && (
-        <div className="md:hidden border-t border-white/10 bg-stone-950 px-4 py-4 flex flex-col gap-1">
+      {/* Panel a lo ancho bajo la barra (no flota): Collapse, no Popover. */}
+      <Collapse open={open} className="md:hidden">
+        <div id="landing-menu-movil" className="border-t border-white/10 bg-stone-950 px-4 py-4 flex flex-col gap-1">
           {ANCHOR_LINKS.map((link) => (
             <a
               key={link.href}
@@ -76,7 +79,7 @@ export default function LandingNav() {
             </Link>
           </div>
         </div>
-      )}
+      </Collapse>
     </header>
   );
 }

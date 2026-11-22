@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 const LIMITE = 200;
 
@@ -16,6 +17,6 @@ export async function GET(request: Request) {
     .eq('project_id', projectId)
     .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
     .limit(LIMITE);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data ?? []);
 }

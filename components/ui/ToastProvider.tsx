@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { m as motion, AnimatePresence } from 'framer-motion';
+import { m as motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { CONTENT_IN, CONTENT_IN_Y, POPOVER_OUT, REDUCED_FADE } from '@/lib/motion';
 
 type ToastTone = 'success' | 'error';
 interface ToastItem {
@@ -23,6 +24,7 @@ export function useToast(): ToastFn {
 export default function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const idRef = useRef(0);
+  const reduced = !!useReducedMotion();
 
   const toast = useCallback<ToastFn>((text, tone = 'success') => {
     const id = ++idRef.current;
@@ -40,10 +42,15 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
           {toasts.map(t => (
             <motion.div
               key={t.id}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-              transition={{ duration: 0.2 }}
+              // Entra como el contenido que reemplaza a un skeleton (sube
+              // unos px mientras aparece, CONTENT_IN) y se va con la salida
+              // corta de un menú (POPOVER_OUT): el aviso ya se leyó, no
+              // tiene por qué ceremoniar. Sin escala: un toast no "crece".
+              // Movimiento reducido: solo fundido.
+              initial={{ opacity: 0, y: reduced ? 0 : CONTENT_IN_Y }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, transition: reduced ? REDUCED_FADE : POPOVER_OUT }}
+              transition={reduced ? REDUCED_FADE : CONTENT_IN}
               role="status"
               className={`pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium text-white max-w-sm ${
                 t.tone === 'error' ? 'bg-red-600' : 'bg-gray-900'

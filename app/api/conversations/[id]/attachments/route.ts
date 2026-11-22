@@ -6,6 +6,7 @@ import { isBlockedEitherWay } from '@/lib/blocks';
 import { getConversationIfParticipant } from '@/lib/conversations';
 import { parseJsonBody } from '@/lib/api-validate';
 import { uploadTicketSchema } from '@/lib/signed-upload-schema';
+import { serverError } from '@/lib/api-errors';
 
 const BUCKET = 'message-attachments';
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -73,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const admin = createAdminClient();
   const { data: signed, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
-  if (error || !signed) return NextResponse.json({ error: error?.message ?? 'No se pudo preparar la subida' }, { status: 500 });
+  if (error || !signed) return serverError(error ?? new Error('Storage no devolvió la URL firmada'), 'No se pudo preparar la subida.');
 
   const attachmentType = isImage ? 'image' : isAudio ? 'audio' : 'file';
   return NextResponse.json({ signedUrl: signed.signedUrl, contentType: baseType, path, attachmentType });

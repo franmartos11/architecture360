@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, startTransition } from 'react';
-import { X, Send } from 'lucide-react';
+import { useState, useEffect, useRef, startTransition } from 'react';
+import { Send } from 'lucide-react';
+import Dialog from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface SearchResult {
@@ -17,6 +18,7 @@ export default function SendPostModal({ postId, onClose }: { postId: string; onC
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -61,25 +63,18 @@ export default function SendPostModal({ postId, onClose }: { postId: string; onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4" onClick={onClose}>
-      <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-trevo-dark/10 shrink-0">
-          <h2 className="font-semibold text-trevo-dark">Enviar por mensaje</h2>
-          <button onClick={onClose} className="p-1 text-trevo-dark/40 hover:text-trevo-dark transition-colors" aria-label="Cerrar">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-4 shrink-0">
-          <input
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Buscar personas..."
-            aria-label="Buscar personas"
-            className="w-full px-3.5 py-2 rounded-lg border border-trevo-dark/15 text-sm text-trevo-dark placeholder:text-trevo-dark/30 focus:ring-2 focus:ring-trevo-dark/20 outline-none transition-all"
-          />
-        </div>
-        <div className="overflow-y-auto flex-1">
+    <Dialog open onClose={onClose} title="Enviar por mensaje" size="sm" variant="sheet" padded={false} initialFocus={inputRef}>
+      <div className="p-4">
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Buscar personas..."
+          aria-label="Buscar personas"
+          className="w-full px-3.5 py-2 rounded-lg border border-trevo-dark/15 text-sm text-trevo-dark placeholder:text-trevo-dark/30 focus:ring-2 focus:ring-trevo-dark/20 outline-none transition-all"
+        />
+      </div>
+        <div>
           {results.length === 0 ? (
             <p className="px-5 pb-5 text-sm text-trevo-dark/40 text-center">
               {query.trim() ? 'Sin resultados' : 'Buscá a alguien para mandarle este post'}
@@ -113,7 +108,6 @@ export default function SendPostModal({ postId, onClose }: { postId: string; onC
             </ul>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

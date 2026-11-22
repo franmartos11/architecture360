@@ -4,6 +4,7 @@ import { resolveRequestedProjectId, requireProjectAccess } from '@/lib/supabase/
 import { mapBimModelRow } from '@/data/bim-repository';
 import { canPublishBimModel, MAX_GALLERY_IMAGES } from '@/lib/bim';
 import type { BimModelRow } from '@/types/database';
+import { serverError } from '@/lib/api-errors';
 
 const createSchema = z.object({
   title: z.string(),
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     .select('*')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json({ models: ((data ?? []) as BimModelRow[]).map(mapBimModelRow) });
 }
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
     })
     .select('*')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const modelId = data.id;
   if (floorIds && floorIds.length > 0) {

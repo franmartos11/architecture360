@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, startTransition } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -17,6 +19,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { useProjectRole } from '@/lib/project-role-context';
 import { pluralize } from '@/lib/units';
 import type { ThemeConfig, ThemeColorOverrides, CustomFont, SavedTheme, Project } from '@/types';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 
 // Mismo orden en el que se usan los tokens en la landing real — de fondo
 // principal a acento, para que el picker se lea de "más área cubierta" a
@@ -64,6 +67,8 @@ type Group = 'preset' | 'colors' | 'type' | 'shape' | 'themes';
 // se toca (mismo autosave que el resto del admin). El preview de abajo
 // muestra exactamente lo que ya está guardado, no un borrador aparte.
 export default function AdminEstiloPage() {
+  const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const isOwner = useProjectRole() === 'dueño';
   const [project, setProject] = useState<Project | null>(null);
@@ -175,7 +180,14 @@ export default function AdminEstiloPage() {
 
   const toggleGroup = (k: Group) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
-  if (loading) return <LoadingSpinner text="Cargando estilo..." tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={5} /></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><SkeletonForm rows={5} /></div>
+      </div>
+    </PageSkeleton>
+  );
   if (loadError || !themeConfig || !project) return <ErrorState message="No se pudo cargar el estilo." onRetry={() => load(true)} />;
 
   const preset = THEME_PRESETS.find(p => p.key === themeConfig.presetKey) ?? THEME_PRESETS[0];
@@ -194,7 +206,7 @@ export default function AdminEstiloPage() {
     return key in CURATED_FONTS ? CURATED_FONTS[key as keyof typeof CURATED_FONTS].label : CURATED_FONTS[fallback].label;
   };
   const displayUrl = typeof window !== 'undefined'
-    ? getProjectDisplayUrl(project.slug, window.location.origin).replace(/^https?:\/\//, '')
+    ? getProjectDisplayUrl(project.slug, window.location.origin, customDomain).replace(/^https?:\/\//, '')
     : `${project.slug}.arq360.com`;
 
   const presetLabel = preset.label;
@@ -232,7 +244,7 @@ export default function AdminEstiloPage() {
     // (temas, colores, tipografía, esquinas) y la vista previa a la
     // derecha. En xl+ cada columna scrollea por dentro; debajo se apilan
     // con la vista previa primero. -m-6 md:-m-8 anula el padding del shell.
-    <div className={`-m-6 md:-m-8 flex flex-col-reverse xl:flex-row xl:h-screen bg-[#F5F3EE] ${ALL_FONT_CLASSNAMES}`}>
+    <m.div {...contentIn} className={`-m-6 md:-m-8 flex flex-col-reverse xl:flex-row xl:h-screen bg-[#F5F3EE] ${ALL_FONT_CLASSNAMES}`}>
       {/* ── Controles ─────────────────────────────────────────── */}
       <section aria-label="Controles de estilo" className="xl:w-[400px] shrink-0 px-4 sm:px-7 py-8 flex flex-col gap-7 xl:overflow-y-auto xl:border-r border-gray-200">
         <div className="flex flex-col gap-2">
@@ -587,6 +599,6 @@ export default function AdminEstiloPage() {
           </div>
         </div>
       </section>
-    </div>
+    </m.div>
   );
 }

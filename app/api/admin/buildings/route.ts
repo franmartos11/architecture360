@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { buildingCreateSchema } from '@/lib/structure-schemas';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { serverError } from '@/lib/api-errors';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -17,7 +20,7 @@ export async function GET(request: Request) {
     .select('*')
     .eq('project_id', projectId)
     .order('slug');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   // Conteo de pisos + id del primer piso por edificio (este último lo usa
   // el redirect de "casa" para ir directo al editor sin un fetch extra),
@@ -77,10 +80,14 @@ export async function POST(request: Request) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase } = access;
 
-  const body = await request.json();
-  if (!body.name || typeof body.name !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.name || typeof raw.data.name !== 'string') {
     return NextResponse.json({ error: 'Falta name' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, buildingCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   const name = sanitizeText(body.name, 150);
 
   const { data: project } = await supabase
@@ -123,7 +130,7 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Ese slug ya está en uso en este proyecto.' }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   // Auto-provisión de la estructura interna para formas sin paso "Piso"

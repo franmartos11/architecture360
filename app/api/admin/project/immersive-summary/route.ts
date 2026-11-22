@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
 
 // Conteos para las tarjetas de resumen del capítulo Inmersivo (vistas
 // aéreas con hotspots, unidades con recorrido 360°). Solo conteos: antes la
@@ -24,13 +25,13 @@ export async function GET(request: Request) {
       .eq('floors.buildings.project_id', projectId)
       .not('tour_data', 'is', null),
   ]);
-  if (slidesRes.error) return NextResponse.json({ error: slidesRes.error.message }, { status: 500 });
+  if (slidesRes.error) return serverError(slidesRes.error);
 
   const slideIds = (slidesRes.data ?? []).map(s => s.id as string);
   let slidesWithHotspots = 0;
   if (slideIds.length > 0) {
     const { data: hotspots, error } = await supabase.from('aerial_hotspots').select('slide_id').in('slide_id', slideIds);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     slidesWithHotspots = new Set((hotspots ?? []).map(h => h.slide_id as string)).size;
   }
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireProjectAccess, resolveRequestedProjectId, resolveActiveProjectId } from '@/lib/supabase/require-project-access';
 import { parseJsonBody } from '@/lib/api-validate';
+import { serverError } from '@/lib/api-errors';
 
 const DEFAULTS = { interestRate: 5.5, maxYears: 30, minDownPayment: 20 };
 
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({
     success: true,
     settings: {

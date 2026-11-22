@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
@@ -21,6 +23,7 @@ interface PortadaForm {
 // Ficha académica/Antes-Después/etc. en un solo estado de página, así que
 // separar esto ahí sería el refactor grande que veníamos evitando.
 export default function PortadaEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [form, setForm] = useState<PortadaForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,10 +64,10 @@ export default function PortadaEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !form) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !form) return <EditorSkeleton rows={5} />;
 
   return (
-    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+    <m.div {...contentIn} onSubmit={handleSubmit} className="p-6 space-y-6">
       <Input label="Nombre" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
 
       <div>
@@ -92,6 +95,6 @@ export default function PortadaEditor({ onSaved }: { onSaved: () => void }) {
           {saving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
-    </form>
+    </m.div>
   );
 }

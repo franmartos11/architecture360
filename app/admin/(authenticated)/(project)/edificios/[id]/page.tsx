@@ -1,11 +1,13 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, use, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { PageHeader, StatStrip, btnPrimary } from '@/components/admin/panel-ui';
 import ImageUploader from '@/components/admin/ImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, SkeletonStatStrip, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -22,6 +24,7 @@ type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' |
 type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const contentIn = useContentIn();
   const { id } = use(params);
   const router = useRouter();
   const typeConfig = useProjectTypeConfig();
@@ -155,16 +158,28 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
     load();
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${buildingLabelLower}...`} tone="light" />;
+  if (loading) return (
+    <PageSkeleton actions={1}>
+      <SkeletonStatStrip count={3} />
+      <SkeletonCard lines={3} />
+      <SkeletonCard lines={3} />
+    </PageSkeleton>
+  );
   if (loadError || !building) return <ErrorState message={`No se pudo cargar ${hasFloorStep ? 'el edificio' : `${agree.el} ${buildingLabelLower}`}.`} onRetry={load} />;
   if (isSingleHouse) {
     return floors[0]
-      ? <LoadingSpinner text={`Abriendo los datos ${agree.del} ${buildingLabelLower}...`} tone="light" />
+      ? (
+        <PageSkeleton actions={1}>
+          <SkeletonStatStrip count={3} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </PageSkeleton>
+      )
       : <ErrorState message={`No se encontró el piso interno ${agree.del} ${buildingLabelLower} — probá recargar.`} onRetry={load} />;
   }
 
   return (
-    <div className="flex flex-col gap-7">
+    <m.div {...contentIn} className="flex flex-col gap-7">
       <PageHeader
         back={<Link href="/admin/edificios" className="inline-flex items-center min-h-[28px] hover:text-gray-900">← {pluralize(buildingLabel)}</Link>}
         eyebrow={hasFloorStep ? 'Edificio' : buildingLabel}
@@ -352,6 +367,6 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
           </div>
         </Card>
       )}
-    </div>
+    </m.div>
   );
 }

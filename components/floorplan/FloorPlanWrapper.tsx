@@ -4,7 +4,9 @@ import dynamic from 'next/dynamic';
 import type { Building, Unit, Amenity, PointOfInterest, BimModel } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 
-const FloorPlanViewer = dynamic(() => import('./FloorPlanViewer'), { ssr: false });
+// Sin ssr:false a propósito: la ficha y el plano tienen que estar en el HTML inicial
+// (SEO, y que se vea contenido antes de bajar el bundle). dynamic() queda por el code-splitting.
+const FloorPlanViewer = dynamic(() => import('./FloorPlanViewer'));
 
 export default function FloorPlanWrapper({
   building,

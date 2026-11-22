@@ -15,7 +15,7 @@ import BimEditor from '@/components/admin/section-editors/BimEditor';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PageSkeleton, Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import PublishCallout from '@/components/admin/PublishCallout';
 import { usePublishState } from '@/lib/publish-state-context';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -50,7 +50,11 @@ const PROJECT_STEPS: { id: ProjectStep; label: string }[] = [
 
 export default function AdminWizardPage() {
   return (
-    <Suspense fallback={<LoadingSpinner text="Cargando..." tone="light" />}>
+    <Suspense fallback={(
+      <PageSkeleton>
+        <SkeletonCard lines={3} />
+      </PageSkeleton>
+    )}>
       <AdminWizardPageInner />
     </Suspense>
   );
@@ -653,7 +657,11 @@ function AdminWizardPageInner() {
         {step === 'edificio' && (
           <div className="space-y-4">
             {loadingBuildings ? (
-              <LoadingSpinner text={`Cargando ${pluralize(buildingLabel.toLowerCase())}...`} tone="light" />
+              (
+              <div role="status" aria-label="Cargando" className="flex flex-wrap gap-2">
+                {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-11 w-32 rounded-[10px]" />)}
+              </div>
+            )
             ) : buildings.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {buildings.map(b => (
@@ -711,7 +719,11 @@ function AdminWizardPageInner() {
         {step === 'piso' && buildingId && (
           <div className="space-y-4">
             {loadingFloors ? (
-              <LoadingSpinner text="Cargando pisos..." tone="light" />
+              (
+              <div role="status" aria-label="Cargando" className="flex flex-wrap gap-2">
+                {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-11 w-24 rounded-[10px]" />)}
+              </div>
+            )
             ) : floors.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {floors.sort((a, b) => a.number - b.number).map(f => (

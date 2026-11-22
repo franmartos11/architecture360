@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromHotspot, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { aerialHotspotPatchSchema } from '@/lib/content-schemas';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const projectId = await resolveProjectIdFromHotspot(id);
   if (!projectId) return NextResponse.json({ error: 'Hotspot no encontrado' }, { status: 404 });
 
-  const body = await request.json();
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const parsed = validateJson(raw.data, aerialHotspotPatchSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
   if (body.buildingId !== undefined) {
     const newBuildingProjectId = await resolveProjectIdFromBuilding(body.buildingId);
     if (newBuildingProjectId !== projectId) {
@@ -25,7 +32,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.polygon !== undefined) updates.polygon = body.polygon;
 
   const { data, error } = await supabase.from('aerial_hotspots').update(updates).eq('id', id).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }
 
@@ -39,6 +46,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { supabase } = access;
 
   const { error } = await supabase.from('aerial_hotspots').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ success: true });
 }

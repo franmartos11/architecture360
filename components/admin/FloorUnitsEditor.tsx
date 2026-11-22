@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -14,7 +16,7 @@ const TourEditor = dynamic(() => import('@/components/admin/TourEditor'), {
 });
 import type { UnitType, UnitStatus, UnitCategory, TourData, Room, RoomKind, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -183,6 +185,7 @@ const FRESH_UNIT_FORM: Record<string, unknown> = formFieldsFromUnit({
 // unidad del piso interno — en modo edición si ya existe, o de alta si
 // todavía no. Sin tabla, sin CSV, sin "Duplicar/Borrar" (no hay lista).
 export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }: { buildingId?: string; floorId: string; onUnitsChange?: (units: UnitRow[]) => void }) {
+  const contentIn = useContentIn();
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -738,11 +741,15 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
     load();
   };
 
-  if (loading) return <LoadingSpinner text={hasUnitStep ? `Cargando ${pluralize(unitLabelLower)}...` : `Cargando datos ${uAgree.del} ${unitLabelLower}...`} tone="light" />;
+  if (loading) return (
+      <div role="status" aria-label="Cargando" className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+        <SkeletonForm rows={6} />
+      </div>
+    );
   if (loadError) return <ErrorState message={hasUnitStep ? `No se pudieron cargar ${uAgree.el === 'la' ? 'las' : 'los'} ${pluralize(unitLabelLower)}.` : `No se pudieron cargar los datos ${uAgree.del} ${unitLabelLower}.`} onRetry={load} />;
 
   return (
-    <div className="space-y-6">
+    <m.div {...contentIn} className="space-y-6">
       {hasUnitStep && (
         <Card>
           <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
@@ -1491,7 +1498,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
         </div>
       </form>
       )}
-    </div>
+    </m.div>
   );
 }
 

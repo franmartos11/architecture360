@@ -11,6 +11,8 @@ import ImageLightbox from './unit/ImageLightbox';
 export default function ProcessGallery({ images }: { images: string[] }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [index, setIndex] = useState(0);
+  // La miniatura tocada: el lightbox abre (y cierra) desde ahí.
+  const [origin, setOrigin] = useState<DOMRect | null>(null);
 
   return (
     <>
@@ -18,7 +20,7 @@ export default function ProcessGallery({ images }: { images: string[] }) {
         {images.map((src, i) => (
           <button
             key={i}
-            onClick={() => { setIndex(i); setLightboxOpen(true); }}
+            onClick={e => { setOrigin(e.currentTarget.getBoundingClientRect()); setIndex(i); setLightboxOpen(true); }}
             className="relative aspect-[4/3] rounded-[var(--theme-radius)] overflow-hidden bg-[var(--theme-border)] group"
           >
             <Image
@@ -41,6 +43,7 @@ export default function ProcessGallery({ images }: { images: string[] }) {
         onIndexChange={setIndex}
         onClose={() => setLightboxOpen(false)}
         altPrefix="Proceso"
+        originRect={origin}
       />
     </>
   );

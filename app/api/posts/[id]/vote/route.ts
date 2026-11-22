@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
+import { serverError } from '@/lib/api-errors';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -41,7 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { error } = await supabase
     .from('post_poll_votes')
     .upsert({ poll_id: poll.id, option_id: option.id, profile_id: user.id }, { onConflict: 'poll_id,profile_id' });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json(await getPollTally(supabase, poll.id, user.id));
 }
@@ -56,7 +57,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!poll) return NextResponse.json({ error: 'Esta publicación no tiene una encuesta.' }, { status: 404 });
 
   const { error } = await supabase.from('post_poll_votes').delete().eq('poll_id', poll.id).eq('profile_id', user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   return NextResponse.json(await getPollTally(supabase, poll.id, user.id));
 }

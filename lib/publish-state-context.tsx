@@ -55,6 +55,7 @@ export function PublishStateProvider({
   initialPublished,
   projectType,
   saleMode,
+  customDomain = null,
   children,
 }: {
   projectId: string;
@@ -62,6 +63,8 @@ export function PublishStateProvider({
   initialPublished: boolean;
   projectType: string;
   saleMode: string;
+  /** Dominio propio activo del proyecto (www.torre.com): "Ver sitio" lleva directo ahí. */
+  customDomain?: string | null;
   children?: React.ReactNode;
 }) {
   // Memoizado por los strings: un objeto nuevo en cada render dispararía el
@@ -141,11 +144,11 @@ export function PublishStateProvider({
       canPublish: missingRequired.length === 0,
       missingSections,
       loading,
-      siteHref: published ? getProjectHref(slug) : getProjectPreviewHref(slug),
+      siteHref: published ? getProjectHref(slug, customDomain) : getProjectPreviewHref(slug),
       refresh,
       setPublished,
     };
-  }, [published, requiredItems, missingSections, loading, slug, refresh, setPublished]);
+  }, [published, requiredItems, missingSections, loading, slug, customDomain, refresh, setPublished]);
 
   return <PublishStateContext.Provider value={value}>{children}</PublishStateContext.Provider>;
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
+import Popover from '@/components/ui/Popover';
 import { exploreCardsFor } from '@/components/ui/ProjectMenu';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { ProjectNavInfo } from '@/lib/project-nav';
@@ -13,22 +14,7 @@ import type { ProjectNavInfo } from '@/lib/project-nav';
 export default function ExploreSwitcher({ info, current }: { info: ProjectNavInfo; current?: string }) {
   const basePath = useProjectBasePath();
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const cards = exploreCardsFor(info, basePath);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('pointerdown', onPointer);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   // Con un solo destino no hay nada que desplegar: link directo.
   if (cards.length < 2) {
@@ -40,12 +26,12 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div className="relative">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-label={current ? `Explorar 3D: ${current}. Cambiar de vista` : 'Explorar 3D: elegir vista'}
         // Abierto se ve como activo (raya fija) — el resaltado lo lleva el panel.
         className={`flex items-center gap-1.5 ${navItemClass(!!current || open)}`}
@@ -56,18 +42,27 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
         </svg>
       </button>
 
-      {open && (
-        // Vidrio líquido (onda Apple): tinte oscuro translúcido para que se lea
-        // sobre fondos claros y oscuros, desenfoque con saturación, borde y
-        // brillo especular arriba. Sin backdrop-filter (navegadores viejos)
-        // queda el tinte casi opaco del fallback.
-        <div className="lg-glass absolute left-0 top-full mt-3 z-[55] w-[380px] p-2 rounded-[26px] flex flex-col gap-0.5 text-white">
+      {/* Vidrio líquido (onda Apple): tinte oscuro translúcido para que se lea
+          sobre fondos claros y oscuros, desenfoque con saturación, borde y
+          brillo especular arriba. Sin backdrop-filter (navegadores viejos)
+          queda el tinte casi opaco del fallback. Los "!" pisan lo del Popover (fondo blanco, padding, radio, z, margen)
+          y la animación CSS propia de lg-glass, que si no se pelearía con la
+          de framer-motion: la entrada/salida la maneja el Popover. */}
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        role="menu"
+        align="start"
+        ariaLabel="Explorar 3D"
+        className="lg-glass !animate-none !mt-3 !z-[55] w-[380px] !p-2 !rounded-[26px] flex flex-col gap-0.5 !text-white"
+      >
           {cards.map(card => {
             const active = card.label === current;
             return (
               <Link
                 key={card.href}
                 href={card.href}
+                role="menuitem"
                 onClick={() => setOpen(false)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={card.detail ? `${card.label} — ${card.detail}` : card.label}
@@ -86,8 +81,7 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
               </Link>
             );
           })}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

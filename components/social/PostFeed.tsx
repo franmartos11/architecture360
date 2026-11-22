@@ -18,6 +18,7 @@ import MentionText from '@/components/social/MentionText';
 import { PostSkeleton } from '@/components/ui/Skeleton';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import PostProjectEmbed, { type EmbeddedProject } from '@/components/social/PostProjectEmbed';
+import PostProgressEmbed, { type EmbeddedProgressUpdate } from '@/components/social/PostProgressEmbed';
 import PostPoll, { type Poll } from '@/components/social/PostPoll';
 import PollComposer from '@/components/social/PollComposer';
 import AttachProjectPicker, { type AttachableProject } from '@/components/social/AttachProjectPicker';
@@ -34,7 +35,9 @@ interface ApiPost {
   created_at: string;
   author: { handle: string; display_name: string; avatar_image: string | null; bio: string | null } | null;
   shared_post: EmbeddedPost | null;
-  shared_project_kind: 'project' | 'tour' | null;
+  shared_project_kind: 'project' | 'tour' | 'progress' | null;
+  /** Solo con kind 'progress': la entrada resuelta por el servidor (null si ya no está publicada). */
+  progress_update?: EmbeddedProgressUpdate | null;
   project: EmbeddedProject | null;
   poll: Poll | null;
   likeCount: number;
@@ -597,7 +600,12 @@ export default function PostFeed({ authorHandle, loggedIn, currentProfileHandle,
                   </div>
                 )}
                 {post.project && post.shared_project_kind && (
-                  <PostProjectEmbed project={post.project} kind={post.shared_project_kind} />
+                  post.shared_project_kind === 'progress' && post.progress_update ? (
+                    <PostProgressEmbed project={post.project} update={post.progress_update} />
+                  ) : (
+                    // 'progress' sin entrada (la despublicaron o la borraron): queda la tarjeta común del proyecto.
+                    <PostProjectEmbed project={post.project} kind={post.shared_project_kind === 'tour' ? 'tour' : 'project'} />
+                  )
                 )}
                 {post.poll && (
                   <PostPoll

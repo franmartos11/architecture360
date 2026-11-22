@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectRole } from '@/lib/project-role-context';
 import { hasRole } from '@/lib/project-roles';
+import Collapse from '@/components/ui/Collapse';
 
 // Estado del sitio en el sidebar del panel, en dos piezas:
 //  - SitePublishStatus (arriba, bajo el nombre): si está en línea o en
@@ -20,7 +21,7 @@ export default function SitePublishStatus({ shareUrl, shareText }: { shareUrl: s
   return (
     <div className="mt-3 flex items-center gap-2">
       <span
-        className={`h-6 px-2 shrink-0 flex items-center rounded-full text-[11px] font-semibold ${
+        className={`h-6 px-2 shrink-0 flex items-center rounded-full text-[11px] font-semibold transition-colors ${
           published ? 'bg-brand-100 text-brand-800' : 'bg-amber-100 text-amber-800'
         }`}
       >
@@ -93,17 +94,19 @@ export function PublishReadinessCard() {
   if (requiredItems.length === 0) return null;
 
   return (
-    <div className="p-4 rounded-[14px] border border-gray-200 bg-white flex flex-col gap-2.5">
+    <div className="p-4 rounded-[14px] border border-gray-200 bg-white flex flex-col">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] font-semibold text-gray-900">{published ? 'Sitio publicado' : 'Listo para publicar'}</span>
         {!published && <span className="font-display text-[13px] font-semibold text-gray-900">{done}/{total}</span>}
       </div>
-      {!published && (
+      {/* Al publicar, el progreso y el botón se pliegan (no desaparecen de
+          golpe). Los espacios van como padding adentro de cada Collapse —
+          con `gap` en el padre quedaría un salto al desmontarse. */}
+      <Collapse open={!published}>
+        <div className="pt-2.5 flex flex-col gap-2.5">
         <div className="h-1 rounded-full bg-gray-100 overflow-hidden" aria-hidden="true">
-          <div className="h-full rounded-full bg-brand-700" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-brand-700 transition-[width] duration-300 ease-out" style={{ width: `${pct}%` }} />
         </div>
-      )}
-      {!published && (
         <p className="m-0 text-xs leading-snug text-gray-600">
           {canPublish ? 'Ya tiene lo mínimo. Publicalo para que el link funcione para todos.' : (
             <>
@@ -117,8 +120,7 @@ export function PublishReadinessCard() {
             </>
           )}
         </p>
-      )}
-      {!published && canPublishRole && (
+        {canPublishRole && (
         <button
           onClick={publish}
           disabled={publishing || loading || !canPublish}
@@ -126,8 +128,11 @@ export function PublishReadinessCard() {
         >
           {publishing ? 'Publicando…' : 'Publicar sitio'}
         </button>
-      )}
-      {missingSections.length > 0 && (
+        )}
+        </div>
+      </Collapse>
+      <Collapse open={missingSections.length > 0}>
+        <div className="pt-2.5">
         <Link
           href="/admin/sitio"
           title={`Secciones habilitadas sin contenido: ${missingSections.map(s => s.label).join(', ')}`}
@@ -135,7 +140,8 @@ export function PublishReadinessCard() {
         >
           Recomendado: <span className="underline underline-offset-2">{missingSections.length === 1 ? '1 sección vacía' : `${missingSections.length} secciones vacías`}</span>
         </Link>
-      )}
+        </div>
+      </Collapse>
     </div>
   );
 }

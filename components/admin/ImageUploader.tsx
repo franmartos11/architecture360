@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { preparePanorama } from '@/lib/panorama';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
+import { compressImage } from '@/lib/image-compress';
 
 interface ImageUploaderProps {
   value: string;
@@ -16,12 +17,18 @@ interface ImageUploaderProps {
    * todavía está vacío) y falla en silencio.
    */
   onUploadingChange?: (uploading: boolean) => void;
+  /**
+   * Achica la foto en el navegador antes de subirla (lib/image-compress).
+   * Apagado por defecto: las panorámicas 360° y los planos necesitan la
+   * resolución completa. Para fotos de celular (avance de obra) conviene.
+   */
+  compress?: boolean;
 }
 
 // Subida de imagen a Supabase Storage con drag&drop, más un campo de
 // texto de respaldo por si quieren pegar una URL externa directamente
 // en vez de subir un archivo.
-export default function ImageUploader({ value, onChange, folder, label, onUploadingChange }: ImageUploaderProps) {
+export default function ImageUploader({ value, onChange, folder, label, onUploadingChange, compress = false }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
@@ -44,6 +51,8 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
       const prepared = await preparePanorama(file);
       toUpload = prepared.file;
       if (prepared.warning) setWarning(prepared.warning);
+    } else if (compress) {
+      toUpload = await compressImage(file);
     }
     const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
     if (result.ok) onChange(result.data.url);

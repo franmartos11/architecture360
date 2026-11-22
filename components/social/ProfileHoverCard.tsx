@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, type ReactNode } from 'react';
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { POPOVER, POPOVER_OUT, REDUCED_FADE } from '@/lib/motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import FollowButton from '@/components/social/FollowButton';
 
@@ -24,6 +26,7 @@ const cache = new Map<string, HoverProfile>();
 export default function ProfileHoverCard({ handle, loggedIn, isOwnProfile, children }: { handle: string; loggedIn: boolean; isOwnProfile?: boolean; children: ReactNode }) {
   const [profile, setProfile] = useState<HoverProfile | null>(cache.get(handle) ?? null);
   const [open, setOpen] = useState(false);
+  const reduced = !!useReducedMotion();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,8 +55,17 @@ export default function ProfileHoverCard({ handle, loggedIn, isOwnProfile, child
   return (
     <span className="relative inline-block" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       {children}
+      {/* A mano y no con Popover: se abre por hover y no debe robar el foco
+          (Popover lo mueve al primer ítem). Mismos tokens POPOVER / POPOVER_OUT. */}
+      <AnimatePresence>
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-trevo-dark/10 p-4 z-40">
+        <m.div
+          initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={reduced ? { opacity: 0, transition: REDUCED_FADE } : { opacity: 0, scale: 0.96, y: -4, transition: POPOVER_OUT }}
+          transition={reduced ? REDUCED_FADE : POPOVER}
+          style={{ transformOrigin: 'top left' }}
+          className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-trevo-dark/10 p-4 z-40">
           {!profile ? (
             <div className="animate-pulse space-y-2">
               <div className="w-12 h-12 rounded-full bg-trevo-dark/10" />
@@ -81,8 +93,9 @@ export default function ProfileHoverCard({ handle, loggedIn, isOwnProfile, child
               )}
             </>
           )}
-        </div>
+        </m.div>
       )}
+      </AnimatePresence>
     </span>
   );
 }

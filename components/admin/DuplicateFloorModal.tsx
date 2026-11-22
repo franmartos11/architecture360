@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import Dialog from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 interface FloorLike { id: string; number: number; label: string }
@@ -90,13 +91,21 @@ export default function DuplicateFloorModal({ floor, existingNumbers = [], onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">Duplicar {floor.label}</h3>
-          <p className="text-sm text-gray-500 mt-0.5">Copia este piso a un rango de pisos —los que todavía no existan se crean— con el mismo plano{includeUnits ? ' y las mismas unidades (código, polígono, ambientes, tour y pines re-numerados).' : '.'}</p>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Duplicar ${floor.label}`}
+      description={`Copia este piso a un rango de pisos —los que todavía no existan se crean— con el mismo plano${includeUnits ? ' y las mismas unidades (código, polígono, ambientes, tour y pines re-numerados).' : '.'}`}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={onClose} className="bg-transparent hover:bg-gray-100">Cancelar</Button>
+          <Button type="submit" form="duplicate-floor-form" disabled={working || count === 0}>
+            {working ? 'Duplicando...' : `Duplicar${count > 1 ? ` (${count})` : ''}`}
+          </Button>
+        </>
+      }
+    >
+        <form id="duplicate-floor-form" onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Desde piso N°" type="number" value={fromNumber} onChange={e => setFromNumber(e.target.value)} />
             <Input label="Hasta piso N°" type="number" value={toNumber} onChange={e => setToNumber(e.target.value)} />
@@ -119,14 +128,7 @@ export default function DuplicateFloorModal({ floor, existingNumbers = [], onClo
             </p>
           )}
           {error && <p className="text-sm text-red-500">{error}</p>}
-          <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" disabled={working || count === 0}>
-              {working ? 'Duplicando...' : `Duplicar${count > 1 ? ` (${count})` : ''}`}
-            </Button>
-            <Button type="button" variant="ghost" onClick={onClose} className="bg-transparent hover:bg-gray-100">Cancelar</Button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 }

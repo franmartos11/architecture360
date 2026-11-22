@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import PdfUploader from '@/components/admin/PdfUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { FichaSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, SegmentedTabs, fieldClass } from '@/components/admin/panel-ui';
 import { ChapterHeader, ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
@@ -18,6 +20,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { PROJECT_STRUCTURES, PROJECT_SALE_MODES, canonicalProjectType } from '@/lib/project-types';
 import { pluralize } from '@/lib/units';
 import type { ConstructionProgress, ProjectSaleMode, ProjectType } from '@/types';
+import { useCustomDomain } from '@/lib/custom-domain-context';
 
 // Capítulo 1 de la ficha — "Esencial" (diseño Ficha · Esencial): lo que
 // hace falta para publicar (identidad y portada), qué forma tiene el
@@ -36,6 +39,8 @@ const FORM_HINTS: Record<ProjectType, string> = {
 interface UnitLite { total_area: number | null; model_name: string | null }
 
 export default function AdminProjectPage() {
+  const customDomain = useCustomDomain();
+  const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { saleMode, buildingLabel, aerialLabelPlural, unitLabel } = typeConfig;
   const ficha = useFichaProject();
@@ -61,12 +66,12 @@ export default function AdminProjectPage() {
   const [origin, setOrigin] = useState('');
   useEffect(() => { startTransition(() => setOrigin(window.location.origin)); }, []);
 
-  if (ficha.loading) return <LoadingSpinner text="Cargando proyecto..." tone="light" />;
+  if (ficha.loading) return <FichaSkeleton aside rows={6} />;
   if (ficha.loadError || !project) return <ErrorState message="No se pudo cargar el proyecto." onRetry={ficha.reload} />;
 
-  const displayUrl = origin ? getProjectDisplayUrl(project.slug, origin) : `/proyecto/${project.slug}`;
+  const displayUrl = origin ? getProjectDisplayUrl(project.slug, origin, customDomain) : `/proyecto/${project.slug}`;
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(getProjectDisplayUrl(project.slug, origin || window.location.origin));
+    navigator.clipboard.writeText(getProjectDisplayUrl(project.slug, origin || window.location.origin, customDomain));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
@@ -168,6 +173,7 @@ export default function AdminProjectPage() {
   );
 
   return (
+    <m.div {...contentIn}>
     <FichaLayout aside={aside}>
       <ChapterHeader
         title="Esencial"
@@ -308,5 +314,6 @@ export default function AdminProjectPage() {
       <ChapterFooter />
       <UnsavedBar dirty={ficha.dirty} saving={ficha.saving} onSave={() => ficha.save()} onDiscard={ficha.discard} />
     </FichaLayout>
+    </m.div>
   );
 }

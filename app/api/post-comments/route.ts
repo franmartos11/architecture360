@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notify } from '@/lib/notify';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { serverError } from '@/lib/api-errors';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -75,13 +77,17 @@ export async function POST(request: Request) {
   );
   if (limited) return limited;
 
-  const { data, error } = await supabase
+  // El insert va con service-role y NO con el cliente de sesión: la tabla ya no tiene
+  // policy de INSERT para usuarios. Con ella, cualquiera con la anon key (que viaja en el
+  // bundle) podía insertar directo en /rest/v1/post_comments salteándose la validación, el sanitizado
+  // y el rate limit de esta ruta. `author_id`/`sender_id` salen de la sesión ya verificada.
+  const { data, error } = await createAdminClient()
     .from('post_comments')
     .insert({ post_id: body.postId, author_id: user.id, body: text })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const { data: post } = await supabase.from('posts').select('author_id').eq('id', body.postId).maybeSingle();
   if (post) await notify({ recipientId: post.author_id, actorId: user.id, type: 'comment', entityId: body.postId });

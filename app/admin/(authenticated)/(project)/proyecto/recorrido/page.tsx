@@ -1,5 +1,7 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useCallback, startTransition } from 'react';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import TourEditor from '@/components/admin/TourEditor';
@@ -7,10 +9,11 @@ import TourOrientationControl from '@/components/admin/TourOrientationControl';
 import { ChapterFooter } from '@/components/admin/section-editors/FichaChrome';
 import { InmersivoHeader, InmersivoSummary } from '@/components/admin/inmersivo/InmersivoChrome';
 import type { TourData } from '@/types';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 
 export default function AdminCommonAreasTourPage() {
+  const contentIn = useContentIn();
   const activeProjectId = useActiveProjectId();
   const [tourData, setTourData] = useState<TourData | null>(null);
   const [orientationDegrees, setOrientationDegrees] = useState<number | undefined>(undefined);
@@ -59,11 +62,16 @@ export default function AdminCommonAreasTourPage() {
     setSavingOrientation(false);
   }, [activeProjectId]);
 
-  if (loading) return <div className="flex flex-col gap-7"><InmersivoHeader /><LoadingSpinner text="Cargando recorrido..." tone="light" /></div>;
+  if (loading) return <div className="flex flex-col gap-7"><InmersivoHeader />(
+    <div role="status" aria-label="Cargando" className="flex flex-col gap-7">
+      <Skeleton className="h-[420px] w-full rounded-2xl" />
+      <SkeletonCard lines={2} />
+    </div>
+  )</div>;
   if (loadError) return <div className="flex flex-col gap-7"><InmersivoHeader /><ErrorState message="No se pudo cargar el recorrido." onRetry={load} /></div>;
 
   return (
-    <div className="flex flex-col gap-7">
+    <m.div {...contentIn} className="flex flex-col gap-7">
       <InmersivoHeader />
 
       <TourEditor initialTourData={tourData} onPersist={handlePersist} />
@@ -84,6 +92,6 @@ export default function AdminCommonAreasTourPage() {
       <InmersivoSummary />
 
       <ChapterFooter />
-    </div>
+    </m.div>
   );
 }

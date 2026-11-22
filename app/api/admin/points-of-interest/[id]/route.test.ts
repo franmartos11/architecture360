@@ -51,7 +51,7 @@ describe('PATCH /api/admin/points-of-interest/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1', { name: 'Nuevo' }), params('poi-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('actualización válida: 200 con la fila actualizada', async () => {
@@ -92,7 +92,7 @@ describe('DELETE /api/admin/points-of-interest/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1'), params('poi-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('borrado válido: 200 con success true', async () => {
@@ -103,5 +103,26 @@ describe('DELETE /api/admin/points-of-interest/[id]', () => {
     const res = await DELETE(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1'), params('poi-1'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+  });
+});
+
+describe('PATCH /api/admin/points-of-interest/[id]: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromPoi).mockReset();
+  });
+
+  it.each([
+    ['latitud fuera de rango', { latitude: 91 }],
+    ['imagen con javascript:', { image: 'javascript:alert(1)' }],
+    ['minutos negativos', { driveMinutes: -1 }],
+    ['sortOrder como texto', { sortOrder: 'uno' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromPoi).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/points-of-interest/poi-1', body, { method: 'PATCH' }), params('poi-1'));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 });

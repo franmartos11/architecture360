@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveProjectIdFromMember } from '@/lib/supabase
 import { canManageMember } from '@/lib/project-roles';
 import { parseJsonBody } from '@/lib/api-validate';
 import { z } from 'zod';
+import { serverError } from '@/lib/api-errors';
 
 const bodySchema = z.object({
   role: z.enum(['editor', 'gestor', 'administrador'], { message: 'Rol inválido' }),
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (error) {
     if (error.code === '42501') return NextResponse.json({ error: 'No podés asignar ese rol' }, { status: 403 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json(data);
 }
@@ -64,7 +65,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { error } = await supabase.from('project_members').delete().eq('id', id);
   if (error) {
     if (error.code === '42501') return NextResponse.json({ error: 'No podés quitar a este miembro' }, { status: 403 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ success: true });
 }

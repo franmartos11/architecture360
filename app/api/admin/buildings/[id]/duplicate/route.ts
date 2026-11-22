@@ -4,6 +4,7 @@ import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { remapParkingSpotFloors } from '@/lib/units';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { serverError } from '@/lib/api-errors';
 
 // Copia completa de un edificio: pisos → unidades, remapeando FKs con un
 // Map viejo→nuevo por nivel (mismo enfoque que
@@ -35,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const { data: source, error: sourceError } = await supabase.from('buildings').select('*').eq('id', id).maybeSingle();
-  if (sourceError) return NextResponse.json({ error: sourceError.message }, { status: 500 });
+  if (sourceError) return serverError(sourceError);
   if (!source) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
 
   const name = `${source.name} (copia)`;
@@ -58,7 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .select('id, slug, name')
     .single();
 
-  if (createError) return NextResponse.json({ error: createError.message }, { status: 500 });
+  if (createError) return serverError(createError);
 
   try {
     await copyBuildingFloors(supabase, id, created.id as string);

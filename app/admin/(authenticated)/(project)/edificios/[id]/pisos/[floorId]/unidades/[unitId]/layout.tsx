@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect, useMemo, useCallback, use, startTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton, SkeletonCard, SkeletonForm } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -40,6 +42,7 @@ export default function UnitShellLayout({
   children: React.ReactNode;
   params: Promise<{ id: string; floorId: string; unitId: string }>;
 }) {
+  const contentIn = useContentIn();
   const { id: buildingId, floorId, unitId } = use(params);
   const pathname = usePathname();
   const router = useRouter();
@@ -169,7 +172,18 @@ export default function UnitShellLayout({
     setCopyOpen(false);
   };
 
-  if (loading) return <LoadingSpinner text={`Cargando ${unitLabelLower}...`} tone="light" />;
+  if (loading) return (
+    <div role="status" aria-label="Cargando" className="flex flex-col gap-4">
+      <div aria-hidden="true" className="flex flex-col gap-4">
+        <Skeleton className="h-4 w-32" />
+        <SkeletonCard lines={1} />
+        <div className="flex flex-col md:flex-row gap-4 items-start">
+          <Skeleton className="w-full md:w-56 h-64 rounded-2xl shrink-0" />
+          <div className="flex-1 min-w-0 w-full rounded-2xl border border-gray-200 bg-white p-5"><SkeletonForm rows={6} /></div>
+        </div>
+      </div>
+    </div>
+  );
   if (loadError || !unit) {
     return (
       <div className="flex flex-col gap-4">
@@ -187,7 +201,7 @@ export default function UnitShellLayout({
 
   return (
     <UnitShellContext.Provider value={{ unit, values, patch }}>
-      <div className="flex flex-col gap-4">
+      <m.div {...contentIn} className="flex flex-col gap-4">
         <Link href={`/admin/edificios/${buildingId}/pisos/${floorId}`} className="self-start inline-flex items-center min-h-[28px] text-[13px] text-gray-600 hover:text-gray-900">
           ← Volver a {pluralize(unitLabelLower)}
         </Link>
@@ -290,7 +304,7 @@ export default function UnitShellLayout({
             </div>
           </div>
         </div>
-      </div>
+      </m.div>
     </UnitShellContext.Provider>
   );
 }

@@ -59,7 +59,7 @@ describe('PATCH /api/transfers/[id]/respond', () => {
     const supabase = mockSupabase({
       user: { id: 'target-1' },
       results: [{ data: { from_user: 'owner-1' } }],
-      rpc: [{ data: null, error: { message: 'La transferencia ya no está pendiente' } }],
+      rpc: [{ data: null, error: { code: '55000', message: 'La transferencia ya no está pendiente' } }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
 
@@ -67,6 +67,22 @@ describe('PATCH /api/transfers/[id]/respond', () => {
 
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe('La transferencia ya no está pendiente');
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('error de la RPC sin código propio: 500 genérico, sin el mensaje de la base', async () => {
+    const supabase = mockSupabase({
+      user: { id: 'target-1' },
+      results: [{ data: { from_user: 'owner-1' } }],
+      rpc: [{ data: null, error: { code: '23503', message: 'insert or update on table "projects" violates foreign key constraint' } }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await PATCH(req({ status: 'accepted' }), ctx);
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).not.toContain('projects');
     expect(notify).not.toHaveBeenCalled();
   });
 

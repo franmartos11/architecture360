@@ -147,6 +147,6 @@ describe('POST /api/conversations/[id]/attachments', () => {
 
     const res = await POST(uploadRequest(pngFile()), params());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('bucket lleno');
+    expect((await res.json()).error).toBe('No se pudo preparar la subida.'); // no filtra el mensaje del storage
   });
 });

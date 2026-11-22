@@ -11,6 +11,7 @@ import { resolveSectionOrder } from '@/lib/project-sections';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
+import { progressHeadline, showsConstructionProgress } from '@/lib/construction-progress-view';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -66,6 +67,12 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         .filter(Boolean)
         .join(' · ');
 
+  // Avance de obra en el hero: solo si la sección está en la landing (el
+  // admin la prende) y tiene algo — si no, el enlace no lleva a nada.
+  const progressText = showsConstructionProgress(project.constructionProgress, sectionOrder)
+    ? progressHeadline(project.constructionProgress)
+    : null;
+
   const heroImage = project.masterplanImage
     || project.aerialSlides[0]?.imageUrl
     || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
@@ -84,6 +91,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           ? { href: `${basePath}/unidades`, label: 'Ver disponibilidad' }
           : { href: `${basePath}/masterplan`, label: typeConfig.hasUnitStep ? 'Ver masterplan' : 'Ver vista frontal' }}
         secondary={project.commonAreasTour ? { href: `${basePath}/recorrido`, label: 'Tour 360°' } : undefined}
+        progress={progressText ? { href: '#avance', text: progressText } : undefined}
       />
 
       {sectionOrder.map(key => {
@@ -115,6 +123,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
             {project.description && <a href="#next" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Sobre el proyecto</a>}
             {project.units.length > 0 && <a href="#modelos" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">{pluralize(typeConfig.unitLabel)}</a>}
             {project.amenities.some(a => a.images.length > 0) && <a href="#amenities" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Amenities</a>}
+            {progressText && <a href="#avance" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Avance de obra</a>}
             {typeConfig.showCalculator && <a href="#cotizador" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Cotizador</a>}
             {typeConfig.showLeads && <a href="#contacto" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Contacto</a>}
           </nav>

@@ -5,6 +5,7 @@ import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { TextoEnvio } from '@/lib/whatsapp-bot/esquemas';
 import { HORAS_MODO_HUMANO } from '@/lib/whatsapp-bot/reglas';
 import type { WaConversacion } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: Ctx) {
     })
     .select('*')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const { data: conversacion, error: errConv } = await supabase
     .from('wa_conversaciones')

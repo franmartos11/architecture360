@@ -134,7 +134,7 @@ describe('PATCH /api/admin/buildings/[id]', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/buildings/building-1', { name: 'Nuevo' }), params('building-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -186,6 +186,44 @@ describe('DELETE /api/admin/buildings/[id]', () => {
 
     const res = await DELETE(jsonRequest('http://localhost/api/admin/buildings/building-1'), params('building-1'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('delete failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
+  });
+});
+
+describe('PATCH /api/admin/buildings/[id]: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+
+  it.each([
+    ['totalFloors negativo', { totalFloors: -1 }],
+    ['coverImage con javascript:', { coverImage: 'javascript:alert(1)' }],
+    ['orientación fuera de rango', { tourOrientationDegrees: 400 }],
+    ['nombre como número', { name: 123 }],
+    ['tour demasiado grande', { amenitiesTour: { initialNodeId: 'n', nodes: [{ id: 'n', name: 'x', imageUrl: 'https://a.com/x.jpg', note: 'x'.repeat(600_000) }] } }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveProjectIdFromBuilding).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/buildings/building-1', body, { method: 'PATCH' }), params('building-1'));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400 (antes era un 500)', async () => {
+    vi.mocked(resolveProjectIdFromBuilding).mockResolvedValue('project-1');
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [] }), user: { id: 'user-1' } } as never);
+    const res = await PATCH(new Request('http://localhost/api/admin/buildings/building-1', { method: 'PATCH', body: '{roto' }), params('building-1'));
+    expect(res.status).toBe(400);
+  });
+
+  it('las claves desconocidas (slug, project_id…) no llegan al update', async () => {
+    vi.mocked(resolveProjectIdFromBuilding).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'building-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    await PATCH(jsonRequest('http://localhost/api/admin/buildings/building-1', { name: 'Nuevo', slug: 'otro', project_id: 'otro-proyecto' }, { method: 'PATCH' }), params('building-1'));
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0]).toEqual({ name: 'Nuevo' });
   });
 });

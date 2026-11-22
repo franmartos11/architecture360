@@ -4,7 +4,9 @@ import dynamic from 'next/dynamic';
 import type { Unit, Amenity, PointOfInterest, UnitViewTab } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 
-const UnitViewer = dynamic(() => import('./UnitViewer'), { ssr: false });
+// Sin ssr:false a propósito: la ficha y el plano tienen que estar en el HTML inicial
+// (SEO, y que se vea contenido antes de bajar el bundle). dynamic() queda por el code-splitting.
+const UnitViewer = dynamic(() => import('./UnitViewer'));
 
 interface UnitViewerWrapperProps {
   unit: Unit;

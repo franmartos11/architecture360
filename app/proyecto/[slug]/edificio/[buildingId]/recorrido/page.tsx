@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
-import { getBuildingById, getSiteProjectBySlug } from '@/data/project-repository';
+import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getSunAzimuths } from '@/lib/sun-position';
 import { getProjectBasePath } from '@/lib/project-base-path';
@@ -30,13 +30,11 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
   const { slug, buildingId } = await params;
   const { focus, embed } = await searchParams;
   const isEmbed = embed === 'true';
-  const building = await getBuildingById(slug, buildingId);
+  const project = await getSiteProjectBySlug(slug);
+  const building = project?.buildings.find(b => b.id === buildingId);
   if (!building || !building.amenitiesTour) notFound();
 
-  // La ubicación (lat/lng) es del proyecto, no de la torre — getSiteProjectBySlug
-  // está cacheado por request, así que esto no repite el fetch que ya hizo
-  // getBuildingById por dentro.
-  const project = await getSiteProjectBySlug(slug);
+  // La ubicación (lat/lng) es del proyecto, no de la torre.
   const sunAzimuths = project?.latitude != null ? getSunAzimuths(project.latitude) : null;
   const basePath = await getProjectBasePath(slug);
 

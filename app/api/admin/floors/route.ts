@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveProjectIdFromBuilding, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { floorCreateSchema } from '@/lib/structure-schemas';
+import { serverError } from '@/lib/api-errors';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -20,15 +23,19 @@ export async function GET(request: Request) {
     .in('building_id', buildingIds)
     .order('number');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(floors ?? []);
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  if (!body.buildingId || body.number === undefined || !body.label || typeof body.label !== 'string') {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  if (!raw.data.buildingId || raw.data.number === undefined || !raw.data.label || typeof raw.data.label !== 'string') {
     return NextResponse.json({ error: 'Faltan buildingId, number y/o label' }, { status: 400 });
   }
+  const parsed = validateJson(raw.data, floorCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const projectId = await resolveProjectIdFromBuilding(body.buildingId);
   if (!projectId) return NextResponse.json({ error: 'Edificio no encontrado' }, { status: 404 });
@@ -51,6 +58,6 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data, { status: 201 });
 }

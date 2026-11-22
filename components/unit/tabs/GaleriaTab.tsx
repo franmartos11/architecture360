@@ -13,7 +13,8 @@ export default function GaleriaTab({
   images: string[];
   activeIndex: number;
   onIndexChange: (index: number) => void;
-  onOpenLightbox: (index: number) => void;
+  /** `rect`: dónde estaba la foto tocada, para que el lightbox abra desde ahí. */
+  onOpenLightbox: (index: number, rect: DOMRect) => void;
 }) {
   const thumbsRef = useRef<HTMLDivElement>(null);
 
@@ -33,7 +34,7 @@ export default function GaleriaTab({
       {/* ── Main image (fills all space) ── */}
       <div
         className="relative flex-1 overflow-hidden cursor-zoom-in"
-        onClick={() => onOpenLightbox(activeIndex)}
+        onClick={e => onOpenLightbox(activeIndex, e.currentTarget.getBoundingClientRect())}
       >
         <AnimatePresence mode="wait">
           <motion.img

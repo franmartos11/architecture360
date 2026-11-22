@@ -89,16 +89,7 @@ export const btnSecondary = 'inline-flex items-center justify-center gap-2 min-h
 export const btnGreen = 'inline-flex items-center justify-center gap-2 min-h-[48px] px-5 rounded-xl bg-brand-700 text-white text-sm font-semibold hover:bg-brand-800 transition-colors';
 export const fieldClass = 'w-full min-h-[44px] px-3.5 rounded-[10px] border border-gray-300 bg-white text-sm text-gray-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-500/30 placeholder:text-gray-400';
 
-/** Segmented del diseño (7 días / 30 días / Todo, Todos / Nuevos…). */
-export function SegmentedTabs<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div role="radiogroup" aria-label={label} className="inline-flex p-[3px] rounded-[10px] bg-[#EAE7E0] flex-wrap">
-      {options.map(o => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={`min-h-[36px] px-3 rounded-lg text-[13px] ${value === o.value ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'}`}>
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+/** Segmented del diseño (7 días / 30 días / Todo…), con la pastilla que se
+ *  desliza. Vive aparte porque es de cliente: este archivo no lo es y lo
+ *  importan también pantallas del servidor. */
+export { default as SegmentedTabs } from './SegmentedTabs';

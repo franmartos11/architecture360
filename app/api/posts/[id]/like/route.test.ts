@@ -90,7 +90,7 @@ describe('POST /api/posts/[id]/like', () => {
 
     const res = await POST(req('POST'), ctx());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('post no encontrado: success:true, no notifica', async () => {

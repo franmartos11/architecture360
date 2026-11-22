@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { esTablaFaltante } from '@/lib/whatsapp-bot/preguntas';
 import type { WaPregunta } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 const LIMITE = 300;
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   if (error) {
     // schema.sql sin aplicar todavía: el panel lo avisa en vez de romper.
     if (esTablaFaltante(error)) return NextResponse.json({ preguntas: [], faltaTabla: true });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ preguntas: (data ?? []) as WaPregunta[] });
 }

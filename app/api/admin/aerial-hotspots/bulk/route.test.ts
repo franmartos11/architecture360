@@ -75,7 +75,7 @@ describe('POST /api/admin/aerial-hotspots/bulk', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', { items: [ITEM_A] }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('boom');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('camino feliz: un item nuevo (insert) y uno existente (update), un resultado por cada uno', async () => {
@@ -114,7 +114,31 @@ describe('POST /api/admin/aerial-hotspots/bulk', () => {
     const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', { items: [ITEM_A, ITEM_B] }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.results[0]).toEqual({ slideId: 'slide-1', buildingId: 'building-1', success: false, data: null, error: 'insert failed' });
+    expect(body.results[0]).toEqual({ slideId: 'slide-1', buildingId: 'building-1', success: false, data: null, error: 'No se pudo guardar' }); // sin el mensaje de la base
     expect(body.results[1]).toEqual({ slideId: 'slide-1', buildingId: 'building-2', success: true, data: { id: 'hotspot-new-2', slide_id: 'slide-1', building_id: 'building-2' }, error: null });
+  });
+});
+
+describe('POST /api/admin/aerial-hotspots/bulk: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromSlide).mockReset();
+    vi.mocked(resolveProjectIdFromBuilding).mockReset();
+  });
+  const item = { slideId: 's1', buildingId: 'b1', x: 10, y: 20 };
+
+  it.each([
+    ['más de 200 items', { items: Array(201).fill(item) }],
+    ['un polígono de más de 500 puntos', { items: [{ ...item, polygon: Array(501).fill({ x: 1, y: 1 }) }] }],
+    ['coordenadas absurdas', { items: [{ ...item, x: 1e12 }] }],
+    ['un polígono mal formado', { items: [{ ...item, polygon: [[0, 0]] }] }],
+  ])('400 con %s, antes de resolver nada', async (_n, body) => {
+    const res = await POST(jsonRequest('http://localhost/api/admin/aerial-hotspots/bulk', body));
+    expect(res.status).toBe(400);
+    expect(resolveProjectIdFromSlide).not.toHaveBeenCalled();
+  });
+
+  it('un body que no es JSON: 400', async () => {
+    expect((await POST(new Request('http://localhost/api/admin/aerial-hotspots/bulk', { method: 'POST', body: '{roto' }))).status).toBe(400);
   });
 });

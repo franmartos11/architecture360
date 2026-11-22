@@ -5,12 +5,14 @@ vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
 }));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/data/project-repository', () => ({ getProjectBySlug: vi.fn() }));
 vi.mock('@/lib/revalidate-project', () => ({ revalidateProjectBySlug: vi.fn(), revalidateProjectById: vi.fn() }));
 
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { getProjectBySlug } from '@/data/project-repository';
 import { revalidateProjectBySlug } from '@/lib/revalidate-project';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, PATCH } from './route';
 
@@ -300,7 +302,7 @@ describe('PATCH /api/admin/project', () => {
 
   it('constructionProgress: se guarda saneado (sin HTML, sin fotos que no sean http, sin etapas huérfanas)', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
-    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+    const supabase = mockSupabase({ results: [{ data: { construction_progress: null } }, { data: { id: 'project-1' }, error: null }] });
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
@@ -312,11 +314,157 @@ describe('PATCH /api/admin/project', () => {
       },
     }));
     expect(res.status).toBe(200);
-    const payload = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    const payload = supabase.from.mock.results[1].value.update.mock.calls[0][0];
     expect(payload.construction_progress).toEqual({
       stages: [{ id: 's1', label: 'Estructura' }],
       percent: 55,
       updates: [{ id: 'u1', date: '2026-03-01', stageId: 's1', title: 'Losa', images: ['https://a.supabase.co/1.jpg'] }],
+      // La marca de guardado la pone el servidor.
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+  });
+
+  it('constructionProgress con forma inválida (fecha que no es yyyy-mm-dd, demasiadas entradas): 400 antes de tocar la base', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const badDate = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [{ date: '01/03/2026', title: 'x', images: [] }] },
+    }));
+    expect(badDate.status).toBe(400);
+    const tooMany = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: Array.from({ length: 301 }, () => ({ date: '2026-03-01', title: 'x', images: [] })) },
+    }));
+    expect(tooMany.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('constructionProgressBase igual a lo guardado: guarda y pisa la marca con una nueva', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: { stages: [], updates: [], percent: 10, updatedAt: '2026-11-10T10:00:00.000Z' } } }, // lo guardado
+      { data: { id: 'project-1' }, error: null }, // update
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 20, updatedAt: '2026-11-10T10:00:00.000Z' },
+      constructionProgressBase: '2026-11-10T10:00:00.000Z',
+    }));
+    expect(res.status).toBe(200);
+    const payload = supabase.from.mock.results[1].value.update.mock.calls[0][0];
+    expect(payload.construction_progress.percent).toBe(20);
+    expect(payload.construction_progress.updatedAt).not.toBe('2026-11-10T10:00:00.000Z');
+  });
+
+  it('constructionProgressBase distinto de lo guardado (otra persona guardó en el medio): 409 y no escribe', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: { stages: [], updates: [], percent: 10, updatedAt: '2026-11-10T11:00:00.000Z' } } },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 20 },
+      constructionProgressBase: '2026-11-10T10:00:00.000Z',
+    }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('construction_progress_conflict');
+    expect(supabase.from.mock.results[0].value.update).not.toHaveBeenCalled();
+  });
+
+  it('constructionProgressBase null con nada guardado (primera carga): guarda', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: null } },
+      { data: { id: 'project-1' }, error: null },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 1 },
+      constructionProgressBase: null,
+    }));
+    expect(res.status).toBe(200);
+  });
+
+  it('sin constructionProgressBase (panel viejo): guarda igual aunque lo guardado tenga otra marca, con updatedAt nuevo', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [
+      { data: { construction_progress: { stages: [], updates: [], percent: 10, updatedAt: '2026-11-10T11:00:00.000Z' } } },
+      { data: { id: 'project-1' }, error: null },
+    ] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      constructionProgress: { stages: [], updates: [], percent: 30 },
+    }));
+    expect(res.status).toBe(200);
+    const payload = supabase.from.mock.results[1].value.update.mock.calls[0][0];
+    expect(payload.construction_progress.percent).toBe(30);
+    // La marca la pone el servidor: es posterior a la guardada y es la que queda en la fila.
+    expect(Date.parse(payload.construction_progress.updatedAt)).toBeGreaterThan(Date.parse('2026-11-10T11:00:00.000Z'));
+  });
+
+  describe('limpieza de fotos huérfanas del avance de obra', () => {
+    const PUB = 'https://x.supabase.co/storage/v1/object/public/project-media';
+    const entry = (id: string, images: string[], video?: string) => ({ id, date: '2026-03-01', title: id, images, ...(video ? { video } : {}) });
+
+    function setup(saved: unknown, remove: { error: unknown } = { error: null }) {
+      vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+      const supabase = mockSupabase({ results: [
+        { data: { construction_progress: saved } },
+        { data: { id: 'project-1' }, error: null },
+      ] });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+      const removeFn = vi.fn().mockResolvedValue(remove);
+      vi.mocked(createAdminClient).mockReturnValue({ storage: { from: vi.fn(() => ({ remove: removeFn })) } } as never);
+      return { removeFn };
+    }
+
+    it('borra la foto y el clip que ya no están, y deja la que sigue en otra entrada', async () => {
+      const { removeFn } = setup({
+        stages: [], updates: [
+          entry('a', [`${PUB}/construction/a.jpg`, `${PUB}/construction/shared.jpg`], `${PUB}/construction/clip.mp4`),
+          entry('b', [`${PUB}/construction/shared.jpg`]),
+        ],
+      });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+        constructionProgress: { stages: [], updates: [entry('b', [`${PUB}/construction/shared.jpg`])] },
+      }));
+      expect(res.status).toBe(200);
+      expect(removeFn).toHaveBeenCalledWith(['construction/a.jpg', 'construction/clip.mp4']);
+    });
+
+    it('no toca URLs externas ni archivos fuera de construction/', async () => {
+      const { removeFn } = setup({
+        stages: [], updates: [entry('a', ['https://cdn.otro.com/x.jpg', `${PUB}/general/y.jpg`])],
+      });
+      await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
+      expect(removeFn).not.toHaveBeenCalled();
+    });
+
+    it('si el borrado falla, el guardado igual responde 200', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      setup({ stages: [], updates: [entry('a', [`${PUB}/construction/a.jpg`])] }, { error: { message: 'boom' } });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
+      expect(res.status).toBe(200);
+    });
+
+    it('si el update falla, no borra nada', async () => {
+      vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+      const supabase = mockSupabase({ results: [
+        { data: { construction_progress: { stages: [], updates: [entry('a', [`${PUB}/construction/a.jpg`])] } } },
+        { error: { message: 'db down' } },
+      ] });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+      const removeFn = vi.fn();
+      vi.mocked(createAdminClient).mockReturnValue({ storage: { from: vi.fn(() => ({ remove: removeFn })) } } as never);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
+      expect(res.status).toBe(500);
+      expect(removeFn).not.toHaveBeenCalled();
     });
   });
 
@@ -336,11 +484,11 @@ describe('PATCH /api/admin/project', () => {
 
   it('constructionProgress vacío: guarda null', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
-    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+    const supabase = mockSupabase({ results: [{ data: { construction_progress: null } }, { data: { id: 'project-1' }, error: null }] });
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
 
     await PATCH(jsonRequest('http://localhost/api/admin/project', { constructionProgress: { stages: [], updates: [] } }));
-    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0].construction_progress).toBeNull();
+    expect(supabase.from.mock.results[1].value.update.mock.calls[0][0].construction_progress).toBeNull();
   });
 
   it('cambio de saleMode compatible: valida el combo y actualiza', async () => {
@@ -365,7 +513,7 @@ describe('PATCH /api/admin/project', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'X' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('update failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 });
 
@@ -456,5 +604,45 @@ describe('PATCH /api/admin/project: permisos por campo según el rol', () => {
 
     const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { published: false }));
     expect(res.status).toBe(200);
+  });
+});
+
+describe('PATCH /api/admin/project: validación de los blobs JSON', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['tema con un color que no es hex', { themeConfig: { customColors: { bg: 'url(https://evil.com/x.png)' } } }],
+    ['tema con fondo que rompe el url()', { themeConfig: { backgroundImageUrl: "https://a.com/x.jpg');background:url('//evil" } }],
+    ['tema con radio inválido', { themeConfig: { radius: '10vw' } }],
+    ['secciones que no son un array', { sectionConfig: { key: 'about' } }],
+    ['galería de proceso con javascript:', { processGallery: ['javascript:alert(1)'] }],
+    ['antes/después con una imagen peligrosa', { beforeAfter: [{ label: 'x', beforeImage: 'javascript:alert(1)', afterImage: 'https://a.com/b.jpg' }] }],
+    ['recorrido demasiado grande', { commonAreasTour: { initialNodeId: 'n', nodes: [{ id: 'n', name: 'x', imageUrl: 'https://a.com/x.jpg', note: 'x'.repeat(600_000) }] } }],
+    ['foto del masterplan con javascript:', { masterplanImage: 'javascript:alert(1)' }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', body, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('un tema válido llega al update tal cual (con las claves de color filtradas)', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', {
+      themeConfig: { presetKey: 'natural', customColors: { bg: '#fafafa', spacing: '999rem' } },
+    }, { method: 'PATCH' }));
+
+    expect(res.status).toBe(200);
+    const sent = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(sent.theme_config).toEqual({ presetKey: 'natural', customColors: { bg: '#fafafa' } });
   });
 });

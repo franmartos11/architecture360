@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { CambioPregunta, camposDeError } from '@/lib/whatsapp-bot/esquemas';
 import type { WaPregunta } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -40,7 +41,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     .eq('project_id', a.projectId)
     .select('*')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data as WaPregunta);
 }
 
@@ -49,6 +50,6 @@ export async function DELETE(_request: Request, { params }: Ctx) {
   const a = await acceso(id);
   if (!a) return NextResponse.json({ error: 'Pregunta no encontrada' }, { status: 404 });
   const { error } = await a.supabase.from('wa_preguntas').delete().eq('id', id).eq('project_id', a.projectId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ ok: true });
 }

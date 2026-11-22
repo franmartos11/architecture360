@@ -308,6 +308,9 @@ export interface PointOfInterest {
 export interface ConstructionStage {
   id: string;
   label: string;
+  /** yyyy-mm-dd — cuándo empezó / terminó (o se espera que termine). Opcionales: sin fechas la etapa se ubica solo por orden. */
+  from?: string;
+  to?: string;
 }
 
 export interface ConstructionUpdate {
@@ -320,8 +323,14 @@ export interface ConstructionUpdate {
   body?: string;
   /** La primera es la portada; todas entran al time-lapse. */
   images: string[];
+  /** Clip corto (mp4/webm, URL http(s)) — opcional. Va en lugar de la portada en la historia y como cuadro del time-lapse. */
+  video?: string;
   /** Desde dónde se sacó ("Frente", "Dron") — texto libre, opcional. */
   view?: string;
+  /** true = borrador: la ve solo el admin. Ausente = publicada (lo ya guardado antes de este campo sigue visible). */
+  draft?: boolean;
+  /** Timestamp ISO de cuándo se mandó esta entrada por correo a los interesados — lo pone el servidor, para no mandarla dos veces. */
+  notifiedAt?: string;
 }
 
 export interface ConstructionProgress {
@@ -332,7 +341,16 @@ export interface ConstructionProgress {
   percent?: number;
   /** Texto libre ("Diciembre 2027", "Posesión desde junio") — las entregas casi nunca se anuncian con día exacto. */
   deliveryEstimate?: string;
+  /** yyyy-mm-dd — inicio de obra, para contar "mes N de obra". Opcional. */
+  startedAt?: string;
   updates: ConstructionUpdate[];
+  /**
+   * Timestamp ISO del último guardado — lo pone el servidor (PATCH
+   * /api/admin/project), nunca el panel. El panel lo reenvía como
+   * `constructionProgressBase` para que el servidor rechace con 409 un
+   * guardado que pisaría lo que otra persona guardó en el medio.
+   */
+  updatedAt?: string;
 }
 
 export interface BeforeAfterPair {

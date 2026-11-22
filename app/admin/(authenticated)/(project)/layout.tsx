@@ -5,6 +5,8 @@ import { ActiveProjectIdProvider } from '@/lib/active-project-context';
 import ProjectAdminShell from './ProjectAdminShell';
 import { PublishStateProvider } from '@/lib/publish-state-context';
 import { ProjectRoleProvider } from '@/lib/project-role-context';
+import { CustomDomainProvider } from '@/lib/custom-domain-context';
+import { getActiveDomains } from '@/lib/project-domains';
 
 // Todo lo que cuelga de este grupo de rutas (dashboard, edificios,
 // inventario, leads, configuración, wizard, proyecto) necesita un
@@ -49,22 +51,28 @@ export default async function ProjectAdminLayout({ children }: { children: React
     .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
     .eq('floors.buildings.project_id', projectId);
 
+  // Dominio propio activo (si hay): el panel muestra y copia ESA dirección.
+  const customDomain = (await getActiveDomains(access.supabase, [project.id])).get(project.id) ?? null;
+
   return (
     <ActiveProjectIdProvider projectId={project.id}>
       {/* El rol sale de la misma llamada que fija el proyecto de esta pestaña: así
           nunca puede quedar el rol de un proyecto con el id de otro. */}
       <ProjectRoleProvider role={access.role}>
-      <PublishStateProvider
-        projectId={project.id}
-        slug={project.slug}
-        initialPublished={!!project.published}
-        projectType={project.project_type}
-        saleMode={project.sale_mode}
-      >
-        <ProjectAdminShell project={project} userEmail={access.user.email ?? null} role={access.role} singleBuildingHref={singleBuildingHref} unitsCount={unitsCount ?? 0}>
-          {children}
-        </ProjectAdminShell>
-      </PublishStateProvider>
+      <CustomDomainProvider hostname={customDomain}>
+        <PublishStateProvider
+          projectId={project.id}
+          slug={project.slug}
+          initialPublished={!!project.published}
+          projectType={project.project_type}
+          saleMode={project.sale_mode}
+          customDomain={customDomain}
+        >
+          <ProjectAdminShell project={project} userEmail={access.user.email ?? null} role={access.role} singleBuildingHref={singleBuildingHref} unitsCount={unitsCount ?? 0}>
+            {children}
+          </ProjectAdminShell>
+        </PublishStateProvider>
+      </CustomDomainProvider>
       </ProjectRoleProvider>
     </ActiveProjectIdProvider>
   );

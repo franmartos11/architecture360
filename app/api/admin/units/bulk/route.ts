@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { isValidEnum, UNIT_STATUSES } from '@/lib/validate';
 import type { UnitStatus } from '@/types';
+import { serverError } from '@/lib/api-errors';
 
 // Techo generoso (ningún proyecto real se acerca) para no dejar la
 // operación abierta a un body arbitrariamente grande.
@@ -82,7 +83,7 @@ export async function PATCH(request: Request) {
   const { data: unitRows, error: fetchError } = floorIds.size
     ? await supabase.from('units').select('id, floor_id, price').in('id', ids)
     : { data: [], error: null };
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+  if (fetchError) return serverError(fetchError);
 
   const ownUnits = ((unitRows ?? []) as { id: string; floor_id: string; price: number | null }[])
     .filter(u => floorIds.has(u.floor_id));
@@ -101,7 +102,7 @@ export async function PATCH(request: Request) {
       .update({ status: body.status as UnitStatus, updated_at: new Date().toISOString() })
       .in('id', targetIds)
       .select('id');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
 
     const updatedIds = new Set((updated ?? []).map(u => (u as { id: string }).id));
     for (const id of targetIds) {
@@ -128,7 +129,8 @@ export async function PATCH(request: Request) {
       .from('units')
       .update({ price: newPrice, updated_at: new Date().toISOString() })
       .eq('id', u.id);
-    return { id: u.id, price: newPrice, ok: !error, error: error?.message };
+    if (error) console.error('[units/bulk] no se pudo actualizar el precio de', u.id, error);
+    return { id: u.id, price: newPrice, ok: !error, error: error ? 'No se pudo actualizar' : undefined };
   }));
 
   const updated = results.filter(r => r.ok).map(r => ({ id: r.id, price: r.price }));

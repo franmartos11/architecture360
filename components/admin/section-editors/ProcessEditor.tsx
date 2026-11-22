@@ -1,13 +1,16 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 
 export default function ProcessEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [images, setImages] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,16 +36,20 @@ export default function ProcessEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { toast('Guardado.'); onSaved(); } else toast('Error al guardar.', 'error');
   };
 
-  if (loading || !images) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !images) return (
+      <div role="status" aria-label="Cargando" className="p-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} aria-hidden="true" className="aspect-[4/3] rounded-xl" />)}
+      </div>
+    );
 
   return (
-    <div className="p-6 space-y-4">
+    <m.div {...contentIn} className="p-6 space-y-4">
       <MultiImageUploader values={images} onChange={setImages} folder="process" />
       <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
-    </div>
+    </m.div>
   );
 }

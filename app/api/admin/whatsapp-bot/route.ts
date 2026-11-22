@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/
 import { ConfigBot, camposDeError, validarConfigContraBot } from '@/lib/whatsapp-bot/esquemas';
 import { asignarHostPorDefecto } from '@/lib/whatsapp-bot/host-default';
 import type { WaBot } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 const PUENTE_VIVO_MS = 3 * 60 * 1000;
 
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     .select('*')
     .eq('project_id', projectId)
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   if (!data) return NextResponse.json({ bot: null, puenteVivo: false });
 
   const bot = data as WaBot;
@@ -50,7 +51,7 @@ export async function PATCH(request: Request) {
     .select('*')
     .eq('project_id', projectId)
     .maybeSingle();
-  if (errLectura) return NextResponse.json({ error: errLectura.message }, { status: 500 });
+  if (errLectura) return serverError(errLectura);
 
   const conflicto = validarConfigContraBot(config, existente as WaBot | null);
   if (conflicto) {
@@ -69,7 +70,7 @@ export async function PATCH(request: Request) {
     // vendedor_user_id: quien crea la configuración (no necesariamente el dueño).
     : supabase.from('wa_bots').insert({ ...config, project_id: projectId, vendedor_user_id: user.id });
   const { data, error } = await query.select('*').single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   const bot = data as WaBot;
   await completarHost(bot);
   if (bot.estado !== 'esperando_qr') bot.qr = null;

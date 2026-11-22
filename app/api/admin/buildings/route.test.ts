@@ -42,7 +42,7 @@ describe('GET /api/admin/buildings', () => {
 
     const res = await GET(get('http://localhost/api/admin/buildings'));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('db down');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('sin edificios: [] sin consultar floors', async () => {
@@ -157,7 +157,7 @@ describe('POST /api/admin/buildings', () => {
 
     const res = await POST(jsonRequest('http://localhost/api/admin/buildings', { name: 'Torre del Mar' }));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('insert failed');
+    expect((await res.json()).error).toBe('No se pudo completar la operación. Probá de nuevo en un rato.'); // no filtra el mensaje de la base
   });
 
   it('alta válida — "edificio" (con paso de piso): no auto-provisiona piso/unidad', async () => {
@@ -217,5 +217,26 @@ describe('POST /api/admin/buildings', () => {
     const json = await res.json();
     expect(json.floor_id).toBe('floor-1');
     expect(json.unit_id).toBe('unit-1');
+  });
+});
+
+describe('POST /api/admin/buildings: validación de forma y topes', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset();
+  });
+
+  it.each([
+    ['totalFloors negativo', { name: 'Torre', totalFloors: -3 }],
+    ['planImage con javascript:', { name: 'Torre', planImage: 'javascript:alert(1)' }],
+    ['nombre gigante', { name: 'x'.repeat(301) }],
+  ])('400 con %s, sin tocar la base', async (_n, body) => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await POST(jsonRequest('http://localhost/api/admin/buildings', body));
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 });

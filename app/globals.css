@@ -201,6 +201,31 @@ html[data-nav-pending] [data-site-nav]::after {
   from { opacity: 0; }
 }
 
+/* ─── Skeletons (components/ui/Skeleton.tsx) ──────────────────────
+   Un brillo apenas más claro que la base cruza de izquierda a derecha
+   cada 1.6 s — más sereno que el pulso de opacidad, y se lee como "está
+   viniendo" en vez de "está roto". El gradiente mide 4 anchos: el brillo
+   arranca fuera del borde izquierdo y termina fuera del derecho, así no
+   se ve aparecer ni desaparecer. Todas las piezas comparten una sola
+   animación (mismo reloj), por eso el barrido se ve parejo en una tabla.
+   Los colores son los neutros del panel (gray-200 del tema .atrium-ui). */
+.skeleton-shimmer {
+  --skeleton-base: #EAE7E0;
+  --skeleton-shine: #F3F1EC;
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(90deg, var(--skeleton-base) 35%, var(--skeleton-shine) 50%, var(--skeleton-base) 65%);
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer { animation: none; background-image: none; }
+}
+
 /* ─── Buttons ──────────────────────────────────────────────────── */
 /* Botones del sitio público en mobile — una sola familia: mismo alto,
    mismo redondeado y misma tipografía. El principal lleva el color de
@@ -868,4 +893,46 @@ html[data-nav-pending] [data-site-nav]::after {
     font-family: inherit;
     letter-spacing: normal;
   }
+}
+
+/* ─── Carga de ruta (app/loading.tsx) ─────────────────────────────
+   Ocupa el lugar de la página (no un cartel fijo encima de todo, que
+   tapaba la barra del proyecto) sobre el fondo neutro del sitio, con una
+   línea fina arriba que avanza y se queda esperando — mismo keyframe y
+   curva que html[data-nav-pending]. La línea aparece a los 150 ms y el
+   texto a los 300 ms: en una carga rápida no se llega a ver nada. Sin
+   tema de proyecto (el root no lo tiene): gris neutro en vez del acento. */
+.route-loading {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+}
+.route-loading__bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  background: rgba(27, 30, 28, 0.32);
+  animation: nav-pending 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
+}
+.route-loading__label {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(27, 30, 28, 0.45);
+  animation: route-loading-in 200ms ease-out 300ms both;
+}
+@keyframes route-loading-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Sin barrido: la línea aparece quieta a lo ancho; el texto igual espera
+     sus 300 ms para no parpadear, pero sin fundido. */
+  .route-loading__bar { animation: route-loading-in 0s linear 150ms both; }
+  .route-loading__label { animation-duration: 0s; }
 }

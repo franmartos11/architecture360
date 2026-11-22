@@ -1,13 +1,16 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import EmptyState from '@/components/ui/EmptyState';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
 import ErrorState from '@/components/ui/ErrorState';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
+import Collapse from '@/components/ui/Collapse';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -65,6 +68,7 @@ function timePills(p: PoiRow) {
 // después se hace click en el mapa — evita abrir un picker chico por
 // cada punto como antes.
 export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
+  const contentIn = useContentIn();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectCenter, setProjectCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [pois, setPois] = useState<PoiRow[]>([]);
@@ -271,7 +275,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  if (loading) return <LoadingSpinner text="Cargando ubicación..." tone="light" />;
+  if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudieron cargar los puntos de interés." onRetry={load} />;
 
   const overviewPois: OverviewPoi[] = visible.map(p => ({
@@ -279,7 +283,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   }));
 
   return (
-    <div className="space-y-4">
+    <m.div {...contentIn} className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">
           {pois.length} punto{pois.length === 1 ? '' : 's'} · {placedCount} ubicado{placedCount === 1 ? '' : 's'} en el mapa
@@ -436,7 +440,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                         </div>
                       </div>
 
-                      {open && (
+                      <Collapse open={open}>
                         <form onSubmit={handleSubmit} className="px-3 pb-3 pl-[42px] flex flex-col gap-3">
                           <div className="grid grid-cols-1 gap-2.5">
                             <Input
@@ -526,7 +530,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                             <Button type="button" variant="danger" size="sm" onClick={() => handleDelete(p.id)}>Borrar</Button>
                           </div>
                         </form>
-                      )}
+                      </Collapse>
                     </div>
                   );
                 })}
@@ -549,6 +553,6 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </m.div>
   );
 }

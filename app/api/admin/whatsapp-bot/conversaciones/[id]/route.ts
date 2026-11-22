@@ -6,6 +6,7 @@ import { AccionConversacion } from '@/lib/whatsapp-bot/esquemas';
 import { ordenarHistorial } from '@/lib/whatsapp-bot/ia/historial';
 import { HORAS_MODO_HUMANO } from '@/lib/whatsapp-bot/reglas';
 import type { WaConversacion, WaMensaje } from '@/types/whatsapp-bot';
+import { serverError } from '@/lib/api-errors';
 
 const LIMITE_MENSAJES = 200;
 const URL_FIRMADA_SEG = 3600;
@@ -37,7 +38,7 @@ export async function GET(_request: Request, { params }: Ctx) {
     .eq('conversacion_id', id)
     .order('enviado_at', { ascending: false })
     .limit(LIMITE_MENSAJES);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   // Envíos del vendedor que todavía no se registraron como mensaje (pendientes o fallidos).
   const { data: salidasData } = await supabase
@@ -101,6 +102,6 @@ export async function PATCH(request: Request, { params }: Ctx) {
     .eq('id', id)
     .select('*')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data);
 }

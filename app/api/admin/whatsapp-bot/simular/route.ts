@@ -10,6 +10,7 @@ import { responderTurno } from '@/lib/whatsapp-bot/ia/turno';
 import { simularTurno } from '@/lib/whatsapp-bot/simulador';
 import { visitasActivas } from '@/lib/whatsapp-bot/repo';
 import { normalizarConfigVisitas } from '@/lib/whatsapp-bot/visitas';
+import { serverError } from '@/lib/api-errors';
 
 // Un turno puede encadenar varias llamadas a Claude (herramientas).
 export const maxDuration = 60;
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     .select('nombre_bot, criterio_aviso, conocimiento, visitas')
     .eq('project_id', projectId)
     .maybeSingle();
-  if (errBot) return NextResponse.json({ error: errBot.message }, { status: 500 });
+  if (errBot) return serverError(errBot);
 
   try {
     // Service role: el acceso al proyecto ya se probó arriba.

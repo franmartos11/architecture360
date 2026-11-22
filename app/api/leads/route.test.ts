@@ -53,6 +53,21 @@ describe('POST /api/leads', () => {
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'dueño@example.com', subject: expect.stringContaining('Torre del Mar') }));
   });
 
+  it.each([
+    ['sin casilla: wants_updates false', {}, false],
+    ['casilla marcada: wants_updates true', { wantsUpdates: true }, true],
+    ['casilla desmarcada: wants_updates false', { wantsUpdates: false }, false],
+  ])('opt-in de novedades — %s', async (_n, extra, expected) => {
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: null }] }) as never);
+    const admin = mockSupabase({ results: [{ error: null }] });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const res = await POST(req({ ...VALID_BODY, ...extra }));
+
+    expect(res.status).toBe(200);
+    expect(admin.from.mock.results[0].value.insert.mock.calls[0][0].wants_updates).toBe(expected);
+  });
+
   it('rate-limit alcanzado: devuelve el 429 tal cual, sin insertar', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);

@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { resolveProjectIdFromSlide, resolveProjectIdFromBuilding, requireProjectAccess } from '@/lib/supabase/require-project-access';
+import { serverError } from '@/lib/api-errors';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { aerialHotspotBulkSchema } from '@/lib/content-schemas';
 
 // "Guardar todo" desde /admin/proyecto/aereas/[slideId]: la pantalla ahora
 // trabaja sobre todas las vistas aéreas del proyecto a la vez, así que en
@@ -28,15 +31,19 @@ function isValidItem(item: unknown): item is BulkItem {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const rawItems: unknown[] = Array.isArray(body?.items) ? body.items : [];
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const rawItems: unknown[] = Array.isArray(raw.data.items) ? raw.data.items : [];
   if (rawItems.length === 0 || !rawItems.every(isValidItem)) {
     return NextResponse.json(
       { error: 'Faltan items válidos: cada uno necesita slideId, buildingId, x e y' },
       { status: 400 }
     );
   }
-  const items = rawItems as BulkItem[];
+  // Forma y topes (hasta 200 items, polígonos de hasta 500 puntos, coordenadas acotadas).
+  const parsed = validateJson({ items: rawItems }, aerialHotspotBulkSchema);
+  if ('error' in parsed) return parsed.error;
+  const items: BulkItem[] = parsed.data.items.map(i => ({ ...i, polygon: i.polygon ?? undefined }));
 
   // No confiamos en nada del body: cada slide y cada edificio mencionado
   // tiene que existir y pertenecer al MISMO proyecto (mismo chequeo que
@@ -72,7 +79,7 @@ export async function POST(request: Request) {
     .from('aerial_hotspots')
     .select('id, slide_id, building_id')
     .in('slide_id', uniqueSlideIds);
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
+  if (existingError) return serverError(existingError);
 
   const existingIdByKey = new Map<string, string>();
   for (const h of (existingHotspots ?? []) as { id: string; slide_id: string; building_id: string }[]) {
@@ -96,12 +103,13 @@ export async function POST(request: Request) {
             .select()
             .single();
 
+      if (error) console.error('[aerial-hotspots/bulk] no se pudo guardar', item.slideId, item.buildingId, error);
       return {
         slideId: item.slideId,
         buildingId: item.buildingId,
         success: !error,
         data: error ? null : data,
-        error: error ? (error as { message: string }).message : null,
+        error: error ? 'No se pudo guardar' : null,
       };
     })
   );

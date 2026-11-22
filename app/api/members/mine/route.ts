@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { serverError } from '@/lib/api-errors';
 
 // Pendientes de la cuenta logueada: invitaciones a proyectos ajenos y
 // transferencias de propiedad que le ofrecieron.
@@ -23,8 +24,8 @@ export async function GET() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false }),
   ]);
-  if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 });
-  if (transfersError) return NextResponse.json({ error: transfersError.message }, { status: 500 });
+  if (membersError) return serverError(membersError);
+  if (transfersError) return serverError(transfersError);
 
   // Quien recibe una invitación todavía no tiene rol en el proyecto, así que
   // RLS no le deja leer un borrador: los nombres se leen con el cliente admin,

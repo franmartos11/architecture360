@@ -3,6 +3,9 @@ import { requireProjectAccess, resolveProjectIdFromFloor, resolveRequestedProjec
 import { isValidEnum, UNIT_STATUSES, UNIT_CATEGORIES } from '@/lib/validate';
 import { getProjectTypeConfig, buildingAgreement } from '@/lib/project-types';
 import { sanitizeText } from '@/lib/sanitize';
+import { readJsonObject, validateJson } from '@/lib/api-validate';
+import { unitCreateSchema } from '@/lib/unit-schema';
+import { serverError } from '@/lib/api-errors';
 
 // GET /api/admin/units            → todas las unidades del proyecto activo,
 //                                    con edificio/piso resueltos (para el
@@ -20,7 +23,7 @@ export async function GET(request: Request) {
     if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
     const { data: units, error } = await access.supabase.from('units').select('*').eq('floor_id', floorId).order('code');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     return NextResponse.json(units ?? []);
   }
 
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
   if (floorIds.length === 0) return NextResponse.json([]);
 
   const { data: units, error } = await supabase.from('units').select('*').in('floor_id', floorIds).order('code');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   const floorById = new Map((floors ?? []).map(f => [f.id, f]));
   const buildingById = new Map((buildings ?? []).map(b => [b.id, b]));
@@ -65,16 +68,22 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  if (!body.floorId || !body.code || typeof body.code !== 'string' || !body.type) {
+  const raw = await readJsonObject(request);
+  if ('error' in raw) return raw.error;
+  const rawBody = raw.data;
+  // Mensajes puntuales primero; después la forma y los topes con zod.
+  if (!rawBody.floorId || !rawBody.code || typeof rawBody.code !== 'string' || !rawBody.type) {
     return NextResponse.json({ error: 'Faltan floorId, code y/o type' }, { status: 400 });
   }
-  if (body.status !== undefined && !isValidEnum(body.status, UNIT_STATUSES)) {
+  if (rawBody.status !== undefined && !isValidEnum(rawBody.status, UNIT_STATUSES)) {
     return NextResponse.json({ error: `status debe ser uno de: ${UNIT_STATUSES.join(', ')}` }, { status: 400 });
   }
-  if (body.category !== undefined && !isValidEnum(body.category, UNIT_CATEGORIES)) {
+  if (rawBody.category !== undefined && !isValidEnum(rawBody.category, UNIT_CATEGORIES)) {
     return NextResponse.json({ error: `category debe ser uno de: ${UNIT_CATEGORIES.join(', ')}` }, { status: 400 });
   }
+  const parsed = validateJson(rawBody, unitCreateSchema);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data;
 
   const projectId = await resolveProjectIdFromFloor(body.floorId);
   if (!projectId) return NextResponse.json({ error: 'Piso no encontrado' }, { status: 404 });
@@ -166,6 +175,6 @@ export async function POST(request: Request) {
   if (error?.code === '23505') {
     return NextResponse.json({ error: `Ya existe una unidad con el código "${code}" en este piso.` }, { status: 409 });
   }
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json(data, { status: 201 });
 }

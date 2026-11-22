@@ -1,9 +1,11 @@
 'use client';
 
+import { m } from 'framer-motion';
+import { useContentIn } from '@/components/ui/Loaded';
 import { useState, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import PersonSearchSelect, { type PersonSearchResult } from '@/components/admin/PersonSearchSelect';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
@@ -30,6 +32,7 @@ const STATUS_CLASS: Record<CollaboratorRow['status'], string> = {
 };
 
 export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
+  const contentIn = useContentIn();
   const [collaborators, setCollaborators] = useState<CollaboratorRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<PersonSearchResult | null>(null);
@@ -97,10 +100,19 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
     if (res.ok) { setEditingId(null); load(); onSaved(); } else toast('No se pudo guardar.', 'error');
   };
 
-  if (loading || !collaborators) return <LoadingSpinner text="Cargando..." tone="light" />;
+  if (loading || !collaborators) return (
+      <div role="status" aria-label="Cargando" className="divide-y divide-gray-100">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} aria-hidden="true" className="p-4 flex items-center gap-4">
+            <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+            <div className="flex-1 flex flex-col gap-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3 w-24" /></div>
+          </div>
+        ))}
+      </div>
+    );
 
   return (
-    <div>
+    <m.div {...contentIn}>
       <div className="divide-y divide-gray-100">
         {collaborators.map(c => (
           <div key={c.id} className="p-4 flex items-center gap-4">
@@ -165,6 +177,6 @@ export default function TeamEditor({ onSaved }: { onSaved: () => void }) {
       ) : (
         <p className="p-6 bg-gray-50/50 text-sm text-gray-500">Solo los administradores pueden editar los créditos.</p>
       )}
-    </div>
+    </m.div>
   );
 }
