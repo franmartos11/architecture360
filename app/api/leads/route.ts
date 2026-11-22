@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -83,7 +83,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No pudimos enviar tu consulta. Probá de nuevo en un rato.' }, { status: 500 });
   }
 
-  if (project?.owner_id) {
+  // Los emails salen después de responder (after): el lead ya está guardado y
+  // quien completó el formulario no tiene por qué esperar a Resend, un correo
+  // por destinatario. La función sigue viva hasta que terminan.
+  const owner = project?.owner_id ? project : null;
+  if (owner) after(async () => {
+    const project = owner;
     // Con el cliente admin porque este endpoint es público (anon) y RLS no
     // le deja leer project_members. Si algo falla, igual se avisa al dueño:
     // perder el aviso de un lead es peor que no avisar al equipo.
@@ -127,7 +132,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error('[leads] no se pudo notificar', err);
     }
-  }
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -2933,3 +2933,23 @@ alter table posts add constraint posts_shared_project_kind_check check (shared_p
 -- ni de UPDATE para usuarios.
 alter table leads add column if not exists wants_updates boolean not null default false;
 alter table leads add column if not exists updates_unsubscribed_at timestamptz;
+
+-- ─── Leads: índices para el panel y el bot ───────────────────────────────
+-- El panel lista los leads de un proyecto del más nuevo al más viejo y el
+-- contador del menú cuenta los posteriores a una fecha: los dos filtran por
+-- proyecto y ordenan o comparan por created_at.
+create index if not exists idx_leads_project_created on leads(project_id, created_at desc);
+
+-- Últimos 6 dígitos del teléfono, sin separadores: siempre caen dentro del
+-- número del abonado, se haya cargado como "+54 9 351…", "0351 15…" o
+-- "351…". El bot busca por acá los leads que pueden ser del mismo contacto y
+-- después compara el teléfono normalizado en el código (ver phoneTail en
+-- lib/lead-columns.ts y candidatosPorTelefono en lib/whatsapp-bot/repo.ts).
+-- Antes bajaba todos los leads del proyecto en cada aviso.
+alter table leads add column if not exists phone_tail text
+  generated always as (right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 6)) stored;
+create index if not exists idx_leads_project_phone_tail on leads(project_id, phone_tail);
+
+-- historial() lee los mensajes salientes de una conversación en cada turno del
+-- bot, y la FK con on delete cascade también lo necesita al borrar una.
+create index if not exists idx_wa_salida_conversacion on wa_salida(conversacion_id);

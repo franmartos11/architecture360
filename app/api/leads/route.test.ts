@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+// after(): los emails salen después de responder. Acá se guardan y cada test
+// los espera con `enviados()` antes de mirar sendEmail.
+const pendientes: Promise<unknown>[] = [];
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (fn: () => unknown) => { pendientes.push(Promise.resolve().then(fn)); },
+}));
+const enviados = () => Promise.all(pendientes.splice(0));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn().mockResolvedValue(undefined) }));
@@ -20,7 +28,8 @@ function req(body: unknown, headers: Record<string, string> = {}) {
 }
 
 describe('POST /api/leads', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await enviados(); // que nada de un test anterior corra con los mocks de este
     vi.mocked(rateLimitOrRespond).mockReset().mockResolvedValue(null);
     vi.mocked(sendEmail).mockReset().mockResolvedValue(undefined);
     vi.mocked(createClient).mockReset();
@@ -50,6 +59,7 @@ describe('POST /api/leads', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+    await enviados();
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'dueño@example.com', subject: expect.stringContaining('Torre del Mar') }));
   });
 
@@ -101,6 +111,7 @@ describe('POST /api/leads', () => {
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 
     expect(res.status).toBe(200);
+    await enviados();
     expect(sendEmail).not.toHaveBeenCalled();
     expect(admin.from).toHaveBeenCalledTimes(1); // solo el insert; no se busca al dueño
   });
@@ -154,6 +165,7 @@ describe('POST /api/leads', () => {
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 
     expect(res.status).toBe(200);
+    await enviados();
     expect(sendEmail).toHaveBeenCalledTimes(3);
     const to = vi.mocked(sendEmail).mock.calls.map((c) => c[0].to).sort();
     expect(to).toEqual(['admin-1@example.com', 'gestor-1@example.com', 'owner-1@example.com']);
@@ -173,6 +185,7 @@ describe('POST /api/leads', () => {
     const res = await POST(req(VALID_BODY, { 'x-forwarded-for': '1.2.3.4' }));
 
     expect(res.status).toBe(200);
+    await enviados();
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'dueño@example.com' }));
   });

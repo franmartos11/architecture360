@@ -283,6 +283,33 @@ function responderAviso(extra: (q: Consulta) => Respuesta | undefined = () => un
 }
 
 describe('registrarAviso', () => {
+  it('busca el lead solo entre los que terminan en los mismos 6 dígitos, sin bajar todos ni ip_address', async () => {
+    const f = sbFalso(responderAviso());
+    await registrarAviso(f.sb, conv(), datos, bot({ vendedor_whatsapp: null }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');
+
+    const busquedas = f.consultas.filter((q) => q.tabla === 'leads' && q.op === 'select');
+    expect(busquedas).toHaveLength(1);
+    expect(busquedas[0].filtros).toContainEqual(['eq', 'phone_tail', '551234']); // 5491155551234
+    expect(busquedas[0].columnas).not.toContain('*');
+    expect(busquedas[0].columnas).not.toContain('ip_address');
+  });
+
+  it('si la columna phone_tail todavía no existe (schema sin aplicar), trae los leads del proyecto como antes', async () => {
+    const f = sbFalso(
+      responderAviso((q) =>
+        q.tabla === 'leads' && q.op === 'select' && q.filtros.some((x) => x[1] === 'phone_tail')
+          ? { error: { message: 'column leads.phone_tail does not exist', code: '42703' } }
+          : undefined,
+      ),
+    );
+    const r = await registrarAviso(f.sb, conv(), datos, bot({ vendedor_whatsapp: null }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');
+
+    expect(r).toBe('avisado');
+    const busquedas = f.consultas.filter((q) => q.tabla === 'leads' && q.op === 'select');
+    expect(busquedas).toHaveLength(2);
+    expect(busquedas[1].filtros).toEqual([['eq', 'project_id', 'proj1']]);
+  });
+
   it('sin vendedor_whatsapp crea el lead y no encola aviso', async () => {
     const f = sbFalso(responderAviso());
     const r = await registrarAviso(f.sb, conv(), datos, bot({ vendedor_whatsapp: null }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');

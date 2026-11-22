@@ -15,6 +15,7 @@ import type {
 } from '@/types/whatsapp-bot';
 import { escapeHtml } from '@/lib/sanitize';
 import { leadRecipientIds } from '@/lib/lead-recipients';
+import { LEAD_COLUMNS, phoneTail } from '@/lib/lead-columns';
 import type { MemberRole } from '@/lib/project-roles';
 import {
   buscarLeadPorTelefono,
@@ -884,6 +885,24 @@ async function actualizarCalificacion(sb: SupabaseClient, leadId: string, nueva:
   revisar('actualizarCalificacion: update leads', e2);
 }
 
+/**
+ * Leads del proyecto que pueden tener ese teléfono: los que terminan en los
+ * mismos 6 dígitos (columna indexada leads.phone_tail). Antes se bajaban todos
+ * los leads del proyecto en cada aviso. Si la columna todavía no existe en la
+ * base (schema sin aplicar), cae a traerlos todos, como antes.
+ */
+async function candidatosPorTelefono(sb: SupabaseClient, projectId: string, telefono: string): Promise<Lead[]> {
+  const tail = phoneTail(normalizarTelefono(telefono));
+  if (tail) {
+    const { data, error } = await sb.from('leads').select(LEAD_COLUMNS).eq('project_id', projectId).eq('phone_tail', tail);
+    if (!error) return (data ?? []) as unknown as Lead[];
+    if (error.code !== '42703' && error.code !== 'PGRST204') revisar('registrarAviso: select leads por teléfono', error);
+  }
+  const { data, error } = await sb.from('leads').select(LEAD_COLUMNS).eq('project_id', projectId);
+  revisar('registrarAviso: select leads', error);
+  return (data ?? []) as unknown as Lead[];
+}
+
 export async function registrarAviso(
   sb: SupabaseClient,
   conv: WaConversacion,
@@ -913,8 +932,7 @@ export async function registrarAviso(
   }
 
   // Lead: el teléfono puede estar cargado en cualquier formato, se compara normalizado en JS.
-  const { data: leads, error: e2 } = await sb.from('leads').select('*').eq('project_id', bot.project_id);
-  revisar('registrarAviso: select leads', e2);
+  const leads = await candidatosPorTelefono(sb, bot.project_id, datos.telefono);
   const plan = planearLead(buscarLeadPorTelefono((leads ?? []) as Lead[], datos.telefono), datos, ahora);
   let leadId: string;
   if (plan.tipo === 'insert') {

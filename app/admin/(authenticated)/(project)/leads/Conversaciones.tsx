@@ -20,7 +20,12 @@ import {
   type MensajePendiente, type SalidaPendiente,
 } from './conversaciones-logica';
 
+// Respaldo de Realtime: con el canal caído se consulta cada 20 s; conectado,
+// cada 60 s (por si las tablas wa_* no estuvieran en la publicación de
+// Realtime: el canal figura conectado pero no llega nada). Con la pestaña
+// oculta, nunca.
 const POLL_MS = 20_000;
+const POLL_EN_VIVO_CADA = 3; // ciclos de POLL_MS
 
 type MensajeConMedia = WaMensaje & { media_url: string | null };
 type Detalle = { conversacion: WaConversacion; mensajes: MensajeConMedia[]; salidas?: SalidaPendiente[] };
@@ -278,6 +283,8 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
     }
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let enVivo = false;
+    let ciclo = 0;
     const canal = supabase
       .channel(`wa-conversaciones:${activeProjectId ?? 'mine'}`)
       .on(
@@ -292,8 +299,12 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
           }, 300);
         },
       )
-      .subscribe();
+      .subscribe(estado => {
+        enVivo = estado === 'SUBSCRIBED';
+      });
     const poll = setInterval(() => {
+      ciclo++;
+      if (document.hidden || (enVivo && ciclo % POLL_EN_VIVO_CADA !== 0)) return;
       cargarLista(false);
       const abierta = abiertaRef.current;
       if (abierta) cargarDetalle(abierta);
@@ -342,13 +353,25 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
     };
   }, [activeProjectId, conversacionId, cargarDetalle, marcarLeido]);
 
-  // Datos del lead y su visita (panel derecho): extra, si fallan el chat anda igual.
+  // Leads del proyecto (para la tarjeta de cada conversación y el panel
+  // derecho): extra, si fallan el chat anda igual. La lista entera se pide al
+  // cambiar de proyecto y de nuevo solo si aparece una conversación con un
+  // lead que no está cargado (el bot acaba de crearlo), no en cada chat abierto.
+  const faltaLead = lista.some(c => c.lead_id && !leads.some(l => l.id === c.lead_id));
   useEffect(() => {
     let vivo = true;
     fetch(withActiveProject('/api/admin/leads', activeProjectId))
       .then(r => (r.ok ? r.json() : null))
       .then((d: Lead[] | null) => { if (vivo && Array.isArray(d)) setLeads(d); })
       .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [activeProjectId, faltaLead]);
+
+  // Visitas (panel derecho): se refrescan al abrir cada chat, el bot puede haber agendado una.
+  useEffect(() => {
+    let vivo = true;
     fetch(withActiveProject('/api/admin/whatsapp-bot/visitas', activeProjectId))
       .then(r => (r.ok ? r.json() : null))
       .then((d: { visitas?: WaVisita[] } | null) => { if (vivo && Array.isArray(d?.visitas)) setVisitas(d.visitas); })

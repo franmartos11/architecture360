@@ -50,6 +50,9 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (errBot) return serverError(errBot);
 
+  // Todo el turno tiene que entrar en el maxDuration (60 s) de la función: si
+  // no, Vercel la corta con un 504 sin respuesta. Margen para cargar los datos.
+  const limiteTurno = AbortSignal.timeout(50_000);
   try {
     // Service role: el acceso al proyecto ya se probó arriba.
     const admin = createAdminClient();
@@ -62,7 +65,8 @@ export async function POST(request: Request) {
     const sitio = datos.proyecto.published
       ? getProjectDisplayUrl(datos.proyecto.slug, new URL(request.url).origin)
       : null;
-    const cliente = crearClienteClaude();
+    // Una llamada lenta no se reintenta acá: el reintento propio del turno alcanza.
+    const cliente = crearClienteClaude(process.env, { timeout: 25_000, maxRetries: 0 });
     const r = await simularTurno({
       datos,
       bot: bot ?? { nombre_bot: null, criterio_aviso: null, conocimiento: null },
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
       mensajes: parsed.data.mensajes,
       yaAvisado: parsed.data.yaAvisado,
       visitas: { config, ocupados, ahora },
-      responder: (x) => responderTurno({ cliente, ...x }),
+      responder: (x) => responderTurno({ cliente, ...x, signal: limiteTurno }),
     });
     return NextResponse.json(r);
   } catch (e) {

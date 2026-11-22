@@ -16,6 +16,7 @@ function llamar(
   cliente: Cliente,
   system: Anthropic.Beta.BetaTextBlockParam[],
   messages: Anthropic.Beta.BetaMessageParam[],
+  signal?: AbortSignal,
 ): Promise<Anthropic.Beta.BetaMessage> {
   return cliente.beta.messages.create({
     model: MODELO,
@@ -28,7 +29,7 @@ function llamar(
     // Caché automática del historial: las iteraciones del bucle reusan el prefijo.
     cache_control: { type: 'ephemeral' },
     messages,
-  });
+  }, signal ? { signal } : undefined);
 }
 
 /** Errores de la API (incluye rate limit, 5xx y conexión): 1 reintento. */
@@ -36,11 +37,15 @@ async function llamarConReintento(
   cliente: Cliente,
   system: Anthropic.Beta.BetaTextBlockParam[],
   messages: Anthropic.Beta.BetaMessageParam[],
+  signal?: AbortSignal,
 ): Promise<Anthropic.Beta.BetaMessage | null> {
   for (let intento = 0; intento < 2; intento++) {
+    // Se acabó el tiempo del turno (ver `signal` en responderTurno): no reintentar.
+    if (signal?.aborted) return null;
     try {
-      return await llamar(cliente, system, messages);
+      return await llamar(cliente, system, messages, signal);
     } catch (e) {
+      if (signal?.aborted) return null;
       if (!(e instanceof Anthropic.APIError)) throw e;
       console.error(`[whatsapp-bot] error de la API de Claude (intento ${intento + 1}):`, e.message);
     }
@@ -53,6 +58,12 @@ export async function responderTurno(i: {
   system: Anthropic.Beta.BetaTextBlockParam[];
   mensajes: Anthropic.Beta.BetaMessageParam[];
   deps: DepsHerramientas;
+  /**
+   * Límite del turno entero (todas las iteraciones). El simulador del panel lo
+   * usa para terminar antes del maxDuration de la función en Vercel; al
+   * vencer, el turno termina sin respuesta ('error').
+   */
+  signal?: AbortSignal;
 }): Promise<ResultadoTurno> {
   const historial = [...i.mensajes];
   // Sin prefill en este modelo: el último mensaje tiene que ser del cliente.
@@ -61,7 +72,7 @@ export async function responderTurno(i: {
   }
 
   for (let n = 0; n < MAX_ITERACIONES; n++) {
-    const r = await llamarConReintento(i.cliente, i.system, [...historial]);
+    const r = await llamarConReintento(i.cliente, i.system, [...historial], i.signal);
     if (!r) return { texto: null, motivoSinRespuesta: 'error' };
 
     switch (r.stop_reason) {

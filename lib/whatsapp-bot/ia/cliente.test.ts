@@ -12,4 +12,15 @@ describe('crearClienteClaude', () => {
   it('sin workspace no agrega headers', () => {
     expect(headers(crearClienteClaude({ ANTHROPIC_API_KEY: 'k' }))).toBeUndefined();
   });
+
+  it('pone un tiempo máximo y pocos reintentos (los del SDK son 10 min y 2)', () => {
+    const c = crearClienteClaude({ ANTHROPIC_API_KEY: 'k' }) as unknown as { timeout: number; maxRetries: number };
+    expect(c.timeout).toBe(90_000);
+    expect(c.maxRetries).toBe(1);
+  });
+  it('el simulador puede pedir límites más cortos', () => {
+    const c = crearClienteClaude({ ANTHROPIC_API_KEY: 'k' }, { timeout: 25_000, maxRetries: 0 }) as unknown as { timeout: number; maxRetries: number };
+    expect(c.timeout).toBe(25_000);
+    expect(c.maxRetries).toBe(0);
+  });
 });

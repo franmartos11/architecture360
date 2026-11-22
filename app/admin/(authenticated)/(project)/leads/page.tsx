@@ -10,8 +10,8 @@ import TableroLeads from './TableroLeads';
 import Conversaciones from './Conversaciones';
 import BotWhatsapp from './BotWhatsapp';
 import Visitas from './Visitas';
-import { resolverTab, tabsVisibles, totalNoLeidos, type TabLeads } from './bot-whatsapp-estado';
-import type { WaConversacion, WaVisita } from '@/types/whatsapp-bot';
+import { resolverTab, tabsVisibles, type TabLeads } from './bot-whatsapp-estado';
+import type { WaVisita } from '@/types/whatsapp-bot';
 import { Contador, PuntoVivo } from './leads-ui';
 
 const TAB_LABEL: Record<TabLeads, string> = {
@@ -47,19 +47,26 @@ function LeadsConPestanas() {
   useEffect(() => {
     if (!canSeeLeads) return;
     let vivo = true;
+    // Solo la suma (?resumen=1), y nada con la pestaña en segundo plano: al
+    // volver se pone al día sin esperar el próximo ciclo.
+    const url = withActiveProject('/api/admin/whatsapp-bot/conversaciones', activeProjectId);
     const cargar = () => {
-      fetch(withActiveProject('/api/admin/whatsapp-bot/conversaciones', activeProjectId))
+      if (document.hidden) return;
+      fetch(`${url}${url.includes('?') ? '&' : '?'}resumen=1`)
         .then(r => (r.ok ? r.json() : null))
-        .then((data: WaConversacion[] | null) => {
-          if (vivo && Array.isArray(data)) setNoLeidos(totalNoLeidos(data));
+        .then((data: { noLeidos?: number } | null) => {
+          if (vivo && typeof data?.noLeidos === 'number') setNoLeidos(data.noLeidos);
         })
         .catch(() => {});
     };
     cargar();
     const id = setInterval(cargar, POLL_NO_LEIDOS_MS);
+    const alVolver = () => { if (!document.hidden) cargar(); };
+    document.addEventListener('visibilitychange', alVolver);
     return () => {
       vivo = false;
       clearInterval(id);
+      document.removeEventListener('visibilitychange', alVolver);
     };
   }, [activeProjectId, canSeeLeads]);
 
@@ -69,8 +76,10 @@ function LeadsConPestanas() {
     if (!canSeeLeads) return;
     let vivo = true;
     const json = (url: string) => fetch(withActiveProject(url, activeProjectId)).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const conConteo = (url: string) => `${url}${url.includes('?') ? '&' : '?'}count=1`;
     Promise.all([
-      json('/api/admin/leads'),
+      // Solo el número (count=1 sin since = todos): la lista la baja el tablero.
+      fetch(conConteo(withActiveProject('/api/admin/leads', activeProjectId))).then(r => (r.ok ? r.json() : null)).catch(() => null),
       json('/api/admin/whatsapp-bot/visitas'),
       puedeConfigurarBot ? json('/api/admin/whatsapp-bot') : Promise.resolve(null),
     ]).then(([leads, visitas, bot]) => {
@@ -79,7 +88,7 @@ function LeadsConPestanas() {
       const ahora = Date.now();
       const b = bot?.bot as { activo?: boolean; estado?: string; numero?: string | null } | null | undefined;
       setResumen({
-        leads: Array.isArray(leads) ? leads.length : null,
+        leads: typeof leads?.count === 'number' ? leads.count : null,
         visitas: Array.isArray(visitas?.visitas) ? lista.filter(v => v.estado !== 'cancelada' && new Date(v.fin).getTime() >= ahora).length : null,
         bot: b ? { activo: !!b.activo, conectado: b.estado === 'conectado', numero: b.numero ?? null } : null,
       });

@@ -145,6 +145,22 @@ describe('responderTurno', () => {
     expect(r).toEqual({ texto: null, motivoSinRespuesta: 'refusal' });
   });
 
+  it('con el límite del turno vencido no llama a la API ni reintenta: sin respuesta', async () => {
+    const { cliente, create } = clienteFalso(fin('Hola'));
+    const controller = new AbortController();
+    controller.abort();
+    const r = await responderTurno({ cliente, system: [], mensajes: [{ role: 'user', content: 'hola' }], deps: {} as never, signal: controller.signal });
+    expect(r).toEqual({ texto: null, motivoSinRespuesta: 'error' });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('le pasa el límite del turno al SDK en cada pedido', async () => {
+    const { cliente, create } = clienteFalso(fin('Hola'));
+    const controller = new AbortController();
+    await responderTurno({ cliente, system: [], mensajes: [{ role: 'user', content: 'hola' }], deps: {} as never, signal: controller.signal });
+    expect(create.mock.calls[0][1]).toEqual({ signal: controller.signal });
+  });
+
   it('8 tool_use seguidos → corta en 6 iteraciones con max_iteraciones', async () => {
     const { cliente, create } = clienteFalso(...Array.from({ length: 8 }, usoBuscar));
     const r = await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });

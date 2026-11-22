@@ -35,6 +35,18 @@ describe('GET /api/admin/leads', () => {
     expect(requireProjectAccess).toHaveBeenCalledWith('project-1', expect.objectContaining({ minRole: 'gestor' }));
   });
 
+  it('la lista va con columnas explícitas: sin ip_address', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: [] }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase } as never);
+
+    await GET(get('http://localhost/api/admin/leads'));
+    const columnas = supabase.from.mock.results[0].value.select.mock.calls[0][0] as string;
+    expect(columnas).not.toBe('*');
+    expect(columnas).not.toContain('ip_address');
+    expect(columnas).toContain('calificacion');
+  });
+
   it('sin acceso al proyecto activo: 401', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     vi.mocked(requireProjectAccess).mockResolvedValue(null);

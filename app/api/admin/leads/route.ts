@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { serverError } from '@/lib/api-errors';
+import { LEAD_COLUMNS } from '@/lib/lead-columns';
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from('leads')
-    .select('*')
+    .select(LEAD_COLUMNS)
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
