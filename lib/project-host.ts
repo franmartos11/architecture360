@@ -49,6 +49,12 @@ export function isPlatformHost(hostname: string): boolean {
   return false;
 }
 
+// Lo que devuelve la búsqueda de un dominio propio: el slug de su proyecto,
+// SIN_SITIO si el dominio está activo pero el proyecto no se ve (lo
+// despublicaron: la RLS de projects no deja a anon ver su fila, la de
+// project_domains sí deja ver el dominio activo), o null si no es de nadie.
+const SIN_SITIO = '';
+
 async function lookupCustomDomain(hostname: string): Promise<string | null> {
   const hit = cache.get(hostname);
   if (hit && Date.now() < hit.until) return hit.value;
@@ -72,7 +78,7 @@ async function lookupCustomDomain(hostname: string): Promise<string | null> {
   }
 
   const project = (data as { projects?: { slug: string } | { slug: string }[] | null } | null)?.projects;
-  const slug = (Array.isArray(project) ? project[0]?.slug : project?.slug) ?? null;
+  const slug = data ? ((Array.isArray(project) ? project[0]?.slug : project?.slug) ?? SIN_SITIO) : null;
 
   remember(cache, hostname, slug, TTL_MS);
   return slug;
@@ -88,6 +94,16 @@ export async function resolveHostProject(host: string): Promise<HostProject | nu
   if (isPlatformHost(hostname)) return null;
   const slug = await lookupCustomDomain(hostname);
   return slug ? { slug, kind: 'custom' } : null;
+}
+
+/**
+ * ¿Es el dominio propio activo de un proyecto que hoy no se ve (despublicado)?
+ * El proxy muestra "sitio no disponible" en vez de la home de la plataforma.
+ */
+export async function isCustomDomainWithoutSite(host: string): Promise<boolean> {
+  const hostname = normalizeHost(host);
+  if (isPlatformHost(hostname) || resolveProjectSlugFromHost(host)) return false;
+  return (await lookupCustomDomain(hostname)) === SIN_SITIO;
 }
 
 /** Slug del proyecto al que pertenece este Host (subdominio o dominio propio), o null. */
@@ -136,7 +152,7 @@ export async function isActiveCustomDomainOrigin(origin: string | null): Promise
     if (protocol !== 'https:') return false;
     const hostname = normalizeHost(host);
     if (isPlatformHost(hostname)) return false;
-    return (await lookupCustomDomain(hostname)) !== null;
+    return !!(await lookupCustomDomain(hostname));
   } catch {
     return false;
   }

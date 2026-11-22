@@ -6,6 +6,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
 import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
+import { projectCanonical } from '@/lib/project-canonical';
 
 const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'amenities', 'ubicacion'];
 
@@ -15,7 +16,7 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug, unitId } = await params;
+  const { slug, buildingId, unitId } = await params;
   // Misma lectura (cacheada) que usa la página: no se pide el proyecto dos veces.
   const project = await getSiteProjectBySlug(slug);
   const unit = project?.units.find(u => u.id === decodeURIComponent(unitId));
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = unit.interiorImageUrl || unit.galleryImages?.[0] || undefined;
 
   return {
+    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}/unidad/${unitId}`) },
     title,
     description,
     openGraph: { title, description, images: image ? [image] : undefined },

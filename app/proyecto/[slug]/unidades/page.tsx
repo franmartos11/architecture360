@@ -5,6 +5,7 @@ import UnitsListView from '@/components/units/UnitsListView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
+import { projectCanonical } from '@/lib/project-canonical';
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -17,6 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   return {
+    alternates: { canonical: await projectCanonical(slug, '/unidades') },
     title: `${project.name} | ${pluralize(typeConfig.unitLabel)}`,
     description: `Buscá y filtrá todas las ${pluralize(unitLabelLower)} disponibles de ${project.name}.`,
   };

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
-import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin, isPlatformHost, normalizeHost } from '@/lib/project-host';
+import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin, isCustomDomainWithoutSite, isPlatformHost, normalizeHost } from '@/lib/project-host';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
 // .env.local.example), este proxy no hace nada — así el sitio
@@ -98,7 +98,13 @@ export async function proxy(request: NextRequest) {
             const resto = projectSlug ? pathname : (viaPath?.[2] ?? '');
             const destino = new URL(`https://${dominio}${resto === '/' ? '' : resto}`);
             destino.search = request.nextUrl.search;
-            return withCors(NextResponse.redirect(destino, 301));
+            // 308 (permanente, para que Google pase todo al dominio propio) con
+            // caché de una hora: sin Cache-Control el navegador la guarda para
+            // siempre, y si después se quita el dominio el visitante seguiría
+            // yendo a una dirección muerta.
+            const redirigir = NextResponse.redirect(destino, 308);
+            redirigir.headers.set('Cache-Control', 'public, max-age=3600');
+            return withCors(redirigir);
           }
         }
       }
@@ -106,6 +112,15 @@ export async function proxy(request: NextRequest) {
       if (projectSlug) {
         const url = request.nextUrl.clone();
         url.pathname = `/proyecto/${projectSlug}${pathname === '/' ? '' : pathname}`;
+        return withCors(NextResponse.rewrite(url));
+      }
+
+      // Dominio propio de un proyecto despublicado: "sitio no disponible" (404),
+      // no la home de la plataforma con la dirección del cliente arriba.
+      if (host && (await isCustomDomainWithoutSite(host))) {
+        const url = request.nextUrl.clone();
+        // Con guion bajo: slugify nunca lo genera, así que no puede ser el de un proyecto real.
+        url.pathname = '/proyecto/_sin-sitio';
         return withCors(NextResponse.rewrite(url));
       }
     }

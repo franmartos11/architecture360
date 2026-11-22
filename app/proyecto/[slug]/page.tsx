@@ -12,6 +12,7 @@ import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { progressHeadline, showsConstructionProgress } from '@/lib/construction-progress-view';
+import { projectCanonical } from '@/lib/project-canonical';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -22,6 +23,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
+    alternates: { canonical: await projectCanonical(slug, '') },
     title: project.name,
     // La descripción es opcional y muchos proyectos no la cargan; sin
     // fallback la página sale sin meta description y los buscadores se

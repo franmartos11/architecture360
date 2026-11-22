@@ -83,12 +83,55 @@ describe('POST /api/admin/projects/[id]/domains', () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
-  it('409 si el dominio es de otro proyecto, y no llama a Vercel', async () => {
+  it('409 si el dominio es de otro proyecto (activo o pendiente reciente), y no llama a Vercel', async () => {
+    for (const previo of [
+      { id: 'otro', status: 'active', created_at: '2020-01-01T00:00:00Z' },
+      { id: 'otro', status: 'pending', created_at: new Date(Date.now() - 2 * 86_400_000).toISOString() },
+    ]) {
+      asOwner([{ count: 0 }]);
+      vi.mocked(createAdminClient).mockReturnValue(
+        mockSupabase({ results: [{ error: { code: '23505', message: 'dup' } }, { data: previo }] }) as never,
+      );
+      const res = await post({ hostname: 'www.torre.com' });
+      expect(res.status).toBe(409);
+      expect(addDomain).not.toHaveBeenCalled();
+      expect(removeDomain).not.toHaveBeenCalled();
+    }
+  });
+
+  it('reserva pendiente de otro vencida (más de 7 días): la libera (Vercel y base) y reserva para este proyecto', async () => {
     asOwner([{ count: 0 }]);
-    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({ results: [{ error: { code: '23505', message: 'dup' } }] }) as never);
+    const vieja = { id: 'vieja', status: 'pending', created_at: new Date(Date.now() - 8 * 86_400_000).toISOString() };
+    const admin = mockSupabase({
+      results: [
+        { error: { code: '23505', message: 'dup' } }, // insert
+        { data: vieja }, // la reserva que tomó el hostname
+        { error: null }, // delete de la vencida
+        { data: ROW }, // insert de nuevo
+        { error: null }, // update con los registros DNS
+      ],
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
     const res = await post({ hostname: 'www.torre.com' });
+
+    expect(res.status).toBe(201);
+    expect(removeDomain).toHaveBeenCalledWith('www.torre.com');
+    expect(admin.from.mock.results[2].value.delete).toHaveBeenCalled();
+    expect(addDomain).toHaveBeenCalledWith('www.torre.com');
+  });
+
+  it('si no puede quitar de Vercel la reserva vencida, no la borra: 409', async () => {
+    asOwner([{ count: 0 }]);
+    const vieja = { id: 'vieja', status: 'pending', created_at: '2020-01-01T00:00:00Z' };
+    const admin = mockSupabase({ results: [{ error: { code: '23505', message: 'dup' } }, { data: vieja }] });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+    vi.mocked(removeDomain).mockRejectedValueOnce(new Error('vercel down'));
+
+    const res = await post({ hostname: 'www.torre.com' });
+
     expect(res.status).toBe(409);
-    expect(addDomain).not.toHaveBeenCalled();
+    expect(admin.from).toHaveBeenCalledTimes(2); // insert y lectura: nada de delete
   });
 
   it('201: reserva la fila, lo agrega en Vercel y guarda los registros DNS', async () => {

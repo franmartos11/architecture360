@@ -139,3 +139,29 @@ describe('isActiveCustomDomainOrigin', () => {
     expect(await isActiveCustomDomainOrigin('https://atacante.com')).toBe(false);
   });
 });
+
+describe('isCustomDomainWithoutSite', () => {
+  it('dominio activo cuyo proyecto no se ve (despublicado): true, y no resuelve a ningún proyecto', async () => {
+    maybeSingle.mockResolvedValue({ data: { projects: null }, error: null });
+    const { isCustomDomainWithoutSite, resolveProjectSlugForHost, isActiveCustomDomainOrigin } = await load();
+    expect(await isCustomDomainWithoutSite('www.torre.com')).toBe(true);
+    expect(await resolveProjectSlugForHost('www.torre.com')).toBeNull();
+    // Tampoco cuenta como origen permitido para el CORS.
+    expect(await isActiveCustomDomainOrigin('https://www.torre.com')).toBe(false);
+  });
+
+  it('dominio con su proyecto publicado, o que no es de nadie: false', async () => {
+    maybeSingle.mockResolvedValueOnce({ data: { projects: { slug: 'torre' } }, error: null });
+    const m = await load();
+    expect(await m.isCustomDomainWithoutSite('www.torre.com')).toBe(false);
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    expect(await m.isCustomDomainWithoutSite('www.otro.com')).toBe(false);
+  });
+
+  it('hosts de la plataforma: false sin consultar la base', async () => {
+    const { isCustomDomainWithoutSite } = await load({ rootDomain: 'plataforma.com' });
+    expect(await isCustomDomainWithoutSite('torre.plataforma.com')).toBe(false);
+    expect(await isCustomDomainWithoutSite('localhost:3000')).toBe(false);
+    expect(from).not.toHaveBeenCalled();
+  });
+});

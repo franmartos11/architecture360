@@ -5,6 +5,7 @@ import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getSunAzimuths } from '@/lib/sun-position';
 import { getProjectBasePath } from '@/lib/project-base-path';
+import { projectCanonical } from '@/lib/project-canonical';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
   }
   return {
+    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}/recorrido`) },
     title: `${building.name} | Amenities en 360°`,
     description: `Recorré en 360° las amenities exclusivas de ${building.name}.`,
   };

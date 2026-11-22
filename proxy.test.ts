@@ -11,10 +11,11 @@ vi.mock('@/lib/project-host', async () => {
     resolveHostProject: vi.fn(),
     canonicalDomainForSlug: vi.fn(),
     isActiveCustomDomainOrigin: vi.fn(),
+    isCustomDomainWithoutSite: vi.fn(),
   };
 });
 
-import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin } from '@/lib/project-host';
+import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin, isCustomDomainWithoutSite } from '@/lib/project-host';
 import { proxy } from './proxy';
 
 const get = (url: string, init: { method?: string; headers?: Record<string, string> } = {}) =>
@@ -24,6 +25,7 @@ beforeEach(() => {
   vi.mocked(resolveHostProject).mockReset().mockResolvedValue(null);
   vi.mocked(canonicalDomainForSlug).mockReset().mockResolvedValue(null);
   vi.mocked(isActiveCustomDomainOrigin).mockReset().mockResolvedValue(false);
+  vi.mocked(isCustomDomainWithoutSite).mockReset().mockResolvedValue(false);
 });
 
 describe('proxy: dominios por proyecto', () => {
@@ -35,18 +37,18 @@ describe('proxy: dominios por proyecto', () => {
     expect(canonicalDomainForSlug).not.toHaveBeenCalled(); // nada de bucles
   });
 
-  it('subdominio de un proyecto con dominio propio: 301 al dominio propio, conservando path y query', async () => {
+  it('subdominio de un proyecto con dominio propio: 308 al dominio propio, conservando path y query', async () => {
     vi.mocked(resolveHostProject).mockResolvedValue({ slug: 'torre', kind: 'subdomain' });
     vi.mocked(canonicalDomainForSlug).mockResolvedValue('www.torre.com');
     const res = await proxy(get('https://torre.plataforma.com/unidades?piso=3', { headers: { host: 'torre.plataforma.com' } }));
-    expect(res.status).toBe(301);
+    expect(res.status).toBe(308);
     expect(res.headers.get('location')).toBe('https://www.torre.com/unidades?piso=3');
   });
 
-  it('/proyecto/[slug]/... en el dominio de la plataforma: 301 al dominio propio sin el prefijo', async () => {
+  it('/proyecto/[slug]/... en el dominio de la plataforma: 308 al dominio propio sin el prefijo', async () => {
     vi.mocked(canonicalDomainForSlug).mockResolvedValue('www.torre.com');
     const res = await proxy(get('https://app.plataforma.com/proyecto/torre/masterplan', { headers: { host: 'app.plataforma.com' } }));
-    expect(res.status).toBe(301);
+    expect(res.status).toBe(308);
     expect(res.headers.get('location')).toBe('https://www.torre.com/masterplan');
   });
 
@@ -71,6 +73,27 @@ describe('proxy: dominios por proyecto', () => {
   it('el resto del sitio de la plataforma no consulta dominios', async () => {
     await proxy(get('https://app.plataforma.com/feed', { headers: { host: 'app.plataforma.com' } }));
     expect(canonicalDomainForSlug).not.toHaveBeenCalled();
+  });
+});
+
+describe('proxy: redirección y dominio sin sitio', () => {
+  it('la redirección al dominio propio se cachea una hora, no para siempre', async () => {
+    vi.mocked(canonicalDomainForSlug).mockResolvedValue('www.torre.com');
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.status).toBe(308);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=3600');
+  });
+
+  it('dominio propio de un proyecto despublicado: "sitio no disponible", no la home de la plataforma', async () => {
+    vi.mocked(isCustomDomainWithoutSite).mockResolvedValue(true);
+    const res = await proxy(get('https://www.torre.com/', { headers: { host: 'www.torre.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/proyecto/_sin-sitio');
+  });
+
+  it('un host de la plataforma sin proyecto sigue de largo (la home)', async () => {
+    const res = await proxy(get('https://app.plataforma.com/', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull();
+    expect(res.status).toBe(200);
   });
 });
 

@@ -4,7 +4,7 @@ import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { parseJsonBody } from '@/lib/api-validate';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
-import { parseCustomHostname, MAX_DOMAINS_PER_PROJECT } from '@/lib/custom-domain';
+import { parseCustomHostname, MAX_DOMAINS_PER_PROJECT, isExpiredPending } from '@/lib/custom-domain';
 import { addDomain, getDomainState, removeDomain, vercelDomainsConfigured, VercelDomainError, DOMAIN_TAKEN_CODES } from '@/lib/vercel-domains';
 
 // Dominios propios de un proyecto (ver project_domains en supabase/schema.sql).
@@ -13,6 +13,26 @@ import { addDomain, getDomainState, removeDomain, vercelDomainsConfigured, Verce
 // propiedad del proyecto y de verificar el DNS contra Vercel.
 
 const bodySchema = z.object({ hostname: z.string().max(300) });
+
+/**
+ * Si el hostname está tomado por una reserva pendiente vencida, la borra (y
+ * quita el dominio de Vercel, que lo agregó esa alta) para que otro pueda
+ * usarlo. Devuelve si liberó algo.
+ */
+async function liberarSiVencido(admin: ReturnType<typeof createAdminClient>, hostname: string): Promise<boolean> {
+  const { data } = await admin.from('project_domains').select('id, status, created_at').eq('hostname', hostname).maybeSingle();
+  const previo = data as { id: string; status: string; created_at: string } | null;
+  if (!previo || !isExpiredPending(previo)) return false;
+  // Primero Vercel: si falla, la reserva queda y el dominio no se pierde a medias.
+  try {
+    await removeDomain(hostname);
+  } catch (err) {
+    console.error('[domains] no se pudo quitar de Vercel el pendiente vencido', hostname, err);
+    return false;
+  }
+  const { error } = await admin.from('project_domains').delete().eq('id', previo.id).eq('status', 'pending');
+  return !error;
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,13 +82,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // 1) Reservar el hostname en la base: la unicidad la impone la tabla, así que
   //    dos proyectos no pueden quedarse con el mismo dominio aunque pidan a la vez.
   const admin = createAdminClient();
-  const { data: row, error: insertError } = await admin
-    .from('project_domains')
-    .insert({ project_id: id, hostname: host.hostname })
-    .select('id, hostname, status, vercel_verification, created_at')
-    .single();
-  if (insertError) {
-    if (insertError.code === '23505') {
+  const reservar = () =>
+    admin
+      .from('project_domains')
+      .insert({ project_id: id, hostname: host.hostname })
+      .select('id, hostname, status, vercel_verification, created_at')
+      .single();
+  let { data: row, error: insertError } = await reservar();
+  // Ya reservado: si es una reserva pendiente vencida (ver PENDING_TTL_DAYS), se
+  // libera acá mismo y se reintenta una vez; si no, está en uso de verdad.
+  if (insertError?.code === '23505' && (await liberarSiVencido(admin, host.hostname))) {
+    ({ data: row, error: insertError } = await reservar());
+  }
+  if (insertError || !row) {
+    if (insertError?.code === '23505') {
       return NextResponse.json({ error: 'Ese dominio ya está en uso en otro proyecto.' }, { status: 409 });
     }
     console.error('[domains] no se pudo guardar', insertError);

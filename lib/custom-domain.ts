@@ -5,6 +5,18 @@ const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9
 
 export const MAX_DOMAINS_PER_PROJECT = 5;
 
+/**
+ * Un dominio que queda 'pending' (nunca se verificó) vence a los 7 días: sin
+ * esto, cualquiera podía reservar el dominio de otro (www.competidor.com) y
+ * dejarlo tomado para siempre, porque la unicidad de la tabla le diría al dueño
+ * real "ya está en uso".
+ */
+export const PENDING_TTL_DAYS = 7;
+
+export function isExpiredPending(row: { status: string; created_at: string }, now: Date = new Date()): boolean {
+  return row.status === 'pending' && now.getTime() - Date.parse(row.created_at) > PENDING_TTL_DAYS * 86_400_000;
+}
+
 // El dominio de la plataforma con y sin www, y cualquier subdominio suyo
 // (isPlatformHost solo cubre el hostname exacto de NEXT_PUBLIC_SITE_URL y
 // NEXT_PUBLIC_ROOT_DOMAIN, que puede no estar seteada).

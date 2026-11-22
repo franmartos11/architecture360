@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
 import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getSunAzimuths } from '@/lib/sun-position';
+import { projectCanonical } from '@/lib/project-canonical';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -14,6 +15,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
+    alternates: { canonical: await projectCanonical(slug, '/recorrido') },
     title: `${project.name} | Recorrido de espacios comunes`,
     description: `Recorré en 360° los pasillos, la pileta y las áreas comunes de ${project.name}.`,
   };

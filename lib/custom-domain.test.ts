@@ -46,3 +46,14 @@ describe('parseCustomHostname', () => {
     expect('error' in parseCustomHostname(`${'a'.repeat(64)}.com`)).toBe(true);
   });
 });
+
+describe('isExpiredPending', () => {
+  it('pendiente con más de 7 días: vencido; con menos, o activo, no', async () => {
+    const { isExpiredPending } = await import('./custom-domain');
+    const ahora = new Date('2026-11-22T12:00:00Z');
+    expect(isExpiredPending({ status: 'pending', created_at: '2026-11-14T11:00:00Z' }, ahora)).toBe(true);
+    expect(isExpiredPending({ status: 'pending', created_at: '2026-11-16T12:00:00Z' }, ahora)).toBe(false);
+    expect(isExpiredPending({ status: 'active', created_at: '2020-01-01T00:00:00Z' }, ahora)).toBe(false);
+    expect(isExpiredPending({ status: 'verified', created_at: '2020-01-01T00:00:00Z' }, ahora)).toBe(false);
+  });
+});

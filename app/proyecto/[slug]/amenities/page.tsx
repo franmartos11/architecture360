@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { getSiteProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
 import { getProjectTypeConfig } from '@/lib/project-types';
+import { projectCanonical } from '@/lib/project-canonical';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -14,6 +15,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
+    alternates: { canonical: await projectCanonical(slug, '/amenities') },
     title: `${project.name} | Amenities`,
     description: `Conocé y recorré en 360° las amenities de ${project.name}.`,
   };

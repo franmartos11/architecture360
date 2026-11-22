@@ -6,6 +6,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
 import { pluralize } from '@/lib/units';
+import { projectCanonical } from '@/lib/project-canonical';
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
   searchParams: Promise<{ piso?: string }>;
@@ -32,6 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = project.masterplanImage || undefined;
 
   return {
+    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}`) },
     title,
     description,
     openGraph: { title, description, images: image ? [image] : undefined },
