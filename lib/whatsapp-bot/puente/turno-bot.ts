@@ -10,6 +10,10 @@ import { armarFicha, resumenInventario, unidadesParaAviso } from '../ficha';
 import type { DepsHerramientas } from '../ia/herramientas';
 import { aMensajesClaude } from '../ia/historial';
 import { armarSystem } from '../ia/prompt';
+import { armarMaterial, urlUnidad } from '../material';
+import { registrarPregunta } from '../preguntas';
+import { prepararMediosIa, type DepsMediosIa } from '../medios-ia';
+import { normalizarConfigVisitas } from '../visitas';
 import type { ResultadoTurno } from '../ia/turno';
 import type * as Repo from '../repo';
 import { fechaBuenosAires } from '../repo';
@@ -19,7 +23,17 @@ export type DepsTurnoBot = {
   sb: SupabaseClient;
   repo: Pick<
     typeof Repo,
-    'leerBot' | 'leerConversacion' | 'historial' | 'contarRespuestasBotUltimaHora' | 'encolar' | 'pausarIa' | 'registrarAviso'
+    | 'leerBot'
+    | 'leerConversacion'
+    | 'historial'
+    | 'contarRespuestasBotUltimaHora'
+    | 'encolar'
+    | 'pausarIa'
+    | 'registrarAviso'
+    | 'guardarTranscripcion'
+    | 'visitasActivas'
+    | 'agendarVisita'
+    | 'cancelarVisitasDeConversacion'
   >;
   cargarDatosProyecto(sb: SupabaseClient, projectId: string): Promise<DatosProyecto>;
   /** responderTurno de ia/turno.ts con el cliente de Anthropic ya puesto. */
@@ -31,6 +45,15 @@ export type DepsTurnoBot = {
   ahora(): Date;
   /** Base del link "Ver chat" del aviso al vendedor. */
   urlAdmin: string;
+  /** URL pública del sitio de un proyecto (por slug). Sin esto, el bot no pasa links. */
+  urlSitio?: (slug: string) => string;
+  /**
+   * Imágenes y audios del cliente para la IA (bajar de Storage, transcribir).
+   * Sin esto, la IA solo ve las marcas de texto ("[El cliente mandó una imagen]").
+   */
+  medios?: Pick<DepsMediosIa, 'bajar' | 'transcribir'>;
+  /** registrarPregunta de preguntas.ts (inyectable para los tests). */
+  registrarPregunta?: typeof registrarPregunta;
   log?: (m: string) => void;
 };
 
@@ -116,7 +139,15 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
   }
 
   const datos = await deps.cargarDatosProyecto(sb, bot.project_id);
-  const ficha = armarFicha({ ...datos, resumenUnidades: resumenInventario(datos.unidades) }, bot);
+  // Links solo de un sitio publicado: un borrador no lo puede ver el cliente.
+  const sitio = datos.proyecto.published && deps.urlSitio ? deps.urlSitio(datos.proyecto.slug) : null;
+  const configVisitas = normalizarConfigVisitas(bot.visitas);
+  const ficha = armarFicha(
+    { ...datos, resumenUnidades: resumenInventario(datos.unidades), sitio, visitas: configVisitas },
+    bot,
+  );
+  // Agenda viva (solo si el bot agenda visitas): qué turnos están tomados y si este cliente ya tiene uno.
+  const activas = configVisitas?.activo ? await repo.visitasActivas(sb, bot.project_id, ahora) : [];
   const system = armarSystem(ficha, bot, datos.proyecto.name);
 
   // Todas las respuestas de este turno (imágenes de las herramientas y partes
@@ -142,11 +173,57 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
   // Las imágenes que pide la IA se juntan en memoria y se encolan recién si el
   // turno termina bien: si falla o el vendedor toma la charla, no sale nada.
   const imagenes: string[] = [];
+
+  // Recién acá (ya se decidió responder) se bajan imágenes y se transcriben audios.
+  let mensajesIa = mensajes;
+  if (deps.medios) {
+    const m = await prepararMediosIa(msgs, {
+      ...deps.medios,
+      guardarTranscripcion: (id, texto) => repo.guardarTranscripcion(sb, id, texto),
+      log: deps.log,
+    });
+    mensajesIa = aMensajesClaude(m.mensajes, m.imagenes);
+  }
+
   const r = await deps.responderTurno({
     system,
-    mensajes,
+    mensajes: mensajesIa,
     deps: {
       unidades: datos.unidades,
+      material: armarMaterial(datos),
+      ...(configVisitas?.activo
+        ? {
+            visitas: {
+              config: configVisitas,
+              ocupados: activas.map((v) => ({ inicio: new Date(v.inicio), fin: new Date(v.fin) })),
+              delCliente: activas
+                .filter((v) => v.conversacion_id === conv.id && new Date(v.inicio) > ahora)
+                .map((v) => new Date(v.inicio)),
+              ahora,
+              agendar: (inicio, fin, nombre) =>
+                repo.agendarVisita(sb, { bot, conv, inicio, fin, nombre, proyecto: datos.proyecto, urlAdmin: deps.urlAdmin }),
+              cancelar: async () =>
+                (
+                  await repo.cancelarVisitasDeConversacion(sb, {
+                    bot,
+                    conv,
+                    ahora,
+                    proyecto: datos.proyecto,
+                    urlAdmin: deps.urlAdmin,
+                  })
+                ).map((v) => new Date(v.inicio)),
+            },
+          }
+        : {}),
+      anotarPregunta: async (p) => {
+        const r = await (deps.registrarPregunta ?? registrarPregunta)(sb, {
+          projectId: bot.project_id,
+          conversacionId: conv.id,
+          ...p,
+        });
+        if (r === 'omitida') deps.log?.(`[bot ${bot.id}] pregunta sin anotar (tope, vacía o falta la tabla): ${p.tema}`);
+      },
+      linkUnidad: (u) => (sitio && u.id && u.edificioId ? urlUnidad(sitio, u.edificioId, u.id) : null),
       encolarImagenes: async (urls) => {
         imagenes.push(...urls);
       },

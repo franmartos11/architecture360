@@ -40,6 +40,7 @@ const projectPatchSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   masterplanImage: z.string().max(1000).nullable().optional(),
+  briefPdfUrl: z.string().max(1000).nullable().optional(),
   commonAreasTour: z.unknown().optional(),
   tourOrientationDegrees: z.number().min(0).max(360).nullable().optional(),
   academicInstitution: z.string().max(200).nullable().optional(),
@@ -199,6 +200,7 @@ export async function PATCH(request: Request) {
   if (body.latitude !== undefined) updates.latitude = body.latitude;
   if (body.longitude !== undefined) updates.longitude = body.longitude;
   if (body.masterplanImage !== undefined) updates.masterplan_image = body.masterplanImage;
+  if (body.briefPdfUrl !== undefined) updates.brief_pdf_url = body.briefPdfUrl || null;
   if (body.commonAreasTour !== undefined) updates.common_areas_tour = body.commonAreasTour;
   if (body.tourOrientationDegrees !== undefined) updates.tour_orientation_degrees = body.tourOrientationDegrees;
   if (body.academicInstitution !== undefined) updates.academic_institution = sanitizeText(body.academicInstitution, 200);

@@ -45,6 +45,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       latitude: source.latitude,
       longitude: source.longitude,
       masterplan_image: source.masterplan_image,
+      // Solo si hay: sin la columna en la base (migración pendiente) duplicar sigue andando.
+      ...(source.brief_pdf_url ? { brief_pdf_url: source.brief_pdf_url } : {}),
       amenities: source.amenities,
       common_areas_tour: source.common_areas_tour,
       tour_orientation_degrees: source.tour_orientation_degrees,

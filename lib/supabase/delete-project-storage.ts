@@ -38,11 +38,13 @@ export async function deleteProjectStorageFiles(supabase: SupabaseClient, projec
 
   const { data: project } = await supabase
     .from('projects')
-    .select('masterplan_image, process_gallery, before_after, theme_config, common_areas_tour')
+    // '*' y no una lista: si una columna nueva (brief_pdf_url) todavía no está
+    // migrada, una lista explícita falla y se saltean TODOS los archivos del proyecto.
+    .select('*')
     .eq('id', projectId)
     .maybeSingle();
   if (project) {
-    urls.push(project.masterplan_image);
+    urls.push(project.masterplan_image, project.brief_pdf_url);
     for (const img of (project.process_gallery ?? []) as string[]) urls.push(img);
     for (const pair of (project.before_after ?? []) as BeforeAfterLike[]) {
       urls.push(pair.beforeImage, pair.afterImage);

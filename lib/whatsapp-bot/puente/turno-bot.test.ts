@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectRow } from '@/types/database';
-import type { WaMensaje } from '@/types/whatsapp-bot';
+import type { WaMensaje, WaVisita } from '@/types/whatsapp-bot';
 import type { DatosProyecto, UnidadBot } from '../ficha';
 import type { DepsHerramientas } from '../ia/herramientas';
 import type { ResultadoTurno } from '../ia/turno';
@@ -14,6 +14,8 @@ const AHORA = new Date('2026-11-20T15:00:00.000Z');
 const VISTO = '2026-11-20T14:57:00.000Z';
 
 const unidad: UnidadBot = {
+  id: 'u-2b',
+  edificioId: 'ed-a',
   codigo: '2B',
   edificio: 'Torre A',
   piso: '2',
@@ -45,6 +47,9 @@ const datosProyecto: DatosProyecto = {
   amenities: [],
   pois: [],
   calculadora: null,
+  slides: [],
+  avance: null,
+  faq: [],
 };
 
 /** Cliente escribió a las 14:57; nada más. */
@@ -65,6 +70,10 @@ function deps(p: { historial?: WaMensaje[]; responder?: Turno } & Pick<Partial<D
     ),
     pausarIa: vi.fn(async () => {}),
     registrarAviso: vi.fn(async (): Promise<'avisado' | 'ya_avisado'> => 'avisado'),
+    guardarTranscripcion: vi.fn(async () => {}),
+    visitasActivas: vi.fn(async (): Promise<WaVisita[]> => []),
+    agendarVisita: vi.fn(async (): Promise<'agendada' | 'ocupado'> => 'agendada'),
+    cancelarVisitasDeConversacion: vi.fn(async (): Promise<WaVisita[]> => []),
   };
   const d = {
     sb: {} as SupabaseClient,
@@ -80,6 +89,23 @@ function deps(p: { historial?: WaMensaje[]; responder?: Turno } & Pick<Partial<D
 }
 
 describe('correrTurnoIA', () => {
+  it('links del sitio solo con el proyecto publicado', async () => {
+    const urlSitio = (slug: string) => `https://sitio.ejemplo.com/proyecto/${slug}`;
+    const publicado = { ...datosProyecto, proyecto: { ...datosProyecto.proyecto, slug: 'torre-sol', published: true } as ProjectRow };
+    const d = { ...deps(), urlSitio, cargarDatosProyecto: vi.fn(async () => publicado) };
+    await correrTurnoIA(d, 'bot1', 'conv1');
+    const llamada = d.responderTurno.mock.calls[0][0];
+    expect(JSON.stringify(llamada.system)).toContain('https://sitio.ejemplo.com/proyecto/torre-sol');
+    expect(llamada.deps.linkUnidad(unidad)).toBe('https://sitio.ejemplo.com/proyecto/torre-sol/edificio/ed-a/unidad/u-2b');
+
+    const borrador = { ...publicado, proyecto: { ...publicado.proyecto, published: false } as ProjectRow };
+    const d2 = { ...deps(), urlSitio, cargarDatosProyecto: vi.fn(async () => borrador) };
+    await correrTurnoIA(d2, 'bot1', 'conv1');
+    const ll2 = d2.responderTurno.mock.calls[0][0];
+    expect(JSON.stringify(ll2.system)).not.toContain('sitio.ejemplo.com');
+    expect(ll2.deps.linkUnidad(unidad)).toBeNull();
+  });
+
   it('responde: arma el system con la ficha, llama a la IA y encola la respuesta con origen bot', async () => {
     const d = deps();
     expect(await correrTurnoIA(d, 'bot1', 'conv1')).toBe('respondido');

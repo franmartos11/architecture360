@@ -87,6 +87,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           projectSlug={project.slug}
           projectLocation={project.location?.split(',')[0]?.trim() || undefined}
           showLeads={typeConfig.showLeads}
+          briefUrl={project.briefPdfUrl}
           unitsAvailable={typeConfig.showStatus ? project.units.filter(u => u.status === 'available').length : undefined}
           amenitiesCount={project.amenities.length}
           buildingNames={Object.fromEntries(project.buildings.map(b => [b.id, b.name]))}

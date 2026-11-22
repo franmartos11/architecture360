@@ -47,6 +47,7 @@ describe('deleteProjectStorageFiles', () => {
     const supabase = mockSupabase({
       projects: {
         masterplan_image: `${BASE_URL}/proj/master.png`,
+        brief_pdf_url: `${BASE_URL}/brief/1-a/brief.pdf`,
         process_gallery: [`${BASE_URL}/proj/g1.png`],
         before_after: [{ beforeImage: `${BASE_URL}/proj/before.png`, afterImage: null }],
         theme_config: { backgroundImageUrl: `${BASE_URL}/proj/bg.png` },
@@ -79,6 +80,7 @@ describe('deleteProjectStorageFiles', () => {
     expect(new Set(removedKeys)).toEqual(
       new Set([
         'proj/master.png',
+        'brief/1-a/brief.pdf',
         'proj/g1.png',
         'proj/before.png',
         'proj/bg.png',
@@ -110,6 +112,27 @@ describe('deleteProjectStorageFiles', () => {
     });
     await expect(deleteProjectStorageFiles(supabase as never, 'project-1')).resolves.toBeUndefined();
     expect(supabase._remove).toHaveBeenCalledWith(['slides/1.png']);
+  });
+
+  it('antes de correr la migración del brief (columna inexistente): igual borra los archivos del proyecto', async () => {
+    const supabase = mockSupabase({ buildings: [] });
+    // Como PostgREST: pedir una columna que no existe devuelve error y data null.
+    const realFrom = supabase.from.getMockImplementation()!;
+    supabase.from.mockImplementation((table: keyof Tables) => {
+      if (table !== 'projects') return realFrom(table);
+      let cols = '*';
+      const row = { masterplan_image: `${BASE_URL}/proj/master.png` };
+      const builder = {
+        select: (c: string) => { cols = c; return builder; },
+        eq: () => builder,
+        maybeSingle: () => Promise.resolve(/brief_pdf_url/.test(cols)
+          ? { data: null, error: { code: '42703', message: 'column projects.brief_pdf_url does not exist' } }
+          : { data: row, error: null }),
+      };
+      return builder as never;
+    });
+    await deleteProjectStorageFiles(supabase as never, 'project-1');
+    expect(supabase._remove).toHaveBeenCalledWith(['proj/master.png']);
   });
 
   it('sin ningún archivo, no llama a storage.remove()', async () => {

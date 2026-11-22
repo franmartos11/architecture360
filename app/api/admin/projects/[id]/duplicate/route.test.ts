@@ -99,4 +99,24 @@ describe('POST /api/admin/projects/[id]/duplicate', () => {
     expect(insertedUnits[0].floor_id).toBe('floor-u1-new');
     expect(insertedUnits[0].parking_spots).toEqual([{ floorId: 'floor-p1-new', label: 'C-7', polygon: [{ x: 1, y: 1 }] }]);
   });
+  it('copia el brief del proyecto de origen', async () => {
+    const source = { id: 'project-src', name: 'Proyecto Test', project_type: 'edificio', sale_mode: 'venta', brief_pdf_url: 'https://x/brief/1-a/brief.pdf' };
+    const supabase = mockSupabase({
+      results: [
+        { data: source },                                                  // projects select (fuente)
+        { data: [] },                                                      // ensureUniqueSlug
+        { data: { id: 'project-new', slug: 'proyecto-test-copia' }, error: null }, // projects insert
+        { data: [] },                                                      // buildings select
+        { data: [] },                                                      // amenities select
+        { data: [] },                                                      // aerial_slides select
+        { data: [] },                                                      // points_of_interest select
+      ],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+    const res = await POST(req('project-src'), params('project-src'));
+    expect(res.status).toBe(201);
+    const inserted = supabase.from.mock.results[2].value.insert.mock.calls[0][0];
+    expect(inserted.brief_pdf_url).toBe('https://x/brief/1-a/brief.pdf');
+  });
 });

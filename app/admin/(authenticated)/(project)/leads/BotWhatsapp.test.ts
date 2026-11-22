@@ -39,6 +39,8 @@ describe('BotWhatsapp', () => {
     const fetchFalso = vi.fn((url: string, init?: RequestInit) => {
       // El PATCH del proyecto 1 no vuelve nunca (en vuelo al cambiar de proyecto).
       if (init?.method === 'PATCH') return new Promise<Response>(() => {});
+      if (url.includes('/preguntas')) return Promise.resolve(new Response(JSON.stringify({ preguntas: [] })));
+      if (url.includes('/metricas')) return Promise.resolve(new Response(JSON.stringify({ dias: 30, porDia: [], unidades: [] })));
       const id = new URL(url, 'http://x').searchParams.get('projectId') ?? 'p1';
       return Promise.resolve(new Response(JSON.stringify({ bot: bot(id), puenteVivo: true })));
     });

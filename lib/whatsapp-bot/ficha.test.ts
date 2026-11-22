@@ -12,6 +12,8 @@ import {
 
 function unidad(over: Partial<UnidadBot> = {}): UnidadBot {
   return {
+    id: 'u-2a',
+    edificioId: 'ed-norte',
     codigo: '2A',
     edificio: 'Torre Norte',
     piso: 'Piso 2',
@@ -175,3 +177,92 @@ describe('unidadesParaAviso', () => {
     expect(unidadesParaAviso(['9Z', '  '], [unidad()])).toEqual(['9Z']);
   });
 });
+
+describe('armarFicha: contexto ampliado', () => {
+  const proyecto = {
+    name: 'Torres del Sol', location: 'Palermo', description: null, tagline: null,
+    latitude: -34.58, longitude: -58.42, masterplan_image: 'https://x/mp.jpg',
+  } as unknown as ProjectRow;
+  const base = {
+    proyecto,
+    edificios: [{ id: 'e1', name: 'Torre Norte', total_floors: 10, cover_image: 'https://x/tn.jpg' } as unknown as BuildingRow],
+    pisos: [],
+    amenities: [
+      {
+        name: 'Pileta', description: 'Climatizada', category: 'Recreación', building_id: 'e1',
+        specs: [{ key: 'Largo', value: '12 m' }], images: ['https://x/p.jpg'],
+      } as unknown as AmenityRow,
+    ],
+    pois: [{ name: 'Parque', description: 'Con bicisenda', walk_minutes: 3, drive_minutes: null, bike_minutes: null, distance_label: null } as PointOfInterestRow],
+    calculadora: null,
+    resumenUnidades: 'R',
+    slides: [{ label: 'Vista dron', image_url: 'https://x/dron.jpg' }],
+    avance: {
+      stages: [{ id: 's1', label: 'Excavación' }, { id: 's2', label: 'Estructura' }],
+      currentStageId: 's2',
+      percent: 45,
+      deliveryEstimate: 'Diciembre 2027',
+      updates: [
+        { id: 'u1', date: '2026-09-01', title: 'Losa 3', images: [] },
+        { id: 'u2', date: '2026-10-01', title: 'Losa 5', body: 'Avanzamos rápido', images: ['https://x/o.jpg'] },
+      ],
+    },
+    sitio: 'https://torres.ejemplo.com',
+  };
+
+  it('incluye avance de obra, entrega estimada y novedades más nuevas primero', () => {
+    const t = armarFicha(base, { conocimiento: null });
+    expect(t).toContain('Etapa actual: Estructura');
+    expect(t).toContain('Avance: 45%');
+    expect(t).toContain('Entrega estimada: Diciembre 2027');
+    expect(t.indexOf('Losa 5')).toBeLessThan(t.indexOf('Losa 3'));
+  });
+
+  it('detalle de amenities (categoría, edificio, specs) y descripción de POI', () => {
+    const t = armarFicha(base, { conocimiento: null });
+    expect(t).toContain('Pileta (Recreación, Torre Norte): Climatizada. Largo: 12 m');
+    expect(t).toContain('Con bicisenda');
+  });
+
+  it('links de sitio y mapa, y catálogo de imágenes para enviar_material', () => {
+    const t = armarFicha(base, { conocimiento: null });
+    expect(t).toContain('https://torres.ejemplo.com');
+    expect(t).toContain('https://www.google.com/maps?q=-34.58,-58.42');
+    expect(t).toContain('renders: Vista dron');
+    expect(t).toContain('masterplan');
+    expect(t).toContain('amenity (fotos): Pileta');
+    expect(t).toContain('avance_obra');
+    expect(t).not.toMatch(/null|undefined/);
+  });
+
+  it('con brief cargado, la ficha lo lista para enviar_material', () => {
+    const t = armarFicha({ ...base, proyecto: { ...proyecto, brief_pdf_url: 'https://x/b.pdf' } as ProjectRow }, { conocimiento: null });
+    expect(t).toContain('- brief:');
+    const sin = armarFicha(base, { conocimiento: null });
+    expect(sin).not.toContain('- brief:');
+  });
+
+  it('sin sitio, sin avance y sin material no agrega esas secciones', () => {
+    const t = armarFicha(
+      { ...base, sitio: null, avance: null, slides: [], proyecto: { ...proyecto, masterplan_image: null, latitude: null } as ProjectRow, edificios: [], amenities: [] },
+      { conocimiento: null },
+    );
+    expect(t).not.toContain('Sitio web');
+    expect(t).not.toContain('Avance de obra');
+    expect(t).not.toContain('enviar_material');
+    expect(t).not.toContain('maps');
+  });
+});
+
+describe('armarFicha: preguntas frecuentes', () => {
+  const proyecto = { name: 'Torres', location: null, description: null, tagline: null } as ProjectRow;
+  const base = { proyecto, edificios: [], pisos: [], amenities: [], pois: [], calculadora: null, resumenUnidades: 'R' };
+  it('incluye las respondidas como P/R y sin faq no agrega la sección', () => {
+    const t = armarFicha({ ...base, faq: [{ pregunta: '¿Aceptan mascotas?', respuesta: 'Sí, hasta 2.' }] }, { conocimiento: null });
+    expect(t).toContain('## Preguntas frecuentes');
+    expect(t).toContain('P: ¿Aceptan mascotas?');
+    expect(t).toContain('R: Sí, hasta 2.');
+    expect(armarFicha(base, { conocimiento: null })).not.toContain('Preguntas frecuentes');
+  });
+});
+

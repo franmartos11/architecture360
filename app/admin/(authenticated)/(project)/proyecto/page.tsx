@@ -3,6 +3,7 @@
 import { useState, useEffect, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
+import PdfUploader from '@/components/admin/PdfUploader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { SectionRow, Pill, SegmentedTabs, fieldClass } from '@/components/admin/panel-ui';
@@ -155,7 +156,7 @@ export default function AdminProjectPage() {
           <Link href="/admin/sitio" className="text-[13px] font-semibold text-gray-900 underline underline-offset-2 shrink-0">Ordenar en Sitio</Link>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {['Portada', 'Cifras', 'Compartir en redes'].map(s => (
+          {['Portada', 'Cifras', 'Compartir en redes', 'Brief'].map(s => (
             <span key={s} className="min-h-[30px] px-3 flex items-center rounded-full bg-white border border-gray-200 text-xs text-gray-700">{s}</span>
           ))}
         </div>
@@ -290,6 +291,17 @@ export default function AdminProjectPage() {
               Todavía no hay {aerialLabelPlural.toLowerCase()}: se cargan en <Link href="/admin/proyecto/galeria" className="font-semibold underline underline-offset-2">Galería</Link>.
             </p>
           )}
+        </SectionRow>
+
+        <SectionRow
+          title="Brief del proyecto"
+          description="Un PDF con los datos del proyecto para el cliente. Se descarga desde el sitio y el bot de WhatsApp lo manda cuando se lo piden."
+        >
+          <PdfUploader
+            value={project.brief_pdf_url ?? ''}
+            onChange={url => setProject({ ...project, brief_pdf_url: url || null })}
+            folder="brief"
+          />
         </SectionRow>
       </form>
 

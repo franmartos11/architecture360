@@ -17,6 +17,15 @@ const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg
 const ALLOWED_DOCUMENT_TYPES = ['application/pdf'];
 const BUCKET = 'project-media';
 
+// "Brief Final (v2) ÑANDÚ.pdf" → "brief-final-v2-nandu"; sin nada usable → "documento".
+function documentBaseName(name: string): string {
+  const base = name.replace(/\.pdf$/i, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    .slice(0, 60).replace(/-+$/, '');
+  return base || 'documento';
+}
+
 // POST /api/admin/upload → NO recibe el archivo: recibe sus datos
 // (nombre, tipo, peso), los valida y devuelve una URL firmada para que el
 // navegador lo suba directo a Supabase (ver lib/signed-upload.ts). Antes
@@ -55,7 +64,12 @@ export async function POST(request: Request) {
 
   const safeFolder = folder.replace(/[^a-z0-9-]/gi, '-');
   const ext = name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
-  const path = `${safeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Un documento (el brief del proyecto) conserva un nombre legible: es el
+  // nombre que ve el cliente al descargarlo o al recibirlo por WhatsApp.
+  const path = isDocument
+    ? `${safeFolder}/${unique}/${documentBaseName(name)}.pdf` // el único documento permitido es PDF
+    : `${safeFolder}/${unique}.${ext}`;
 
   const admin = createAdminClient();
   const { data: signed, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);

@@ -9,16 +9,21 @@ import { PageHeader } from '@/components/admin/panel-ui';
 import TableroLeads from './TableroLeads';
 import Conversaciones from './Conversaciones';
 import BotWhatsapp from './BotWhatsapp';
+import Visitas from './Visitas';
 import { resolverTab, tabsVisibles, totalNoLeidos, type TabLeads } from './bot-whatsapp-estado';
-import type { WaConversacion } from '@/types/whatsapp-bot';
+import type { WaConversacion, WaVisita } from '@/types/whatsapp-bot';
+import { Contador, PuntoVivo } from './leads-ui';
 
 const TAB_LABEL: Record<TabLeads, string> = {
   tablero: 'Tablero',
   conversaciones: 'Conversaciones',
+  visitas: 'Visitas',
   bot: 'Bot de WhatsApp',
 };
 
 const POLL_NO_LEIDOS_MS = 15_000;
+
+type Resumen = { leads: number | null; visitas: number | null; bot: { activo: boolean; conectado: boolean; numero: string | null } | null };
 
 function LeadsConPestanas() {
   const router = useRouter();
@@ -32,6 +37,7 @@ function LeadsConPestanas() {
   const conversacionId = params.get('c');
   const tab = resolverTab(params.get('tab'), conversacionId, puedeConfigurarBot);
   const [noLeidos, setNoLeidos] = useState(0);
+  const [resumen, setResumen] = useState<Resumen>({ leads: null, visitas: null, bot: null });
 
   // Misma guarda que el tablero: por debajo de gestor, al inicio del panel.
   useEffect(() => {
@@ -57,10 +63,37 @@ function LeadsConPestanas() {
     };
   }, [activeProjectId, canSeeLeads]);
 
+  // Conteos de las pestañas y el estado del bot (arriba a la derecha). Se
+  // refrescan al cambiar de pestaña, que es cuando pueden haber cambiado.
+  useEffect(() => {
+    if (!canSeeLeads) return;
+    let vivo = true;
+    const json = (url: string) => fetch(withActiveProject(url, activeProjectId)).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    Promise.all([
+      json('/api/admin/leads'),
+      json('/api/admin/whatsapp-bot/visitas'),
+      puedeConfigurarBot ? json('/api/admin/whatsapp-bot') : Promise.resolve(null),
+    ]).then(([leads, visitas, bot]) => {
+      if (!vivo) return;
+      const lista: WaVisita[] = Array.isArray(visitas?.visitas) ? visitas.visitas : [];
+      const ahora = Date.now();
+      const b = bot?.bot as { activo?: boolean; estado?: string; numero?: string | null } | null | undefined;
+      setResumen({
+        leads: Array.isArray(leads) ? leads.length : null,
+        visitas: Array.isArray(visitas?.visitas) ? lista.filter(v => v.estado !== 'cancelada' && new Date(v.fin).getTime() >= ahora).length : null,
+        bot: b ? { activo: !!b.activo, conectado: b.estado === 'conectado', numero: b.numero ?? null } : null,
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [activeProjectId, canSeeLeads, puedeConfigurarBot, tab]);
+
   const irA = (t: TabLeads) => {
     const next = new URLSearchParams(params.toString());
     next.set('tab', t);
     if (t !== 'conversaciones') next.delete('c');
+    next.delete('lead');
     router.replace(`?${next.toString()}`, { scroll: false });
   };
 
@@ -70,20 +103,34 @@ function LeadsConPestanas() {
   // propio); Tablero y Bot fluyen como el resto del panel, con ese alto como
   // mínimo.
   const alto = tab === 'conversaciones' ? 'h-[calc(100vh-8rem)]' : 'min-h-[calc(100vh-8rem)]';
+  const bot = resumen.bot;
 
   return (
-    <div className={`${alto} flex flex-col gap-6`}>
-      {/* Un solo encabezado, fijo para las tres pestañas (el de main, que antes
-          vivía dentro del tablero). */}
+    <div className={`${alto} flex flex-col gap-6 sm:gap-7`}>
+      {/* Un solo encabezado, fijo para todas las pestañas, con el estado del bot a la derecha. */}
       <div className="shrink-0">
-        <PageHeader eyebrow="Operación" title="Leads" />
+        <PageHeader
+          eyebrow="Operación"
+          title="Leads"
+          actions={bot && (
+            <button
+              type="button"
+              onClick={() => irA('bot')}
+              className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-full border border-gray-300 bg-white text-sm text-gray-900 hover:border-gray-400"
+            >
+              {bot.activo && bot.conectado ? <PuntoVivo /> : <span aria-hidden="true" className="w-2 h-2 rounded-full bg-gray-400" />}
+              {bot.conectado ? (bot.activo ? 'Bot activo' : 'Bot pausado') : 'Bot sin vincular'}
+              {bot.conectado && bot.numero && <span className="text-gray-500 tabular-nums">· {bot.numero}</span>}
+            </button>
+          )}
+        />
       </div>
 
-      {/* Mismo segmented que las pestañas de un capítulo de la Ficha (ChapterTabs). */}
+      {/* Pestañas subrayadas del diseño, con sus conteos. */}
       <div
         role="tablist"
         aria-label="Leads"
-        className="self-start max-w-full inline-flex flex-wrap p-[3px] rounded-[10px] bg-[#EAE7E0] shrink-0"
+        className="flex flex-nowrap gap-6 sm:gap-7 overflow-x-auto border-b border-gray-200 shrink-0 [scrollbar-width:none]"
       >
         {tabsVisibles(puedeConfigurarBot).map(id => {
           const on = tab === id;
@@ -94,19 +141,16 @@ function LeadsConPestanas() {
               role="tab"
               aria-selected={on}
               onClick={() => irA(id)}
-              className={`min-h-[38px] px-3.5 flex items-center gap-2 rounded-lg text-[13px] transition-colors ${
-                on ? 'bg-white font-semibold text-gray-900 shadow-[0_1px_2px_rgba(23,25,26,0.06)]' : 'text-gray-600 hover:text-gray-900'
+              className={`-mb-px pb-3 pt-1 px-0.5 flex shrink-0 items-center gap-2 whitespace-nowrap text-[15px] border-b-2 transition-colors ${
+                on ? 'border-gray-900 font-semibold text-gray-900' : 'border-transparent font-medium text-gray-600 hover:text-gray-900'
               }`}
             >
-              {TAB_LABEL[id]}
+              <span>{TAB_LABEL[id]}</span>
+              {id === 'tablero' && !!resumen.leads && <Contador>{resumen.leads}</Contador>}
               {id === 'conversaciones' && noLeidos > 0 && (
-                <span
-                  className="min-w-[20px] h-5 px-1.5 rounded-full bg-brand-700 text-white text-[11px] font-semibold flex items-center justify-center"
-                  aria-label={`${noLeidos} sin leer`}
-                >
-                  {noLeidos}
-                </span>
+                <Contador tono="brand" label={`${noLeidos} sin leer`}>{noLeidos} sin leer</Contador>
               )}
+              {id === 'visitas' && !!resumen.visitas && <Contador label={`${resumen.visitas} próximas`}>{resumen.visitas}</Contador>}
             </button>
           );
         })}
@@ -115,6 +159,7 @@ function LeadsConPestanas() {
       <div className="flex-1 min-h-0">
         {tab === 'tablero' && <TableroLeads />}
         {tab === 'conversaciones' && <Conversaciones conversacionId={conversacionId} />}
+        {tab === 'visitas' && <Visitas />}
         {tab === 'bot' && <BotWhatsapp />}
       </div>
     </div>

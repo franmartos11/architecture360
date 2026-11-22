@@ -15,6 +15,8 @@ export interface ProjectNavInfo {
   projectLocation?: string;
   /** El propósito del proyecto captura leads — si no, no hay "Contactar". */
   showLeads: boolean;
+  /** PDF del brief del proyecto — si hay, el menú ofrece "Descargar brief". */
+  briefUrl?: string;
   /** Unidades disponibles — solo cuando el proyecto muestra estado de venta. */
   unitsAvailable?: number;
   amenitiesCount: number;

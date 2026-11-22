@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { ConfigBot, camposDeError, validarConfigContraBot } from '@/lib/whatsapp-bot/esquemas';
+import { asignarHostPorDefecto } from '@/lib/whatsapp-bot/host-default';
 import type { WaBot } from '@/types/whatsapp-bot';
 
 const PUENTE_VIVO_MS = 3 * 60 * 1000;
@@ -58,6 +59,7 @@ export async function PATCH(request: Request) {
 
   if (existente && Object.keys(config).length === 0) {
     const actual = existente as WaBot;
+    await completarHost(actual);
     if (actual.estado !== 'esperando_qr') actual.qr = null;
     return NextResponse.json(actual);
   }
@@ -69,6 +71,14 @@ export async function PATCH(request: Request) {
   const { data, error } = await query.select('*').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const bot = data as WaBot;
+  await completarHost(bot);
   if (bot.estado !== 'esperando_qr') bot.qr = null;
   return NextResponse.json(bot);
+}
+
+// Un bot sin máquina nadie lo atiende: le asigna la de este deploy, si hay.
+async function completarHost(bot: WaBot) {
+  if (bot.host_permitido) return;
+  const host = await asignarHostPorDefecto(bot.id);
+  if (host) bot.host_permitido = host;
 }

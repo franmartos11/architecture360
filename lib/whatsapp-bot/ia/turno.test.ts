@@ -48,7 +48,12 @@ function clienteFalso(...respuestas: unknown[]) {
 }
 
 function deps(): DepsHerramientas {
-  return { unidades: [], encolarImagenes: vi.fn(async () => {}), avisar: vi.fn(async () => 'avisado' as const) };
+  return {
+    unidades: [],
+    material: { renders: [], masterplan: null, brief: null, edificios: [], amenities: [], avance: [] },
+    linkUnidad: () => null,
+    anotarPregunta: vi.fn(async () => {}),
+    encolarImagenes: vi.fn(async () => {}), avisar: vi.fn(async () => 'avisado' as const) };
 }
 
 const SYSTEM: Anthropic.Beta.BetaTextBlockParam[] = [
@@ -99,6 +104,11 @@ describe('responderTurno', () => {
       'buscar_unidades',
       'ver_unidad',
       'enviar_imagenes',
+      'enviar_material',
+      'anotar_pregunta',
+      'ver_horarios_visita',
+      'agendar_visita',
+      'cancelar_visita',
       'avisar_vendedor',
     ]);
   });

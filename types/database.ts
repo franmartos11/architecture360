@@ -18,6 +18,8 @@ export interface ProjectRow {
   latitude: number | null;
   longitude: number | null;
   masterplan_image: string | null;
+  /** PDF "brief" del proyecto para el cliente (URL pública en project-media). */
+  brief_pdf_url: string | null;
   amenities: string[];
   common_areas_tour: TourData | null;
   tour_orientation_degrees: number | null;

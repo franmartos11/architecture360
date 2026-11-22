@@ -2,13 +2,25 @@
 
 import { useState } from 'react';
 import { Pill } from '@/components/project-landing/ui';
+import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
+import { briefWhatsappHref } from '@/lib/brief';
 
 // Tarjeta clara (--theme-surface) — vive encima de la foto oscurecida de
 // la sección Contacto, así que usa los colores de texto "sobre claro".
 const FIELD = 'h-[46px] w-full px-3.5 rounded-[calc(var(--theme-radius)*0.6)] border border-[var(--theme-border)] bg-transparent text-[15px] font-normal text-[var(--theme-text)] outline-none transition-colors focus:border-[var(--theme-text)]';
 const LABEL = 'flex flex-col gap-1.5 text-[13px] font-semibold text-[var(--theme-text)]';
 
-export default function HomeContactForm({ projectSlug }: { projectSlug: string }) {
+// Link externo con forma de Pill (Pill con href navega dentro del sitio).
+const BRIEF_LINK = 'inline-flex items-center justify-center gap-2 h-12 px-[22px] rounded-full text-sm sm:text-[15px] font-semibold no-underline transition-opacity hover:opacity-90 bg-[var(--theme-text)] text-[var(--theme-bg)] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--theme-accent)]';
+
+export default function HomeContactForm({ projectSlug, projectName, briefUrl }: {
+  projectSlug: string;
+  projectName: string;
+  /** PDF del brief: si hay, la pantalla de éxito ofrece recibirlo por WhatsApp (o descargarlo). */
+  briefUrl?: string;
+}) {
+  const whatsappNumber = useProjectWhatsapp();
+  const [sentName, setSentName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -39,6 +51,7 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
       });
 
       if (res.ok) {
+        setSentName(name);
         setIsSuccess(true);
         setName('');
         setEmail('');
@@ -64,6 +77,22 @@ export default function HomeContactForm({ projectSlug }: { projectSlug: string }
         </div>
         <p className="text-[var(--theme-text)] font-semibold">¡Mensaje enviado!</p>
         <p className="text-[var(--theme-text-muted)] text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
+        {briefUrl && (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            {whatsappNumber ? (
+              <>
+                <p className="m-0 text-sm text-[var(--theme-text)]">¿Querés el brief del proyecto ahora?</p>
+                <a href={briefWhatsappHref(whatsappNumber, sentName, projectName)} target="_blank" rel="noopener noreferrer" className={BRIEF_LINK}>
+                  Recibir el brief por WhatsApp
+                </a>
+              </>
+            ) : (
+              <a href={briefUrl} target="_blank" rel="noopener noreferrer" className={BRIEF_LINK}>
+                Descargar brief
+              </a>
+            )}
+          </div>
+        )}
       </div>
     );
   }

@@ -1,9 +1,9 @@
 import type { WaBot } from '@/types/whatsapp-bot';
 
-export type TabLeads = 'tablero' | 'conversaciones' | 'bot';
+export type TabLeads = 'tablero' | 'conversaciones' | 'visitas' | 'bot';
 
 export function parseTab(valor: string | null | undefined): TabLeads {
-  return valor === 'conversaciones' || valor === 'bot' ? valor : 'tablero';
+  return valor === 'conversaciones' || valor === 'visitas' || valor === 'bot' ? valor : 'tablero';
 }
 
 /**
@@ -20,9 +20,9 @@ export function resolverTab(
   return t === 'bot' && !puedeConfigurarBot ? 'tablero' : t;
 }
 
-/** Pestañas visibles: un gestor ve Tablero y Conversaciones; el bot es de administrador en adelante. */
+/** Pestañas visibles: un gestor ve Tablero, Conversaciones y Visitas; el bot es de administrador en adelante. */
 export function tabsVisibles(puedeConfigurarBot: boolean): TabLeads[] {
-  return puedeConfigurarBot ? ['tablero', 'conversaciones', 'bot'] : ['tablero', 'conversaciones'];
+  return puedeConfigurarBot ? ['tablero', 'conversaciones', 'visitas', 'bot'] : ['tablero', 'conversaciones', 'visitas'];
 }
 
 export type PanelBot = 'sin_bot' | 'desconectado' | 'esperando_qr' | 'conectado' | 'error';

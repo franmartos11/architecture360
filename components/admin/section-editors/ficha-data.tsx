@@ -13,7 +13,7 @@ import type { ProjectRow as DbProjectRow, BuildingRow as DbBuildingRow, AerialSl
 // capítulo nunca pisa lo que se editó en otro.
 
 export type FichaProject = Pick<DbProjectRow,
-  | 'id' | 'slug' | 'name' | 'description' | 'tagline' | 'location' | 'latitude' | 'longitude' | 'masterplan_image'
+  | 'id' | 'slug' | 'name' | 'description' | 'tagline' | 'location' | 'latitude' | 'longitude' | 'masterplan_image' | 'brief_pdf_url'
   | 'academic_institution' | 'academic_career' | 'academic_tutor' | 'academic_year' | 'academic_team'
   | 'process_gallery' | 'before_after' | 'published' | 'project_type' | 'sale_mode' | 'construction_progress'
 >;
@@ -44,6 +44,7 @@ const PATCH_KEY: Partial<Record<keyof FichaProject, string>> = {
   latitude: 'latitude',
   longitude: 'longitude',
   masterplan_image: 'masterplanImage',
+  brief_pdf_url: 'briefPdfUrl',
   academic_institution: 'academicInstitution',
   academic_career: 'academicCareer',
   academic_tutor: 'academicTutor',

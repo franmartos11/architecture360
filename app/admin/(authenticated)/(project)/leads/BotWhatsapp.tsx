@@ -7,13 +7,38 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { btnPrimary, fieldClass } from '@/components/admin/panel-ui';
 import type { WaBot, WaPedido } from '@/types/whatsapp-bot';
+import { Smartphone } from 'lucide-react';
+import { Interruptor } from './leads-ui';
 import { panelDelBot, resolverEspera, remezclarFallidos, ESPERA_PEDIDO_MS } from './bot-whatsapp-estado';
+import SimuladorBot from './SimuladorBot';
+import AgendaVisitas from './AgendaVisitas';
+import MetricasBot from './MetricasBot';
+import { CONFIG_VISITAS_DEFAULT, normalizarConfigVisitas, type ConfigVisitas } from '@/lib/whatsapp-bot/visitas';
+import PreguntasBot from './PreguntasBot';
 
 const AUTOSAVE_MS = 800;
 const POLL_QR_MS = 3000;
 
-type Campo = 'activo' | 'nombre_bot' | 'vendedor_nombre' | 'vendedor_whatsapp' | 'conocimiento' | 'criterio_aviso';
-type Form = { activo: boolean; nombre_bot: string; vendedor_nombre: string; vendedor_whatsapp: string; conocimiento: string; criterio_aviso: string };
+type Campo = 'activo' | 'nombre_bot' | 'vendedor_nombre' | 'vendedor_whatsapp' | 'conocimiento' | 'criterio_aviso' | 'seguimiento_activo' | 'seguimiento_horas' | 'visitas';
+type Form = {
+  activo: boolean;
+  nombre_bot: string;
+  vendedor_nombre: string;
+  vendedor_whatsapp: string;
+  conocimiento: string;
+  criterio_aviso: string;
+  seguimiento_activo: boolean;
+  seguimiento_horas: number;
+  visitas: ConfigVisitas;
+};
+
+const OPCIONES_SEGUIMIENTO: { horas: number; label: string }[] = [
+  { horas: 24, label: '1 día' },
+  { horas: 48, label: '2 días' },
+  { horas: 72, label: '3 días' },
+  { horas: 120, label: '5 días' },
+  { horas: 168, label: '7 días' },
+];
 
 function formDesde(bot: WaBot | null): Form {
   return {
@@ -23,21 +48,22 @@ function formDesde(bot: WaBot | null): Form {
     vendedor_whatsapp: bot?.vendedor_whatsapp ?? '',
     conocimiento: bot?.conocimiento ?? '',
     criterio_aviso: bot?.criterio_aviso ?? '',
+    seguimiento_activo: bot?.seguimiento_activo ?? false,
+    seguimiento_horas: bot?.seguimiento_horas ?? 72,
+    visitas: normalizarConfigVisitas(bot?.visitas) ?? CONFIG_VISITAS_DEFAULT,
   };
 }
 
-// Tarjeta con encabezado separado por una línea, como las de Configuración.
+// Tarjeta blanca del diseño.
 const SECCION = 'rounded-2xl border border-gray-200 bg-white';
-const SECCION_HEAD = 'px-5 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap';
-const SECCION_BODY = 'px-5 sm:px-6 py-5 flex flex-col gap-4';
 const ERROR_TEXT = 'm-0 text-[13px] font-medium text-red-700';
 
 function Campo({ label, ayuda, error, children }: { label: string; ayuda?: string; error?: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5 min-w-0">
-      <span className="text-xs font-medium text-gray-700">{label}</span>
+      <span className="text-sm font-medium text-gray-900">{label}</span>
       {children}
-      {ayuda && <span className="text-xs text-gray-500">{ayuda}</span>}
+      {ayuda && <span className="text-xs text-gray-600">{ayuda}</span>}
       {error && <span className="text-xs font-medium text-red-700" role="alert">{error}</span>}
     </label>
   );
@@ -258,12 +284,7 @@ export default function BotWhatsapp() {
   const hayCuerpo = sinVincular || panel === 'esperando_qr' || (panel === 'error' && !!bot?.ultimo_error) || !!accionError;
 
   return (
-    <div className="max-w-[800px] flex flex-col gap-6">
-      {/* El título es el "Leads" fijo de page.tsx; la pestaña ya dice "Bot de WhatsApp". */}
-      <p className="m-0 text-[15px] leading-relaxed text-gray-600 max-w-[640px]">
-        Vinculá el WhatsApp del proyecto y configurá cómo atiende el bot.
-      </p>
-
+    <div className="flex flex-col gap-6">
       {puenteCaido && (
         <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700" role="alert">
           El servidor del bot no responde
@@ -275,127 +296,164 @@ export default function BotWhatsapp() {
         </div>
       )}
 
-      <section className={SECCION}>
-        <div className={`${SECCION_HEAD} ${hayCuerpo ? 'border-b border-gray-200' : ''}`}>
-          <div className="flex items-center gap-2.5 flex-wrap min-w-0">
-            <h2 className="m-0 text-[15px] font-semibold text-gray-900">Número del proyecto</h2>
-            {panel === 'conectado' && (
-              <>
-                <EstadoNumero tono="green">Conectado</EstadoNumero>
-                {bot?.numero && <span className="text-[13px] font-medium text-gray-700 tabular-nums">{bot.numero}</span>}
-              </>
-            )}
-            {panel === 'esperando_qr' && <EstadoNumero tono="warn">Esperando que escanees el QR</EstadoNumero>}
-            {sinVincular && <EstadoNumero tono="neutral">Sin vincular</EstadoNumero>}
-            {panel === 'error' && <EstadoNumero tono="error">Error</EstadoNumero>}
-          </div>
-          {panel === 'conectado' && (
-            <button
-              type="button"
-              onClick={desconectar}
-              disabled={esperandoConexion}
-              className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-[10px] border border-red-300 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 transition-colors"
-            >
-              Desconectar
-            </button>
-          )}
-          {sinVincular && (
-            <button type="button" onClick={() => pedir('conectar')} disabled={esperandoConexion} className={btnPrimary}>
-              Vincular número
-            </button>
-          )}
-          {panel === 'error' && (
-            <button type="button" onClick={() => pedir('reiniciar')} disabled={esperandoConexion} className={btnPrimary}>
-              Reintentar
-            </button>
-          )}
-        </div>
+      {/* Resultados solo con el bot ya creado (antes no hay nada que medir). */}
+      {bot && <MetricasBot key={`metricas-${activeProjectId}`} />}
 
-        {hayCuerpo && (
-          <div className={SECCION_BODY}>
-            {sinVincular && (
-              <p className="m-0 text-[13px] leading-relaxed text-gray-600">
-                {esperandoConexion ? 'Esperando al servidor del bot…' : 'Usá un chip dedicado solo a este proyecto'}
-              </p>
-            )}
-            {panel === 'error' && bot?.ultimo_error && (
-              <p className="m-0 text-[13px] leading-relaxed text-red-700">{bot.ultimo_error}</p>
-            )}
-            {panel === 'esperando_qr' && (
-              <div className="flex gap-6 flex-wrap items-start">
-                {bot?.qr ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={bot.qr}
-                    alt="Código QR para vincular el WhatsApp del proyecto"
-                    width={260}
-                    height={260}
-                    className="rounded-[14px] border border-gray-200 bg-white p-2"
-                    style={{ width: 260, height: 260 }}
-                  />
-                ) : (
-                  <div
-                    className="flex items-center justify-center rounded-[14px] border-[1.5px] border-dashed border-gray-300 bg-gray-50 text-[13px] text-gray-500"
-                    style={{ width: 260, height: 260 }}
-                  >
-                    Generando el código…
+      <div className="flex flex-wrap gap-6 items-start">
+        <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">
+          <section className={SECCION}>
+            <div className="px-5 sm:px-6 py-5 flex flex-wrap items-center gap-4">
+              <span className="w-11 h-11 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0" aria-hidden="true">
+                <Smartphone className="w-5 h-5" />
+              </span>
+              <div className="flex-1 min-w-[200px]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="m-0 text-[15px] font-semibold text-gray-900">Número del proyecto</h2>
+                  {panel === 'conectado' && <EstadoNumero tono="green">Conectado</EstadoNumero>}
+                  {panel === 'esperando_qr' && <EstadoNumero tono="warn">Esperando que escanees el QR</EstadoNumero>}
+                  {sinVincular && <EstadoNumero tono="neutral">Sin vincular</EstadoNumero>}
+                  {panel === 'error' && <EstadoNumero tono="error">Error</EstadoNumero>}
+                </div>
+                <p className="m-0 mt-1 text-sm text-gray-700">
+                  {panel === 'conectado' && bot?.numero
+                    ? <><span className="tabular-nums">{bot.numero}</span> · chip dedicado a este proyecto</>
+                    : esperandoConexion
+                      ? 'Esperando al servidor del bot…'
+                      : 'Usá un chip dedicado solo a este proyecto'}
+                </p>
+              </div>
+              <label className="flex items-center gap-2.5 min-h-[44px] pl-3.5 pr-2 py-1.5 rounded-xl border border-gray-200 cursor-pointer">
+                <span className="text-sm font-semibold text-gray-900">Bot activo</span>
+                <Interruptor label="Bot activo" checked={form.activo} onChange={v => cambiar('activo', v)} />
+              </label>
+              {panel === 'conectado' && (
+                <button
+                  type="button"
+                  onClick={desconectar}
+                  disabled={esperandoConexion}
+                  className="inline-flex items-center justify-center min-h-[44px] px-3.5 rounded-[10px] border border-red-200 bg-white text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  Desconectar
+                </button>
+              )}
+              {sinVincular && (
+                <button type="button" onClick={() => pedir('conectar')} disabled={esperandoConexion} className={btnPrimary}>
+                  Vincular número
+                </button>
+              )}
+              {panel === 'error' && (
+                <button type="button" onClick={() => pedir('reiniciar')} disabled={esperandoConexion} className={btnPrimary}>
+                  Reintentar
+                </button>
+              )}
+            </div>
+            {errores.activo && <p className="m-0 px-5 sm:px-6 pb-4 text-xs font-medium text-red-700" role="alert">{errores.activo}</p>}
+
+            {hayCuerpo && (panel === 'esperando_qr' || (panel === 'error' && !!bot?.ultimo_error) || !!accionError) && (
+              <div className="px-5 sm:px-6 py-5 flex flex-col gap-4 border-t border-gray-100">
+                {panel === 'error' && bot?.ultimo_error && (
+                  <p className="m-0 text-[13px] leading-relaxed text-red-700">{bot.ultimo_error}</p>
+                )}
+                {panel === 'esperando_qr' && (
+                  <div className="flex gap-6 flex-wrap items-start">
+                    {bot?.qr ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={bot.qr}
+                        alt="Código QR para vincular el WhatsApp del proyecto"
+                        width={260}
+                        height={260}
+                        className="rounded-[14px] border border-gray-200 bg-white p-2"
+                        style={{ width: 260, height: 260 }}
+                      />
+                    ) : (
+                      <div
+                        className="flex items-center justify-center rounded-[14px] border-[1.5px] border-dashed border-gray-300 bg-gray-50 text-[13px] text-gray-500"
+                        style={{ width: 260, height: 260 }}
+                      >
+                        Generando el código…
+                      </div>
+                    )}
+                    <ol className="m-0 flex-[1_1_220px] list-decimal pl-5 flex flex-col gap-2 text-sm leading-relaxed text-gray-700 marker:font-semibold marker:text-gray-500">
+                      <li>Abrí WhatsApp en el celular del chip.</li>
+                      <li>Entrá a Dispositivos vinculados.</li>
+                      <li>Tocá Vincular un dispositivo y escaneá este código.</li>
+                    </ol>
                   </div>
                 )}
-                <ol className="m-0 flex-[1_1_220px] list-decimal pl-5 flex flex-col gap-2 text-[13px] leading-relaxed text-gray-700 marker:font-semibold marker:text-gray-500">
-                  <li>Abrí WhatsApp en el celular del chip.</li>
-                  <li>Entrá a Dispositivos vinculados.</li>
-                  <li>Tocá Vincular un dispositivo y escaneá este código.</li>
-                </ol>
+                {accionError && <p className={ERROR_TEXT} role="alert">{accionError}</p>}
               </div>
             )}
-            {accionError && <p className={ERROR_TEXT} role="alert">{accionError}</p>}
-          </div>
-        )}
-      </section>
+          </section>
 
-      <section className={SECCION}>
-        <div className={`${SECCION_HEAD} border-b border-gray-200`}>
-          <h2 className="m-0 text-[15px] font-semibold text-gray-900">Configuración</h2>
-          <span className="text-xs text-gray-500" aria-live="polite">{guardando ? 'Guardando…' : guardado ? 'Guardado' : ''}</span>
+          {/* key: al cambiar de proyecto arranca de cero (lista del anterior). */}
+          <PreguntasBot key={`preguntas-${activeProjectId}`} />
+
+          <section className={`${SECCION} overflow-hidden`}>
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="m-0 text-base font-semibold text-gray-900">Cómo atiende</h2>
+                <p className="m-0 mt-1 text-sm text-gray-600">Lo que dice el bot y a quién le pasa los leads.</p>
+              </div>
+              <span className="pt-1 text-xs text-gray-600 whitespace-nowrap" aria-live="polite">{guardando ? 'Guardando…' : guardado ? 'Guardado' : ''}</span>
+            </div>
+            <div className="px-5 sm:px-6 py-5 grid gap-x-4 gap-y-[18px] sm:grid-cols-2">
+              {errores._general && <p className={`${ERROR_TEXT} sm:col-span-2`} role="alert">{errores._general}</p>}
+
+              <div className="sm:col-span-2">
+                <Campo label="Se presenta como" ayuda="Si le preguntan, aclara que es un asistente virtual." error={errores.nombre_bot}>
+                  <input className={fieldClass} value={form.nombre_bot} onChange={e => cambiar('nombre_bot', e.target.value)} placeholder="Sofía, del equipo de Torre Alba" />
+                </Campo>
+              </div>
+
+              <Campo label="Vendedor" error={errores.vendedor_nombre}>
+                <input className={fieldClass} value={form.vendedor_nombre} onChange={e => cambiar('vendedor_nombre', e.target.value)} placeholder="Nombre" />
+              </Campo>
+              <Campo label="WhatsApp del vendedor" error={errores.vendedor_whatsapp}>
+                <input className={fieldClass} value={form.vendedor_whatsapp} onChange={e => cambiar('vendedor_whatsapp', e.target.value)} placeholder="+54 9 11 …" inputMode="tel" />
+              </Campo>
+
+              <div className="sm:col-span-2">
+                <Campo label="Lo que el bot tiene que saber" ayuda="Financiación, entrega, visitas, preguntas frecuentes. Los precios y unidades los toma de la ficha." error={errores.conocimiento}>
+                  <textarea className={`${fieldClass} py-3 leading-relaxed min-h-[160px] resize-y`} value={form.conocimiento} onChange={e => cambiar('conocimiento', e.target.value)} />
+                </Campo>
+              </div>
+
+              <div className="sm:col-span-2">
+                <Campo label="Cuándo avisarle al vendedor (opcional)" error={errores.criterio_aviso}>
+                  <input className={fieldClass} value={form.criterio_aviso} onChange={e => cambiar('criterio_aviso', e.target.value)} placeholder="ej: avisame si pregunta por 3 ambientes o quiere visitar" />
+                </Campo>
+              </div>
+
+              <div className="sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 rounded-xl border border-[#ECE9E3] bg-gray-50">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="text-sm font-semibold text-gray-900">Seguimiento automático</div>
+                  <div className="text-[13px] text-gray-600 mt-0.5">Si alguien dejó de responder, le escribe una vez para retomar. Solo de 10 a 20 h.</div>
+                </div>
+                {form.seguimiento_activo && (
+                  <label className="flex items-center gap-2 text-sm text-gray-900">
+                    Después de
+                    <select className="min-h-[40px] px-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900" value={form.seguimiento_horas} onChange={e => cambiar('seguimiento_horas', Number(e.target.value))}>
+                      {OPCIONES_SEGUIMIENTO.map(o => <option key={o.horas} value={o.horas}>{o.label}</option>)}
+                    </select>
+                  </label>
+                )}
+                <Interruptor label="Seguimiento automático" checked={form.seguimiento_activo} onChange={v => cambiar('seguimiento_activo', v)} />
+                {(errores.seguimiento_activo || errores.seguimiento_horas) && (
+                  <span className="w-full text-xs font-medium text-red-700" role="alert">{errores.seguimiento_activo ?? errores.seguimiento_horas}</span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <AgendaVisitas valor={form.visitas} onChange={v => cambiar('visitas', v)} error={errores.visitas} />
         </div>
-        <div className="px-5 sm:px-6 py-5 flex flex-col gap-5">
-          {errores._general && <p className={ERROR_TEXT} role="alert">{errores._general}</p>}
 
-          <div className="flex flex-col gap-1.5">
-            {/* Toggle del diseño (como "Mostrar la calculadora en el sitio"), sobre un checkbox nativo. */}
-            <label className="flex items-center justify-between gap-4 min-h-[56px] px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
-              <span className="text-sm font-semibold text-gray-900">Bot activo</span>
-              <span className="relative shrink-0 w-11 h-7">
-                <input type="checkbox" checked={form.activo} onChange={e => cambiar('activo', e.target.checked)} className="peer sr-only" />
-                <span aria-hidden="true" className="absolute inset-0 rounded-full bg-gray-300 transition-colors peer-checked:bg-brand-700 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/30 peer-focus-visible:ring-offset-2" />
-                <span aria-hidden="true" className="absolute top-[3px] left-[3px] w-[22px] h-[22px] rounded-full bg-white shadow transition-[left] peer-checked:left-[19px]" />
-              </span>
-            </label>
-            {errores.activo && <span className="text-xs font-medium text-red-700" role="alert">{errores.activo}</span>}
-          </div>
-
-          <Campo label="Se presenta como" ayuda="Usá un nombre si querés; si le preguntan, aclara que es un asistente virtual" error={errores.nombre_bot}>
-            <input className={fieldClass} value={form.nombre_bot} onChange={e => cambiar('nombre_bot', e.target.value)} placeholder="Sofía, del equipo de Torre Alba" />
-          </Campo>
-
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <Campo label="Vendedor" error={errores.vendedor_nombre}>
-              <input className={fieldClass} value={form.vendedor_nombre} onChange={e => cambiar('vendedor_nombre', e.target.value)} placeholder="Nombre" />
-            </Campo>
-            <Campo label="WhatsApp del vendedor" error={errores.vendedor_whatsapp}>
-              <input className={fieldClass} value={form.vendedor_whatsapp} onChange={e => cambiar('vendedor_whatsapp', e.target.value)} placeholder="+54 9 11 …" inputMode="tel" />
-            </Campo>
-          </div>
-
-          <Campo label="Lo que el bot tiene que saber" ayuda="Financiación, entrega, visitas, preguntas frecuentes" error={errores.conocimiento}>
-            <textarea className={`${fieldClass} py-3 leading-relaxed min-h-[220px] resize-y`} value={form.conocimiento} onChange={e => cambiar('conocimiento', e.target.value)} />
-          </Campo>
-
-          <Campo label="Cuándo avisarme (opcional)" error={errores.criterio_aviso}>
-            <input className={fieldClass} value={form.criterio_aviso} onChange={e => cambiar('criterio_aviso', e.target.value)} placeholder="ej: solo si pregunta por 3 ambientes" />
-          </Campo>
-        </div>
-      </section>
+        <aside className="flex-[1_1_340px] min-w-0">
+          {/* key: al cambiar de proyecto arranca de cero (charla del anterior). */}
+          <SimuladorBot key={`simulador-${activeProjectId}`} />
+        </aside>
+      </div>
     </div>
   );
 }

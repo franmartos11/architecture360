@@ -32,6 +32,11 @@ export interface WaBot {
   vendedor_user_id: string | null;
   conocimiento: string | null;
   criterio_aviso: string | null;
+  /** Seguimiento automático (ver lib/whatsapp-bot/seguimiento.ts). Opcionales: bases sin migrar. */
+  seguimiento_activo?: boolean;
+  seguimiento_horas?: number;
+  /** Agenda de visitas (jsonb; ver normalizarConfigVisitas). */
+  visitas?: unknown;
   mensajes_hoy: number;
   mensajes_hoy_fecha: string | null;
   created_at: string;
@@ -58,6 +63,8 @@ export interface WaConversacion {
   ia_pausada_motivo: string | null;
   /** enviado_at del último mensaje del cliente que ya evaluó un turno de la IA. */
   ia_visto_hasta: string | null;
+  /** Cuándo se evaluó (y quizás mandó) el último seguimiento automático. */
+  seguimiento_at?: string | null;
   created_at: string;
 }
 
@@ -77,6 +84,8 @@ export interface WaMensaje {
   orden_at: string | null;
   /** wa_salida que lo originó (null = entrante o escrito desde el teléfono). */
   salida_id: string | null;
+  /** Texto de un audio del cliente (servicio de transcripción); null = sin transcribir. */
+  transcripcion?: string | null;
 }
 
 export interface WaSalida {
@@ -98,4 +107,41 @@ export interface WaSalida {
   enviado_at: string | null;
   /** Se copia a wa_mensajes.orden_at al registrar el envío. */
   orden_at: string | null;
+}
+
+export type WaEstadoPregunta = 'pendiente' | 'respondida' | 'descartada';
+
+/** Pregunta que el bot no supo responder, agrupada por tema (tabla wa_preguntas). */
+export interface WaPregunta {
+  id: string;
+  project_id: string;
+  tema: string;
+  tema_clave: string;
+  /** La última forma en que la hizo un cliente. */
+  pregunta: string;
+  veces: number;
+  estado: WaEstadoPregunta;
+  respuesta: string | null;
+  conversacion_id: string | null;
+  created_at: string;
+  ultima_at: string;
+  respondida_at: string | null;
+}
+
+export type WaEstadoVisita = 'agendada' | 'confirmada' | 'cancelada' | 'realizada' | 'no_vino';
+
+/** Visita al proyecto agendada por el bot (tabla wa_visitas). */
+export interface WaVisita {
+  id: string;
+  project_id: string;
+  bot_id: string | null;
+  conversacion_id: string | null;
+  lead_id: string | null;
+  inicio: string;
+  fin: string;
+  nombre: string | null;
+  telefono: string | null;
+  notas: string | null;
+  estado: WaEstadoVisita;
+  created_at: string;
 }

@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/whatsapp-bot/host-default', () => ({ asignarHostPorDefecto: vi.fn(async () => null) }));
 vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
 }));
 
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
+import { asignarHostPorDefecto } from '@/lib/whatsapp-bot/host-default';
 import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
 import { GET, PATCH } from './route';
 
@@ -66,6 +68,28 @@ describe('/api/admin/whatsapp-bot', () => {
     expect(res.status).toBe(200);
     const ins = supabase.from.mock.results[1].value;
     expect(ins.insert).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p1', vendedor_user_id: 'admin1' }));
+  });
+
+  it('PATCH crea un bot sin máquina: le asigna la del deploy y la devuelve', async () => {
+    vi.mocked(asignarHostPorDefecto).mockResolvedValueOnce('mac-pruebas');
+    const supabase = mockSupabase({
+      results: [{ data: null }, { data: { id: 'b', estado: 'desconectado', qr: null, host_permitido: null } }],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'administrador' } as never);
+    const json = await (await PATCH(req({ activo: true }))).json();
+    expect(asignarHostPorDefecto).toHaveBeenCalledWith('b');
+    expect(json.host_permitido).toBe('mac-pruebas');
+  });
+
+  it('PATCH sobre bot que ya tiene máquina: no la toca', async () => {
+    vi.mocked(asignarHostPorDefecto).mockClear();
+    const supabase = mockSupabase({
+      results: [{ data: { id: 'b', host_permitido: 'srv1' } }, { data: { id: 'b', estado: 'conectado', host_permitido: 'srv1' } }],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'administrador' } as never);
+    const json = await (await PATCH(req({ activo: true }))).json();
+    expect(asignarHostPorDefecto).not.toHaveBeenCalled();
+    expect(json.host_permitido).toBe('srv1');
   });
 
   it('PATCH con config vacía sobre fila existente: devuelve la fila sin update', async () => {

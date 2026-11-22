@@ -212,6 +212,7 @@ function mapProject(
     latitude: project.latitude != null ? Number(project.latitude) : undefined,
     longitude: project.longitude != null ? Number(project.longitude) : undefined,
     masterplanImage: project.masterplan_image ?? '',
+    briefPdfUrl: project.brief_pdf_url || undefined,
     projectType: project.project_type,
     saleMode: project.sale_mode,
     academicInstitution: project.academic_institution ?? undefined,

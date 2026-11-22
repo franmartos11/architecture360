@@ -421,6 +421,10 @@ alter table projects add column if not exists section_config jsonb not null defa
 -- (ver tabla `fonts` más abajo).
 alter table projects add column if not exists theme_config jsonb not null default '{}';
 
+-- Brief del proyecto: PDF para el cliente (bucket project-media). Se descarga
+-- desde el sitio y el bot de WhatsApp lo manda cuando se lo piden.
+alter table projects add column if not exists brief_pdf_url text;
+
 -- ─── Edificios (torres) ─────────────────────────────────────────────
 create table if not exists buildings (
   id uuid primary key default gen_random_uuid(),
@@ -2412,6 +2416,9 @@ create table if not exists wa_conversaciones (
   unique (bot_id, contacto_numero)
 );
 
+-- Calificación que arma la IA del bot al avisar (temperatura, presupuesto,
+-- ambientes, plazo, propósito, financiación). La escribe el puente.
+alter table leads add column if not exists calificacion jsonb;
 -- leads existe desde antes; se enlaza recién ahora que wa_conversaciones existe.
 alter table leads add column if not exists wa_conversacion_id uuid
   references wa_conversaciones(id) on delete set null;
@@ -2431,6 +2438,17 @@ create table if not exists wa_mensajes (
   created_at      timestamptz not null default now()
 );
 create index if not exists idx_wa_mensajes_conv on wa_mensajes(conversacion_id, enviado_at);
+-- Seguimiento automático: el bot le escribe una vez a quien charló y dejó de
+-- responder (configurable por bot; seguimiento_at lo escribe solo el puente).
+alter table wa_bots add column if not exists seguimiento_activo boolean not null default false;
+alter table wa_bots add column if not exists seguimiento_horas int not null default 72;
+do $$ begin
+  alter table wa_bots add constraint wa_bots_seguimiento_horas_check check (seguimiento_horas between 24 and 336);
+exception when duplicate_object then null; end $$;
+alter table wa_conversaciones add column if not exists seguimiento_at timestamptz;
+
+-- Texto de los audios del cliente (lo transcribe el puente si hay servicio configurado).
+alter table wa_mensajes add column if not exists transcripcion text;
 
 create table if not exists wa_salida (
   id                uuid primary key default gen_random_uuid(),
@@ -2706,3 +2724,133 @@ as $$
     and p.published
 $$;
 grant execute on function public_project_whatsapp(uuid) to anon, authenticated;
+
+-- ─── Preguntas que el bot no supo responder ──────────────────────────
+-- Cuando la IA le dice al cliente "lo consulto con el equipo", anota la
+-- pregunta agrupada por tema (tema_clave = tema normalizado). El panel las
+-- responde; las respondidas entran a la ficha del bot como preguntas
+-- frecuentes. Las escribe el puente (service_role); desde el panel un
+-- administrador solo puede responder, cambiar el estado o borrar.
+create table if not exists wa_preguntas (
+  id               uuid primary key default gen_random_uuid(),
+  project_id       uuid not null references projects(id) on delete cascade,
+  tema             text not null check (char_length(tema) between 1 and 120),
+  tema_clave       text not null,
+  pregunta         text not null check (char_length(pregunta) between 1 and 1000),
+  veces            int not null default 1,
+  estado           text not null default 'pendiente'
+                     check (estado in ('pendiente','respondida','descartada')),
+  respuesta        text check (respuesta is null or char_length(respuesta) <= 2000),
+  conversacion_id  uuid references wa_conversaciones(id) on delete set null,
+  created_at       timestamptz not null default now(),
+  ultima_at        timestamptz not null default now(),
+  respondida_at    timestamptz,
+  constraint wa_preguntas_respondida_con_texto
+    check (estado <> 'respondida' or char_length(btrim(coalesce(respuesta, ''))) > 0)
+);
+create unique index if not exists idx_wa_preguntas_tema on wa_preguntas(project_id, tema_clave);
+
+alter table wa_preguntas enable row level security;
+
+drop policy if exists "owner read wa_preguntas" on wa_preguntas;
+create policy "owner read wa_preguntas" on wa_preguntas for select to authenticated
+  using ((select project_role_rank(wa_preguntas.project_id)) >= 3);
+
+drop policy if exists "owner update wa_preguntas" on wa_preguntas;
+create policy "owner update wa_preguntas" on wa_preguntas for update to authenticated
+  using ((select project_role_rank(wa_preguntas.project_id)) >= 3)
+  with check ((select project_role_rank(wa_preguntas.project_id)) >= 3);
+
+drop policy if exists "owner delete wa_preguntas" on wa_preguntas;
+create policy "owner delete wa_preguntas" on wa_preguntas for delete to authenticated
+  using ((select project_role_rank(wa_preguntas.project_id)) >= 3);
+
+-- Desde el panel solo cambian estado, respuesta y respondida_at (lista de lo
+-- permitido, como wa_conversaciones_guard_panel).
+create or replace function wa_preguntas_guard_panel() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(
+       nullif(current_setting('request.jwt.claim.role', true), ''),
+       (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+     ) is distinct from 'service_role'
+     and current_user not in ('postgres', 'service_role', 'supabase_admin') then
+    new := jsonb_populate_record(old, jsonb_build_object(
+      'estado', new.estado,
+      'respuesta', new.respuesta,
+      'respondida_at', new.respondida_at
+    ));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists wa_preguntas_guard_panel on wa_preguntas;
+create trigger wa_preguntas_guard_panel
+  before update on wa_preguntas
+  for each row execute function wa_preguntas_guard_panel();
+
+-- ─── Visitas agendadas por el bot ────────────────────────────────────
+-- wa_bots.visitas: la agenda del vendedor (franjas por día, duración,
+-- anticipación, lugar; ver lib/whatsapp-bot/visitas.ts). El bot ofrece turnos
+-- libres y agenda; el índice único evita dos visitas en el mismo turno. Las
+-- crea el puente (service_role); desde el panel un gestor en adelante las ve y
+-- cambia el estado o las notas, y un administrador las puede borrar.
+alter table wa_bots add column if not exists visitas jsonb;
+
+create table if not exists wa_visitas (
+  id               uuid primary key default gen_random_uuid(),
+  project_id       uuid not null references projects(id) on delete cascade,
+  bot_id           uuid references wa_bots(id) on delete set null,
+  conversacion_id  uuid references wa_conversaciones(id) on delete set null,
+  lead_id          uuid references leads(id) on delete set null,
+  inicio           timestamptz not null,
+  fin              timestamptz not null,
+  nombre           text check (nombre is null or char_length(nombre) <= 120),
+  telefono         text,
+  notas            text check (notas is null or char_length(notas) <= 2000),
+  estado           text not null default 'agendada'
+                     check (estado in ('agendada','confirmada','cancelada','realizada','no_vino')),
+  created_at       timestamptz not null default now(),
+  constraint wa_visitas_rango check (fin > inicio)
+);
+create unique index if not exists idx_wa_visitas_turno on wa_visitas(project_id, inicio)
+  where estado in ('agendada','confirmada');
+create index if not exists idx_wa_visitas_proyecto on wa_visitas(project_id, inicio);
+create index if not exists idx_wa_visitas_conv on wa_visitas(conversacion_id) where conversacion_id is not null;
+
+alter table wa_visitas enable row level security;
+
+drop policy if exists "team read wa_visitas" on wa_visitas;
+create policy "team read wa_visitas" on wa_visitas for select to authenticated
+  using ((select project_role_rank(wa_visitas.project_id)) >= 2);
+
+drop policy if exists "team update wa_visitas" on wa_visitas;
+create policy "team update wa_visitas" on wa_visitas for update to authenticated
+  using ((select project_role_rank(wa_visitas.project_id)) >= 2)
+  with check ((select project_role_rank(wa_visitas.project_id)) >= 2);
+
+drop policy if exists "owner delete wa_visitas" on wa_visitas;
+create policy "owner delete wa_visitas" on wa_visitas for delete to authenticated
+  using ((select project_role_rank(wa_visitas.project_id)) >= 3);
+
+-- Desde el panel solo cambian estado y notas (lista de lo permitido).
+create or replace function wa_visitas_guard_panel() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(
+       nullif(current_setting('request.jwt.claim.role', true), ''),
+       (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+     ) is distinct from 'service_role'
+     and current_user not in ('postgres', 'service_role', 'supabase_admin') then
+    new := jsonb_populate_record(old, jsonb_build_object(
+      'estado', new.estado,
+      'notas', new.notas
+    ));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists wa_visitas_guard_panel on wa_visitas;
+create trigger wa_visitas_guard_panel
+  before update on wa_visitas
+  for each row execute function wa_visitas_guard_panel();

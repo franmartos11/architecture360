@@ -15,6 +15,9 @@ const { enviarEmail, ResendFalso } = vi.hoisted(() => {
 vi.mock('resend', () => ({ Resend: ResendFalso }));
 
 import {
+  agendarVisita,
+  cancelarVisitasDeConversacion,
+  conversacionesParaSeguimiento,
   contarRespuestasBotUltimaHora,
   encolar,
   fechaBuenosAires,
@@ -386,6 +389,37 @@ describe('registrarAviso', () => {
     const r = await registrarAviso(f.sb, conv({ avisado_at: avisado }), datos, bot({ vendedor_whatsapp: '5491144440000' }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');
     expect(r).toBe('ya_avisado');
     expect(f.escrituras()).toEqual([]);
+  });
+
+  it('ya avisado con calificación nueva: no repite el aviso pero la suma al lead', async () => {
+    const avisado = new Date(AHORA.getTime() - DIA).toISOString();
+    const f = sbFalso((q) => {
+      if (q.tabla === 'wa_conversaciones' && q.op === 'select') return { data: { avisado_at: avisado, lead_id: 'lead9' } };
+      if (q.tabla === 'wa_mensajes' && q.unico === 'maybeSingle')
+        return { data: { enviado_at: new Date(AHORA.getTime() - DIA - 60_000).toISOString() } };
+      if (q.tabla === 'wa_mensajes') return { data: [{ enviado_at: new Date(AHORA.getTime() - 60_000).toISOString() }] };
+      if (q.tabla === 'leads' && q.op === 'select')
+        return { data: { calificacion: { temperatura: 'tibio', presupuesto: 'USD 90.000', ambientes: null, plazo: null, proposito: null, financiacion: null, actualizada_at: avisado } } };
+      return undefined;
+    });
+    const calificacion = { temperatura: 'caliente' as const, presupuesto: null, ambientes: 3, plazo: null, proposito: null, financiacion: null, actualizada_at: AHORA.toISOString() };
+    const r = await registrarAviso(f.sb, conv({ avisado_at: avisado }), { ...datos, calificacion }, bot({ vendedor_whatsapp: '5491144440000' }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');
+    expect(r).toBe('ya_avisado');
+    const escrituras = f.escrituras();
+    expect(escrituras).toHaveLength(1);
+    expect(escrituras[0].tabla).toBe('leads');
+    expect(escrituras[0].valores).toEqual({ calificacion: { ...calificacion, presupuesto: 'USD 90.000' } });
+    expect(tiene(escrituras[0], 'eq', 'id', 'lead9')).toBe(true);
+  });
+
+  it('el aviso nuevo lleva la calificación en el lead y en el mensaje al vendedor', async () => {
+    const f = sbFalso(responderAviso());
+    const calificacion = { temperatura: 'caliente' as const, presupuesto: 'USD 120.000', ambientes: 3, plazo: null, proposito: 'vivir' as const, financiacion: null, actualizada_at: AHORA.toISOString() };
+    await registrarAviso(f.sb, conv(), { ...datos, calificacion }, bot({ vendedor_whatsapp: '5491144440000' }), { name: 'Torre Sol' }, 'https://app.ejemplo.com');
+    const lead = f.escrituras().find((q) => q.tabla === 'leads');
+    expect((lead?.valores as Record<string, unknown>).calificacion).toEqual(calificacion);
+    const aviso = f.escrituras().find((q) => q.tabla === 'wa_salida');
+    expect((aviso?.valores as { cuerpo: string }).cuerpo).toContain('Caliente · presupuesto USD 120.000 · 3 amb · para vivir');
   });
 
   it('lee avisado_at fresco de la base (una segunda llamada en el mismo turno no avisa dos veces)', async () => {
@@ -1029,6 +1063,13 @@ describe('registrarSalidaEnviada', () => {
     expect(ins.valores).toMatchObject({ orden_at: AHORA.toISOString(), tipo: 'imagen', autor: 'vendedor' });
   });
 
+  it('un PDF (el brief) queda como tipo documento, no imagen', async () => {
+    const f = sbFalso((q) => (q.tabla === 'wa_mensajes' ? { data: [{ id: 'm1' }] } : { data: { no_leidos: 0 } }));
+    await registrarSalidaEnviada(f.sb, salida({ adjunto_url: 'https://x/brief/1-a/brief-torre.PDF', cuerpo: null }), 'wa-1', 'bot');
+    const [ins] = f.escrituras().filter((q) => q.tabla === 'wa_mensajes');
+    expect(ins.valores).toMatchObject({ tipo: 'documento' });
+  });
+
   it('un aviso (sin conversación) solo se marca enviado', async () => {
     const f = sbFalso();
     await registrarSalidaEnviada(f.sb, salida({ conversacion_id: null, origen: 'aviso' }), 'wa-1', 'bot');
@@ -1186,3 +1227,61 @@ describe('fechaBuenosAires', () => {
     expect(fechaBuenosAires(new Date('2026-11-21T03:00:00.000Z'))).toBe('2026-11-21');
   });
 });
+
+describe('visitas', () => {
+  const inicio = new Date('2026-11-20T14:00:00.000Z');
+  const fin = new Date('2026-11-20T15:00:00.000Z');
+  const base = (b = bot({ vendedor_whatsapp: '5491144440000' })) => ({
+    bot: b, conv: conv(), inicio, fin, nombre: 'Ana', proyecto: { name: 'Torre Sol' }, urlAdmin: 'https://app.ejemplo.com',
+  });
+
+  it('agendarVisita: inserta con el lead de la conversación y avisa al vendedor', async () => {
+    const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : q.tabla === 'wa_salida' ? { data: salida() } : undefined));
+    expect(await agendarVisita(f.sb, base())).toBe('agendada');
+    const ins = f.escrituras().find((q) => q.tabla === 'wa_visitas');
+    expect(ins?.valores).toMatchObject({ project_id: 'proj1', conversacion_id: 'conv1', lead_id: 'lead7', inicio: inicio.toISOString(), fin: fin.toISOString(), nombre: 'Ana' });
+    const aviso = f.escrituras().find((q) => q.tabla === 'wa_salida');
+    expect((aviso?.valores as { cuerpo: string }).cuerpo).toContain('📅 Visita agendada – Torre Sol');
+    expect((aviso?.valores as { cuerpo: string }).cuerpo).toContain('vie 20/11 11:00 (60 min)');
+  });
+
+  it('agendarVisita: turno tomado por otra (índice único) → ocupado, sin aviso', async () => {
+    const f = sbFalso((q) =>
+      q.tabla === 'wa_visitas' ? { error: { message: 'dup', code: '23505' } } : q.tabla === 'wa_conversaciones' ? { data: { lead_id: null } } : undefined,
+    );
+    expect(await agendarVisita(f.sb, base())).toBe('ocupado');
+    expect(f.escrituras().some((q) => q.tabla === 'wa_salida')).toBe(false);
+  });
+
+  it('cancelarVisitasDeConversacion: solo futuras de esta charla y avisa por cada una', async () => {
+    const f = sbFalso((q) =>
+      q.tabla === 'wa_visitas'
+        ? { data: [{ id: 'v1', inicio: inicio.toISOString(), fin: fin.toISOString(), nombre: 'Ana' }] }
+        : q.tabla === 'wa_salida' ? { data: salida() } : undefined,
+    );
+    const r = await cancelarVisitasDeConversacion(f.sb, { bot: bot({ vendedor_whatsapp: '5491144440000' }), conv: conv(), ahora: AHORA, proyecto: { name: 'Torre Sol' }, urlAdmin: 'https://app.ejemplo.com' });
+    expect(r).toHaveLength(1);
+    const upd = f.escrituras().find((q) => q.tabla === 'wa_visitas')!;
+    expect(upd.valores).toEqual({ estado: 'cancelada' });
+    expect(tiene(upd, 'eq', 'conversacion_id', 'conv1')).toBe(true);
+    expect(tiene(upd, 'gt', 'inicio', AHORA.toISOString())).toBe(true);
+    expect((f.escrituras().find((q) => q.tabla === 'wa_salida')?.valores as { cuerpo: string }).cuerpo).toContain('❌ Visita cancelada');
+  });
+});
+
+describe('conversacionesParaSeguimiento', () => {
+  it('filtra por bot, modo, sin aviso y deja solo las que el último mensaje es posterior al del cliente', async () => {
+    const f = sbFalso(() => ({
+      data: [
+        { id: 'a', ultimo_mensaje_at: '2026-11-15T10:05:00+00:00', ultimo_entrante_at: '2026-11-15T10:00:00+00:00' },
+        { id: 'b', ultimo_mensaje_at: '2026-11-15T10:00:00+00:00', ultimo_entrante_at: '2026-11-15T10:00:00+00:00' },
+      ],
+    }));
+    expect(await conversacionesParaSeguimiento(f.sb, 'bot1', AHORA, 72, 14)).toEqual(['a']);
+    const q = f.consultas[0];
+    expect(tiene(q, 'eq', 'bot_id', 'bot1')).toBe(true);
+    expect(tiene(q, 'eq', 'modo', 'bot')).toBe(true);
+    expect(tiene(q, 'is', 'avisado_at', null)).toBe(true);
+  });
+});
+

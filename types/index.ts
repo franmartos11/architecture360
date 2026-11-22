@@ -541,6 +541,8 @@ export interface Project {
   latitude?: number;
   longitude?: number;
   masterplanImage: string;
+  /** PDF "brief" del proyecto para el cliente; ausente si no se cargó. */
+  briefPdfUrl?: string;
   projectType: ProjectType;
   saleMode: ProjectSaleMode;
   /** Ficha académica — solo tiene sentido (y solo se completa) en proyectos showcase. */
@@ -591,7 +593,22 @@ export interface Lead {
   source: string | null;
   status: string;
   wa_conversacion_id: string | null;
+  /** Lo completa el bot de WhatsApp al avisar (ver lib/whatsapp-bot/calificacion.ts). */
+  calificacion?: CalificacionLead | null;
   created_at: string;
+}
+
+export type TemperaturaLead = 'frio' | 'tibio' | 'caliente';
+
+/** Calificación del lead que arma la IA del bot con lo que dijo el cliente. */
+export interface CalificacionLead {
+  temperatura: TemperaturaLead;
+  presupuesto: string | null;
+  ambientes: number | null;
+  plazo: string | null;
+  proposito: 'vivir' | 'invertir' | 'ambos' | null;
+  financiacion: boolean | null;
+  actualizada_at: string;
 }
 
 // ─── Modelos BIM ────────────────────────────────────────────────────

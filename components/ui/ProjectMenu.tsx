@@ -216,6 +216,21 @@ function ProjectMenuOverlay({ info, onClose, onContact }: {
             ))}
           </nav>
 
+          {info.briefUrl && (
+            <a
+              href={info.briefUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="mt-2 md:mt-6 h-[52px] md:h-[46px] flex items-center justify-center gap-2 rounded-xl md:rounded-[10px] border border-[var(--theme-text-on-dark)]/20 text-base md:text-sm font-medium hover:bg-[var(--theme-text-on-dark)]/5 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+              </svg>
+              Descargar brief
+            </a>
+          )}
+
           {info.showLeads && (
             <div className="mt-2 md:mt-6 flex gap-2.5">
               <button

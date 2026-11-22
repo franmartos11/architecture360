@@ -8,6 +8,7 @@ describe('parseTab', () => {
     expect(parseTab('tablero')).toBe('tablero');
     expect(parseTab('conversaciones')).toBe('conversaciones');
     expect(parseTab('bot')).toBe('bot');
+    expect(parseTab('visitas')).toBe('visitas');
   });
   it('default y desconocidos van a tablero', () => {
     expect(parseTab(null)).toBe('tablero');
@@ -29,9 +30,9 @@ describe('resolverTab', () => {
 });
 
 describe('tabsVisibles', () => {
-  it('gestor: Tablero y Conversaciones; administrador o dueño: también el bot', () => {
-    expect(tabsVisibles(false)).toEqual(['tablero', 'conversaciones']);
-    expect(tabsVisibles(true)).toEqual(['tablero', 'conversaciones', 'bot']);
+  it('gestor: Tablero, Conversaciones y Visitas; administrador o dueño: también el bot', () => {
+    expect(tabsVisibles(false)).toEqual(['tablero', 'conversaciones', 'visitas']);
+    expect(tabsVisibles(true)).toEqual(['tablero', 'conversaciones', 'visitas', 'bot']);
   });
 });
 

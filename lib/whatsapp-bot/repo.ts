@@ -4,13 +4,14 @@
 // y sin datos del contacto.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
-import type { Lead } from '@/types';
+import type { CalificacionLead, Lead } from '@/types';
 import type {
   WaAutor,
   WaBot,
   WaConversacion,
   WaMensaje,
   WaSalida,
+  WaVisita,
 } from '@/types/whatsapp-bot';
 import { escapeHtml } from '@/lib/sanitize';
 import { leadRecipientIds } from '@/lib/lead-recipients';
@@ -25,6 +26,8 @@ import {
 } from './aviso';
 import { MAX_MENSAJES_HISTORIAL, ordenarHistorial } from './ia/historial';
 import { debeRearmarAviso, normalizarTelefono } from './reglas';
+import { mezclarCalificacion } from './calificacion';
+import { textoTurno } from './visitas';
 
 export { createBotClient } from './db';
 
@@ -399,6 +402,188 @@ export async function historial(
   return ordenarHistorial([...mensajes, ...enCola]).slice(-n);
 }
 
+/**
+ * Conversaciones candidatas al seguimiento: en modo bot, sin aviso, con el
+ * cliente activo en los últimos `diasMax` días y la última actividad hace al
+ * menos `horas`. Las reglas finas (debeHacerSeguimiento) se aplican después.
+ */
+export async function conversacionesParaSeguimiento(
+  sb: SupabaseClient,
+  botId: string,
+  ahora: Date,
+  horas: number,
+  diasMax: number,
+  limite = 20,
+): Promise<string[]> {
+  const { data, error } = await sb
+    .from('wa_conversaciones')
+    .select('id, ultimo_mensaje_at, ultimo_entrante_at')
+    .eq('bot_id', botId)
+    .eq('modo', 'bot')
+    .eq('creada_post_vinculo', true)
+    .is('avisado_at', null)
+    .gte('ultimo_entrante_at', iso(ahora.getTime() - diasMax * 24 * 3_600_000))
+    .lte('ultimo_mensaje_at', iso(ahora.getTime() - horas * 3_600_000))
+    .order('ultimo_mensaje_at', { ascending: true })
+    .limit(limite);
+  revisar('conversacionesParaSeguimiento: select wa_conversaciones', error);
+  // El último mensaje tiene que ser posterior al del cliente (le contestamos y no volvió).
+  return ((data ?? []) as Pick<WaConversacion, 'id' | 'ultimo_mensaje_at' | 'ultimo_entrante_at'>[])
+    .filter(
+      (c) =>
+        !!c.ultimo_mensaje_at &&
+        !!c.ultimo_entrante_at &&
+        new Date(c.ultimo_mensaje_at).getTime() > new Date(c.ultimo_entrante_at).getTime(),
+    )
+    .map((c) => c.id);
+}
+
+export async function marcarSeguimiento(sb: SupabaseClient, convId: string, ahora: Date): Promise<void> {
+  const { error } = await sb.from('wa_conversaciones').update({ seguimiento_at: ahora.toISOString() }).eq('id', convId);
+  revisar('marcarSeguimiento: update wa_conversaciones', error);
+}
+
+// ─── Visitas ─────────────────────────────────────────────────────────
+
+/** Visitas agendadas o confirmadas del proyecto que todavía no terminaron. */
+export async function visitasActivas(sb: SupabaseClient, projectId: string, desde: Date): Promise<WaVisita[]> {
+  const { data, error } = await sb
+    .from('wa_visitas')
+    .select('*')
+    .eq('project_id', projectId)
+    .in('estado', ['agendada', 'confirmada'])
+    .gte('fin', desde.toISOString())
+    .order('inicio', { ascending: true });
+  revisar('visitasActivas: select wa_visitas', error);
+  return (data ?? []) as WaVisita[];
+}
+
+/** Aviso al vendedor de una visita agendada o cancelada (si tiene WhatsApp cargado). */
+async function avisarVisita(
+  sb: SupabaseClient,
+  bot: WaBot,
+  conv: WaConversacion,
+  texto: string,
+): Promise<void> {
+  const destino = bot.vendedor_whatsapp?.trim() ? normalizarTelefono(bot.vendedor_whatsapp) : null;
+  if (!destino) return;
+  await encolar(sb, {
+    bot_id: bot.id,
+    conversacion_id: null,
+    destino,
+    cuerpo: texto,
+    adjunto_url: null,
+    origen: 'aviso',
+    autor_id: null,
+  });
+}
+
+function lineasVisita(i: {
+  titulo: string;
+  proyecto: string;
+  conv: WaConversacion;
+  nombre: string | null;
+  inicio: Date;
+  minutos: number;
+  urlAdmin: string;
+}): string {
+  const telefono = telefonoDeContacto(i.conv.contacto_numero);
+  return [
+    `${i.titulo} – ${i.proyecto}`,
+    `${i.nombre?.trim() || i.conv.contacto_nombre?.trim() || 'Sin nombre'} · ${telefono ?? NUMERO_OCULTO}`,
+    `${textoTurno(i.inicio)} (${i.minutos} min)`,
+    ...(telefono ? [`Escribile: wa.me/${telefono}`] : []),
+    `Ver chat: ${i.urlAdmin.replace(/\/+$/, '')}/admin/leads?c=${i.conv.id}`,
+  ].join('\n');
+}
+
+/**
+ * Agenda una visita para esta conversación y avisa al vendedor. 'ocupado' si
+ * otra visita tomó ese turno (índice único) entre que se ofreció y se eligió.
+ */
+export async function agendarVisita(
+  sb: SupabaseClient,
+  i: {
+    bot: WaBot;
+    conv: WaConversacion;
+    inicio: Date;
+    fin: Date;
+    nombre: string | null;
+    proyecto: { name: string };
+    urlAdmin: string;
+  },
+): Promise<'agendada' | 'ocupado'> {
+  // lead_id fresco: la IA puede haber avisado (y creado el lead) en este mismo turno.
+  const { data: c, error: e1 } = await sb.from('wa_conversaciones').select('lead_id').eq('id', i.conv.id).maybeSingle();
+  revisar('agendarVisita: select wa_conversaciones', e1);
+  const { error } = await sb.from('wa_visitas').insert({
+    project_id: i.bot.project_id,
+    bot_id: i.bot.id,
+    conversacion_id: i.conv.id,
+    lead_id: (c as { lead_id: string | null } | null)?.lead_id ?? i.conv.lead_id,
+    inicio: i.inicio.toISOString(),
+    fin: i.fin.toISOString(),
+    nombre: i.nombre?.trim().slice(0, 120) || i.conv.contacto_nombre,
+    telefono: telefonoDeContacto(i.conv.contacto_numero),
+  });
+  if (error && (error as { code?: string }).code === '23505') return 'ocupado';
+  revisar('agendarVisita: insert wa_visitas', error);
+  await avisarVisita(
+    sb,
+    i.bot,
+    i.conv,
+    lineasVisita({
+      titulo: '📅 Visita agendada',
+      proyecto: i.proyecto.name,
+      conv: i.conv,
+      nombre: i.nombre,
+      inicio: i.inicio,
+      minutos: Math.round((i.fin.getTime() - i.inicio.getTime()) / 60_000),
+      urlAdmin: i.urlAdmin,
+    }),
+  );
+  return 'agendada';
+}
+
+/** Cancela las visitas futuras de esta conversación y avisa al vendedor. Devuelve las canceladas. */
+export async function cancelarVisitasDeConversacion(
+  sb: SupabaseClient,
+  i: { bot: WaBot; conv: WaConversacion; ahora: Date; proyecto: { name: string }; urlAdmin: string },
+): Promise<WaVisita[]> {
+  const { data, error } = await sb
+    .from('wa_visitas')
+    .update({ estado: 'cancelada' })
+    .eq('conversacion_id', i.conv.id)
+    .in('estado', ['agendada', 'confirmada'])
+    .gt('inicio', i.ahora.toISOString())
+    .select('*');
+  revisar('cancelarVisitasDeConversacion: update wa_visitas', error);
+  const canceladas = (data ?? []) as WaVisita[];
+  for (const v of canceladas) {
+    await avisarVisita(
+      sb,
+      i.bot,
+      i.conv,
+      lineasVisita({
+        titulo: '❌ Visita cancelada por el cliente',
+        proyecto: i.proyecto.name,
+        conv: i.conv,
+        nombre: v.nombre,
+        inicio: new Date(v.inicio),
+        minutos: Math.round((new Date(v.fin).getTime() - new Date(v.inicio).getTime()) / 60_000),
+        urlAdmin: i.urlAdmin,
+      }),
+    );
+  }
+  return canceladas;
+}
+
+/** Guarda el texto de un audio del cliente (lo usa la IA y lo muestra el panel). */
+export async function guardarTranscripcion(sb: SupabaseClient, mensajeId: string, texto: string): Promise<void> {
+  const { error } = await sb.from('wa_mensajes').update({ transcripcion: texto }).eq('id', mensajeId);
+  revisar('guardarTranscripcion: update wa_mensajes', error);
+}
+
 export async function contarRespuestasBotUltimaHora(sb: SupabaseClient, convId: string): Promise<number> {
   const { count, error } = await sb
     .from('wa_mensajes')
@@ -546,7 +731,8 @@ export async function registrarSalidaEnviada(
       wa_id: waId,
       direccion: 'saliente',
       autor,
-      tipo: salida.adjunto_url ? 'imagen' : 'texto',
+      // El único documento que manda el bot es el brief (PDF); el resto son imágenes.
+      tipo: !salida.adjunto_url ? 'texto' : /\.pdf$/i.test(salida.adjunto_url.split(/[?#]/)[0]) ? 'documento' : 'imagen',
       cuerpo: salida.cuerpo,
       media_path: null,
       enviado_at: ahora,
@@ -685,6 +871,19 @@ async function emailNuevoLead(
  * Si algo falla antes de marcar, rechaza sin avisado_at: un reintento puede
  * duplicar la nota del lead o el aviso, pero nunca lo pierde.
  */
+/** Suma la calificación nueva a la del lead (lo que no vino conserva lo anterior). */
+async function actualizarCalificacion(sb: SupabaseClient, leadId: string, nueva: CalificacionLead): Promise<void> {
+  const { data, error } = await sb.from('leads').select('calificacion').eq('id', leadId).maybeSingle();
+  revisar('actualizarCalificacion: select leads', error);
+  if (!data) return;
+  const previa = (data as { calificacion: CalificacionLead | null }).calificacion;
+  const { error: e2 } = await sb
+    .from('leads')
+    .update({ calificacion: mezclarCalificacion(previa, nueva) })
+    .eq('id', leadId);
+  revisar('actualizarCalificacion: update leads', e2);
+}
+
 export async function registrarAviso(
   sb: SupabaseClient,
   conv: WaConversacion,
@@ -698,13 +897,20 @@ export async function registrarAviso(
   // avisado_at fresco: el objeto en memoria puede ser de antes de un aviso de este mismo turno.
   const { data: fresca, error } = await sb
     .from('wa_conversaciones')
-    .select('avisado_at')
+    .select('avisado_at, lead_id')
     .eq('id', conv.id)
     .maybeSingle();
   revisar('registrarAviso: select wa_conversaciones', error);
-  const avisadoAt = fresca ? (fresca as { avisado_at: string | null }).avisado_at : conv.avisado_at;
+  const f = fresca as { avisado_at: string | null; lead_id: string | null } | null;
+  const avisadoAt = f ? f.avisado_at : conv.avisado_at;
   const entrantes = avisadoAt ? await entrantesDesdeAviso(sb, conv.id, avisadoAt) : [];
-  if (!debeRearmarAviso(avisadoAt, entrantes)) return 'ya_avisado';
+  if (!debeRearmarAviso(avisadoAt, entrantes)) {
+    // Ya avisado: no se repite el aviso, pero lo nuevo que contó el cliente
+    // (presupuesto, plazo...) igual llega a la tarjeta del lead.
+    const leadId = f?.lead_id ?? conv.lead_id;
+    if (datos.calificacion && leadId) await actualizarCalificacion(sb, leadId, datos.calificacion);
+    return 'ya_avisado';
+  }
 
   // Lead: el teléfono puede estar cargado en cualquier formato, se compara normalizado en JS.
   const { data: leads, error: e2 } = await sb.from('leads').select('*').eq('project_id', bot.project_id);
@@ -742,6 +948,7 @@ export async function registrarAviso(
         unidadesTexto: datos.unidadesTexto ?? datos.unidades,
         resumen: datos.resumen,
         urlChat: `${urlAdmin.replace(/\/+$/, '')}/admin/leads?c=${conv.id}`,
+        calificacion: datos.calificacion,
       }),
       adjunto_url: null,
       origen: 'aviso',

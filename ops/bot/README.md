@@ -37,13 +37,19 @@ sudo systemctl start p360-whatsapp-bot
 | `NEXT_PUBLIC_SUPABASE_URL` | URL de Supabase 360. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role (el puente se saltea RLS). Secreta. |
 | `ANTHROPIC_API_KEY` | Clave de Claude. |
+| `ANTHROPIC_WORKSPACE_ID` | Opcional: solo si la clave no está asignada a un workspace (la API responde "This API key is not scoped to a workspace"). |
 | `BOT_HOST` | Nombre de este servidor. Obligatorio, sin default. El puente solo toma bots con `wa_bots.host_permitido` igual a este valor. |
 | `ADMIN_BASE_URL` | URL pública del admin, para el link "Ver chat" del aviso al vendedor. |
+| `TRANSCRIPCION_API_KEY`, `TRANSCRIPCION_URL`, `TRANSCRIPCION_MODELO` | Opcionales: transcripción de audios del cliente con un servicio compatible con OpenAI (`/v1/audio/transcriptions`). Por defecto OpenAI `whisper-1`. Sin clave, el bot pide que lo escriban. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Opcionales: email de "nuevo lead" al dueño y al equipo comercial del proyecto (gestores y administradores). |
 
 ## Habilitar un proyecto
 
-Un proyecto solo lo toma este servidor si su bot tiene `host_permitido = BOT_HOST`. En el SQL Editor de Supabase:
+Un proyecto solo lo toma este servidor si su bot tiene `host_permitido = BOT_HOST`.
+
+Lo normal es setear `WA_BOT_HOST_DEFAULT` en las variables del admin (Vercel) con el mismo valor que `BOT_HOST`: cada bot sin máquina se asigna solo a este servidor cuando un administrador guarda la configuración o vincula el número desde el panel. Un bot que ya tiene máquina nunca se mueve.
+
+Sin esa variable, o para mover un bot a otro servidor, en el SQL Editor de Supabase:
 
 ```sql
 update wa_bots set host_permitido = '<BOT_HOST>' where project_id = '…';

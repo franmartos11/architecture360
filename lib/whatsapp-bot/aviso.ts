@@ -1,4 +1,5 @@
-import type { Lead } from '@/types';
+import type { CalificacionLead, Lead } from '@/types';
+import { mezclarCalificacion, textoCalificacion } from './calificacion';
 import { normalizarTelefono } from './reglas';
 
 export type DatosAviso = {
@@ -11,6 +12,8 @@ export type DatosAviso = {
   unidadesTexto?: string[];
   resumen: string;
   conversacionId: string;
+  /** Lo que la IA sabe del cliente (temperatura, presupuesto, plazo...). */
+  calificacion?: CalificacionLead;
 };
 
 export const NUMERO_OCULTO = 'número oculto';
@@ -71,6 +74,7 @@ export function planearLead(
         unit_name: unitName,
         message: d.resumen,
         wa_conversacion_id: d.conversacionId,
+        ...(d.calificacion ? { calificacion: d.calificacion } : {}),
       },
     };
   }
@@ -82,6 +86,8 @@ export function planearLead(
   if (vacio(existente.unit_name) && unitName) cambios.unit_name = unitName;
   const nota = `[WhatsApp ${fechaAR(ahora)}] ${d.resumen}`;
   cambios.message = vacio(existente.message) ? nota : `${existente.message}\n\n${nota}`;
+  // Campo solo del bot: se actualiza siempre, conservando lo que esta vez no vino.
+  if (d.calificacion) cambios.calificacion = mezclarCalificacion(existente.calificacion, d.calificacion);
   if (existente.wa_conversacion_id !== d.conversacionId) {
     cambios.wa_conversacion_id = d.conversacionId;
   }
@@ -96,11 +102,13 @@ export function textoAviso(i: {
   unidadesTexto: string[];
   resumen: string;
   urlChat: string;
+  calificacion?: CalificacionLead;
 }): string {
   const lineas = [
     `🔥 Cliente interesado – ${i.proyecto}`,
     `${i.nombre?.trim() || 'Sin nombre'} · ${i.telefono ?? NUMERO_OCULTO}`,
   ];
+  if (i.calificacion) lineas.push(textoCalificacion(i.calificacion));
   if (i.unidadesTexto.length) lineas.push(`Le interesa: ${i.unidadesTexto.join('; ')}`);
   lineas.push(i.resumen);
   if (i.telefono) lineas.push(`Escribile: wa.me/${i.telefono}`);

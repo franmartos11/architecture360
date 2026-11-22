@@ -4,7 +4,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AmenityRow, BuildingRow, FloorRow, PointOfInterestRow, ProjectRow, UnitRow } from '@/types/database';
 import { allProgramRooms, hasRoomProgram, roomCounts, unitIsDwelling, parseOrientation } from '@/lib/units';
+import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
+import { getProjectTypeConfig } from '@/lib/project-types';
+import { resolveSectionOrder } from '@/lib/project-sections';
 import type { DatosProyecto, UnidadBot } from './ficha';
+import type { SlideAerea } from './material';
+import { cargarFaq } from './preguntas';
 
 async function leer<T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>, que: string): Promise<T[]> {
   const { data, error } = await q;
@@ -53,7 +58,7 @@ export async function leerPorLotes<T>(
 
 const nn = (n: number | null | undefined): number | null => (n == null ? null : Number(n));
 
-export function unidadDesdeFila(u: FilaUnidad, edificio: string, piso: string): UnidadBot {
+export function unidadDesdeFila(u: FilaUnidad, edificio: string, piso: string, edificioId = ''): UnidadBot {
   const rooms = allProgramRooms(u.rooms, u.levels);
   const programa = hasRoomProgram(rooms);
   const c = roomCounts(rooms);
@@ -67,6 +72,8 @@ export function unidadDesdeFila(u: FilaUnidad, edificio: string, piso: string): 
   const total = nn(u.total_area);
   const cubierta = nn(u.inner_area);
   return {
+    id: u.id,
+    edificioId,
     codigo: u.code,
     edificio,
     piso,
@@ -134,11 +141,20 @@ export async function cargarDatosProyecto(sb: SupabaseClient, projectId: string)
   const unidades = filas.map(u => {
     const piso = pisoPorId.get(u.floor_id)!;
     const ed = edPorId.get(piso.building_id)!;
-    return unidadDesdeFila(u, ed.name, piso.label?.trim() ? piso.label : `Piso ${piso.number}`);
+    return unidadDesdeFila(u, ed.name, piso.label?.trim() ? piso.label : `Piso ${piso.number}`, ed.id);
   });
 
+  const slides = await leer<SlideAerea>(
+    sb.from('aerial_slides').select('label, image_url').eq('project_id', projectId).order('sort_order'),
+    'las vistas aéreas',
+  );
+  const p = proyecto as ProjectRow;
+  // El avance solo si el dueño lo muestra en el sitio: si lo apagó, puede ser a propósito.
+  const secciones = resolveSectionOrder(p.section_config, getProjectTypeConfig(p.project_type, p.sale_mode));
+  const avance = secciones.includes('progress') ? parseConstructionProgress(p.construction_progress) : null;
+
   return {
-    proyecto: proyecto as ProjectRow,
+    proyecto: p,
     edificios,
     pisos,
     unidades,
@@ -151,5 +167,8 @@ export async function cargarDatosProyecto(sb: SupabaseClient, projectId: string)
           min_down_payment: Number(calc.min_down_payment),
         }
       : null,
+    slides,
+    avance,
+    faq: await cargarFaq(sb, projectId),
   };
 }

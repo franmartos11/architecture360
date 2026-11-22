@@ -28,9 +28,22 @@ export default function ContactSection({ project, typeConfig }: SectionProps) {
             <p className="m-0 text-base text-[var(--theme-text-on-dark-muted)]">
               Completá el formulario y te contactamos con {joinEs(['planos', typeConfig.showPrice && 'precios', typeConfig.showCalculator && 'financiación'])}.
             </p>
+            {project.briefPdfUrl && (
+              <a
+                href={project.briefPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start inline-flex items-center gap-2 h-12 px-[22px] rounded-full border border-[var(--theme-text-on-dark)]/30 text-sm sm:text-[15px] font-semibold text-[var(--theme-text-on-dark)] no-underline transition-colors hover:bg-[var(--theme-text-on-dark)]/10 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--theme-accent)]"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+                </svg>
+                Descargar brief
+              </a>
+            )}
           </Reveal>
           <Reveal delay={0.12} className="flex-[1_1_380px] min-w-0 bg-[var(--theme-surface)] text-[var(--theme-text)] rounded-[calc(var(--theme-radius)*1.2)] p-5 sm:p-7">
-            <HomeContactForm projectSlug={project.slug} />
+            <HomeContactForm projectSlug={project.slug} projectName={project.name} briefUrl={project.briefPdfUrl} />
           </Reveal>
         </div>
       </div>

@@ -4,6 +4,8 @@ import { HERRAMIENTAS, ejecutarHerramienta, type DepsHerramientas } from './herr
 
 function unidad(over: Partial<UnidadBot> = {}): UnidadBot {
   return {
+    id: 'u-2a',
+    edificioId: 'ed-norte',
     codigo: '2A',
     edificio: 'Torre Norte',
     piso: 'Piso 2',
@@ -32,6 +34,9 @@ function unidad(over: Partial<UnidadBot> = {}): UnidadBot {
 function deps(over: Partial<DepsHerramientas> = {}): DepsHerramientas {
   return {
     unidades: [],
+    material: { renders: [], masterplan: null, brief: null, edificios: [], amenities: [], avance: [] },
+    linkUnidad: () => null,
+    anotarPregunta: vi.fn(async () => {}),
     encolarImagenes: vi.fn(async () => {}),
     avisar: vi.fn(async () => 'avisado' as const),
     ...over,
@@ -48,11 +53,16 @@ const BUSQUEDA_VACIA = {
 };
 
 describe('HERRAMIENTAS', () => {
-  it('define las cuatro herramientas estrictas y cerradas', () => {
+  it('define las nueve herramientas estrictas y cerradas', () => {
     expect(HERRAMIENTAS.map(t => t.name)).toEqual([
       'buscar_unidades',
       'ver_unidad',
       'enviar_imagenes',
+      'enviar_material',
+      'anotar_pregunta',
+      'ver_horarios_visita',
+      'agendar_visita',
+      'cancelar_visita',
       'avisar_vendedor',
     ]);
     for (const t of HERRAMIENTAS) {
@@ -204,3 +214,170 @@ describe('ejecutarHerramienta', () => {
     expect(r.esError).toBe(true);
   });
 });
+
+describe('enviar_material y link de unidad', () => {
+  const material = {
+    renders: [{ nombre: 'Vista frente', urls: ['https://x/r1.jpg'] }, { nombre: 'Vista dron', urls: ['https://x/r2.jpg'] }],
+    masterplan: 'https://x/mp.jpg',
+    brief: null as string | null,
+    edificios: [{ nombre: 'Torre Norte', urls: ['https://x/tn.jpg'] }, { nombre: 'Torre Sur', urls: ['https://x/ts.jpg'] }],
+    amenities: [{ nombre: 'Pileta', urls: ['https://x/p1.jpg', 'https://x/p2.jpg', 'https://x/p3.jpg', 'https://x/p4.jpg'] }],
+    avance: [{ nombre: '2026-10-01 · Losa 5', urls: ['https://x/o1.jpg'] }],
+  };
+
+  it('amenity por nombre (sin tildes ni mayúsculas): hasta 3 fotos', async () => {
+    const d = deps({ material });
+    const r = await ejecutarHerramienta('enviar_material', { que: 'amenity', nombre: 'PILETA' }, d);
+    expect(r.esError).toBe(false);
+    expect(d.encolarImagenes).toHaveBeenCalledWith(['https://x/p1.jpg', 'https://x/p2.jpg', 'https://x/p3.jpg']);
+  });
+
+  it('renders sin nombre: uno de cada render', async () => {
+    const d = deps({ material });
+    await ejecutarHerramienta('enviar_material', { que: 'renders', nombre: null }, d);
+    expect(d.encolarImagenes).toHaveBeenCalledWith(['https://x/r1.jpg', 'https://x/r2.jpg']);
+  });
+
+  it('edificio ambiguo sin nombre: error con las opciones y no manda nada', async () => {
+    const d = deps({ material });
+    const r = await ejecutarHerramienta('enviar_material', { que: 'edificio', nombre: null }, d);
+    expect(r.esError).toBe(true);
+    expect(r.texto).toContain('Torre Norte');
+    expect(d.encolarImagenes).not.toHaveBeenCalled();
+  });
+
+  it('avance_obra sin nombre: la novedad más reciente', async () => {
+    const d = deps({ material });
+    await ejecutarHerramienta('enviar_material', { que: 'avance_obra', nombre: null }, d);
+    expect(d.encolarImagenes).toHaveBeenCalledWith(['https://x/o1.jpg']);
+  });
+
+  it('brief: manda el PDF del proyecto', async () => {
+    const d = deps({ material: { ...material, brief: 'https://x/b.pdf' } });
+    const r = await ejecutarHerramienta('enviar_material', { que: 'brief', nombre: null }, d);
+    expect(r.esError).toBe(false);
+    expect(r.texto).toContain('brief');
+    expect(d.encolarImagenes).toHaveBeenCalledWith(['https://x/b.pdf']);
+  });
+
+  it('brief sin cargar: error y no manda nada', async () => {
+    const d = deps({ material: { ...material, brief: null } });
+    const r = await ejecutarHerramienta('enviar_material', { que: 'brief', nombre: null }, d);
+    expect(r.esError).toBe(true);
+    expect(d.encolarImagenes).not.toHaveBeenCalled();
+  });
+
+  it('nombre que no existe o material vacío: error', async () => {
+    const d = deps({ material });
+    expect((await ejecutarHerramienta('enviar_material', { que: 'amenity', nombre: 'Gimnasio' }, d)).esError).toBe(true);
+    const vacio = deps();
+    expect((await ejecutarHerramienta('enviar_material', { que: 'masterplan', nombre: null }, vacio)).esError).toBe(true);
+    expect(d.encolarImagenes).not.toHaveBeenCalled();
+  });
+
+  it('ver_unidad incluye el link de la página si el sitio está publicado', async () => {
+    const d = deps({ unidades: [unidad()], linkUnidad: u => `https://sitio/edificio/${u.edificioId}/unidad/${u.id}` });
+    const r = await ejecutarHerramienta('ver_unidad', { codigo: '2A' }, d);
+    expect(r.texto).toContain('https://sitio/edificio/ed-norte/unidad/u-2a');
+    const sin = await ejecutarHerramienta('ver_unidad', { codigo: '2A' }, deps({ unidades: [unidad()] }));
+    expect(sin.texto).not.toContain('http');
+  });
+});
+
+describe('anotar_pregunta', () => {
+  it('anota tema y pregunta y le indica a la IA qué decir', async () => {
+    const d = deps();
+    const r = await ejecutarHerramienta('anotar_pregunta', { tema: 'Escrituración', pregunta: '¿Cuándo escrituran?' }, d);
+    expect(r.esError).toBe(false);
+    expect(d.anotarPregunta).toHaveBeenCalledWith({ tema: 'Escrituración', pregunta: '¿Cuándo escrituran?' });
+    expect(r.texto).toContain('consultás con el equipo');
+  });
+  it('tema vacío: error y no anota', async () => {
+    const d = deps();
+    expect((await ejecutarHerramienta('anotar_pregunta', { tema: ' ', pregunta: 'x' }, d)).esError).toBe(true);
+    expect(d.anotarPregunta).not.toHaveBeenCalled();
+  });
+});
+
+describe('avisar_vendedor con calificación', () => {
+  it('normaliza la calificación y la pasa al aviso', async () => {
+    const d = deps();
+    await ejecutarHerramienta(
+      'avisar_vendedor',
+      {
+        nombre: null, email: null, unidades_interes: [], resumen: 'Busca 3 amb', motivo: 'dio presupuesto',
+        calificacion: { temperatura: 'caliente', presupuesto: ' USD 120.000 ', ambientes: 3, plazo: null, proposito: 'vivir', financiacion: null },
+      },
+      d,
+    );
+    const arg = vi.mocked(d.avisar).mock.calls[0][0];
+    expect(arg.calificacion).toMatchObject({ temperatura: 'caliente', presupuesto: 'USD 120.000', ambientes: 3, proposito: 'vivir' });
+  });
+});
+
+describe('visitas', () => {
+  // Viernes 20/11/2026, 09:00 en Argentina.
+  const ahora = new Date('2026-11-20T12:00:00.000Z');
+  const config = {
+    activo: true, duracion_min: 60, anticipacion_horas: 2, dias_adelante: 3, lugar: 'Showroom',
+    franjas: { '5': [['10:00', '13:00']] as [string, string][] },
+  };
+  const conVisitas = (over: Partial<NonNullable<DepsHerramientas['visitas']>> = {}) =>
+    deps({
+      visitas: {
+        config, ocupados: [], delCliente: [], ahora,
+        agendar: vi.fn(async () => 'agendada' as const),
+        cancelar: vi.fn(async () => []),
+        ...over,
+      },
+    });
+
+  it('sin agenda activa: las tres herramientas lo dicen', async () => {
+    for (const [n, i] of [['ver_horarios_visita', { dia: null }], ['agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: null }], ['cancelar_visita', {}]] as const) {
+      const r = await ejecutarHerramienta(n, i, deps());
+      expect(r.esError).toBe(true);
+      expect(r.texto).toContain('avisar_vendedor');
+    }
+  });
+
+  it('ver_horarios_visita lista turnos libres con la fecha entre corchetes', async () => {
+    const r = await ejecutarHerramienta('ver_horarios_visita', { dia: null }, conVisitas());
+    expect(r.texto).toContain('[2026-11-20]: 11:00, 12:00');
+    expect(r.texto).toContain('Showroom');
+  });
+
+  it('agendar en un turno libre: agenda y confirma', async () => {
+    const d = conVisitas();
+    const r = await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: 'Ana' }, d);
+    expect(r.esError).toBe(false);
+    expect(r.texto).toContain('vie 20/11 11:00');
+    const [inicio, fin, nombre] = vi.mocked(d.visitas!.agendar).mock.calls[0];
+    expect(inicio.toISOString()).toBe('2026-11-20T14:00:00.000Z');
+    expect(fin.toISOString()).toBe('2026-11-20T15:00:00.000Z');
+    expect(nombre).toBe('Ana');
+  });
+
+  it('turno fuera de agenda, ya pasado o tomado: error y no agenda', async () => {
+    const d = conVisitas();
+    expect((await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '10:00', nombre: null }, d)).esError).toBe(true);
+    expect((await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '15:00', nombre: null }, d)).esError).toBe(true);
+    expect(d.visitas!.agendar).not.toHaveBeenCalled();
+    const ocupado = conVisitas({ agendar: vi.fn(async () => 'ocupado' as const) });
+    const r = await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: null }, ocupado);
+    expect(r.esError).toBe(true);
+    expect(r.texto).toContain('se acaba de ocupar');
+  });
+
+  it('si el cliente ya tiene una visita, no agenda otra', async () => {
+    const d = conVisitas({ delCliente: [new Date('2026-11-20T15:00:00.000Z')] });
+    const r = await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: null }, d);
+    expect(r.esError).toBe(true);
+    expect(r.texto).toContain('cancelar_visita');
+  });
+
+  it('cancelar_visita informa lo cancelado', async () => {
+    const d = conVisitas({ cancelar: vi.fn(async () => [new Date('2026-11-20T14:00:00.000Z')]) });
+    expect((await ejecutarHerramienta('cancelar_visita', {}, d)).texto).toContain('vie 20/11 11:00');
+  });
+});
+

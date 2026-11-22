@@ -320,6 +320,20 @@ describe('PATCH /api/admin/project', () => {
     });
   });
 
+  it('briefPdfUrl: guarda la url y null para quitarla', async () => {
+    vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+    const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }, { data: { id: 'project-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
+
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { briefPdfUrl: 'https://x/brief.pdf' }));
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0].brief_pdf_url).toBe('https://x/brief.pdf');
+
+    const res2 = await PATCH(jsonRequest('http://localhost/api/admin/project', { briefPdfUrl: null }));
+    expect(res2.status).toBe(200);
+    expect(supabase.from.mock.results[1].value.update.mock.calls[0][0]).toHaveProperty('brief_pdf_url', null);
+  });
+
   it('constructionProgress vacío: guarda null', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });

@@ -10,10 +10,12 @@
  * Es cableado: la lógica está en lib/whatsapp-bot (con tests). No importa
  * server-only, next/* ni react.
  */
-import Anthropic from '@anthropic-ai/sdk';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { WaBot, WaSalida } from '@/types/whatsapp-bot';
 import { cargarDatosProyecto } from '@/lib/whatsapp-bot/datos';
+import { crearClienteClaude } from '@/lib/whatsapp-bot/ia/cliente';
+import { crearTranscriptor } from '@/lib/whatsapp-bot/transcripcion';
+import { urlSitioProyecto } from '@/lib/whatsapp-bot/material';
 import { responderTurno } from '@/lib/whatsapp-bot/ia/turno';
 import { Agrupador } from '@/lib/whatsapp-bot/puente/agrupador';
 import { cambiosAlConectar, debeTenerSesion, esperaReconexion, fusionarBot } from '@/lib/whatsapp-bot/puente/conexion';
@@ -25,6 +27,8 @@ import { procesarMensaje, rutaMedio, type DepsRecepcion } from '@/lib/whatsapp-b
 import { crearSerie } from '@/lib/whatsapp-bot/puente/serie';
 import { QR_VENCIDO, SesionBot } from '@/lib/whatsapp-bot/puente/sesion';
 import { correrTurnoIA, type DepsTurnoBot } from '@/lib/whatsapp-bot/puente/turno-bot';
+import { correrSeguimiento } from '@/lib/whatsapp-bot/puente/seguimiento-bot';
+import { DIAS_MAX_SEGUIMIENTO, HORAS_SEGUIMIENTO_DEFAULT } from '@/lib/whatsapp-bot/seguimiento';
 import { UnaALaVez } from '@/lib/whatsapp-bot/puente/una-a-la-vez';
 import * as repo from '@/lib/whatsapp-bot/repo';
 import { MS_AGRUPAR } from '@/lib/whatsapp-bot/reglas';
@@ -32,6 +36,8 @@ import { MS_AGRUPAR } from '@/lib/whatsapp-bot/reglas';
 const TICK_MS = 5_000;
 const SONDEO_MS = 10_000;
 const LEASE_S = 90;
+/** Cada cuánto revisa cada bot si hay seguimientos para mandar. */
+const SEGUIMIENTO_CADA_MS = 10 * 60 * 1000;
 
 // ─── Configuración ───────────────────────────────────────────────────
 
@@ -55,7 +61,7 @@ for (const nombre of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', '
 }
 
 const sb = repo.createBotClient();
-const anthropic = new Anthropic();
+const anthropic = crearClienteClaude();
 const enSerie = crearSerie();
 
 const mensajeDe = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -70,6 +76,15 @@ const depsTurno: DepsTurnoBot = {
   responderTurno: (i) => responderTurno({ cliente: anthropic, ...i }),
   ahora: () => new Date(),
   urlAdmin: ADMIN_BASE_URL,
+  urlSitio: (slug: string) => urlSitioProyecto(slug, ADMIN_BASE_URL, process.env.NEXT_PUBLIC_ROOT_DOMAIN),
+  medios: {
+    bajar: async (path: string) => {
+      const { data, error } = await sb.storage.from('wa-medios').download(path);
+      if (error || !data) return null;
+      return { data: new Uint8Array(await data.arrayBuffer()), mime: data.type || null };
+    },
+    transcribir: crearTranscriptor() ?? undefined,
+  },
   log: logError,
 };
 
@@ -90,6 +105,9 @@ class BotVivo {
   private readonly envios = new EnviosPropios();
   /** La atención de cada tick: sin esperarla ni apilarla (ver tick()). */
   readonly atencion = new UnaALaVez((m) => this.logError(m));
+  /** La revisión de seguimientos: una a la vez, cada SEGUIMIENTO_CADA_MS. */
+  private readonly seguimientos = new UnaALaVez((m) => this.logError(m));
+  private ultimoSeguimiento = 0;
   readonly agrupador: Agrupador;
   readonly despachador: Despachador;
 
@@ -310,6 +328,34 @@ class BotVivo {
     }
 
     await repo.latir(sb, this.bot.id).catch((e) => this.logError(`no pude latir: ${mensajeDe(e)}`));
+
+    if (this.conectado && this.bot.activo && this.bot.seguimiento_activo && Date.now() - this.ultimoSeguimiento >= SEGUIMIENTO_CADA_MS) {
+      this.ultimoSeguimiento = Date.now();
+      this.seguimientos.correr(() => this.revisarSeguimientos());
+    }
+  }
+
+  /** Manda los seguimientos que correspondan (de a uno; la cola espacia los envíos). */
+  private async revisarSeguimientos(): Promise<void> {
+    const ids = await repo.conversacionesParaSeguimiento(
+      sb,
+      this.bot.id,
+      new Date(),
+      this.bot.seguimiento_horas ?? HORAS_SEGUIMIENTO_DEFAULT,
+      DIAS_MAX_SEGUIMIENTO,
+    );
+    for (const id of ids) {
+      if (!this.conectado) return;
+      try {
+        const r = await correrSeguimiento({ ...depsTurno, repo }, this.bot.id, id);
+        if (r === 'enviado') {
+          this.log(`seguimiento enviado en ${id}`);
+          void this.despachador.pulsar();
+        }
+      } catch (e) {
+        this.logError(`falló el seguimiento de ${id}: ${mensajeDe(e)}`);
+      }
+    }
   }
 }
 

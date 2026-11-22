@@ -113,6 +113,28 @@ describe('POST /api/admin/upload', () => {
     expect(body.contentType).toBe('image/png');
   });
 
+  it('documento: conserva un nombre legible en el path (es lo que ve el cliente en WhatsApp)', async () => {
+    vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase({}) as never);
+
+    const res = await POST(uploadRequest({ name: 'Brief Final (v2) ÑANDÚ.PDF', type: 'application/pdf', size: 10, folder: 'brief' }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).path).toMatch(/^brief\/\d+-[a-z0-9]+\/brief-final-v2-nandu\.pdf$/);
+
+    const res2 = await POST(uploadRequest({ name: '¿?.pdf', type: 'application/pdf', size: 10, folder: 'brief' }));
+    expect((await res2.json()).path).toMatch(/^brief\/\d+-[a-z0-9]+\/documento\.pdf$/);
+
+    // Sin extensión o con puntos en el nombre: igual termina en .pdf (si no, el
+    // teléfono del cliente no lo abre y el bot lo registra como imagen).
+    const res4 = await POST(uploadRequest({ name: 'Brief Torre v1.2', type: 'application/pdf', size: 10, folder: 'brief' }));
+    expect((await res4.json()).path).toMatch(/^brief\/\d+-[a-z0-9]+\/brief-torre-v1-2\.pdf$/);
+    const res5 = await POST(uploadRequest({ name: 'brief', type: 'application/pdf', size: 10, folder: 'brief' }));
+    expect((await res5.json()).path).toMatch(/\/brief\.pdf$/);
+
+    const res3 = await POST(uploadRequest({ ...pngFile('Mi Foto.png'), folder: 'units' }));
+    expect((await res3.json()).path).toMatch(/^units\/\d+-[a-z0-9]+\.png$/);
+  });
+
   it('carpeta con caracteres raros: se sanea antes de armar el path', async () => {
     vi.mocked(requireAdminUser).mockResolvedValue({ id: 'user-1' } as never);
     const admin = mockSupabase({});

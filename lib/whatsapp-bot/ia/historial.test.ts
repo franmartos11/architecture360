@@ -107,3 +107,35 @@ describe('aMensajesClaude', () => {
     expect(aMensajesClaude([msg('bot', 'hola'), msg('vendedor', 'hola')])).toEqual([]);
   });
 });
+
+describe('aMensajesClaude con imágenes y audios', () => {
+  it('la imagen del cliente va como bloque antes de su marca; el texto se une', () => {
+    const texto = msg('cliente', 'Hola');
+    const foto = msg('cliente', 'mirá este aviso', 'imagen');
+    const r = aMensajesClaude([texto, foto], new Map([[foto.id, { data: 'QUJD', mediaType: 'image/png' as const }]]));
+    expect(r).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Hola' },
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+          { type: 'text', text: '[El cliente mandó una imagen] mirá este aviso' },
+        ],
+      },
+    ]);
+  });
+
+  it('sin imágenes el contenido sigue siendo texto plano', () => {
+    const r = aMensajesClaude([msg('cliente', 'hola', 'imagen')]);
+    expect(r).toEqual([{ role: 'user', content: '[El cliente mandó una imagen] hola' }]);
+  });
+
+  it('audio con transcripción la muestra; sin ella, la marca de siempre', () => {
+    const con = { ...msg('cliente', null, 'audio'), transcripcion: 'Busco 3 ambientes' };
+    const sin = msg('cliente', null, 'audio');
+    expect(aMensajesClaude([con, sin])).toEqual([
+      { role: 'user', content: '[Audio del cliente, transcripto] Busco 3 ambientes\n[El cliente mandó un audio]' },
+    ]);
+  });
+});
+
