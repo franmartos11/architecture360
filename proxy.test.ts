@@ -1,13 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 vi.mock('@supabase/ssr', () => ({ createServerClient: vi.fn() }));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
-vi.mock('@/lib/project-host', () => ({
-  resolveHostProject: vi.fn(),
-  canonicalDomainForSlug: vi.fn(),
-  isActiveCustomDomainOrigin: vi.fn(),
-}));
+vi.mock('@/lib/project-host', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/project-host')>('@/lib/project-host');
+  return {
+    isPlatformHost: actual.isPlatformHost,
+    normalizeHost: actual.normalizeHost,
+    resolveHostProject: vi.fn(),
+    canonicalDomainForSlug: vi.fn(),
+    isActiveCustomDomainOrigin: vi.fn(),
+  };
+});
 
 import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin } from '@/lib/project-host';
 import { proxy } from './proxy';
@@ -83,5 +88,44 @@ describe('proxy: CORS de /api con dominio propio', () => {
   it('rechaza con 403 un Origin que no es ni propio ni un dominio activo', async () => {
     const res = await api('https://atacante.com');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('proxy: el panel no se sirve en el dominio de un cliente', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://app.plataforma.com');
+    vi.stubEnv('NEXT_PUBLIC_ROOT_DOMAIN', '');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('/admin en un dominio propio: 307 al mismo path en la plataforma, sin tocar la base', async () => {
+    const res = await proxy(get('https://www.torre.com/admin/leads?tab=chats', { headers: { host: 'www.torre.com' } }));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://app.plataforma.com/admin/leads?tab=chats');
+    expect(resolveHostProject).not.toHaveBeenCalled();
+  });
+
+  it('también el login (si no, la sesión quedaría en cookies del dominio del cliente)', async () => {
+    const res = await proxy(get('https://www.torre.com/admin/login', { headers: { host: 'www.torre.com' } }));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://app.plataforma.com/admin/login');
+  });
+
+  it('/api/admin en un dominio propio: 404', async () => {
+    vi.mocked(isActiveCustomDomainOrigin).mockResolvedValue(true);
+    const res = await proxy(get('https://www.torre.com/api/admin/leads', { headers: { host: 'www.torre.com', origin: 'https://www.torre.com' } }));
+    expect(res.status).toBe(404);
+  });
+
+  it('en la plataforma, /admin sigue su camino normal', async () => {
+    const res = await proxy(get('https://app.plataforma.com/admin/login', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.status).not.toBe(307);
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('sin NEXT_PUBLIC_SITE_URL no hay a dónde mandarlo: 404', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+    const res = await proxy(get('https://www.torre.com/admin', { headers: { host: 'www.torre.com' } }));
+    expect(res.status).toBe(404);
   });
 });

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
-import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin } from '@/lib/project-host';
+import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin, isPlatformHost, normalizeHost } from '@/lib/project-host';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
 // .env.local.example), este proxy no hace nada — así el sitio
@@ -110,6 +110,25 @@ export async function proxy(request: NextRequest) {
       }
     }
     return withCors(NextResponse.next());
+  }
+
+  // El panel vive solo en los dominios de la plataforma. En el dominio de un
+  // cliente (activo, pendiente o uno cualquiera que apunte acá) la sesión de
+  // Supabase quedaría guardada en cookies de ese dominio: si el cliente después
+  // lo apunta a un servidor suyo, se las lleva. Además los redirect URLs de
+  // Auth no lo permitirían. No consulta la base: isPlatformHost es por env.
+  const requestHost = request.headers.get('host');
+  if (requestHost && !isPlatformHost(normalizeHost(requestHost))) {
+    if (pathname.startsWith('/api/admin')) {
+      return withCors(NextResponse.json({ error: 'No encontrado' }, { status: 404 }));
+    }
+    try {
+      const destino = new URL(`${pathname}${request.nextUrl.search}`, process.env.NEXT_PUBLIC_SITE_URL);
+      if (!isPlatformHost(normalizeHost(destino.host))) throw new Error('NEXT_PUBLIC_SITE_URL no es de la plataforma');
+      return NextResponse.redirect(destino, 307);
+    } catch {
+      return new NextResponse(null, { status: 404 });
+    }
   }
 
   if (!SUPABASE_CONFIGURED) {
