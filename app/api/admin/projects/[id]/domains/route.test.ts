@@ -5,15 +5,21 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/require-project-access', () => ({ requireProjectAccess: vi.fn() }));
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/rate-limit', () => ({ rateLimitOrRespond: vi.fn().mockResolvedValue(null) }));
-vi.mock('@/lib/vercel-domains', () => ({
-  vercelDomainsConfigured: vi.fn(),
-  addDomain: vi.fn(),
-  getDomainState: vi.fn(),
-}));
+vi.mock('@/lib/vercel-domains', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/vercel-domains')>('@/lib/vercel-domains');
+  return {
+    VercelDomainError: actual.VercelDomainError,
+    DOMAIN_TAKEN_CODES: actual.DOMAIN_TAKEN_CODES,
+    vercelDomainsConfigured: vi.fn(),
+    addDomain: vi.fn(),
+    getDomainState: vi.fn(),
+    removeDomain: vi.fn(),
+  };
+});
 
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { addDomain, getDomainState, vercelDomainsConfigured } from '@/lib/vercel-domains';
+import { addDomain, getDomainState, removeDomain, vercelDomainsConfigured, VercelDomainError } from '@/lib/vercel-domains';
 import { GET, POST } from './route';
 
 const ctx = { params: Promise.resolve({ id: 'proj-1' }) };
@@ -33,6 +39,7 @@ beforeEach(() => {
   vi.mocked(vercelDomainsConfigured).mockReset().mockReturnValue(true);
   vi.mocked(addDomain).mockReset().mockResolvedValue(undefined);
   vi.mocked(getDomainState).mockReset().mockResolvedValue({ verified: false, verification: [], misconfigured: true });
+  vi.mocked(removeDomain).mockReset().mockResolvedValue(undefined);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -116,5 +123,36 @@ describe('POST /api/admin/projects/[id]/domains', () => {
     expect(res.status).toBe(502);
     expect(admin.from).toHaveBeenCalledTimes(2);
     expect(admin.from.mock.results[1].value.delete).toHaveBeenCalled();
+    expect(removeDomain).not.toHaveBeenCalled(); // Vercel no lo llegó a agregar
+  });
+
+  it.each(['domain_on_platform', 'domain_already_in_use'])(
+    '409 si Vercel ya tiene el dominio (%s): deshace la reserva y NO lo quita de Vercel',
+    async code => {
+      asOwner([{ count: 0 }]);
+      const admin = mockSupabase({ results: [{ data: ROW }, { error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+      vi.mocked(addDomain).mockRejectedValue(new VercelDomainError('tomado', 409, code));
+
+      const res = await post({ hostname: 'www.torre.com' });
+
+      expect(res.status).toBe(409);
+      expect(admin.from.mock.results[1].value.delete).toHaveBeenCalled();
+      // Quitarlo tiraría el sitio que lo usa (la plataforma u otro cliente).
+      expect(removeDomain).not.toHaveBeenCalled();
+    }
+  );
+
+  it('si falla después de que Vercel lo aceptó: lo quita de Vercel además de deshacer la reserva', async () => {
+    asOwner([{ count: 0 }]);
+    const admin = mockSupabase({ results: [{ data: ROW }, { error: null }] });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+    vi.mocked(getDomainState).mockRejectedValue(new Error('timeout'));
+
+    const res = await post({ hostname: 'www.torre.com' });
+
+    expect(res.status).toBe(502);
+    expect(admin.from.mock.results[1].value.delete).toHaveBeenCalled();
+    expect(removeDomain).toHaveBeenCalledWith('www.torre.com');
   });
 });

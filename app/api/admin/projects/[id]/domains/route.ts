@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { parseJsonBody } from '@/lib/api-validate';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { parseCustomHostname, MAX_DOMAINS_PER_PROJECT } from '@/lib/custom-domain';
-import { addDomain, getDomainState, vercelDomainsConfigured } from '@/lib/vercel-domains';
+import { addDomain, getDomainState, removeDomain, vercelDomainsConfigured, VercelDomainError, DOMAIN_TAKEN_CODES } from '@/lib/vercel-domains';
 
 // Dominios propios de un proyecto (ver project_domains en supabase/schema.sql).
 // La tabla no tiene policy de escritura para el dueño a propósito: el alta y la
@@ -75,9 +75,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'No se pudo agregar el dominio.' }, { status: 500 });
   }
 
-  // 2) Recién ahora, Vercel. Si falla, se deshace la reserva.
+  // 2) Recién ahora, Vercel. Si falla, se deshace la reserva, y si Vercel ya lo
+  //    había aceptado, también se lo quita de ahí (si no, queda colgado en el
+  //    proyecto de Vercel y un reintento lo tomaría por un dominio ajeno).
+  let added = false;
   try {
     await addDomain(host.hostname);
+    added = true;
     const state = await getDomainState(host.hostname);
     const verification = { records: state.verification, misconfigured: state.misconfigured };
     await admin.from('project_domains').update({ vercel_verification: verification }).eq('id', row.id);
@@ -85,6 +89,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (err) {
     console.error('[domains] Vercel rechazó el alta', host.hostname, err);
     await admin.from('project_domains').delete().eq('id', row.id);
+    if (added) await removeDomain(host.hostname).catch(e => console.error('[domains] no se pudo deshacer el alta en Vercel', host.hostname, e));
+    if (err instanceof VercelDomainError && (DOMAIN_TAKEN_CODES as readonly string[]).includes(err.code ?? '')) {
+      return NextResponse.json({ error: 'Ese dominio ya está configurado en otro sitio. Si es tuyo, escribinos para liberarlo.' }, { status: 409 });
+    }
     return NextResponse.json({ error: 'No se pudo agregar el dominio en el servidor. Probá de nuevo en un rato.' }, { status: 502 });
   }
 }

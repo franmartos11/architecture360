@@ -65,18 +65,26 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 const project = () => encodeURIComponent(process.env.VERCEL_PROJECT_ID!);
 const domain = (hostname: string) => encodeURIComponent(hostname);
 
-/** Agrega el dominio al proyecto. Si ya estaba agregado a ESTE proyecto, no es un error. */
+/** Códigos con los que addDomain rechaza un dominio que ya está tomado. */
+export const DOMAIN_TAKEN_CODES = ['domain_on_platform', 'domain_already_in_use'] as const;
+
+/**
+ * Agrega el dominio al proyecto. Si el dominio YA estaba en este proyecto de
+ * Vercel, se rechaza: no lo agregó esta alta, así que es un dominio de la
+ * plataforma (el principal, un www, un alias) o de otro cliente cargado a
+ * mano. Tomarlo como propio le daría ese host al proyecto apenas se
+ * "verifique" (Vercel lo da por verificado y bien configurado), y al quitarlo
+ * se borraría del proyecto de Vercel, tirando el sitio que lo usa.
+ */
 export async function addDomain(hostname: string): Promise<void> {
   try {
-    await call(`/v10/projects/${project()}/domains${qs()}`, { method: 'POST', body: JSON.stringify({ name: hostname }) });
+    await call(`/v9/projects/${project()}/domains/${domain(hostname)}${qs()}`);
+    throw new VercelDomainError('El dominio ya está configurado en el proyecto de Vercel.', 409, 'domain_on_platform');
   } catch (err) {
-    if (err instanceof VercelDomainError && err.code === 'domain_already_in_use' && err.status === 409) {
-      // Ya lo tiene este mismo proyecto → seguir. Si lo tiene OTRO proyecto, Vercel
-      // lo informa en getDomainState() (verified: false + registros TXT).
-      return;
-    }
-    throw err;
+    if (!(err instanceof VercelDomainError) || err.status !== 404) throw err;
   }
+  // 409 domain_already_in_use (lo tiene otro proyecto de Vercel) sube tal cual.
+  await call(`/v10/projects/${project()}/domains${qs()}`, { method: 'POST', body: JSON.stringify({ name: hostname }) });
 }
 
 export async function getDomainState(hostname: string): Promise<VercelDomainState> {
