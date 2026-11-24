@@ -131,6 +131,9 @@ export default function UnitViewer({
   // Un local / cochera no tiene programa de ambientes: sin esto, el plano
   // abría en "Ambientes" y tocar uno llevaba a una ficha lateral que no existe.
   const hasRooms = unitIsDwelling(unit) && ((!!unit.rooms && unit.rooms.length > 0) || !!unit.levels?.some(l => l.rooms.length > 0));
+  // Dúplex/casa con el plano de cada planta cargado (paso "Plantas" del
+  // admin) pero sin ambientes delimitados: igual se muestran esos planos.
+  const hasPlantaPlans = !!unit.roomPlanImage || !!unit.levels?.some(l => !!l.planImage);
   // Cochera marcada sobre el plano del piso de cocheras — se ve como una
   // vista más adentro del tab "Planos".
   const hasParking = drawnParkingSpots(unit.parkingSpots).length > 0;
@@ -142,7 +145,7 @@ export default function UnitViewer({
   const tabHasContent: Record<UnitViewTab, boolean> = {
     planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage) || (!!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0)),
     tour360: hasTour,
-    plano: hasRooms || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
+    plano: hasRooms || hasPlantaPlans || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
       || !!unit.levels?.some(l => l.planImage) || hasParking,
     galeria: (unit.galleryImages?.length ?? 0) > 0,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
@@ -204,7 +207,7 @@ export default function UnitViewer({
   // hay ambientes ni planos 3D/técnico pero sí cochera marcada, la cochera
   // (si no, el selector abriría en una vista vacía).
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes' | 'cochera'>(
-    hasRooms ? 'ambientes'
+    hasRooms || hasPlantaPlans ? 'ambientes'
     : (unit.plan3dUrl || unit.technicalPlanUrl || unit.floorPlan3dUrl) ? '3d'
     : hasParking ? 'cochera'
     : '3d'
@@ -444,7 +447,7 @@ export default function UnitViewer({
         <PlanoTab
           key="plano"
           unit={unit}
-          hasRooms={hasRooms}
+          hasRooms={hasRooms} hasPlantaPlans={hasPlantaPlans}
           planView={planView}
           onPlanViewChange={setPlanView}
           onSelectRoom={openRoomFichaFromPlan}
@@ -1074,7 +1077,7 @@ export default function UnitViewer({
             {activeTab === 'plano' && (
               <PlanoTab
                 unit={unit}
-                hasRooms={hasRooms}
+                hasRooms={hasRooms} hasPlantaPlans={hasPlantaPlans}
                 planView={planView}
                 onPlanViewChange={setPlanView}
                 onSelectRoom={openRoomFichaFromPlan}

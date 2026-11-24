@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
 import { defaultRoomGroup, matchRoomByFilename, type RoomGroup } from '@/lib/guided-structure';
+import { roomsWithGroups, splitRoomsByGroup, plantaLabel } from '@/lib/unit-levels';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
 import MultiImageUploader from '@/components/admin/MultiImageUploader';
@@ -14,7 +15,7 @@ import type { FlowProps } from './GuidedLoad';
 import ListoScreen, { PreviewCard } from './ListoScreen';
 import {
   GuidedHeader, FormWithPreview, FormSection, StepIntro, StepFooter, NumberStepper, Segmented, NumberField, FieldLabel, ErrorNote, ArrowIcon,
-  inputClass, allUnits, formatNumber, formatMoney, useGuidedApi, type GUnit, type GRoom, type GuidedProject,
+  inputClass, allUnits, formatNumber, formatMoney, useGuidedApi, fetchFreshLevels, type GUnit, type GRoom, type GuidedProject,
 } from './shared';
 
 const STEPS = [{ label: 'La casa' }, { label: 'Ambientes' }, { label: 'Listo' }];
@@ -294,10 +295,14 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const { patch } = useGuidedApi();
   const toast = useToast();
   const existingNodes = useMemo(() => unit.tour_data?.nodes ?? [], [unit.tour_data]);
+  // Planta baja + exterior viven en unit.rooms; cada planta de más en
+  // unit.levels[k].rooms (lo que lee el sitio). Acá se editan en una sola
+  // lista con `group` y se vuelven a repartir al guardar.
+  const savedRooms = useMemo(() => roomsWithGroups<GRoom>(unit.rooms, unit.levels), [unit.rooms, unit.levels]);
   const [rooms, setRooms] = useState<GRoom[]>(() => {
-    if (!unit.rooms || unit.rooms.length === 0) return roomsFromCounts(unit);
+    if (savedRooms.length === 0) return roomsFromCounts(unit);
     let baths = 0;
-    return unit.rooms.map(r => ({
+    return savedRooms.map(r => ({
       ...r,
       images: r.images ?? [],
       group: r.group ?? defaultRoomGroup(r, unit.floors_count, r.kind === 'bathroom' ? baths++ : 0),
@@ -312,7 +317,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const bulkInput = useRef<HTMLInputElement>(null);
   const [panos, setPanos] = useState<Record<string, string>>(() => Object.fromEntries(
-    (unit.rooms ?? []).filter(r => r.tourNodeId).map(r => [r.id, existingNodes.find(n => n.id === r.tourNodeId)?.imageUrl ?? '']),
+    savedRooms.filter(r => r.tourNodeId).map(r => [r.id, existingNodes.find(n => n.id === r.tourNodeId)?.imageUrl ?? '']),
   ));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -329,7 +334,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const save = async () => {
     setBusy(true);
     setError('');
-    const linkedNodeIds = new Set((unit.rooms ?? []).filter(r => r.tourNodeId).map(r => r.tourNodeId as string));
+    const linkedNodeIds = new Set(savedRooms.filter(r => r.tourNodeId).map(r => r.tourNodeId as string));
     // Nodos del tour que no vienen de un ambiente (cargados en el editor de tour) se conservan.
     const foreignNodes = existingNodes.filter(n => !linkedNodeIds.has(n.id));
     const nextRooms: GRoom[] = [];
@@ -351,7 +356,12 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
       : null;
     // Las fotos sin ambiente igual van a la galería, para no perderlas.
     const gallery = [...new Set([...(unit.gallery_images ?? []), ...rooms.flatMap(r => r.images ?? []), ...unassigned.map(p => p.url)].filter(Boolean))];
-    const res = await patch({ units: [{ id: unit.id, rooms: nextRooms, tourData, galleryImages: gallery }] });
+    // `levels` se escribe entero: se relee para no pisar el plano/render de
+    // una planta cargado por otro lado desde que se abrió este paso.
+    const fresh = await fetchFreshLevels([unit]);
+    if (!fresh) { setBusy(false); setError('No se pudo releer la casa. Probá de nuevo.'); return; }
+    const split = splitRoomsByGroup(nextRooms, fresh[0].levels, fresh[0].floors_count);
+    const res = await patch({ units: [{ id: unit.id, rooms: split.rooms, levels: split.levels.length ? split.levels : null, tourData, galleryImages: gallery }] });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
     toast('Ambientes guardados.');
@@ -363,9 +373,17 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const counts = `${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'}, ${Math.round(unit.bathrooms)} baño${Math.round(unit.bathrooms) === 1 ? '' : 's'}, living…`;
   const selected = rooms.find(r => r.id === openId) ?? null;
   const addRoom = () => { const id = newRoomId(); setRooms(prev => [...prev, { id, name: 'Ambiente', kind: 'other', images: [], group: tab }]); setOpenId(id); };
+  // Una pestaña por planta: las declaradas, las que ya tienen niveles
+  // cargados y cualquiera que use un ambiente.
+  const usedLevels = Math.max(0, ...rooms.map(r => Number(/^nivel-(\d+)$/.exec(r.group ?? '')?.[1] ?? 0)));
+  const extraPlantas = Math.max(unit.floors_count - 1, unit.levels?.length ?? 0, usedLevels);
+  const plantasTotal = extraPlantas + 1;
   const GROUPS: { value: RoomGroup; label: string }[] = [
-    { value: 'pb', label: unit.floors_count > 1 ? 'Planta baja' : 'Interior' },
-    ...(unit.floors_count > 1 || rooms.some(r => r.group === 'pa') ? [{ value: 'pa' as const, label: 'Planta alta' }] : []),
+    { value: 'pb', label: extraPlantas > 0 ? 'Planta baja' : 'Interior' },
+    ...Array.from({ length: extraPlantas }, (_, i) => ({
+      value: `nivel-${i + 1}` as const,
+      label: unit.levels?.[i]?.label || plantaLabel(i + 1, plantasTotal),
+    })),
     { value: 'ext', label: 'Exterior' },
   ];
   const visibleRooms = rooms.filter(r => (r.group ?? 'pb') === tab);
@@ -586,7 +604,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
 
 function CasaListo({ project, unit, onBackToStart }: { project: GuidedProject; unit: GUnit; onBackToStart: () => void }) {
   const showcase = project.saleMode === 'showcase';
-  const roomsCount = unit.rooms?.length ?? 0;
+  const roomsCount = (unit.rooms?.length ?? 0) + (unit.levels ?? []).reduce((n, l) => n + l.rooms.length, 0);
   const scenes = unit.tour_data?.nodes.length ?? 0;
   const metaParts = [
     `${unit.bedrooms} dorm.`,

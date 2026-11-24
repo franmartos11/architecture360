@@ -407,7 +407,8 @@ export function parsePastedPrices(text: string): Map<string, number> {
 
 // ─── Casa: fotos por ambiente ──────────────────────────────────────
 
-export type RoomGroup = 'pb' | 'pa' | 'ext';
+/** Planta de un ambiente: planta baja, la planta extra k (`nivel-k`, ver lib/unit-levels.ts) o exterior. */
+export type RoomGroup = 'pb' | 'ext' | `nivel-${number}`;
 
 const EXTERIOR_RE = /exterior|jard[ií]n|pileta|piscina|terraza|patio|quincho|galer[ií]a|parrill|fachada|frente|deck/i;
 
@@ -415,8 +416,8 @@ const EXTERIOR_RE = /exterior|jard[ií]n|pileta|piscina|terraza|patio|quincho|ga
 export function defaultRoomGroup(room: { name: string; kind?: string }, floorsCount: number, bathIndex = 0): RoomGroup {
   if (EXTERIOR_RE.test(room.name)) return 'ext';
   if (floorsCount <= 1) return 'pb';
-  if (room.kind === 'bedroom') return 'pa';
-  if (room.kind === 'bathroom') return bathIndex === 0 ? 'pb' : 'pa';
+  if (room.kind === 'bedroom') return 'nivel-1';
+  if (room.kind === 'bathroom') return bathIndex === 0 ? 'pb' : 'nivel-1';
   return 'pb';
 }
 

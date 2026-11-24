@@ -15,6 +15,7 @@ type PlanView = '3d' | '2d' | 'ambientes' | 'cochera';
 export default function PlanoTab({
   unit,
   hasRooms,
+  hasPlantaPlans = false,
   planView,
   onPlanViewChange,
   onSelectRoom,
@@ -23,6 +24,9 @@ export default function PlanoTab({
 }: {
   unit: Unit;
   hasRooms: boolean;
+  /** Tiene el plano de alguna planta (dúplex/casa) aunque no tenga ambientes
+   *  delimitados: la vista "Plantas" muestra esos planos con su selector. */
+  hasPlantaPlans?: boolean;
   planView: PlanView;
   onPlanViewChange: (view: PlanView) => void;
   onSelectRoom: (room: Room) => void;
@@ -40,6 +44,7 @@ export default function PlanoTab({
     ...(unit.levels ?? []).map(l => ({ label: l.label, planImage: l.planImage || '', rooms: l.rooms })),
   ], [unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
   const [activeLevelIdx, setActiveLevelIdx] = useState(0);
+  const showLevels = hasRooms || hasPlantaPlans;
   const activeLevel = levels[activeLevelIdx] ?? levels[0];
 
   // Cocheras: la forma está dibujada sobre el plano de OTRO piso (el
@@ -73,12 +78,12 @@ export default function PlanoTab({
       {/* Toggle bar */}
       <div className={fill ? 'absolute top-2.5 inset-x-0 z-10 flex justify-center pointer-events-none' : 'flex-shrink-0 flex items-center justify-center gap-1 px-4 pt-3 pb-2'}>
         <div className={`flex items-center gap-1 rounded-xl p-1 pointer-events-auto ${fill ? 'bg-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.15)] backdrop-blur-sm' : 'bg-gray-100 shadow-inner'}`}>
-          {hasRooms && (
+          {showLevels && (
             <button
               onClick={() => onPlanViewChange('ambientes')}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              Ambientes
+              {hasRooms ? 'Ambientes' : 'Plantas'}
             </button>
           )}
           <button
@@ -145,7 +150,7 @@ export default function PlanoTab({
       <div className="flex-1 relative overflow-hidden">
         {planView === 'cochera' && activeParking ? (
           <ParkingPlanViewer key={activeParking.planImage} planImage={activeParking.planImage} spots={activeParking.spots} />
-        ) : planView === 'ambientes' && hasRooms && activeLevel.planImage ? (
+        ) : planView === 'ambientes' && showLevels && activeLevel.planImage ? (
           <RoomPlanViewer
             key={activeLevel.planImage}
             planImage={activeLevel.planImage}
@@ -153,7 +158,7 @@ export default function PlanoTab({
             onSelectRoom={onSelectRoom}
             focusRoomId={activeLevel.rooms.some(r => r.id === focusRoomId) ? focusRoomId : undefined}
           />
-        ) : planView === 'ambientes' && hasRooms ? (
+        ) : planView === 'ambientes' && showLevels ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
             {activeLevel.label} sin plano cargado todavía.
           </div>

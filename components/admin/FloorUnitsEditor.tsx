@@ -32,6 +32,7 @@ import { unitAgreement } from '@/lib/project-types';
 import { formatPrice, deriveUnitType, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, roomFeatureOptions, areaMismatch, fmtM2, UNIT_CURRENCIES, UNIT_FEATURE_GROUPS, UNIT_CONDITION_OPTIONS, pluralize, UNIT_CATEGORY_LABEL, typeForCategory } from '@/lib/units';
 import { fillMissing } from '@/lib/unit-copy';
 import { UNIT_PLAN_FIELDS } from '@/lib/unit-fields';
+import { levelLabel } from '@/lib/unit-levels';
 
 type UnitRow = Pick<DbUnitRow,
   | 'id' | 'code' | 'model_name' | 'type' | 'category' | 'total_area' | 'inner_area' | 'balcony_area'
@@ -319,7 +320,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const plantas: { label: string; rooms: Room[] }[] = [
     { label: 'Planta baja', rooms },
     ...Array.from({ length: floorsCount - 1 }, (_, i) => ({
-      label: levels[i]?.label ?? `Piso ${i + 1}`,
+      label: levels[i]?.label ?? levelLabel(i + 1, floorsCount),
       rooms: levels[i]?.rooms ?? [],
     })),
   ];
@@ -333,7 +334,7 @@ export default function FloorUnitsEditor({ buildingId, floorId, onUnitsChange }:
   const buildLevels = (over: (k: number) => Partial<UnitLevel>): UnitLevel[] =>
     Array.from({ length: floorsCount - 1 }, (_, k) => ({
       id: levels[k]?.id ?? `piso-${k + 1}`,
-      label: levels[k]?.label ?? `Piso ${k + 1}`,
+      label: levels[k]?.label ?? levelLabel(k + 1, floorsCount),
       planImage: levels[k]?.planImage ?? null,
       plan3dImage: levels[k]?.plan3dImage ?? null,
       rooms: levels[k]?.rooms ?? [],

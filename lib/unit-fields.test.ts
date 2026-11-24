@@ -37,6 +37,14 @@ describe('toFormValues / toDbShape', () => {
     });
   });
 
+  it('expone cantidad de plantas y niveles, y los vuelve a sus columnas', () => {
+    const levels = [{ id: 'piso-1', label: 'Planta alta', planImage: null, plan3dImage: 'r1', rooms: [] }];
+    const values = toFormValues(makeRow({ floors_count: 2, levels }));
+    expect(values.floorsCount).toBe(2);
+    expect(values.levels).toEqual(levels);
+    expect(toDbShape({ levels, floorsCount: 2 })).toEqual({ levels, floors_count: 2 });
+  });
+
   it('preserva balconyArea/externalArea en 0 (no los trata como vacío)', () => {
     const values = toFormValues(makeRow({ balcony_area: 0, external_area: 0 }));
     const patch = toDbShape({ balconyArea: values.balconyArea, externalArea: values.externalArea });

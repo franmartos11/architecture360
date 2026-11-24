@@ -8,12 +8,14 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { planDuplex, positionLetter, centroid, type DuplexModel, type Pt } from '@/lib/guided-structure';
 import type { FlowProps } from './GuidedLoad';
 import ListoScreen from './ListoScreen';
+import DuplexPlantasStep from './DuplexPlantasStep';
+import { readSlot } from '@/lib/unit-levels';
 import {
   GuidedHeader, SplitLayout, StepIntro, StepFooter, NumberStepper, ChoiceCard, Segmented, FieldLabel, ErrorNote,
   allUnits, allFloors, formatNumber, useGuidedApi, useCanvasUndo, ToolbarUndo, type GuidedTree,
 } from './shared';
 
-const STEPS = [{ label: 'Conjunto' }, { label: 'Plano del conjunto' }, { label: 'Listo' }];
+const STEPS = [{ label: 'Conjunto' }, { label: 'Plano del conjunto' }, { label: 'Plantas' }, { label: 'Listo' }];
 
 /** Elecciones de modelo por unidad (D3-B → índice) que siguen dentro de las cantidades actuales. */
 function validOverrides(src: Record<string, number>, n: number, p: number, models: number): Record<string, number> {
@@ -47,7 +49,8 @@ export default function DuplexFlow({ project, tree, setTree, reload, step, goTo 
         ? <ConjuntoExistente tree={tree} onNext={() => goTo(2)} />
         : <ConjuntoStep onCreated={t => { setTree(t); goTo(2); }} />)}
       {effective === 2 && <PlanoStep tree={tree} reload={reload} onBack={() => goTo(1)} onNext={() => goTo(3)} />}
-      {effective === 3 && <DuplexListo project={project} tree={tree} onBackToStart={() => goTo(1)} />}
+      {effective === 3 && <DuplexPlantasStep tree={tree} reload={reload} onBack={() => goTo(2)} onNext={() => goTo(4)} />}
+      {effective === 4 && <DuplexListo project={project} tree={tree} onBackToStart={() => goTo(1)} />}
     </>
   );
 }
@@ -200,7 +203,7 @@ function ConjuntoStep({ onCreated }: { onCreated: (t: GuidedTree) => void }) {
       mainLabel="Vista del conjunto"
       panel={
         <>
-          <StepIntro eyebrow="Paso 1 de 3" title="¿Cuántos dúplex son?">
+          <StepIntro eyebrow="Paso 1 de 4" title="¿Cuántos dúplex son?">
             Cada dúplex tiene sus mitades. Si todas las unidades son iguales, las cargás una vez y se copian a todas.
           </StepIntro>
 
@@ -273,7 +276,7 @@ function ConjuntoExistente({ tree, onNext }: { tree: GuidedTree; onNext: () => v
       mainLabel="Vista del conjunto"
       panel={
         <>
-          <StepIntro eyebrow="Paso 1 de 3" title="El conjunto ya está creado.">
+          <StepIntro eyebrow="Paso 1 de 4" title="El conjunto ya está creado.">
             {tree.buildings.length} dúplex · {units.length} unidades · {models.size} modelo{models.size === 1 ? '' : 's'}. Para sumar dúplex o cambiar una unidad, usá la pantalla de estructura.
           </StepIntro>
           <Link href="/admin/edificios" className="self-start min-h-[40px] flex items-center text-[13px] font-semibold text-brand-700 underline underline-offset-2">
@@ -347,7 +350,7 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
     <SplitLayout
       panel={
         <>
-          <StepIntro eyebrow="Paso 2 de 3" title="Ubicá cada unidad en el conjunto">
+          <StepIntro eyebrow="Paso 2 de 4" title="Ubicá cada unidad en el conjunto">
             Subí la implantación o una vista aérea y marcá cada mitad. En el sitio, el comprador toca la unidad y ve su ficha.
           </StepIntro>
           <div className="flex flex-col gap-2">
@@ -417,7 +420,7 @@ function PlanoStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload:
       <StepFooter
         back={{ label: 'Conjunto', onClick: onBack }}
         summary={<>{marked} de {units.length} unidades marcadas</>}
-        primary={{ label: 'Terminar', onClick: save, busy, disabled: !image }}
+        primary={{ label: 'Guardar y seguir', onClick: save, busy, disabled: !image }}
       />
     </SplitLayout>
   );
@@ -433,12 +436,17 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
   const area = units.find(u => u.inner_area)?.inner_area ?? null;
   const showcase = project.saleMode === 'showcase';
   const sameModel = models === 1;
+  // Unidades con plano y render en todas sus plantas (paso "Plantas").
+  const withPlantas = units.filter(u => {
+    const n = Math.max(1, u.floors_count, (u.levels?.length ?? 0) + 1);
+    return Array.from({ length: n }, (_, p) => p).every(p => readSlot(u, p, 'plano') && readSlot(u, p, 'render'));
+  }).length;
 
   if (showcase) {
     return (
       <ListoScreen
         project={project}
-        eyebrow="Paso 3 de 3"
+        eyebrow="Paso 4 de 4"
         title="El conjunto está armado."
         text={`${duplexCount} dúplex, ${units.length} unidades y ${models === 1 ? 'un modelo' : `${models} modelos`}. Las fichas muestran programa y superficies, sin precio ni estado.`}
         stats={[
@@ -462,7 +470,7 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
   return (
     <ListoScreen
       project={project}
-      eyebrow="Paso 3 de 3"
+      eyebrow="Paso 4 de 4"
       title="El conjunto está armado."
       text={`${units.length} unidades ${sameModel ? 'con el mismo modelo' : `en ${models} modelos`}${marked > 0 ? ', ubicadas en la implantación' : ''}. Para publicar faltan la portada y los precios.`}
       stats={[
@@ -479,7 +487,7 @@ function DuplexListo({ project, tree, onBackToStart }: { project: FlowProps['pro
       }]}
       optional={[
         { label: 'Ambientes y recorrido 360°', text: `Cargalos en una unidad y copialos a las otras ${Math.max(0, units.length - 1)}.`, href: '/admin/edificios' },
-        { label: 'Renders y planos', text: 'Van al modelo y se ven en todas.', href: '/admin/edificios' },
+        { label: 'Plano y render de cada planta', text: `${withPlantas} de ${units.length} unidades con todas las plantas cargadas.`, href: '/admin/edificios' },
         { label: 'Entorno', text: 'Ubicación y amenidades.', href: '/admin/proyecto/entorno' },
         { label: 'Relato', text: 'Texto, atributos y cifras.', href: '/admin/proyecto/relato' },
       ]}

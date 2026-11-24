@@ -1,5 +1,5 @@
 import type { UnitRow as DbUnitRow } from '@/types/database';
-import type { UnitStatus, UnitType, UnitCategory, TourData } from '@/types';
+import type { UnitStatus, UnitType, UnitCategory, TourData, UnitLevel } from '@/types';
 
 // Forma canónica en camelCase de los campos editables de una unidad —
 // puente entre la fila snake_case que devuelve Supabase y los componentes
@@ -28,6 +28,10 @@ export interface UnitFormValues {
   plan3dUrl: string | null;
   technicalPlanUrl: string | null;
   tourData: TourData | null;
+  /** Cantidad de plantas de la unidad (dúplex / casa de 2+ pisos). */
+  floorsCount: number;
+  /** Plantas de más — ver lib/unit-levels.ts. */
+  levels: UnitLevel[] | null;
 }
 
 export function toFormValues(row: DbUnitRow): UnitFormValues {
@@ -55,6 +59,8 @@ export function toFormValues(row: DbUnitRow): UnitFormValues {
     plan3dUrl: row.plan_3d_url,
     technicalPlanUrl: row.technical_plan_url,
     tourData: row.tour_data,
+    floorsCount: row.floors_count ?? 1,
+    levels: row.levels,
   };
 }
 
@@ -80,6 +86,8 @@ const FIELD_TO_COLUMN: Record<keyof UnitFormValues, keyof DbUnitRow> = {
   plan3dUrl: 'plan_3d_url',
   technicalPlanUrl: 'technical_plan_url',
   tourData: 'tour_data',
+  floorsCount: 'floors_count',
+  levels: 'levels',
 };
 
 // Traduce un patch en camelCase (lo que manda un grupo por onChange, y lo

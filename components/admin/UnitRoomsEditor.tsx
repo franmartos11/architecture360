@@ -17,6 +17,7 @@ import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
 import type { TourData, TourNode, Room, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
+import { levelLabel } from '@/lib/unit-levels';
 
 type CopySourceUnit = Pick<DbUnitRow, 'id' | 'code' | 'room_plan_image' | 'rooms' | 'levels' | 'tour_image_url' | 'tour_data'> & {
   building_name: string | null;
@@ -104,7 +105,7 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       const existing = extraLevels[i];
       return {
         key: existing?.id ?? `piso-${i + 1}`,
-        label: existing?.label ?? `Piso ${i + 1}`,
+        label: existing?.label ?? levelLabel(i + 1, floorsCount),
         planImage: existing?.planImage ?? '',
         plan3dImage: existing?.plan3dImage ?? null,
         rooms: existing?.rooms ?? [],

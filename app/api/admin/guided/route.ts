@@ -10,6 +10,8 @@ import {
   type PlannedBuilding, type TowerInput, type DuplexModel, type BlockInput, type LevelInput, type NumberingScheme, type GroundFloorUse,
 } from '@/lib/guided-structure';
 import { serverError } from '@/lib/api-errors';
+import { levelSchema } from '@/lib/unit-schema';
+import { z } from 'zod';
 
 // Carga guiada (/admin/carga). Tres operaciones, todas en UN request para
 // no pasar por el límite de escrituras por minuto del panel (proxy.ts),
@@ -22,7 +24,7 @@ import { serverError } from '@/lib/api-errors';
 //  PATCH → actualiza en lote campos de unidades y pisos (tipologías, planta
 //          tipo, precios de lotes, polígonos…).
 
-const UNIT_COLUMNS = 'id, floor_id, code, model_name, type, category, bedrooms, bathrooms, total_area, inner_area, balcony_area, external_area, lot_size, floors_count, living_rooms, garage_spaces, hoa_fee, price, currency, status, condition, features, polygon, rooms, tour_data, gallery_images, interior_image_url';
+const UNIT_COLUMNS = 'id, floor_id, code, model_name, type, category, bedrooms, bathrooms, total_area, inner_area, balcony_area, external_area, lot_size, floors_count, living_rooms, garage_spaces, hoa_fee, price, currency, status, condition, features, polygon, rooms, tour_data, gallery_images, interior_image_url, room_plan_image, floor_plan_3d_url, levels';
 
 // loadTree devuelve { error } y la ruta lo responde: el detalle de la base queda
 // en el log del servidor, no en la respuesta.
@@ -288,7 +290,7 @@ const MAX_PATCH = 1000;
 
 // camelCase del cliente → columna. Solo lo que algún paso de la carga
 // guiada edita; el resto sigue pasando por /api/admin/units/[id].
-const UNIT_FIELDS: Record<string, { column: string; kind: 'text' | 'number' | 'int' | 'json' | 'textArray' | 'status' | 'condition' }> = {
+const UNIT_FIELDS: Record<string, { column: string; kind: 'text' | 'url' | 'number' | 'int' | 'json' | 'levels' | 'textArray' | 'status' | 'condition' }> = {
   code: { column: 'code', kind: 'text' },
   modelName: { column: 'model_name', kind: 'text' },
   type: { column: 'type', kind: 'text' },
@@ -313,7 +315,12 @@ const UNIT_FIELDS: Record<string, { column: string; kind: 'text' | 'number' | 'i
   polygon: { column: 'polygon', kind: 'json' },
   rooms: { column: 'rooms', kind: 'json' },
   tourData: { column: 'tour_data', kind: 'json' },
+  // Plano y render de cada planta (paso "Plantas" del dúplex, ambientes de casa).
+  roomPlanImage: { column: 'room_plan_image', kind: 'url' },
+  floorPlan3dUrl: { column: 'floor_plan_3d_url', kind: 'url' },
+  levels: { column: 'levels', kind: 'levels' },
 };
+const levelsSchema = z.array(levelSchema).max(20);
 // Columnas NOT NULL: un null ahí rompe el update entero.
 const NOT_NULL = new Set(['code', 'type', 'bedrooms', 'bathrooms', 'living_rooms', 'floors_count', 'garage_spaces', 'balcony_area', 'external_area', 'status', 'features', 'gallery_images']);
 const CONDITIONS = ['a_estrenar', 'en_construccion', 'en_pozo', 'usada'] as const;
@@ -333,6 +340,17 @@ function buildUnitUpdate(input: Record<string, unknown>): Record<string, unknown
         const s = sanitizeText(v, spec.column === 'interior_image_url' ? 2000 : spec.column === 'orientation' ? 10 : 150);
         if (!s && NOT_NULL.has(spec.column)) return `${key} no puede quedar vacío`;
         out[spec.column] = s || null;
+        break;
+      }
+      case 'url': {
+        const s = sanitizeText(v, 2000);
+        out[spec.column] = s || null;
+        break;
+      }
+      case 'levels': {
+        const parsed = levelsSchema.safeParse(v);
+        if (!parsed.success) return `${key} inválido`;
+        out[spec.column] = parsed.data;
         break;
       }
       case 'number':

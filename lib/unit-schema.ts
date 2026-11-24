@@ -16,7 +16,7 @@ import { finite, nullable, safeUrl, polygon, bounded, tourData } from '@/lib/sch
 // con el FIELD_MAP de la ruta, que ya ignoraba lo desconocido.
 
 const room = z.looseObject({ id: z.string().max(100), name: z.string().max(200) });
-const level = z.looseObject({ id: z.string().max(100), label: z.string().max(200), rooms: z.array(room).max(200) });
+export const levelSchema = z.looseObject({ id: z.string().max(100), label: z.string().max(200), rooms: z.array(room).max(200) });
 const parkingSpot = z.looseObject({ floorId: z.string().max(100), polygon });
 
 // Tope de tamaño de los jsonb grandes de la unidad (el del tour está en schema-parts).
@@ -61,7 +61,7 @@ export const unitFieldsSchema = z.object({
   polygon: nullable(polygon),
   parkingSpots: bounded(z.array(parkingSpot).max(200), MAX_BYTES.parkingSpots),
   rooms: nullable(bounded(z.array(room).max(200), MAX_BYTES.rooms)),
-  levels: nullable(bounded(z.array(level).max(20), MAX_BYTES.levels)),
+  levels: nullable(bounded(z.array(levelSchema).max(20), MAX_BYTES.levels)),
   tourImageUrl: nullable(safeUrl),
   tourData: nullable(tourData),
 }).partial();

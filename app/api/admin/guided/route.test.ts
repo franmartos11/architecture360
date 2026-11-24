@@ -165,6 +165,35 @@ describe('PATCH /api/admin/guided', () => {
     expect(supabase.from.mock.results[3].value.update.mock.calls[0][0]).toMatchObject({ price: 185000, total_area: 74, status: 'reserved', orientation: 'NE' });
   });
 
+  it('acepta plano, render y plantas de la unidad', async () => {
+    const supabase = withAccess([
+      { data: [{ id: 'b1' }] },
+      { data: [{ id: 'f1' }] },
+      { data: [{ id: 'u1', floor_id: 'f1' }] },
+      { error: null },
+    ]);
+    const levels = [{ id: 'piso-1', label: 'Planta alta', planImage: 'https://x/p1.png', plan3dImage: null, rooms: [] }];
+    const res = await PATCH(jsonRequest(URL, {
+      units: [{ id: 'u1', roomPlanImage: 'https://x/p.png', floorPlan3dUrl: 'https://x/r.png', levels }],
+    }, { method: 'PATCH' }));
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[3].value.update.mock.calls[0][0]).toMatchObject({
+      room_plan_image: 'https://x/p.png', floor_plan_3d_url: 'https://x/r.png', levels,
+    });
+  });
+
+  it('levels sin id: 400', async () => {
+    withAccess([]);
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', levels: [{ label: 'x', rooms: [] }] }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('levels con rooms que no es lista: 400', async () => {
+    withAccess([]);
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', levels: [{ id: 'a', label: 'x', rooms: 'no' }] }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+  });
+
   it('actualiza unidades y pisos propios', async () => {
     const supabase = withAccess([
       { data: [{ id: 'b1' }] },

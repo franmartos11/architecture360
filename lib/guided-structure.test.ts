@@ -179,9 +179,9 @@ describe('fotos por ambiente', () => {
     expect(matchRoomByFilename('dorm.jpg', rooms)).toBeNull();
   });
   it('planta por defecto', () => {
-    expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 2)).toBe('pa');
+    expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 2)).toBe('nivel-1');
     expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 1)).toBe('pb');
     expect(defaultRoomGroup({ name: 'Jardín', kind: 'other' }, 2)).toBe('ext');
-    expect(defaultRoomGroup({ name: 'Baño 2', kind: 'bathroom' }, 2, 1)).toBe('pa');
+    expect(defaultRoomGroup({ name: 'Baño 2', kind: 'bathroom' }, 2, 1)).toBe('nivel-1');
   });
 });

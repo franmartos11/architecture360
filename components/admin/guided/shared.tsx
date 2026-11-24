@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, startTransition, type ReactNo
 import type { PolygonCanvasApi } from '@/components/admin/PolygonCanvas';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
-import type { FloorKind, ProjectType, ProjectSaleMode, Room, TourData, UnitStatus } from '@/types';
+import type { RoomGroup } from '@/lib/guided-structure';
+import type { FloorKind, ProjectType, ProjectSaleMode, Room, TourData, UnitLevel, UnitStatus } from '@/types';
 
 // Piezas compartidas por los flujos de carga guiada (/admin/carga): el
 // árbol edificios → pisos → unidades que devuelve GET /api/admin/guided,
@@ -54,10 +55,16 @@ export interface GUnit {
   tour_data: TourData | null;
   gallery_images: string[];
   interior_image_url: string | null;
+  /** Plano de ambientes de planta baja. */
+  room_plan_image: string | null;
+  /** Render (planta 3D) de planta baja. */
+  floor_plan_3d_url: string | null;
+  /** Plantas de más (dúplex / casa de 2+ pisos) — ver lib/unit-levels.ts. */
+  levels: UnitLevel[] | null;
 }
 
 /** Room + las fotos de ese ambiente y su planta (rooms es jsonb: los campos extra no requieren migración). */
-export type GRoom = Room & { images?: string[]; group?: 'pb' | 'pa' | 'ext' };
+export type GRoom = Room & { images?: string[]; group?: RoomGroup };
 
 export interface UnitDot { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' }
 
@@ -91,6 +98,20 @@ export function allUnits(tree: GuidedTree | null): GUnit[] {
 
 export function allFloors(tree: GuidedTree | null): GFloor[] {
   return (tree?.buildings ?? []).flatMap(b => b.floors);
+}
+
+/** Versión fresca (desde la base) de los campos de plantas de cada unidad; null si alguna falla. */
+export async function fetchFreshLevels(units: GUnit[]): Promise<GUnit[] | null> {
+  try {
+    return await Promise.all(units.map(async u => {
+      const res = await fetch(`/api/admin/units/${u.id}`);
+      if (!res.ok) throw new Error('unit');
+      const row = (await res.json()) as Pick<GUnit, 'floors_count' | 'room_plan_image' | 'floor_plan_3d_url' | 'levels'>;
+      return { ...u, floors_count: row.floors_count, room_plan_image: row.room_plan_image, floor_plan_3d_url: row.floor_plan_3d_url, levels: row.levels };
+    }));
+  } catch {
+    return null;
+  }
 }
 
 export function useGuidedTree() {
