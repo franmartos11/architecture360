@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect, startTransition } from 'react';
+import { useState, useEffect, useRef, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 
-// Si hay API key de Google, el mapa interactivo es Google Maps; si no, el
-// de OpenStreetMap/leaflet de siempre. El buscador de direcciones queda
-// igual en ambos casos (Nominatim, sin billing).
-const HAS_GMAPS = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-const loading = () => <div className="h-72 rounded-xl bg-gray-100 animate-pulse" />;
-const LocationPickerMap = HAS_GMAPS
-  ? dynamic(() => import('./GoogleLocationPickerMap'), { ssr: false, loading })
-  : dynamic(() => import('./LocationPickerMap'), { ssr: false, loading });
+import type { PlaceResult } from '@/lib/google-places';
+
+// Mapa y buscador son de Google: el mapa con la clave pública, el buscador
+// vía /api/admin/places-search (Places API New, clave del servidor).
+const LocationPickerMap = dynamic(() => import('./GoogleLocationPickerMap'), {
+  ssr: false,
+  loading: () => <div className="h-72 rounded-xl bg-gray-100 animate-pulse" />,
+});
 
 interface SearchResult {
   label: string;
@@ -30,33 +30,51 @@ interface LocationPickerProps {
 
 // Click en el mapa (o elegir un resultado del buscador) para marcar la
 // ubicación — arrastrable después. Siempre opcional: sin marcar nada,
-// queda en null como antes de tener este picker. El buscador pega contra
-// /api/admin/geocode (proxy a Nominatim, gratis, sin API key) en vez de
-// Google Places para no depender de billing.
+// queda en null como antes de tener este picker.
 export default function LocationPicker({ latitude, longitude, onChange, label = 'Ubicación', fallbackCenter }: LocationPickerProps) {
   const hasPosition = latitude != null && longitude != null;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [flyToken, setFlyToken] = useState(0);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  // Texto que puso selectResult en el input: no es una búsqueda nueva (cada
+  // búsqueda se factura en Places y reabriría la lista recién cerrada).
+  const selectedLabelRef = useRef<string | null>(null);
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 3) { startTransition(() => { setResults([]); }); return; }
+    if (selectedLabelRef.current === query) return;
+    selectedLabelRef.current = null;
+    if (q.length < 3) { startTransition(() => { setResults([]); setSearchError(null); }); return; }
     startTransition(() => { setSearching(true); });
     const timer = setTimeout(() => {
-      fetch(`/api/admin/geocode?q=${encodeURIComponent(q)}`)
-        .then(res => res.json())
-        .then(data => setResults(data.results ?? []))
-        .catch(() => setResults([]))
+      const params = new URLSearchParams({ q });
+      // Sesgo: la ubicación ya marcada; si no hay, el centro de respaldo.
+      const bias = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : fallbackCenter;
+      if (bias) { params.set('lat', String(bias.lat)); params.set('lng', String(bias.lng)); }
+      fetch(`/api/admin/places-search?${params}`)
+        .then(async res => {
+          const data = await res.json().catch(() => ({}));
+          setSearchError(res.ok ? null : (data.error ?? 'No se pudo buscar en Google.'));
+          setResults((data.results ?? []).map((r: PlaceResult) => ({
+            label: r.address && r.address !== r.name ? `${r.name} — ${r.address}` : r.name,
+            lat: r.lat,
+            lng: r.lng,
+          })));
+        })
+        .catch(() => { setResults([]); setSearchError('No se pudo buscar en Google.'); })
         .finally(() => setSearching(false));
     }, 400);
     return () => clearTimeout(timer);
+    // La ubicación/fallbackCenter solo sesgan la búsqueda: no re-buscar si cambian.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
   const selectResult = (r: SearchResult) => {
     onChange(r.lat, r.lng);
     setFlyToken(t => t + 1);
+    selectedLabelRef.current = r.label;
     setQuery(r.label);
     setResults([]);
   };
@@ -104,6 +122,7 @@ export default function LocationPicker({ latitude, longitude, onChange, label = 
           </ul>
         )}
         {searching && <p className="text-xs text-gray-400 mt-1">Buscando...</p>}
+        {!searching && searchError && <p className="text-xs text-red-600 mt-1">{searchError}</p>}
       </div>
 
       <div className="h-72 rounded-xl overflow-hidden border border-gray-200">

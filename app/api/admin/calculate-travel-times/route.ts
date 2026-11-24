@@ -56,9 +56,18 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { projectId } = body as { projectId?: string };
+  const { projectId, poiIds: rawPoiIds } = body as { projectId?: string; poiIds?: unknown };
   if (!projectId) {
     return NextResponse.json({ error: 'projectId requerido.' }, { status: 400 });
+  }
+  // poiIds: modo "punto recién agregado" — calcula solo esos y solo si no
+  // tienen ningún tiempo cargado, para nunca pisar tiempos puestos a mano.
+  let poiIds: string[] | null = null;
+  if (rawPoiIds !== undefined) {
+    if (!Array.isArray(rawPoiIds) || rawPoiIds.length === 0 || !rawPoiIds.every((id) => typeof id === 'string')) {
+      return NextResponse.json({ error: 'poiIds debe ser una lista de ids.' }, { status: 400 });
+    }
+    poiIds = rawPoiIds as string[];
   }
 
   const access = await requireProjectAccess(projectId, { revalidate: true });
@@ -68,10 +77,17 @@ export async function POST(req: Request) {
   // Cada llamada golpea la Distance Matrix API de Google, que se paga por
   // uso — sin esto, alguien con la sesión podría hacer clic repetido (o
   // automatizarlo) y generar un costo real sin ningún freno.
-  const limited = await rateLimitOrRespond(
-    { key: `calculate-travel-times:user:${user.id}`, windowSeconds: 300, max: 5 },
-    'Ya calculaste los tiempos hace poco — esperá unos minutos antes de repetirlo.'
-  );
+  // El modo por POI se dispara solo al agregar cada punto desde el
+  // buscador — 1 destino por llamada, de ahí el límite más alto.
+  const limited = poiIds
+    ? await rateLimitOrRespond(
+        { key: `calculate-travel-times-poi:user:${user.id}`, windowSeconds: 300, max: 60 },
+        'Agregaste muchos puntos seguidos — esperá unos minutos para calcular más tiempos.'
+      )
+    : await rateLimitOrRespond(
+        { key: `calculate-travel-times:user:${user.id}`, windowSeconds: 300, max: 5 },
+        'Ya calculaste los tiempos hace poco — esperá unos minutos antes de repetirlo.'
+      );
   if (limited) return limited;
 
   // 1. Leer coords del proyecto
@@ -96,7 +112,7 @@ export async function POST(req: Request) {
   // 2. Leer POIs con coords
   const { data: pois, error: poiErr } = await supabase
     .from('points_of_interest')
-    .select('id, latitude, longitude')
+    .select('id, latitude, longitude, drive_minutes, walk_minutes, bike_minutes')
     .eq('project_id', projectId);
 
   if (poiErr) {
@@ -104,11 +120,14 @@ export async function POST(req: Request) {
   }
 
   const poisWithCoords = (pois ?? []).filter(
-    (p) => p.latitude != null && p.longitude != null
+    (p) => p.latitude != null && p.longitude != null &&
+      (!poiIds || (poiIds.includes(p.id) && p.drive_minutes == null && p.walk_minutes == null && p.bike_minutes == null))
   );
 
   if (poisWithCoords.length === 0) {
-    return NextResponse.json({ updated: 0, message: 'Ningún POI tiene coordenadas para calcular.' });
+    return NextResponse.json(poiIds
+      ? { updated: 0, times: [] }
+      : { updated: 0, message: 'Ningún POI tiene coordenadas para calcular.' });
   }
 
   const destinations = poisWithCoords.map((p) => `${p.latitude},${p.longitude}`);
@@ -143,5 +162,14 @@ export async function POST(req: Request) {
     );
   }
 
+  if (poiIds) {
+    const times = poisWithCoords.map((p, i) => ({
+      id: p.id,
+      drive_minutes: driveMinutes[i],
+      walk_minutes: walkMinutes[i],
+      bike_minutes: bikeMinutes[i],
+    }));
+    return NextResponse.json({ updated: poisWithCoords.length, times });
+  }
   return NextResponse.json({ updated: poisWithCoords.length });
 }

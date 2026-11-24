@@ -14,7 +14,9 @@ import Collapse from '@/components/ui/Collapse';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
-import { POI_CATEGORY_COLORS } from '@/lib/poiCategoryColors';
+import { POI_CATEGORY_COLORS, POI_CATEGORY_ADMIN_LABELS as CATEGORY_LABELS } from '@/lib/poiCategoryColors';
+import PlaceSearchPanel from '@/components/admin/PlaceSearchPanel';
+import type { PlaceResult } from '@/lib/google-places';
 import type { PoiCategory } from '@/types';
 import type { PointOfInterestRow } from '@/types/database';
 import type { OverviewPoi } from '@/components/admin/LocationOverviewMap';
@@ -30,14 +32,6 @@ type PoiRow = Pick<PointOfInterestRow,
   | 'latitude' | 'longitude' | 'walk_minutes' | 'drive_minutes' | 'bike_minutes' | 'sort_order'
 >;
 
-const CATEGORY_LABELS: Record<PoiCategory, string> = {
-  colegio: 'Colegio',
-  salud: 'Salud',
-  comercio: 'Comercio',
-  transporte: 'Transporte',
-  entretenimiento: 'Entretenimiento / club',
-  otro: 'Otro',
-};
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as PoiCategory[];
 
 const EMPTY_FORM = {
@@ -63,10 +57,10 @@ function timePills(p: PoiRow) {
 // Cuerpo de la pantalla de Ubicación, sin el header — compartido entre
 // /admin/proyecto/ubicacion y el panel deslizable de /admin/sitio.
 //
-// Mapa único con todos los puntos + panel lateral con la lista y la
-// edición inline: para ubicar un punto se selecciona (o se crea) y
-// después se hace click en el mapa — evita abrir un picker chico por
-// cada punto como antes.
+// Mapa único (Google) con todos los puntos + panel lateral con la lista y
+// la edición inline. Lo normal es buscar el lugar en Google y agregarlo ya
+// ubicado (PlaceSearchPanel); el alta manual (nombre + click en el mapa)
+// queda detrás de "Crear un punto sin buscar".
 export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   const contentIn = useContentIn();
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -84,6 +78,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   const [draftName, setDraftName] = useState('');
   const [draftCat, setDraftCat] = useState<PoiCategory>('otro');
   const [creatingDraft, setCreatingDraft] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -178,6 +173,67 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     setAwaitingPlacement(true);
     setForm({ ...EMPTY_FORM, name: created.name, category: created.category });
     onSaved?.();
+  };
+
+  const handleAddPlace = async (place: PlaceResult) => {
+    const res = await fetch(withActiveProject('/api/admin/points-of-interest', activeProjectId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: place.name,
+        category: place.category,
+        latitude: place.lat,
+        longitude: place.lng,
+        sortOrder: pois.length,
+      }),
+    });
+    if (!res.ok) { toast('Error al agregar el punto de interés.', 'error'); return; }
+    let created: PoiRow = await res.json();
+    setPois(prev => prev.concat([created]));
+    setSelectedId(created.id);
+    setAwaitingPlacement(false);
+    setForm({ ...EMPTY_FORM, name: created.name, category: created.category });
+
+    // Tiempos solo para este punto; si falla, el punto ya quedó creado y
+    // el botón "Calcular tiempos" sigue disponible — sin toast de error.
+    if (projectCenter && projectId) {
+      const calc = await fetch('/api/admin/calculate-travel-times', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, poiIds: [created.id] }),
+      }).catch(() => null);
+      const data = calc?.ok ? await calc.json().catch(() => null) : null;
+      const t = data?.times?.find((x: { id: string }) => x.id === created.id);
+      if (t) {
+        created = { ...created, drive_minutes: t.drive_minutes, walk_minutes: t.walk_minutes, bike_minutes: t.bike_minutes };
+        setPois(prev => prev.map(p => p.id === created.id ? created : p));
+        setForm(f => ({
+          ...f,
+          driveMinutes: t.drive_minutes != null ? String(t.drive_minutes) : '',
+          walkMinutes: t.walk_minutes != null ? String(t.walk_minutes) : '',
+          bikeMinutes: t.bike_minutes != null ? String(t.bike_minutes) : '',
+        }));
+      }
+    }
+    toast(`«${created.name}» agregado.`);
+    onSaved?.();
+  };
+
+  // Devuelve false si no se pudo guardar: el mapa vuelve el pin a su lugar.
+  const handleMoveMarker = async (id: string, lat: number, lng: number): Promise<boolean> => {
+    const res = await fetch(`/api/admin/points-of-interest/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latitude: lat, longitude: lng }),
+    }).catch(() => null);
+    if (!res?.ok) { toast('Error al mover el punto.', 'error'); return false; }
+    const updated: PoiRow = await res.json();
+    setPois(prev => prev.map(p => p.id === updated.id ? updated : p));
+    if (updated.drive_minutes != null || updated.walk_minutes != null || updated.bike_minutes != null) {
+      toast('Punto movido. Si cambió mucho, revisá sus tiempos de viaje.');
+    }
+    onSaved?.();
+    return true;
   };
 
   const handleLocate = (p: PoiRow) => {
@@ -317,6 +373,7 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
             selectedId={selectedId}
             onSelectMarker={handleSelectMarker}
             onMapClick={handleMapClick}
+            onMoveMarker={handleMoveMarker}
             fitToken={fitToken}
           />
           <div className="absolute left-3 top-3 z-[500] flex flex-col gap-2 pointer-events-none max-w-[calc(100%-24px)]">
@@ -325,7 +382,9 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
                 awaitingPlacement ? 'bg-gray-900 text-white' : 'bg-white/95 text-gray-600'
               }`}
             >
-              {awaitingPlacement ? 'Hacé click en el mapa para ubicar este punto' : 'Seleccioná un punto y hacé click en el mapa para ubicarlo'}
+              {awaitingPlacement
+                ? 'Hacé click en el mapa para ubicar este punto'
+                : 'Buscá un lugar a la derecha, o seleccioná un punto y hacé click en el mapa para ubicarlo'}
             </div>
             <div className="pointer-events-auto flex flex-wrap gap-1.5">
               <button
@@ -358,6 +417,15 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
 
         <div className="w-full lg:w-[380px] flex-none flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden">
           <div className="flex-none p-3 border-b border-gray-100 flex flex-col gap-2">
+            <PlaceSearchPanel center={projectCenter} pois={pois} onAdd={handleAddPlace} />
+            <button
+              type="button"
+              onClick={() => setShowManual(v => !v)}
+              className="self-start text-[11px] font-medium text-brand-600 hover:text-brand-700"
+            >
+              {showManual ? 'Ocultar alta manual' : 'Crear un punto sin buscar'}
+            </button>
+            {showManual && (<>
             <div className="flex gap-1.5">
               <input
                 type="text"
@@ -387,11 +455,12 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
             <p className="text-[11px] leading-snug text-gray-400">
               Escribí un nombre y apretá Enter. Después hacé click en el mapa para ubicarlo.
             </p>
+            </>)}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
             {visible.length === 0 ? (
-              <EmptyState title="No hay puntos en esta categoría" description="Cargá el primero desde el campo de arriba o hacé click en el mapa." />
+              <EmptyState title="No hay puntos en esta categoría" description="Buscá un lugar en Google desde el campo de arriba y agregalo." />
             ) : (
               <div className="divide-y divide-gray-100">
                 {visible.map((p, i) => {

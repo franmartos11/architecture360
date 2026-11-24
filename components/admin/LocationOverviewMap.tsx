@@ -1,39 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useEffect, useRef, useState } from 'react';
 import type { PoiCategory } from '@/types';
 import { POI_CATEGORY_COLORS } from '@/lib/poiCategoryColors';
+import { loadGoogleMaps, GOOGLE_MAPS_PUBLIC_KEY, type GMap, type GMarker, type GoogleMapsApi, type GSymbol } from '@/lib/google-maps-loader';
+import MapsKeyMissing from './MapsKeyMissing';
 
-const DEFAULT_CENTER: [number, number] = [-31.4201, -64.1888];
-
-function pinIcon(color: string, label: string, active: boolean) {
-  const size = active ? 32 : 26;
-  return L.divIcon({
-    className: '',
-    html:
-      `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 3px;background:${color};` +
-      `border:2px solid #fff;box-shadow:0 2px 6px rgba(16,24,40,.35);display:flex;align-items:center;` +
-      `justify-content:center;transform:rotate(-45deg)${active ? ';outline:3px solid rgba(16,24,40,.18)' : ''}">` +
-      `<span style="transform:rotate(45deg);font:600 11px system-ui,sans-serif;color:#fff">${label}</span></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-  });
-}
-
-function projectIcon() {
-  return L.divIcon({
-    className: '',
-    html:
-      '<div style="width:34px;height:34px;border-radius:50%;background:#101828;border:3px solid #fff;' +
-      'box-shadow:0 3px 10px rgba(16,24,40,.35);display:flex;align-items:center;justify-content:center;' +
-      'font:600 9px system-ui,sans-serif;color:#fff;letter-spacing:.03em">AQUÍ</div>',
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  });
-}
+// Córdoba, Argentina — centro inicial sin coordenadas de proyecto.
+const DEFAULT_CENTER = { lat: -31.4201, lng: -64.1888 };
+const MAX_FIT_ZOOM = 15;
+// Gota de 24×32 con la punta abajo al centro.
+const PIN_PATH = 'M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z';
 
 export interface OverviewPoi {
   id: string;
@@ -51,79 +28,169 @@ interface LocationOverviewMapProps {
   onMapClick: (lat: number, lng: number) => void;
   /** Se incrementa desde afuera ("Ver todos en el mapa") para forzar un fitBounds. */
   fitToken: number;
+  /** Pin seleccionado arrastrado a otra posición. Si resuelve `false`
+   *  (no se pudo guardar), el pin vuelve a la última posición conocida. */
+  onMoveMarker?: (id: string, lat: number, lng: number) => Promise<boolean> | void;
 }
 
-function ClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
-  useMapEvents({ click: (e) => onClick(e.latlng.lat, e.latlng.lng) });
-  return null;
+function pinIcon(maps: GoogleMapsApi, color: string, active: boolean): GSymbol {
+  return {
+    path: PIN_PATH,
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: '#ffffff',
+    strokeWeight: 2,
+    scale: active ? 1.25 : 1,
+    anchor: new maps.Point(12, 32),
+    labelOrigin: new maps.Point(12, 12),
+  };
 }
 
-// Centra el mapa en todos los puntos ubicados + el centro del proyecto.
-// Corre al montar y cada vez que `fitToken` cambia (botón "Ver todos").
-function FitController({
-  center,
-  points,
-  fitToken,
-}: {
-  center: { lat: number; lng: number } | null;
-  points: [number, number][];
-  fitToken: number;
-}) {
-  const map = useMap();
+type Located = OverviewPoi & { latitude: number; longitude: number };
+
+export default function LocationOverviewMap(props: LocationOverviewMapProps) {
+  if (!GOOGLE_MAPS_PUBLIC_KEY) return <MapsKeyMissing />;
+  return <GoogleOverview {...props} />;
+}
+
+function GoogleOverview({ center, pois, selectedId, onSelectMarker, onMapClick, fitToken, onMoveMarker }: LocationOverviewMapProps) {
+  const divRef = useRef<HTMLDivElement>(null);
+  const [api, setApi] = useState<{ maps: GoogleMapsApi; map: GMap } | null>(null);
+  const [error, setError] = useState(false);
+  const markersRef = useRef(new Map<string, GMarker>());
+  // Última posición que vino por props (la guardada), para revertir un drag fallido.
+  const positionsRef = useRef(new Map<string, { lat: number; lng: number }>());
+  const projectMarkerRef = useRef<GMarker | null>(null);
+  const handlersRef = useRef({ onSelectMarker, onMapClick, onMoveMarker });
+
   useEffect(() => {
-    const all = center ? points.concat([[center.lat, center.lng]]) : points;
-    if (!all.length) return;
-    const raf = requestAnimationFrame(() => {
-      map.invalidateSize();
-      if (all.length === 1) {
-        map.setView(all[0], 15);
-      } else {
-        map.fitBounds(L.latLngBounds(all), { padding: [48, 48], maxZoom: 15 });
-      }
-    });
-    return () => cancelAnimationFrame(raf);
+    handlersRef.current = { onSelectMarker, onMapClick, onMoveMarker };
+  });
+
+  // Init una sola vez.
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMaps()
+      .then(maps => {
+        if (cancelled || !divRef.current) return;
+        const map = new maps.Map(divRef.current, {
+          center: center ?? DEFAULT_CENTER,
+          zoom: center ? 13 : 11,
+          disableDefaultUI: true,
+          zoomControl: true,
+          clickableIcons: false,
+          gestureHandling: 'greedy',
+        });
+        map.addListener('click', e => {
+          if (e.latLng) handlersRef.current.onMapClick(e.latLng.lat(), e.latLng.lng());
+        });
+        setApi({ maps, map });
+      })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitToken]);
-  return null;
-}
+  }, []);
 
-export default function LocationOverviewMap({
-  center,
-  pois,
-  selectedId,
-  onSelectMarker,
-  onMapClick,
-  fitToken,
-}: LocationOverviewMapProps) {
-  const initialCenter: [number, number] = center ? [center.lat, center.lng] : DEFAULT_CENTER;
-  const located = pois.filter((p): p is OverviewPoi & { latitude: number; longitude: number } =>
-    p.latitude != null && p.longitude != null
-  );
+  // Marcador "AQUÍ" del proyecto.
+  useEffect(() => {
+    if (!api) return;
+    const { maps, map } = api;
+    projectMarkerRef.current?.setMap(null);
+    projectMarkerRef.current = center
+      ? new maps.Marker({
+          position: center,
+          map,
+          zIndex: 2000,
+          title: 'Proyecto',
+          icon: {
+            path: maps.SymbolPath.CIRCLE,
+            scale: 17,
+            fillColor: '#101828',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+          },
+          label: { text: 'AQUÍ', color: '#ffffff', fontSize: '9px', fontWeight: '600' },
+        })
+      : null;
+  }, [api, center]);
 
-  return (
-    <MapContainer
-      center={initialCenter}
-      zoom={center ? 13 : 11}
-      className="w-full h-full"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <ClickHandler onClick={onMapClick} />
-      <FitController center={center} points={located.map(p => [p.latitude, p.longitude])} fitToken={fitToken} />
-      {center && <Marker position={[center.lat, center.lng]} icon={projectIcon()} />}
-      {located.map((p, i) => (
-        <Marker
-          key={p.id}
-          position={[p.latitude, p.longitude]}
-          zIndexOffset={selectedId === p.id ? 1000 : 0}
-          icon={pinIcon(POI_CATEGORY_COLORS[p.category], String(i + 1), selectedId === p.id)}
-          eventHandlers={{ click: () => onSelectMarker(p.id) }}
-        >
-          <Tooltip direction="top" offset={[0, -26]}>{p.name}</Tooltip>
-        </Marker>
-      ))}
-    </MapContainer>
-  );
+  // Pines de POIs, sincronizados por id (sin reconstruir el mapa).
+  useEffect(() => {
+    if (!api) return;
+    const { maps, map } = api;
+    const markers = markersRef.current;
+    const located = pois.filter((p): p is Located => p.latitude != null && p.longitude != null);
+    const keep = new Set(located.map(p => p.id));
+
+    for (const [id, marker] of markers) {
+      if (!keep.has(id)) { marker.setMap(null); markers.delete(id); }
+    }
+
+    located.forEach((p, i) => {
+      const active = p.id === selectedId;
+      const icon = pinIcon(maps, POI_CATEGORY_COLORS[p.category], active);
+      const label = { text: String(i + 1), color: '#ffffff', fontSize: '11px', fontWeight: '600' };
+      const position = { lat: p.latitude, lng: p.longitude };
+      positionsRef.current.set(p.id, position);
+      let marker = markers.get(p.id);
+      if (!marker) {
+        marker = new maps.Marker({ position, map, icon, label, title: p.name });
+        const id = p.id;
+        const m = marker;
+        marker.addListener('click', () => handlersRef.current.onSelectMarker(id));
+        marker.addListener('dragend', async () => {
+          const pos = m.getPosition();
+          if (!pos) return;
+          const ok = await handlersRef.current.onMoveMarker?.(id, pos.lat(), pos.lng());
+          const saved = positionsRef.current.get(id);
+          if (ok === false && saved) m.setPosition(saved);
+        });
+        markers.set(p.id, marker);
+      } else {
+        marker.setPosition(position);
+        marker.setIcon(icon);
+        marker.setLabel(label);
+        marker.setTitle(p.name);
+      }
+      marker.setDraggable(active && !!handlersRef.current.onMoveMarker);
+      marker.setZIndex(active ? 1000 : i);
+    });
+  }, [api, pois, selectedId]);
+
+  // Encuadre: al montar y con cada "Ver todos en el mapa".
+  useEffect(() => {
+    if (!api) return;
+    const { maps, map } = api;
+    const points = pois
+      .filter((p): p is Located => p.latitude != null && p.longitude != null)
+      .map(p => ({ lat: p.latitude, lng: p.longitude }));
+    if (center) points.push(center);
+    if (!points.length) return;
+    if (points.length === 1) {
+      map.setCenter(points[0]);
+      map.setZoom(MAX_FIT_ZOOM);
+      return;
+    }
+    const bounds = new maps.LatLngBounds();
+    points.forEach(p => bounds.extend(p));
+    map.fitBounds(bounds, 48);
+    // Si el encuadre no mueve la cámara, 'idle' puede no llegar: sin quitarlo,
+    // el tope de zoom quedaría colgado y frenaría el próximo zoom manual.
+    const capZoom = maps.event.addListenerOnce(map, 'idle', () => {
+      if ((map.getZoom() ?? 0) > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM);
+    });
+    return () => capZoom.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, fitToken]);
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-sm text-gray-500 px-4 text-center">
+        No se pudo cargar Google Maps — revisá la clave pública y que Maps JavaScript API esté habilitada.
+      </div>
+    );
+  }
+
+  return <div ref={divRef} className="absolute inset-0" />;
 }

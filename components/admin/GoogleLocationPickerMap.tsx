@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { loadGoogleMaps, type GMap, type GMarker } from '@/lib/google-maps-loader';
+import { loadGoogleMaps, GOOGLE_MAPS_PUBLIC_KEY, type GMap, type GMarker } from '@/lib/google-maps-loader';
+import MapsKeyMissing from './MapsKeyMissing';
 
 // Córdoba, Argentina — centro inicial cuando no hay nada marcado ni
-// coordenadas de proyecto (mismo que el mapa de leaflet).
+// coordenadas de proyecto.
 const DEFAULT_CENTER = { lat: -31.4201, lng: -64.1888 };
 
 interface Props {
@@ -17,10 +18,14 @@ interface Props {
   flyToken?: number;
 }
 
-// Misma interfaz que LocationPickerMap (leaflet) — el picker elige uno u
-// otro según haya NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Marcador arrastrable,
-// click en el mapa para (re)ubicar, paneo al cambiar flyToken.
-export default function GoogleLocationPickerMap({ latitude, longitude, onChange, fallbackCenter, flyToken = 0 }: Props) {
+// Mapa del picker de ubicación (solo Google). Marcador arrastrable, click
+// en el mapa para (re)ubicar, paneo al cambiar flyToken.
+export default function GoogleLocationPickerMap(props: Props) {
+  if (!GOOGLE_MAPS_PUBLIC_KEY) return <MapsKeyMissing />;
+  return <PickerMap {...props} />;
+}
+
+function PickerMap({ latitude, longitude, onChange, fallbackCenter, flyToken = 0 }: Props) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GMap | null>(null);
   const markerRef = useRef<GMarker | null>(null);
@@ -37,11 +42,10 @@ export default function GoogleLocationPickerMap({ latitude, longitude, onChange,
 
   // Init una sola vez.
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!key || !divRef.current) return;
+    if (!divRef.current) return;
     let cancelled = false;
 
-    loadGoogleMaps(key)
+    loadGoogleMaps()
       .then(maps => {
         if (cancelled || !divRef.current) return;
         const center = hasPosition
@@ -88,8 +92,7 @@ export default function GoogleLocationPickerMap({ latitude, longitude, onChange,
     if (markerRef.current) {
       markerRef.current.setPosition(pos);
     } else {
-      const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!;
-      loadGoogleMaps(key).then(maps => {
+      loadGoogleMaps().then(maps => {
         if (!mapRef.current) return;
         const marker = new maps.Marker({ position: pos, map: mapRef.current, draggable: true });
         marker.addListener('dragend', () => {
@@ -115,7 +118,7 @@ export default function GoogleLocationPickerMap({ latitude, longitude, onChange,
   if (error) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-100 text-sm text-gray-500 px-4 text-center">
-        No se pudo cargar Google Maps — revisá la API key y que esté habilitada la facturación.
+        No se pudo cargar Google Maps — revisá la clave pública y que Maps JavaScript API esté habilitada.
       </div>
     );
   }

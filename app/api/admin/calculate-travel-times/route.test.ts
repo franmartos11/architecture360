@@ -221,6 +221,83 @@ describe('POST /api/admin/calculate-travel-times', () => {
     expect(await res.json()).toEqual({ updated: 1 });
   });
 
+  describe('con poiIds (punto recién agregado)', () => {
+    const okMatrix = (value: number) => vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ status: 'OK', rows: [{ elements: [{ status: 'OK', duration: { value, text: '' } }] }] }),
+    });
+
+    it('solo calcula esos y no los que ya tienen tiempos; devuelve times', async () => {
+      process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+      const { POST, requireProjectAccess, rateLimitOrRespond } = await loadRoute();
+      vi.mocked(rateLimitOrRespond).mockResolvedValue(null);
+      const supabase = mockSupabase({
+        results: [
+          { data: { id: 'project-1', latitude: -31.4, longitude: -64.2 } },
+          {
+            data: [
+              { id: 'poi-new', latitude: -31.41, longitude: -64.21, drive_minutes: null, walk_minutes: null, bike_minutes: null },
+              { id: 'poi-manual', latitude: -31.42, longitude: -64.22, drive_minutes: 7, walk_minutes: null, bike_minutes: null },
+              { id: 'poi-other', latitude: -31.43, longitude: -64.23, drive_minutes: null, walk_minutes: null, bike_minutes: null },
+            ],
+          },
+          { error: null }, // update poi-new
+        ],
+      });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+      const fetchMock = okMatrix(600);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const res = await POST(req({ projectId: 'project-1', poiIds: ['poi-new', 'poi-manual'] }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        updated: 1,
+        times: [{ id: 'poi-new', drive_minutes: 10, walk_minutes: 10, bike_minutes: 10 }],
+      });
+      const urls = fetchMock.mock.calls.map((c) => decodeURIComponent(c[0] as string));
+      expect(urls.every((u) => u.includes('destinations=-31.41,-64.21&'))).toBe(true);
+    });
+
+    it('usa el rate limit por POI', async () => {
+      process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+      const { POST, requireProjectAccess, rateLimitOrRespond } = await loadRoute();
+      const { NextResponse } = await import('next/server');
+      vi.mocked(rateLimitOrRespond).mockResolvedValue(NextResponse.json({ error: 'x' }, { status: 429 }));
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase(), user: { id: 'user-1' } } as never);
+
+      const res = await POST(req({ projectId: 'project-1', poiIds: ['poi-new'] }));
+      expect(res.status).toBe(429);
+      expect(vi.mocked(rateLimitOrRespond).mock.lastCall?.[0]).toEqual({
+        key: 'calculate-travel-times-poi:user:user-1', windowSeconds: 300, max: 60,
+      });
+    });
+
+    it('poiIds inválido: 400', async () => {
+      process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+      const { POST } = await loadRoute();
+      expect((await POST(req({ projectId: 'project-1', poiIds: 'poi-new' }))).status).toBe(400);
+      expect((await POST(req({ projectId: 'project-1', poiIds: [] }))).status).toBe(400);
+      expect((await POST(req({ projectId: 'project-1', poiIds: [3] }))).status).toBe(400);
+    });
+
+    it('nada para calcular: 200 updated 0 con times [] y sin Distance Matrix', async () => {
+      process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+      const { POST, requireProjectAccess, rateLimitOrRespond } = await loadRoute();
+      vi.mocked(rateLimitOrRespond).mockResolvedValue(null);
+      const supabase = mockSupabase({
+        results: [
+          { data: { id: 'project-1', latitude: -31.4, longitude: -64.2 } },
+          { data: [{ id: 'poi-manual', latitude: -31.42, longitude: -64.22, drive_minutes: 7, walk_minutes: 9, bike_minutes: 3 }] },
+        ],
+      });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+
+      const res = await POST(req({ projectId: 'project-1', poiIds: ['poi-manual'] }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ updated: 0, times: [] });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+  });
+
   it('falla el update de algún POI: 500', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const { POST, requireProjectAccess, rateLimitOrRespond } = await loadRoute();
