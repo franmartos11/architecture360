@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { finite, nullable, safeUrl, point, polygon, bounded, tourData, idString } from '@/lib/schema-parts';
+import { floorViewPhotosSchema } from '@/lib/floor-views';
 
 // Forma y topes de lo que el panel manda al crear o editar edificios, pisos y
 // amenities. Mismo criterio que lib/unit-schema: topes generosos, null para lo
@@ -38,6 +39,9 @@ const floorFields = {
   unitDots: bounded(z.array(unitDot).max(1000), 300_000),
   floorKind: z.enum(FLOOR_KINDS),
   floorKindDescription: nullable(z.string().max(1000)),
+  /** Vista por piso — ver lib/floor-views.ts. */
+  viewPhotos: floorViewPhotosSchema,
+  viewPanorama: nullable(safeUrl),
 };
 
 /** PATCH /api/admin/floors/[id]. */

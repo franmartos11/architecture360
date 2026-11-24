@@ -27,6 +27,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.unitDots !== undefined) updates.unit_dots = body.unitDots;
   if (body.floorKind !== undefined) updates.floor_kind = body.floorKind;
   if (body.floorKindDescription !== undefined) updates.floor_kind_description = sanitizeText(body.floorKindDescription, 300) || null;
+  if (body.viewPhotos !== undefined) updates.view_photos = body.viewPhotos;
+  if (body.viewPanorama !== undefined) updates.view_panorama = body.viewPanorama || null;
 
   const { data, error } = await supabase.from('floors').update(updates).eq('id', id).select().single();
   if (error) return serverError(error);

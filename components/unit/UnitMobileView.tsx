@@ -23,11 +23,12 @@ import UnitPlans from '@/components/financing/UnitPlans';
 // arma UnitViewer y llegan como `renderMedia`.
 
 /** Vistas de la imagen grande, en el orden en que se ofrecen. */
-export type MobileMediaTab = Extract<UnitViewTab, 'plano' | 'planta3d' | 'tour360' | 'galeria'>;
+export type MobileMediaTab = Extract<UnitViewTab, 'plano' | 'planta3d' | 'tour360' | 'vista' | 'galeria'>;
 const MEDIA_ORDER: { id: MobileMediaTab; label: string }[] = [
   { id: 'plano', label: 'Plano' },
   { id: 'planta3d', label: '3D' },
   { id: 'tour360', label: '360°' },
+  { id: 'vista', label: 'Vista' },
   { id: 'galeria', label: 'Fotos' },
 ];
 

@@ -1,5 +1,6 @@
 'use client';
 
+import type { UnitView } from '@/lib/floor-views';
 import dynamic from 'next/dynamic';
 import type { Unit, Amenity, PointOfInterest, UnitViewTab } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
@@ -19,6 +20,7 @@ interface UnitViewerWrapperProps {
   floorNumber: number;
   /** plan_image del piso de la unidad — alimenta el mini mapa "Ubicación en planta". */
   floorPlanImage?: string;
+  floorView?: UnitView | null;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   projectLocation?: string;

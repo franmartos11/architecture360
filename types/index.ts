@@ -12,7 +12,7 @@ export type ProjectType = 'edificio' | 'loteo' | 'duplex' | 'casa' | 'unico';
 export type ProjectSaleMode = 'venta' | 'showcase';
 
 // ─── View tabs inside unit ─────────────────────────────────────────
-export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'amenities' | 'ubicacion';
+export type UnitViewTab = 'planta3d' | 'tour360' | 'plano' | 'galeria' | 'vista' | 'amenities' | 'ubicacion';
 
 // ─── Unit type ─────────────────────────────────────────────────────
 // Categorías estándar de aviso — las que ofrece el dropdown para
@@ -182,6 +182,16 @@ export interface Floor {
   floorKind?: FloorKind;
   /** Texto libre para floorKind !== 'units', ej. "Pileta y solárium". */
   floorKindDescription?: string;
+  /** Fotos de la vista desde este piso, una por orientación — ver lib/floor-views.ts. */
+  viewPhotos?: FloorViewPhoto[];
+  /** Panorámica 360° (equirectangular) de la vista desde este piso. */
+  viewPanorama?: string;
+}
+
+export type ViewDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SO' | 'O' | 'NO';
+export interface FloorViewPhoto {
+  direction: ViewDirection;
+  url: string;
 }
 
 // ─── Real estate unit ──────────────────────────────────────────────

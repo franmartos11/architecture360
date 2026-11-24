@@ -485,6 +485,12 @@ alter table floors add constraint floors_floor_kind_check
   check (floor_kind in ('units', 'amenity', 'offices', 'technical', 'parking', 'other'));
 alter table floors add column if not exists floor_kind_description text;
 
+-- Vista por piso (2026-11-24): fotos de lo que se ve desde el piso, una por
+-- orientación ([{direction, url}], direction en N/NE/E/SE/S/SO/O/NO), y una
+-- panorámica 360° opcional. Ver lib/floor-views.ts.
+alter table floors add column if not exists view_photos jsonb not null default '[]'::jsonb;
+alter table floors add column if not exists view_panorama text;
+
 -- ─── Unidades / departamentos ───────────────────────────────────────
 create table if not exists units (
   id uuid primary key default gen_random_uuid(),

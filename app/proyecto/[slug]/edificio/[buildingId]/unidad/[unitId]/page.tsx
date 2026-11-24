@@ -7,8 +7,9 @@ import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
 import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import { projectCanonical } from '@/lib/project-canonical';
+import { pickUnitView } from '@/lib/floor-views';
 
-const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'amenities', 'ubicacion'];
+const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'vista', 'amenities', 'ubicacion'];
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string; unitId: string }>;
@@ -67,6 +68,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
       buildingName={building.name}
       floorNumber={unit.floor}
       floorPlanImage={building.floors.find(f => f.id === unit.floorId)?.planImage || undefined}
+      floorView={pickUnitView(building.floors, unit)}
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
       projectLocation={project.location}

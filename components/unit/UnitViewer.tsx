@@ -1,5 +1,7 @@
 'use client';
 
+import VistaTab from '@/components/unit/tabs/VistaTab';
+import type { UnitView } from '@/lib/floor-views';
 import DownloadFichaButton from '@/components/unit/DownloadFichaButton';
 import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -43,7 +45,7 @@ const subscribeWide = (cb: () => void) => {
   return () => mql.removeEventListener('change', cb);
 };
 const getWide = () => window.matchMedia(WIDE_QUERY).matches;
-const MOBILE_MEDIA: MobileMediaTab[] = ['plano', 'planta3d', 'tour360', 'galeria'];
+const MOBILE_MEDIA: MobileMediaTab[] = ['plano', 'planta3d', 'tour360', 'vista', 'galeria'];
 
 interface UnitViewerProps {
   unit: Unit;
@@ -55,6 +57,8 @@ interface UnitViewerProps {
   floorNumber: number;
   /** plan_image del piso de la unidad — alimenta el mini mapa "Ubicación en planta". */
   floorPlanImage?: string;
+  /** Vista desde el piso (lib/floor-views pickUnitView); null/ausente = sin pestaña Vista. */
+  floorView?: UnitView | null;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   projectLocation?: string;
@@ -101,6 +105,15 @@ const TABS: { id: UnitViewTab; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: 'vista',
+    label: 'Vista',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 20.25h18M5.25 20.25V9.75L12 4.5l6.75 5.25v10.5M9.75 20.25v-4.5h4.5v4.5M9 11.25h6" />
+      </svg>
+    ),
+  },
 ];
 
 export default function UnitViewer({
@@ -112,6 +125,7 @@ export default function UnitViewer({
   buildingName,
   floorNumber,
   floorPlanImage,
+  floorView,
   amenities = [],
   pointsOfInterest = [],
   projectLocation = '',
@@ -161,6 +175,7 @@ export default function UnitViewer({
     plano: hasRooms || hasPlantaPlans || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
       || !!unit.levels?.some(l => l.planImage) || hasParking,
     galeria: (unit.galleryImages?.length ?? 0) > 0,
+    vista: !!floorView,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
     ubicacion: pointsOfInterest.length > 0,
   };
@@ -430,6 +445,7 @@ export default function UnitViewer({
       planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage),
       tour360: tabHasContent.tour360,
       galeria: tabHasContent.galeria,
+      vista: tabHasContent.vista,
     };
     const mediaTabs = MOBILE_MEDIA.filter(t => mobileHas[t]);
     // Arranca en el orden del selector (Plano primero), salvo que la URL
@@ -469,6 +485,7 @@ export default function UnitViewer({
           fill
         />
       )
+      : t === 'vista' && floorView ? <VistaTab key="vista" view={floorView} />
       : (
         <GaleriaTab
           key="galeria"
@@ -1112,6 +1129,8 @@ export default function UnitViewer({
               />
             )}
 
+            {activeTab === 'vista' && floorView && <VistaTab view={floorView} />}
+
             {/* ── Amenities tab ── */}
             {activeTab === 'amenities' && (
               <AmenitiesTab
@@ -1165,7 +1184,7 @@ export default function UnitViewer({
              dúplex o loteo repetía la miga de pan, y las plantas internas de
              una casa/dúplex ya se eligen en los tabs Planos / Planta 3D.
              Oculto en galería y en mobile. */}
-        {activeTab !== 'galeria' && hasFloorStep && floorPlanImage && (
+        {activeTab !== 'galeria' && activeTab !== 'vista' && hasFloorStep && floorPlanImage && (
           <button
             onClick={() => router.push(`${basePath}/edificio/${buildingId}?piso=${floorNumber}`)}
             aria-label={`Ver ${unit.name} en el plano de la planta ${floorNumber}`}

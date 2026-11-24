@@ -55,6 +55,37 @@ describe('PATCH /api/admin/floors/[id]', () => {
   });
 });
 
+describe('PATCH /api/admin/floors/[id] — vistas del piso', () => {
+  beforeEach(() => {
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveProjectIdFromFloor).mockReset().mockResolvedValue('project-1');
+  });
+
+  it('guarda fotos por orientación y la panorámica', async () => {
+    const supabase = mockSupabase({ results: [{ data: { id: 'floor-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    const viewPhotos = [{ direction: 'N', url: 'https://x.supabase.co/n.jpg' }];
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/floors/floor-1', { viewPhotos, viewPanorama: 'https://x.supabase.co/p.jpg' }), params('floor-1'));
+    expect(res.status).toBe(200);
+    const update = supabase.from.mock.results[0].value.update.mock.calls[0][0];
+    expect(update).toEqual({ view_photos: viewPhotos, view_panorama: 'https://x.supabase.co/p.jpg' });
+  });
+
+  it('quitar la panorámica: null', async () => {
+    const supabase = mockSupabase({ results: [{ data: { id: 'floor-1' }, error: null }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' } } as never);
+    await PATCH(jsonRequest('http://localhost/api/admin/floors/floor-1', { viewPanorama: null }), params('floor-1'));
+    expect(supabase.from.mock.results[0].value.update.mock.calls[0][0]).toEqual({ view_panorama: null });
+  });
+
+  it('dos fotos para la misma orientación: 400', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [] }), user: { id: 'user-1' } } as never);
+    const viewPhotos = [{ direction: 'N', url: 'https://x.supabase.co/a.jpg' }, { direction: 'N', url: 'https://x.supabase.co/b.jpg' }];
+    const res = await PATCH(jsonRequest('http://localhost/api/admin/floors/floor-1', { viewPhotos }), params('floor-1'));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('DELETE /api/admin/floors/[id]', () => {
   beforeEach(() => {
     vi.mocked(requireProjectAccess).mockReset();

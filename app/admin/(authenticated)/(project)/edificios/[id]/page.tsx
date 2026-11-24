@@ -21,7 +21,7 @@ import type { BuildingRow as DbBuildingRow, FloorRow as DbFloorRow } from '@/typ
 
 import { pluralize } from '@/lib/units';
 type BuildingRow = Pick<DbBuildingRow, 'id' | 'slug' | 'name' | 'total_floors' | 'cover_image'>;
-type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
+type FloorRow = Pick<DbFloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description' | 'view_photos' | 'view_panorama'>;
 
 export default function AdminBuildingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const contentIn = useContentIn();

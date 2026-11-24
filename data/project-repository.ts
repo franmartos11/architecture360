@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { parseStoredViewPhotos } from '@/lib/floor-views';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getRequestUser } from '@/lib/supabase/auth';
@@ -138,6 +139,8 @@ function mapProject(
         unitDots: f.unit_dots ?? [],
         floorKind: f.floor_kind ?? 'units',
         floorKindDescription: f.floor_kind_description ?? undefined,
+        viewPhotos: parseStoredViewPhotos(f.view_photos),
+        viewPanorama: f.view_panorama || undefined,
       })),
   }));
 

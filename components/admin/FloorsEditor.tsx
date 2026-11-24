@@ -8,6 +8,8 @@ import { FilterStat } from '@/components/ui/FilterStat';
 import DuplicateFloorModal from '@/components/admin/DuplicateFloorModal';
 import ApplyTemplateModal from '@/components/admin/ApplyTemplateModal';
 import FloorPlanModal from '@/components/admin/FloorPlanModal';
+import FloorViewsModal from '@/components/admin/FloorViewsModal';
+import { parseStoredViewPhotos } from '@/lib/floor-views';
 import FloorUnitsDelimiter from '@/components/admin/FloorUnitsDelimiter';
 import BimEditorModal from '@/components/admin/BimEditorModal';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -16,13 +18,16 @@ import { FLOOR_KIND_OPTIONS } from '@/lib/floorKinds';
 import { floorStatus, floorStatusLabel } from '@/lib/floor-status';
 import type { FloorRow, FloorKind } from '@/types/database';
 
-type Floor = Pick<FloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description'>;
+type Floor = Pick<FloorRow, 'id' | 'number' | 'label' | 'plan_image' | 'floor_kind' | 'floor_kind_description' | 'view_photos' | 'view_panorama'>;
 export interface FloorUnitSummary {
   floor_id: string;
   interior_image_url: string | null;
   price: number | null;
 }
 type Filter = 'all' | 'noPlan' | 'noUnits';
+
+// Fotos de vista cargadas (más la panorámica, si hay).
+const viewCount = (f: Floor) => parseStoredViewPhotos(f.view_photos).length + (f.view_panorama ? 1 : 0);
 
 // Editor de pisos de un edificio — lista compacta con edición en línea,
 // fila clickeable a las unidades del piso, y un modal de plano en vez de
@@ -43,6 +48,7 @@ export default function FloorsEditor({
   const [filter, setFilter] = useState<Filter>('all');
   const [editingCell, setEditingCell] = useState<{ id: string; field: 'label' | 'description' } | null>(null);
   const [planTarget, setPlanTarget] = useState<Floor | null>(null);
+  const [viewsTarget, setViewsTarget] = useState<Floor | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<Floor | null>(null);
   const [applyTemplateTarget, setApplyTemplateTarget] = useState<Floor | null>(null);
   const [bimModalOpen, setBimModalOpen] = useState(false);
@@ -271,6 +277,15 @@ export default function FloorsEditor({
                   <span className={status === 'complete' ? 'text-brand-800' : status === 'partial' ? 'text-amber-800' : 'text-gray-400'}>{label}</span>
                 </span>
                 <span className="shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    title="Vista desde el piso (fotos por orientación)"
+                    aria-label={`Vista desde ${f.label}`}
+                    onClick={() => setViewsTarget(f)}
+                    className="h-7 px-1.5 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium text-[10px]"
+                  >
+                    Vista{viewCount(f) > 0 ? ` ${viewCount(f)}` : ''}
+                  </button>
                   <button type="button" title="Modelos BIM 3D" onClick={() => setBimModalOpen(true)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors font-medium text-[10px]">3D</button>
                   <button type="button" title="Duplicar" onClick={() => setDuplicateTarget(f)} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">⧉</button>
                   {isUnitsFloor && c.total === 0 && floors.length > 1 && (
@@ -338,6 +353,9 @@ export default function FloorsEditor({
           onClose={() => setPlanTarget(null)}
           onSave={url => { handleUpdateFloor(planTarget.id, { plan_image: url }); setPlanTarget(prev => (prev ? { ...prev, plan_image: url } : prev)); }}
         />
+      )}
+      {viewsTarget && (
+        <FloorViewsModal floor={viewsTarget} onClose={() => setViewsTarget(null)} onChanged={onChanged} />
       )}
       {duplicateTarget && (
         <DuplicateFloorModal

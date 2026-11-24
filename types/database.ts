@@ -105,6 +105,9 @@ export interface FloorRow {
   unit_dots: { unitId: string; x: number; y: number; color?: string; style?: 'pill' | 'dot' }[];
   floor_kind: FloorKind;
   floor_kind_description: string | null;
+  /** Ausentes en una base sin el SQL de vistas por piso. */
+  view_photos?: unknown;
+  view_panorama?: string | null;
   created_at: string;
 }
 
