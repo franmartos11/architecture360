@@ -92,6 +92,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
           : { href: `${basePath}/masterplan`, label: typeConfig.hasUnitStep ? 'Ver masterplan' : 'Ver vista frontal' }}
         secondary={project.commonAreasTour ? { href: `${basePath}/recorrido`, label: 'Tour 360°' } : undefined}
         progress={progressText ? { href: '#avance', text: progressText } : undefined}
+        briefUrl={project.briefPdfUrl}
       />
 
       {sectionOrder.map(key => {

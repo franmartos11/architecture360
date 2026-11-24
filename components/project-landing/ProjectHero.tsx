@@ -21,6 +21,8 @@ interface ProjectHeroProps {
    * sección está en la landing; sin esto el hero queda como siempre.
    */
   progress?: { href: string; text: string };
+  /** PDF del brief: link discreto al lado de los botones (abre en otra pestaña). */
+  briefUrl?: string;
 }
 
 // Coordenadas del SVG de la máscara — el texto se dibuja sobre este lienzo
@@ -71,7 +73,7 @@ function useRamp(v: MotionValue<number>, input: number[], output: number[]) {
  *
  * Sin movimiento (prefers-reduced-motion) queda fijo el nombre con la frase.
  */
-export default function ProjectHero({ name, image, tagline, meta, primary, secondary, progress }: ProjectHeroProps) {
+export default function ProjectHero({ name, image, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const textRef = useRef<SVGTextElement>(null);
   const maskId = `hero-mask-${useId().replace(/:/g, '')}`;
@@ -187,10 +189,24 @@ export default function ProjectHero({ name, image, tagline, meta, primary, secon
                 {progress && <HeroProgressLink {...progress} />}
               </div>
             )}
-            {(primary || secondary) && (
-              <div className="flex gap-2.5 flex-wrap">
+            {(primary || secondary || briefUrl) && (
+              <div className="flex gap-2.5 flex-wrap items-center">
                 {primary && <Pill href={primary.href} arrow size="lg">{primary.label}</Pill>}
                 {secondary && <Pill href={secondary.href} variant="ghost" size="lg" className="bg-[var(--theme-bg)]">{secondary.label}</Pill>}
+                {/* Más callado que los botones: no compite con el CTA principal. */}
+                {briefUrl && (
+                  <a
+                    href={briefUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 h-[52px] px-2 text-sm sm:text-[15px] font-semibold text-[var(--theme-text)] underline-offset-4 decoration-1 hover:underline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--theme-accent)] rounded-full"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+                    </svg>
+                    Descargar brief
+                  </a>
+                )}
               </div>
             )}
           </Container>

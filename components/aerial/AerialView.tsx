@@ -575,6 +575,25 @@ export default function AerialView({ project }: AerialViewProps) {
       </div>
       )}
 
+      {/* ── Brief del proyecto: abajo a la derecha, con el mismo vidrio
+          oscuro que los controles (que van centrados, así no se pisan).
+          Se ve dentro del sitio y fuera de él (la barra de arriba no). ── */}
+      {project.briefPdfUrl && (
+        <a
+          href={project.briefPdfUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          aria-label="Descargar brief"
+          className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 h-14 min-w-14 sm:h-[60px] px-4 sm:px-5 flex items-center justify-center gap-2 rounded-2xl bg-[#121312]/[.76] backdrop-blur-md border border-white/[.14] text-white text-sm font-semibold hover:bg-[#121312]/90 transition-colors focus-visible:outline-2 focus-visible:outline-white"
+        >
+          <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+          </svg>
+          <span className="hidden sm:inline">Descargar brief</span>
+        </a>
+      )}
+
     </div>
   );
 }
