@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getSiteProjectBySlug } from '@/data/project-repository';
+import { getSiteProject, getSiteProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { projectCanonical } from '@/lib/project-canonical';
@@ -25,10 +25,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function AmenitiesPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { edificio } = await searchParams;
-  const project = await getSiteProjectBySlug(slug);
+  const view = await getSiteProject(slug);
+  if (!view) notFound();
+  const { project } = view;
   // Sin contenido no hay sección: la barra no la ofrece y una entrada
-  // directa (link viejo, buscador) da 404, como /recorrido sin tour.
-  if (!project || !projectHasContent(project).amenities) notFound();
+  // directa (link viejo, buscador) da 404, como /recorrido sin tour. En la
+  // vista previa del borrador no: el dueño está cargando el proyecto y ve
+  // el mensaje de vacío ("Todavía no hay…") en vez de un 404.
+  if (!view.isDraftPreview && !projectHasContent(project).amenities) notFound();
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   return <AmenitiesView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;
