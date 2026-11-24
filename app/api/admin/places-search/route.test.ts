@@ -106,6 +106,29 @@ describe('GET /api/admin/places-search', () => {
     expect(sentBody().locationBias).toBeUndefined();
   });
 
+  it('Google 429 (cuota): mensaje de cuota, no de API deshabilitada', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 429 }));
+    const res = await GET(new Request(`${URL_BASE}?q=colegio`));
+    expect(res.status).toBe(502);
+    const { error } = await res.json();
+    expect(error).toContain('cuota');
+    expect(error).not.toContain('habilitada');
+  });
+
+  it('sin conexión con Google: mensaje de conexión', async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
+    const res = await GET(new Request(`${URL_BASE}?q=colegio`));
+    expect(res.status).toBe(502);
+    const { error } = await res.json();
+    expect(error).toBe('No se pudo conectar con Google Places. Probá de nuevo en un momento.');
+  });
+
+  it('Google 500: mensaje genérico con el código', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 500 }));
+    const { error } = await (await GET(new Request(`${URL_BASE}?q=colegio`))).json();
+    expect(error).toBe('Google Places respondió un error (500). Probá de nuevo en un momento.');
+  });
+
   it('Google 403: 502 con mensaje y results []', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('{"error":{}}', { status: 403 }));
     const res = await GET(new Request(`${URL_BASE}?q=colegio`));

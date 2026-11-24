@@ -125,6 +125,12 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     return list;
   }, [pois, filter, byCategory]);
 
+  // Memo: el mapa re-sincroniza sus pines cuando cambia esta lista, y sin
+  // esto cambiaba en cada tecla del formulario de la ficha.
+  const overviewPois: OverviewPoi[] = useMemo(() => visible.map(p => ({
+    id: p.id, name: p.name, category: p.category, latitude: p.latitude, longitude: p.longitude,
+  })), [visible]);
+
   const placedCount = pois.filter(p => p.latitude != null).length;
   const missingTimes = pois.filter(p => p.latitude != null && !p.drive_minutes).length;
 
@@ -186,8 +192,8 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
         longitude: place.lng,
         sortOrder: pois.length,
       }),
-    });
-    if (!res.ok) { toast('Error al agregar el punto de interés.', 'error'); return; }
+    }).catch(() => null);
+    if (!res?.ok) { toast('Error al agregar el punto de interés.', 'error'); return; }
     let created: PoiRow = await res.json();
     setPois(prev => prev.concat([created]));
     setSelectedId(created.id);
@@ -333,10 +339,6 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
 
   if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudieron cargar los puntos de interés." onRetry={load} />;
-
-  const overviewPois: OverviewPoi[] = visible.map(p => ({
-    id: p.id, name: p.name, category: p.category, latitude: p.latitude, longitude: p.longitude,
-  }));
 
   return (
     <m.div {...contentIn} className="space-y-4">

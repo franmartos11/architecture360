@@ -86,6 +86,26 @@ describe('PlaceSearchPanel', () => {
     expect(screen.getByRole('button', { name: /Agregando/ })).toHaveProperty('disabled', true);
   });
 
+  it('si agregar falla, avisa y el botón vuelve a estar disponible', async () => {
+    mockFetch({ results: [OTRO] });
+    const onAdd = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    render(<PlaceSearchPanel center={CENTER} pois={[]} onAdd={onAdd} />);
+    await type('colegio');
+    fireEvent.click(await screen.findByRole('button', { name: /Agregar/ }));
+    expect(await screen.findByText('No se pudo agregar «Escuela Normal». Probá de nuevo.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Agregar/ })).toHaveProperty('disabled', false);
+  });
+
+  it('una respuesta que llega después de borrar el texto no se muestra', async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(r => { resolveFetch = r; })));
+    render(<PlaceSearchPanel center={CENTER} pois={[]} onAdd={vi.fn()} />);
+    await type('colegio');
+    await type('co');
+    await act(async () => { resolveFetch(new Response(JSON.stringify({ results: [OTRO] }), { status: 200 })); });
+    expect(screen.queryByText('Escuela Normal')).toBeNull();
+  });
+
   it('muestra el error de la ruta', async () => {
     mockFetch({ results: [], error: 'Google Places respondió un error (403).' }, 502);
     render(<PlaceSearchPanel center={CENTER} pois={[]} onAdd={vi.fn()} />);

@@ -24,6 +24,7 @@ export default function PlaceSearchPanel({ center, pois, onAdd }: PlaceSearchPan
   const [results, setResults] = useState<PlaceResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState<Set<string>>(new Set());
   const addingRef = useRef(new Set<string>());
   const requestRef = useRef(0);
@@ -31,6 +32,8 @@ export default function PlaceSearchPanel({ center, pois, onAdd }: PlaceSearchPan
   useEffect(() => {
     const q = query.trim();
     if (q.length < MIN_CHARS) {
+      // Invalida una búsqueda en vuelo: su respuesta ya no corresponde.
+      requestRef.current++;
       startTransition(() => { setResults(null); setError(null); setSearching(false); });
       return;
     }
@@ -61,8 +64,11 @@ export default function PlaceSearchPanel({ center, pois, onAdd }: PlaceSearchPan
     if (addingRef.current.has(place.placeId)) return;
     addingRef.current.add(place.placeId);
     setAdding(new Set(addingRef.current));
+    setAddError(null);
     try {
       await onAdd(place);
+    } catch {
+      setAddError(`No se pudo agregar «${place.name}». Probá de nuevo.`);
     } finally {
       addingRef.current.delete(place.placeId);
       setAdding(new Set(addingRef.current));
@@ -84,6 +90,7 @@ export default function PlaceSearchPanel({ center, pois, onAdd }: PlaceSearchPan
 
       {searching && <p className="text-[11px] text-gray-400">Buscando…</p>}
       {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {addError && <p className="text-[11px] text-red-600">{addError}</p>}
       {!searching && !error && results?.length === 0 && (
         <p className="text-[11px] text-gray-400">Sin resultados en Google para «{q}».</p>
       )}

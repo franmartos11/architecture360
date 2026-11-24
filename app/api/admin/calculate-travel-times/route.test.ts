@@ -277,6 +277,7 @@ describe('POST /api/admin/calculate-travel-times', () => {
       expect((await POST(req({ projectId: 'project-1', poiIds: 'poi-new' }))).status).toBe(400);
       expect((await POST(req({ projectId: 'project-1', poiIds: [] }))).status).toBe(400);
       expect((await POST(req({ projectId: 'project-1', poiIds: [3] }))).status).toBe(400);
+      expect((await POST(req({ projectId: 'project-1', poiIds: ['a', 'b', 'c', 'd', 'e', 'f'] }))).status).toBe(400);
     });
 
     it('nada para calcular: 200 updated 0 con times [] y sin Distance Matrix', async () => {

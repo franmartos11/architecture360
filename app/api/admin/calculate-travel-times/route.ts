@@ -5,6 +5,8 @@ import { rateLimitOrRespond } from '@/lib/rate-limit';
 // ─── Google Distance Matrix API ─────────────────────────────────────
 const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
+const MAX_POI_IDS = 5;
+
 type TravelMode = 'driving' | 'walking' | 'bicycling';
 
 interface DistanceMatrixElement {
@@ -64,8 +66,13 @@ export async function POST(req: Request) {
   // tienen ningún tiempo cargado, para nunca pisar tiempos puestos a mano.
   let poiIds: string[] | null = null;
   if (rawPoiIds !== undefined) {
-    if (!Array.isArray(rawPoiIds) || rawPoiIds.length === 0 || !rawPoiIds.every((id) => typeof id === 'string')) {
-      return NextResponse.json({ error: 'poiIds debe ser una lista de ids.' }, { status: 400 });
+    // Tope chico: el modo por POI tiene un rate limit más generoso que el
+    // de todo el proyecto, y no tiene que servir para saltearlo.
+    if (
+      !Array.isArray(rawPoiIds) || rawPoiIds.length === 0 || rawPoiIds.length > MAX_POI_IDS ||
+      !rawPoiIds.every((id) => typeof id === 'string')
+    ) {
+      return NextResponse.json({ error: `poiIds debe ser una lista de 1 a ${MAX_POI_IDS} ids.` }, { status: 400 });
     }
     poiIds = rawPoiIds as string[];
   }

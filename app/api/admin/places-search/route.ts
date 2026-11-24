@@ -15,6 +15,15 @@ interface GooglePlace {
   types?: string[];
 }
 
+// Mensaje según la causa: 403 casi siempre es la API sin habilitar o la
+// clave restringida; 429 es cuota; sin respuesta es red.
+function googleErrorMessage(status: number | null): string {
+  if (status == null) return 'No se pudo conectar con Google Places. Probá de nuevo en un momento.';
+  if (status === 403) return 'Google Places respondió un error (403). Revisá que Places API (New) esté habilitada en GOOGLE_MAPS_API_KEY.';
+  if (status === 429) return 'Se alcanzó la cuota de Google Places. Probá de nuevo en un rato.';
+  return `Google Places respondió un error (${status}). Probá de nuevo en un momento.`;
+}
+
 function parseCoord(v: string | null, limit: number): number | null {
   if (v == null || v.trim() === '') return null;
   const n = Number(v);
@@ -57,12 +66,8 @@ export async function GET(request: Request) {
   }).catch(() => null);
 
   if (!res || !res.ok) {
-    const status = res ? res.status : 'sin conexión';
     if (res) console.error('[places-search] Google respondió', res.status, await res.text().catch(() => ''));
-    return NextResponse.json(
-      { results: [], error: `Google Places respondió un error (${status}). Revisá que Places API (New) esté habilitada.` },
-      { status: 502 },
-    );
+    return NextResponse.json({ results: [], error: googleErrorMessage(res?.status ?? null) }, { status: 502 });
   }
 
   const data: { places?: GooglePlace[] } = await res.json().catch(() => ({}));
