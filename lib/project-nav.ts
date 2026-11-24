@@ -4,7 +4,6 @@
 
 export interface ProjectNavInfo {
   projectName: string;
-  showCalculator: boolean;
   hasTour: boolean;
   /** Tipo "casa": una sola unidad — el link va directo a ella y se llama como la casa. */
   singleUnit?: { buildingId: string; unitId: string; label: string };
@@ -20,12 +19,6 @@ export interface ProjectNavInfo {
   /** Unidades disponibles — solo cuando el proyecto muestra estado de venta. */
   unitsAvailable?: number;
   amenitiesCount: number;
-  /**
-   * La landing muestra el avance de obra (sección prendida y con algo
-   * cargado — ver showsConstructionProgress). Solo entonces el menú suma
-   * "Avance de obra": para quien compra en pozo es lo primero que busca.
-   */
-  hasProgress?: boolean;
   /** Nombre de cada edificio por id — para "Plantas · Torre A" en la barra. */
   buildingNames: Record<string, string>;
   /** Tarjetas de "Explorar 3D" del menú. plans: el primer edificio con plano. */

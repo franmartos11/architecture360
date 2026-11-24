@@ -9,8 +9,6 @@ import DraftPreviewBar from '@/components/project-landing/DraftPreviewBar';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
-import { resolveSectionOrder } from '@/lib/project-sections';
-import { showsConstructionProgress } from '@/lib/construction-progress-view';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -80,7 +78,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             pantalla completa y va por debajo del nav a propósito. */}
         <ProjectChrome
           projectName={project.name}
-          showCalculator={typeConfig.showCalculator}
           hasTour={!!project.commonAreasTour}
           singleUnit={!typeConfig.hasUnitStep && project.units[0]
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
@@ -92,7 +89,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           briefUrl={project.briefPdfUrl}
           unitsAvailable={typeConfig.showStatus ? project.units.filter(u => u.status === 'available').length : undefined}
           amenitiesCount={project.amenities.length}
-          hasProgress={showsConstructionProgress(project.constructionProgress, resolveSectionOrder(project.sectionConfig, typeConfig))}
           buildingNames={Object.fromEntries(project.buildings.map(b => [b.id, b.name]))}
           explore={{
             facadeImage: project.aerialSlides[0]?.imageUrl || project.masterplanImage || undefined,

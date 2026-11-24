@@ -16,7 +16,7 @@ import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo 
 // - <1200px: barra mínima — marca, dónde estás, Contactar y Menú (el menú
 //   único de ProjectMenu). En mobile Contactar y Menú quedan solo con ícono.
 // Mismo orden en la barra, el menú y la hoja: Proyecto, Explorar 3D,
-// Unidades, Amenities, Ubicación, Cotizador → Contactar.
+// Unidades, Amenities, Ubicación (+ Brief si hay PDF) → Contactar.
 // Pantallas recorridas dentro del sitio en esta pestaña (navegación del
 // lado del cliente: document.referrer no cambia en esas). Si la nueva ruta es
 // la anterior de la pila, fue un "atrás" y se saca; si no, se apila.
@@ -149,15 +149,14 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
             <Link href={hrefs.location} aria-current={isActive(hrefs.location) ? 'page' : undefined} className={navItemClass(isActive(hrefs.location))}>
               Ubicación
             </Link>
-            {info.hasProgress && (
-              <Link href={hrefs.progress} className={navItemClass(false)}>
-                Avance de obra
-              </Link>
-            )}
-            {info.showCalculator && (
-              <Link href={hrefs.calculator} className={navItemClass(false)}>
-                Cotizador
-              </Link>
+            {/* El brief es un PDF: link común (no TransitionLink), en otra pestaña. */}
+            {info.briefUrl && (
+              <a href={info.briefUrl} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 ${navItemClass(false)}`}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+                </svg>
+                Brief
+              </a>
             )}
           </div>
 

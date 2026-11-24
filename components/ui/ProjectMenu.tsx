@@ -114,7 +114,7 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
   const exploreCards = exploreCardsFor(info, basePath);
 
   // Mismo orden que la barra completa (ver Navbar): Proyecto, Explorar 3D,
-  // Unidades, Amenities, Ubicación, Cotizador → Contactar.
+  // Unidades, Amenities, Ubicación → Contactar (el brief va como botón abajo).
   const after = [
     {
       href: hrefs.units,
@@ -123,8 +123,6 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
     },
     { href: hrefs.amenities, label: 'Amenities' },
     { href: hrefs.location, label: 'Ubicación' },
-    ...(info.hasProgress ? [{ href: hrefs.progress, label: 'Avance de obra' }] : []),
-    ...(info.showCalculator ? [{ href: hrefs.calculator, label: 'Cotizador' }] : []),
   ];
 
   // Dialog: portal con las variables del tema, scroll lock, foco, Escape y
