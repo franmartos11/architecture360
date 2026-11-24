@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     if (failed) return serverError(failed.error, 'No se pudieron cargar las métricas.');
 
     const raw = (summaryRes.data ?? {}) as Omit<MetricsSummary, 'rate'>;
-    const summary: MetricsSummary = { ...raw, rate: conversionRate(raw.web_converters ?? 0, raw.visitors ?? 0) };
+    const summary: MetricsSummary = { ...raw, ficha_downloads: Number(raw.ficha_downloads) || 0, rate: conversionRate(raw.web_converters ?? 0, raw.visitors ?? 0) };
     const channels: Channel[] = ((channelsRes.data ?? []) as Omit<Channel, 'has_traffic'>[])
       .map(c => ({ ...c, has_traffic: traffic.has(c.slug) }));
 

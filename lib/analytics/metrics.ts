@@ -33,6 +33,8 @@ export interface MetricsSummary {
   other_leads: number;
   mobile_visitors: number;
   desktop_visitors: number;
+  /** Toques de "Descargar ficha" en el sitio (0 en una base sin el SQL de la ficha). */
+  ficha_downloads: number;
   rate: number | null;
 }
 

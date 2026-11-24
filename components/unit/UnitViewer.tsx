@@ -1,5 +1,6 @@
 'use client';
 
+import DownloadFichaButton from '@/components/unit/DownloadFichaButton';
 import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, startTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTransitionRouter } from '@/components/ui/TransitionUtils';
@@ -704,6 +705,10 @@ export default function UnitViewer({
               )}
             </div>
           )}
+
+          <div className="mb-4">
+            <DownloadFichaButton projectSlug={projectSlug} unitDbId={unit.dbId} unitName={unit.name} variant="desktop" />
+          </div>
 
           {/* View tabs (Galería / Planta 3D / Planos) */}
           <div className="flex items-center gap-1 overflow-x-auto border border-gray-100 rounded-xl p-1 mb-5 bg-gray-50" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

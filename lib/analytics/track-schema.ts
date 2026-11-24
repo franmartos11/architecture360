@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Lo que el tracker del sitio público le manda a POST /api/track.
-export const TRACK_TYPES = ['page', 'unit', 'tour', 'brief', 'whatsapp'] as const;
+export const TRACK_TYPES = ['page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha'] as const;
 export type TrackType = (typeof TRACK_TYPES)[number];
 
 export const trackSchema = z.object({

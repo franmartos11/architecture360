@@ -1,5 +1,6 @@
 'use client';
 
+import DownloadFichaButton from '@/components/unit/DownloadFichaButton';
 import Segmented from '@/components/ui/Segmented';
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
@@ -212,6 +213,9 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
                 Consultar precio
               </button>
             ) : null}
+            <div className="mt-2">
+              <DownloadFichaButton projectSlug={projectSlug} unitDbId={unit.dbId} unitName={unit.name} variant="mobile" />
+            </div>
           </section>
 
           {/* ── Datos ── */}

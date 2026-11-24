@@ -3026,7 +3026,7 @@ create table if not exists site_events (
   project_id uuid not null references projects(id) on delete cascade,
   visitor_id uuid not null,
   session_id uuid not null,
-  type text not null check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp')),
+  type text not null check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha')),
   path text,
   unit_id uuid references units(id) on delete set null,
   ref text,
@@ -3090,9 +3090,19 @@ language sql stable security definer set search_path = public, pg_temp as $$
     'whatsapp_clickers', (select count(distinct ev.visitor_id) from ev where ev.type = 'whatsapp'),
     'other_leads',       (select count(*) from ld where ld.visitor_id is null),
     'mobile_visitors',   (select count(distinct ev.visitor_id) from ev where ev.device = 'mobile'),
-    'desktop_visitors',  (select count(distinct ev.visitor_id) from ev where ev.device = 'desktop')
+    'desktop_visitors',  (select count(distinct ev.visitor_id) from ev where ev.device = 'desktop'),
+    'ficha_downloads',   (select count(*) from ev where ev.type = 'ficha')
   )
 $$;
+
+-- ─── Ficha PDF por unidad (2026-11-24) ───────────────────────────────────
+-- Bases creadas antes: el check de site_events.type no tenía 'ficha'
+-- (botón "Descargar ficha" de la unidad). La función de arriba ya suma
+-- 'ficha_downloads'; en producción se corre este bloque más el
+-- create or replace de site_metrics_summary.
+alter table site_events drop constraint if exists site_events_type_check;
+alter table site_events add constraint site_events_type_check
+  check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha'));
 
 -- Una fila por unidad con al menos una vista o un lead en el período.
 create or replace function site_unit_ranking(p_project_id uuid, p_since timestamptz)

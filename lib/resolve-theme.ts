@@ -1,4 +1,5 @@
 import { getPreset } from './theme-presets';
+import { contrastRatio } from './color-contrast';
 import { CURATED_FONTS, isCuratedFontKey, type FontKey } from './fonts';
 import type { ThemeConfig, CustomFont } from '@/types';
 
@@ -107,21 +108,6 @@ function textOnAccent(accent: string, light: string, dark: string): string {
   return contrastRatio(light, accent) >= contrastRatio(dark, accent) ? light : dark;
 }
 
-function relativeLuminance(hex: string): number {
-  const clean = hex.replace('#', '');
-  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
-  const channels = [0, 2, 4].map(i => {
-    const c = parseInt(full.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
-
-function contrastRatio(a: string, b: string): number {
-  const l1 = relativeLuminance(a);
-  const l2 = relativeLuminance(b);
-  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-}
 
 // Aviso rápido tipo WCAG sobre las combinaciones que realmente aparecen en
 // la landing (texto sobre fondo, texto sobre fondo oscuro, texto de botón

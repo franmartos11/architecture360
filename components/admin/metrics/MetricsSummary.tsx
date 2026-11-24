@@ -42,6 +42,7 @@ export default function MetricsSummary({ data, onGoToChannels }: { data: Metrics
           { label: 'Consultas web', value: fmtInt(s.web_converters), hint: `${fmtInt(s.web_leads)} por formulario · ${fmtInt(s.whatsapp_clickers)} por WhatsApp` },
           { label: 'Conversión', value: fmtPct(s.rate), hint: 'Visitantes que consultaron' },
           { label: 'Otros leads', value: fmtInt(s.other_leads), hint: 'Bot de WhatsApp o cargados a mano' },
+          { label: 'Fichas descargadas desde el sitio', value: fmtInt(s.ficha_downloads ?? 0), hint: 'Con el botón de cada unidad' },
         ]}
       />
 

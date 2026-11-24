@@ -42,10 +42,19 @@ describe('GET /api/admin/metrics', () => {
     const body = await res.json();
     expect(body.range).toBe('all');
     expect(body.summary).toMatchObject({ visitors: 40, rate: 0.1 });
+    // Base sin el SQL de la ficha: el dato falta y se informa 0.
+    expect(body.summary.ficha_downloads).toBe(0);
     expect(body.units).toHaveLength(1);
     expect(body.sources.channels[0]).toMatchObject({ slug: 'perez', visitors: 10, has_traffic: true });
     expect(body.sources.direct).toEqual([{ host: 'google.com', visitors: 30, converters: 2 }]);
     expect(sb.rpc).toHaveBeenCalledWith('site_metrics_summary', { p_project_id: 'p1', p_since: '-infinity' });
+  });
+
+  it('pasa las descargas de fichas', async () => {
+    const sb = mockSupabase({ results: [{ data: [] }], rpc: [{ data: { ...SUMMARY, ficha_downloads: 7 } }, { data: [] }, { data: [] }, { data: [] }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: sb, user: { id: 'u' } } as never);
+    const body = await (await GET(new Request('http://localhost/api/admin/metrics'))).json();
+    expect(body.summary.ficha_downloads).toBe(7);
   });
 
   it('error de una función (SQL todavía sin correr): 500 con mensaje genérico', async () => {
