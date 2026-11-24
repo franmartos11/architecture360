@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // GET /api/follows/[handle]
 // → { handle, displayName, avatarImage, bio, accountType, followerCount, followingCount, isFollowedByMe }
@@ -11,7 +12,7 @@ import { serverError } from '@/lib/api-errors';
 export async function GET(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
 
   // Resolver handle → perfil
   const { data: target } = await supabase
@@ -58,7 +59,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ handle:
 export async function POST(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const limited = await rateLimitOrRespond({ key: `follows:user:${user.id}`, windowSeconds: 60, max: 30 });
@@ -93,7 +94,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
 export async function DELETE(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const [{ data: me }, { data: target }] = await Promise.all([

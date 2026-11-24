@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // RLS ("author write posts") es la autoridad real — si el post no es de
 // esta cuenta, el delete simplemente no afecta filas.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data, error } = await supabase.from('posts').delete().eq('id', id).select();

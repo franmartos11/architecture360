@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // Pendientes de la cuenta logueada: invitaciones a proyectos ajenos y
 // transferencias de propiedad que le ofrecieron.
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const [{ data: members, error: membersError }, { data: transfers, error: transfersError }] = await Promise.all([

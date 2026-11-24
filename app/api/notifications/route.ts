@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const PAGE_SIZE = 20;
 const ACTOR_SELECT = '*, actor:profiles!notifications_actor_id_fkey(handle, display_name, avatar_image)';
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const before = searchParams.get('before');
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ notifications: [], hasMore: false, unreadCount: 0 });
 
   let query = supabase

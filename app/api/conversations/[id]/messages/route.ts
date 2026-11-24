@@ -9,6 +9,7 @@ import { isBlockedEitherWay } from '@/lib/blocks';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { getConversationIfParticipant } from '@/lib/conversations';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const PAGE_SIZE = 30;
 const MAX_BODY_LENGTH = 2000;
@@ -89,7 +90,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const before = searchParams.get('before');
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ messages: [], hasMore: false });
 
   const conversation = await getConversationIfParticipant(supabase, id, user.id);
@@ -115,7 +116,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const conversation = await getConversationIfParticipant(supabase, id, user.id);

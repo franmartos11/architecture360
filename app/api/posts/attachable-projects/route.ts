@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // Lista liviana de "mis proyectos" para el picker de adjuntar Proyecto o
 // Recorrido 360 en el composer del feed — a diferencia de
@@ -9,7 +10,7 @@ import { serverError } from '@/lib/api-errors';
 // listar y armar la card embebida en el post.
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data, error } = await supabase

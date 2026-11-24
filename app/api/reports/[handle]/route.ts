@@ -5,6 +5,7 @@ import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const MAX_REASON_LENGTH = 500;
 
@@ -24,7 +25,7 @@ const reportSchema = z.object({
 export async function POST(request: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const limited = await rateLimitOrRespond(

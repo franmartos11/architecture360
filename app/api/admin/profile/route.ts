@@ -5,6 +5,7 @@ import { slugify, ensureUniqueSlug } from '@/lib/slug';
 import { parseJsonBody, optionalUrlSchema } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // skills/experiences/education/certifications/awards son listas de objetos
 // con forma propia (ej. { role, company, from, to }) — se cachea su longitud
@@ -45,7 +46,7 @@ const profilePatchSchema = z.object({
 // PATCH → crea o actualiza el perfil (upsert por id = auth.uid()).
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
@@ -55,7 +56,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const parsed = await parseJsonBody(request, profilePatchSchema);

@@ -13,6 +13,7 @@ import { serverError } from '@/lib/api-errors';
 import { getActiveDomains } from '@/lib/project-domains';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { projectCreateSchema } from '@/lib/content-schemas';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // Columnas del listado, comunes a los proyectos propios y a los compartidos.
 const PROJECT_COLUMNS = 'id, slug, name, description, location, masterplan_image, project_type, sale_mode, show_in_portfolio, published, process_gallery, before_after, created_at, updated_at';
@@ -32,7 +33,7 @@ const SALE_MODE_KEYS = Object.keys(PROJECT_SALE_MODES) as (keyof typeof PROJECT_
 // POST → crea un proyecto nuevo con esa cuenta como dueña.
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const [{ data: owned, error }, { data: memberships, error: membersError }] = await Promise.all([
@@ -175,7 +176,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const raw = await readJsonObject(request);

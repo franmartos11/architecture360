@@ -7,6 +7,7 @@ import { getConversationIfParticipant } from '@/lib/conversations';
 import { parseJsonBody } from '@/lib/api-validate';
 import { uploadTicketSchema } from '@/lib/signed-upload-schema';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const BUCKET = 'message-attachments';
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -31,7 +32,7 @@ const ALLOWED_DOCUMENT_TYPES = ['application/pdf'];
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const conversation = await getConversationIfParticipant(supabase, id, user.id);

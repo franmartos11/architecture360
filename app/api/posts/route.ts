@@ -12,6 +12,7 @@ import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { serverError } from '@/lib/api-errors';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
 import { isPublishedUpdate } from '@/lib/construction-progress';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -224,7 +225,7 @@ export async function GET(request: Request) {
   const tag = searchParams.get('tag');
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
 
   if (tag) {
     const { data, error } = await supabase
@@ -322,7 +323,7 @@ const postSchema = z.object({
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();

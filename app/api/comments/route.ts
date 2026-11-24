@@ -6,6 +6,7 @@ import { parseJsonBody, uuidSchema } from '@/lib/api-validate';
 import { sanitizeMultiline } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const PAGE_SIZE = 20;
 const MAX_BODY_LENGTH = 2000;
@@ -63,7 +64,7 @@ const postCommentSchema = z.object({
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const parsed = await parseJsonBody(request, postCommentSchema);

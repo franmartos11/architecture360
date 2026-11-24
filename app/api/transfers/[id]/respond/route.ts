@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notify } from '@/lib/notify';
 import { parseJsonBody } from '@/lib/api-validate';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const respondSchema = z.object({
   status: z.enum(['accepted', 'declined'], { message: 'Estado inválido' }),
@@ -16,7 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { status } = parsed.data;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   if (status === 'declined') {

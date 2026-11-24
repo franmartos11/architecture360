@@ -7,6 +7,7 @@ import { escapeHtml } from '@/lib/sanitize';
 import { parseJsonBody } from '@/lib/api-validate';
 import { z } from 'zod';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const bodySchema = z.object({
   status: z.enum(['accepted', 'declined'], { message: "status debe ser 'accepted' o 'declined'" }),
@@ -17,7 +18,7 @@ const bodySchema = z.object({
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const parsed = await parseJsonBody(request, bodySchema);

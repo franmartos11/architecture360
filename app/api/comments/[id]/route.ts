@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // El autor del comentario o el dueño del proyecto pueden borrarlo — RLS
 // (dos policies OR'd) es la autoridad real acá; si ninguna aplica, el
@@ -8,7 +9,7 @@ import { serverError } from '@/lib/api-errors';
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data, error } = await supabase.from('project_comments').delete().eq('id', id).select();

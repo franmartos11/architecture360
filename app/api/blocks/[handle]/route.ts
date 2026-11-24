@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { isBlockedEitherWay } from '@/lib/blocks';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // Mismo patrón que /api/follows/[handle]: identificado por handle (así
 // llama MessageThread, que ya tiene other.handle a mano), resuelto a
@@ -18,7 +19,7 @@ import { serverError } from '@/lib/api-errors';
 export async function GET(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ isBlockedByMe: false, canMessage: true });
 
   const { data: target } = await supabase.from('profiles').select('id').eq('handle', handle).maybeSingle();
@@ -36,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ handle:
 export async function POST(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const limited = await rateLimitOrRespond({ key: `blocks:user:${user.id}`, windowSeconds: 60, max: 30 });
@@ -58,7 +59,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ handle
 export async function DELETE(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data: target } = await supabase.from('profiles').select('id').eq('handle', handle).maybeSingle();

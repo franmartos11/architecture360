@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { slugify } from '@/lib/slug';
 import { getAvailabilityInfo } from '@/lib/profile-availability';
 import type { ProfileRow } from '@/types/database';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // GET /api/admin/profile/cv — arma un PDF con los datos del portfolio de la
 // cuenta logueada (nombre, titular, aptitudes, experiencia, educación,
@@ -156,7 +157,7 @@ function CvDocument({ profile, projectNames, siteUrl }: CvProps) {
 
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();

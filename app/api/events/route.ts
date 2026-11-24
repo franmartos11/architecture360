@@ -6,6 +6,7 @@ import { parseJsonBody } from '@/lib/api-validate';
 import { sanitizeText, sanitizeMultiline } from '@/lib/sanitize';
 import { serverError } from '@/lib/api-errors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const MAX_TITLE_LENGTH = 140;
 const MAX_TEXT_LENGTH = 500;
@@ -15,7 +16,7 @@ const MAX_TEXT_LENGTH = 500;
 // extender con paginación sin romper el shape actual.
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
 
   const { data: event } = await supabase
     .from('events')
@@ -55,7 +56,7 @@ const eventSchema = z.object({
 // rol de "admin de plataforma" separado del dueño de cada proyecto.
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();

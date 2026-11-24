@@ -7,6 +7,7 @@ import { serverError } from '@/lib/api-errors';
 import { escapeHtml } from '@/lib/sanitize';
 import { readJsonObject, validateJson } from '@/lib/api-validate';
 import { collaboratorRespondSchema } from '@/lib/content-schemas';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 // La persona acreditada acepta o rechaza su propia invitación — a
 // diferencia del resto de /api/admin/collaborators, esto no depende de
@@ -14,7 +15,7 @@ import { collaboratorRespondSchema } from '@/lib/content-schemas';
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const raw = await readJsonObject(request);

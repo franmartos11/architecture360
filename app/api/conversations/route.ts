@@ -5,6 +5,7 @@ import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { HANDLE_RE } from '@/lib/validate';
 import { isBlockedEitherWay } from '@/lib/blocks';
 import { serverError } from '@/lib/api-errors';
+import { getClaimsUser } from '@/lib/supabase/claims';
 
 const PARTICIPANT_SELECT = 'id, handle, display_name, avatar_image';
 
@@ -13,7 +14,7 @@ const PARTICIPANT_SELECT = 'id, handle, display_name, avatar_image';
 // cada una — todo en un puñado de queries batch en vez de N+1 por fila.
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ conversations: [] });
 
   const { data, error } = await supabase
@@ -70,7 +71,7 @@ export async function GET() {
 // ese perfil, idempotente (mismo criterio que el insert de follows).
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));

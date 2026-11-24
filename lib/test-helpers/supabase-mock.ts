@@ -73,7 +73,7 @@ export interface MockSupabaseOptions {
   results?: MockResult[];
   /** Resultados de cada llamada a `supabase.rpc(...)`, en orden — cola aparte de `results`. */
   rpc?: MockResult[];
-  /** Usuario logueado para `supabase.auth.getUser()` — `null`/omitido = anónimo. */
+  /** Usuario logueado para `supabase.auth.getUser()` / `getClaims()` — `null`/omitido = anónimo. */
   user?: { id: string; email?: string } | null;
   /** Config de `supabase.storage.from(bucket)` — solo hace falta en rutas de upload/delete de archivos. */
   storage?: {
@@ -113,7 +113,11 @@ export function mockSupabase({ results = [], user = null, storage, rpc: rpcResul
   return {
     from,
     rpc,
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) },
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user } }),
+      // Las rutas /api/** resuelven al usuario con getClaimsUser() (lib/supabase/claims.ts).
+      getClaims: vi.fn().mockResolvedValue({ data: user ? { claims: { sub: user.id, email: user.email } } : null, error: null }),
+    },
     storage: {
       from: vi.fn(() => ({
         upload: vi.fn().mockResolvedValue(storage?.upload ?? { data: null, error: null }),
