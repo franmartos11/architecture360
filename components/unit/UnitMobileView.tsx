@@ -9,6 +9,8 @@ import ShareMenu from '@/components/ui/ShareMenu';
 import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import { formatPrice, getStatusColor, getStatusLabel, cocheraLabel } from '@/lib/units';
 import type { Amenity, Unit, UnitViewTab } from '@/types';
+import { useCalculatorSettings } from '@/hooks/useCalculatorSettings';
+import UnitPlans from '@/components/financing/UnitPlans';
 
 // Ficha de la unidad en pantallas angostas: una sola página que scrollea
 // — barra con volver/compartir, la imagen con su selector (Plano · 3D ·
@@ -232,7 +234,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
           )}
 
           {/* ── Cuota ── */}
-          {showCalculator && price && <QuotaCalculator price={price} currency={currency} projectSlug={projectSlug} />}
+          {showCalculator && price && <QuotaCalculator price={price} currency={currency} projectSlug={projectSlug} unit={unit} />}
 
           {/* ── Amenities ── */}
           {amenities.length > 0 && (
@@ -344,25 +346,28 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
 }
 
 // ── Cuota ────────────────────────────────────────────────────────
-// Misma fuente y fórmula que MortgageCalculatorModal: tasa, plazo máximo y
-// anticipo mínimo del proyecto (/api/settings). La tasa la fija el
-// proyecto, así que se muestra pero no se elige.
-interface CalcSettings { interestRate: number; maxYears: number; minDownPayment: number }
-const DEFAULT_SETTINGS: CalcSettings = { interestRate: 5.5, maxYears: 30, minDownPayment: 20 };
-
-function QuotaCalculator({ price, currency, projectSlug }: { price: number; currency: string; projectSlug: string }) {
-  const [settings, setSettings] = useState<CalcSettings>(DEFAULT_SETTINGS);
+// Misma fuente que MortgageCalculatorModal (/api/settings, vía
+// useCalculatorSettings). Con planes de pago en pozo cargados muestra los
+// planes; si no, el simulador hipotecario: tasa, plazo máximo y anticipo
+// mínimo del proyecto (la tasa se muestra pero no se elige).
+function QuotaCalculator({ price, currency, projectSlug, unit }: { price: number; currency: string; projectSlug: string; unit: Unit }) {
+  const loaded = useCalculatorSettings(projectSlug);
   const [down, setDown] = useState<number | null>(null);
   const [years, setYears] = useState<number | null>(null);
+  if (!loaded) return null;
+  const settings = loaded;
 
-  useEffect(() => {
-    let alive = true;
-    fetch(`/api/settings?projectSlug=${encodeURIComponent(projectSlug)}`)
-      .then(res => res.json())
-      .then(data => { if (alive && data && data.interestRate) setSettings(data); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [projectSlug]);
+  if (settings.financingPlans.length > 0) {
+    return (
+      <section aria-labelledby="unit-m-cuota" className="flex flex-col gap-3.5 px-4 py-[18px] rounded-2xl border border-[#E6E8EB]">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="unit-m-cuota" className="m-0 text-lg font-bold">Planes de pago</h2>
+          <span className="text-xs text-[#5B6472] whitespace-nowrap">sobre {formatPrice(price, currency)}</span>
+        </div>
+        <UnitPlans plans={settings.financingPlans} price={price} currency={currency} projectSlug={projectSlug} unit={unit} />
+      </section>
+    );
+  }
 
   const downOptions = [...new Set([0, 10, 20, 30].map(d => Math.min(settings.minDownPayment + d, 90)))];
   const yearOptions = [...new Set([Math.round(settings.maxYears / 3), Math.round((settings.maxYears * 2) / 3), settings.maxYears].map(y => Math.max(1, y)))];

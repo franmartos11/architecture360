@@ -1,6 +1,7 @@
 // Texto que lee la IA sobre un proyecto + filtros sobre las unidades vivas.
 // Sin imports de next/react: corre con tsx fuera de Next.
 import type { ConstructionProgress } from '@/types';
+import { describePlan, planExampleText, type FinancingPlan } from '@/lib/financing';
 import type { AmenityRow, BuildingRow, FloorRow, PointOfInterestRow, ProjectRow } from '@/types/database';
 import type { WaBot } from '@/types/whatsapp-bot';
 import { armarMaterial, resumenMaterial, urlMapa, type SlideAerea } from './material';
@@ -43,7 +44,7 @@ export type DatosProyecto = {
   unidades: UnidadBot[];
   amenities: AmenityRow[];
   pois: PointOfInterestRow[];
-  calculadora: { interest_rate: number; max_years: number; min_down_payment: number } | null;
+  calculadora: { interest_rate: number; max_years: number; min_down_payment: number; financing_plans?: FinancingPlan[] } | null;
   /** Vistas aéreas / renders del masterplan. */
   slides: SlideAerea[];
   /** Avance de obra, solo si la sección está visible en el sitio. */
@@ -259,7 +260,15 @@ export function armarFicha(
     armarMaterial({ proyecto: p, edificios: d.edificios, amenities: d.amenities, slides: d.slides ?? [], avance: d.avance ?? null }),
   );
   if (material) s.push(`\n## Material del proyecto para mandar con enviar_material\n${material}`);
-  if (d.calculadora) {
+  const planes = d.calculadora?.financing_plans ?? [];
+  if (planes.length > 0) {
+    // Condiciones oficiales que cargó la desarrolladora (Configuración › Planes de pago en pozo).
+    s.push(
+      `\n## Planes de pago del desarrollador (condiciones oficiales; los montos dependen del precio de cada unidad)\n${planes
+        .map(p => `- ${p.name}: ${describePlan(p)}${p.note ? ` (${p.note})` : ''}\n  ${planExampleText(p)}`)
+        .join('\n')}\nSi preguntan por financiación, ofrecé estos planes. Los montos para una unidad son proporcionales al ejemplo (el ejemplo es sobre 100.000): dalos como aproximados y, para el detalle exacto, mandá a la ficha de la unidad en el sitio, que trae la calculadora. No inventes otros planes ni tasas.`,
+    );
+  } else if (d.calculadora) {
     const c = d.calculadora;
     s.push(
       `\n## Simulador de cuotas de referencia (no es una oferta de financiación del desarrollador)\nEl sitio del proyecto trae un simulador con estos valores de ejemplo: tasa anual ${c.interest_rate}%, plazo hasta ${c.max_years} años, anticipo desde ${c.min_down_payment}%. Son solo para simular: no los presentes como condiciones de pago ni como financiación ofrecida.`,

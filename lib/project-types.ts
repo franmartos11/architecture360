@@ -158,7 +158,9 @@ export const PROJECT_STRUCTURES: Record<ProjectType, StructureConfig> = {
     unitKind: 'land',
     // Un loteo se carga como UNA etapa. Para varias etapas, contacto directo.
     singleBuilding: true,
-    allowsCalculator: false,
+    // Los lotes se venden mucho en cuotas: la calculadora muestra los planes
+    // de pago que cargue la desarrolladora (o el simulador si no carga ninguno).
+    allowsCalculator: true,
     allowedSaleModes: ['venta', 'showcase'],
   },
   duplex: {

@@ -5,6 +5,7 @@ import { slugify } from '@/lib/slug';
 import { PageHeader, SegmentedTabs, btnSecondary } from '@/components/admin/panel-ui';
 import { getProjectDisplayUrl } from '@/lib/project-url';
 import CalculatorEditor from '@/components/admin/section-editors/CalculatorEditor';
+import FinancingPlansEditor from '@/components/admin/FinancingPlansEditor';
 import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import TeamMembersCard from '@/components/admin/TeamMembersCard';
 import TransferOwnershipCard from '@/components/admin/TransferOwnershipCard';
@@ -225,6 +226,11 @@ export default function SettingsPage() {
             {showCalculator && (
               <div className="pt-4 border-t border-gray-200">
                 <CalculatorEditor showSiteToggle />
+              </div>
+            )}
+            {showCalculator && (
+              <div className="pt-4 border-t border-gray-200">
+                <FinancingPlansEditor />
               </div>
             )}
           </div>

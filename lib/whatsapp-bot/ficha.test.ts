@@ -164,6 +164,16 @@ describe('armarFicha', () => {
     expect(t).toContain('## Simulador de cuotas de referencia (no es una oferta de financiación del desarrollador)');
     expect(t).not.toContain('## Financiación');
   });
+  it('con planes de pago en pozo los da como condiciones oficiales y no menciona el simulador hipotecario', () => {
+    const plan = { id: 'p1', name: 'Plan 36', downPaymentPct: 30, installments: 36, installmentsPct: 40, boosts: 3, boostEveryMonths: 6, boostsPct: 15, priceAdjustmentPct: 0, index: 'CAC' as const };
+    const t = armarFicha({ ...base, calculadora: { interest_rate: 8, max_years: 20, min_down_payment: 30, financing_plans: [plan] } }, { conocimiento: null });
+    expect(t).toContain('## Planes de pago del desarrollador');
+    expect(t).toContain('Plan 36: 30% de anticipo + 36 cuotas + 3 refuerzos semestrales + 15% a la posesión · cuotas ajustables por CAC');
+    expect(t).not.toContain('Simulador de cuotas de referencia');
+    // El bot no hace cuentas de cabeza: trae un ejemplo calculado y presenta montos como aproximados.
+    expect(t).toContain('Ejemplo sobre 100.000: anticipo 30.000 · 36 cuotas de 1.111 · 3 refuerzos de 5.000 · posesión 15.000');
+    expect(t.toLowerCase()).toContain('aproximad');
+  });
 });
 
 describe('unidadesParaAviso', () => {

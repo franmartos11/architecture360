@@ -17,11 +17,14 @@ describe('getProjectTypeConfig', () => {
     expect(config.showCalculator).toBe(true);
   });
 
-  it('showCalculator es false si la forma no lo permite, aunque el modo sea venta', () => {
-    // Un loteo no se financia como una hipoteca convencional (allowsCalculator: false).
+  it('un loteo en venta muestra la calculadora (planes de pago en cuotas)', () => {
     const config = getProjectTypeConfig('loteo', 'venta');
-    expect(config.showCalculator).toBe(false);
-    expect(config.showPrice).toBe(true); // el resto de los flags de venta sí prenden
+    expect(config.showCalculator).toBe(true);
+    expect(config.showPrice).toBe(true);
+  });
+
+  it('showCalculator es false si la forma no lo permite (proyecto único)', () => {
+    expect(getProjectTypeConfig('unico', 'venta').showCalculator).toBe(false);
   });
 
   it('cae al default si el tipo no existe en el catálogo (dato viejo/corrupto)', () => {

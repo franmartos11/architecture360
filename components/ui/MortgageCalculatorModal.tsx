@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { formatPrice } from '@/lib/units';
 import Dialog from '@/components/ui/Dialog';
+import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
+import { useCalculatorSettings, type CalculatorSettings } from '@/hooks/useCalculatorSettings';
+import { planLeadMessage, type FinancingPlan } from '@/lib/financing';
+import { PlanBreakdown, PlanSelector } from '@/components/financing/PlanBreakdown';
+import type { Unit } from '@/types';
 
 interface MortgageCalculatorModalProps {
   isOpen: boolean;
@@ -10,28 +15,75 @@ interface MortgageCalculatorModalProps {
   unitPrice: number;
   currency?: string;
   projectSlug: string;
+  /** Para el formulario de "Consultar por este plan" (y la analítica). */
+  unit?: Unit;
 }
 
-export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, currency, projectSlug }: MortgageCalculatorModalProps) {
-  const [settings, setSettings] = useState({ interestRate: 5.5, maxYears: 30, minDownPayment: 20 });
+// Calculadora de la ficha de la unidad. Con planes de pago en pozo cargados
+// muestra los planes sobre el precio de la unidad; si no, el simulador
+// hipotecario. La configuración es la misma que usa el Cotizador del sitio.
+export default function MortgageCalculatorModal(props: MortgageCalculatorModalProps) {
+  const settings = useCalculatorSettings(props.projectSlug);
+  const [leadMessage, setLeadMessage] = useState<string | null>(null);
+  const plans = settings?.financingPlans ?? [];
 
-  // User Inputs
-  const [downPaymentPct, setDownPaymentPct] = useState(20);
-  const [years, setYears] = useState(30);
+  return (
+    <>
+      <Dialog
+        open={props.isOpen}
+        onClose={props.onClose}
+        title={plans.length ? 'Planes de pago' : 'Calculadora Financiera'}
+        description={plans.length ? 'Condiciones del desarrollador sobre el precio de esta unidad' : 'Proyección estimada de pagos'}
+      >
+        {!settings ? null : plans.length > 0 ? (
+          <PlansContent
+            {...props}
+            plans={plans}
+            onConsult={message => { props.onClose(); setLeadMessage(message); }}
+          />
+        ) : (
+          <MortgageContent {...props} settings={settings} />
+        )}
+      </Dialog>
+      <LeadCaptureModal
+        isOpen={leadMessage !== null}
+        onClose={() => setLeadMessage(null)}
+        unit={props.unit ?? null}
+        projectSlug={props.projectSlug}
+        initialMessage={leadMessage ?? undefined}
+      />
+    </>
+  );
+}
 
-  useEffect(() => {
-    if (isOpen) {
-      fetch(`/api/settings?projectSlug=${encodeURIComponent(projectSlug)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.interestRate) {
-            setSettings(data);
-            setDownPaymentPct(data.minDownPayment);
-            setYears(data.maxYears);
-          }
-        });
-    }
-  }, [isOpen, projectSlug]);
+function PlansContent({ unitPrice, currency = 'USD', unit, plans, onConsult }: MortgageCalculatorModalProps & { plans: FinancingPlan[]; onConsult: (message: string) => void }) {
+  const [planId, setPlanId] = useState(plans[0].id);
+  const plan = plans.find(p => p.id === planId) ?? plans[0];
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-end pb-4 border-b border-gray-100">
+        <span className="text-sm font-medium text-gray-500">Precio de la unidad</span>
+        <span className="text-xl font-bold text-gray-900">{formatPrice(unitPrice, currency)}</span>
+      </div>
+      <PlanSelector plans={plans} value={plan.id} onChange={setPlanId} />
+      <PlanBreakdown plan={plan} price={unitPrice} currency={currency} />
+      <button
+        type="button"
+        onClick={() => onConsult(planLeadMessage(plan, unitPrice, currency, unit ? `la unidad ${unit.name}` : undefined))}
+        className="w-full py-3.5 rounded-xl bg-gray-900 hover:bg-black text-white font-semibold transition-colors"
+      >
+        Consultar por este plan
+      </button>
+      <p className="text-[10px] text-center text-gray-400 leading-tight">
+        Valores de referencia sobre el precio de lista. Sujeto a disponibilidad y a las condiciones del boleto.
+      </p>
+    </div>
+  );
+}
+
+function MortgageContent({ unitPrice, currency, settings }: MortgageCalculatorModalProps & { settings: CalculatorSettings }) {
+  const [downPaymentPct, setDownPaymentPct] = useState(settings.minDownPayment);
+  const [years, setYears] = useState(settings.maxYears);
 
   // Derived values
   const downPayment = (unitPrice * downPaymentPct) / 100;
@@ -41,12 +93,13 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
   const monthlyInterestRate = (settings.interestRate / 100) / 12;
   const numberOfPayments = years * 12;
   
-  const monthlyPayment = loanAmount > 0 
-    ? (loanAmount * monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1)
-    : 0;
+  const monthlyPayment = loanAmount <= 0
+    ? 0
+    : monthlyInterestRate === 0
+      ? loanAmount / numberOfPayments
+      : (loanAmount * monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1);
 
   return (
-    <Dialog open={isOpen} onClose={onClose} title="Calculadora Financiera" description="Proyección estimada de pagos">
       <div className="space-y-6">
               {/* Unit Price Display */}
               <div className="flex justify-between items-end pb-4 border-b border-gray-100">
@@ -112,6 +165,5 @@ export default function MortgageCalculatorModal({ isOpen, onClose, unitPrice, cu
                 Sujeto a aprobación crediticia.
               </p>
       </div>
-    </Dialog>
   );
 }

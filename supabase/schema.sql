@@ -3198,3 +3198,12 @@ from (
   having count(*) = 1
 ) m
 where l.id = m.lead_id;
+
+-- ═══ Planes de pago en pozo (2026-11-24) ════════════════════════════════
+-- Spec: docs/superpowers/specs/2026-11-24-calculadora-pozo-design.md
+-- Lista de planes que carga la desarrolladora (anticipo + cuotas + refuerzos
+-- + saldo a la posesión), validada por /api/settings (lib/financing.ts).
+-- Hereda las políticas de calculator_settings: lectura pública, escritura
+-- de editor en adelante. Con planes cargados, el sitio los muestra en vez
+-- del simulador hipotecario.
+alter table calculator_settings add column if not exists financing_plans jsonb not null default '[]'::jsonb;

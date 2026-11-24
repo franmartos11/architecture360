@@ -7,6 +7,8 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import Image from 'next/image';
 import MortgageCalculatorModal from '@/components/ui/MortgageCalculatorModal';
+import { useCalculatorSettings } from '@/hooks/useCalculatorSettings';
+import { showUnitCalculator } from '@/lib/financing';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
@@ -121,7 +123,15 @@ export default function UnitViewer({
 }: UnitViewerProps) {
   // No hay display de precio en este visor (solo el CTA "Consultar
   // precio", gateado por showLeads) — showPrice no aplica acá.
-  const { showStatus, showLeads, showCalculator, hasUnitStep, hasFloorStep, unitIsLand } = typeConfig;
+  const { showStatus, showLeads, hasUnitStep, hasFloorStep, unitIsLand } = typeConfig;
+  // Calculadora: con precio real y, en un lote, solo si hay planes de pago cargados.
+  const calcSettings = useCalculatorSettings(projectSlug);
+  const showCalculator = showUnitCalculator({
+    showCalculator: typeConfig.showCalculator,
+    price: unit.price,
+    unitIsLand,
+    plansCount: calcSettings?.financingPlans.length ?? 0,
+  });
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
@@ -401,9 +411,10 @@ export default function UnitViewer({
           <MortgageCalculatorModal
             isOpen={isCalculatorOpen}
             onClose={() => setIsCalculatorOpen(false)}
-            unitPrice={unit.price || 150000}
+            unitPrice={unit.price ?? 0}
             currency={unit.currency}
             projectSlug={projectSlug}
+            unit={unit}
           />
         )}
     </>

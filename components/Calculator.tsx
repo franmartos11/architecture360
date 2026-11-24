@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { Container, Pill, SectionHeading } from '@/components/project-landing/ui';
 import { formatPrice } from '@/lib/units';
+import { useCalculatorSettings, type CalculatorSettings } from '@/hooks/useCalculatorSettings';
+import { planLeadMessage, type FinancingPlan } from '@/lib/financing';
+import { PlanBreakdown, PlanSelector } from '@/components/financing/PlanBreakdown';
 
 export interface CalculatorModel {
   label: string;
@@ -58,49 +61,116 @@ function Segmented<T extends string | number>({ label, options, value, onChange,
 const CUSTOM = -1;
 
 /**
- * Cotizador de cuota. `models` sale de las unidades con precio del proyecto
+ * Cotizador del sitio. Si la desarrolladora cargó planes de pago en pozo,
+ * muestra los planes; si no, el simulador hipotecario. Mientras carga la
+ * configuración no se muestra nada (así no aparece uno y salta al otro).
+ */
+export default function Calculator({ projectSlug, models, plansOnly = false }: {
+  projectSlug: string;
+  models: CalculatorModel[];
+  /** Loteo: solo con planes de pago cargados (un simulador hipotecario sobre lotes confunde). */
+  plansOnly?: boolean;
+}) {
+  const settings = useCalculatorSettings(projectSlug);
+  // Mientras carga, el ancla ya existe (los links "#cotizador" del menú
+  // llegan) y el alto reservado evita que el resto de la página salte.
+  if (!settings) return <section id="cotizador" aria-busy="true" className="min-h-[480px] bg-[var(--theme-bg)]" />;
+  if (settings.financingPlans.length > 0) return <PozoCalculator projectSlug={projectSlug} models={models} plans={settings.financingPlans} />;
+  if (plansOnly) return null;
+  return <MortgageCalculator projectSlug={projectSlug} models={models} settings={settings} />;
+}
+
+/**
+ * Elección del valor: `models` sale de las unidades con precio del proyecto
  * (ver CalculatorSection); si no hay ninguna, se tipea el valor a mano en
  * vez de inventar modelos con precios que no existen. Con modelos, la opción
  * "Otro monto" deja tipear un valor propio igual.
  */
-export default function Calculator({ projectSlug, models }: { projectSlug: string; models: CalculatorModel[] }) {
+function usePriceChoice(models: CalculatorModel[]) {
   const [modelIndex, setModelIndex] = useState(0);
   const [manualPrice, setManualPrice] = useState('');
-  const [prima, setPrima] = useState(15);
-  const [tasa, setTasa] = useState(6.5);
-  const [plazo, setPlazo] = useState(25);
-  const [primaOptions, setPrimaOptions] = useState([15, 20, 25, 30]);
-  const [tasaOptions, setTasaOptions] = useState([6.5, 7, 8]);
-  const [plazoOptions, setPlazoOptions] = useState([20, 25, 30]);
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-
-  useEffect(() => {
-    fetch(`/api/settings?projectSlug=${encodeURIComponent(projectSlug)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (!data) return;
-        if (data.interestRate != null) {
-          setTasaOptions(prev => withValue(prev, data.interestRate));
-          setTasa(data.interestRate);
-        }
-        if (data.maxYears != null) {
-          setPlazoOptions(prev => withValue(prev, data.maxYears));
-          setPlazo(data.maxYears);
-        }
-        if (data.minDownPayment != null) {
-          setPrimaOptions(prev => withValue(prev, data.minDownPayment));
-          setPrima(data.minDownPayment);
-        }
-      })
-      .catch(() => {
-        // Si falla, se queda con los valores por defecto — no bloquea la calculadora.
-      });
-  }, [projectSlug]);
-
   const model = modelIndex === CUSTOM ? undefined : models[modelIndex];
   const currency = model?.currency ?? models[0]?.currency ?? 'USD';
   const price = model ? model.price : Number(manualPrice.replace(/\D/g, '')) || 0;
-  const showManual = !model;
+
+  const controls = (
+    <>
+      {models.length > 0 && (
+        <Segmented
+          label="Modelo"
+          options={[...models.map((_, i) => i), CUSTOM]}
+          value={modelIndex}
+          onChange={setModelIndex}
+          format={i => (i === CUSTOM ? 'Otro monto' : `${models[i].label} · ${formatPrice(models[i].price, models[i].currency)}`)}
+        />
+      )}
+      {!model && (
+        <label className="flex flex-col gap-3 text-[13px] font-semibold text-[var(--theme-text-muted)]">
+          {models.length > 0 ? `Monto (${currency})` : `Valor de la propiedad (${currency})`}
+          <input
+            inputMode="numeric"
+            autoFocus={models.length > 0}
+            value={manualPrice}
+            onChange={e => setManualPrice(e.target.value.replace(/\D/g, '') ? Number(e.target.value.replace(/\D/g, '')).toLocaleString('es-AR') : '')}
+            placeholder="Ej. 120.000"
+            className="h-12 px-4 rounded-[calc(var(--theme-radius)*0.6)] border border-[var(--theme-border)] bg-transparent text-base font-medium text-[var(--theme-text)] outline-none focus:border-[var(--theme-text)]"
+          />
+        </label>
+      )}
+    </>
+  );
+  return { model, currency, price, controls };
+}
+
+function PozoCalculator({ projectSlug, models, plans }: { projectSlug: string; models: CalculatorModel[]; plans: FinancingPlan[] }) {
+  const { model, currency, price, controls } = usePriceChoice(models);
+  const [planId, setPlanId] = useState(plans[0].id);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const plan = plans.find(p => p.id === planId) ?? plans[0];
+
+  return (
+    <section id="cotizador" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
+      <Container>
+        <SectionHeading eyebrow="Financiación" title="Elegí cómo pagar." muted="Planes en pozo." className="mb-12" />
+        <div className="flex flex-wrap gap-5">
+          <div className="flex-[999_1_520px] min-w-0 border border-[var(--theme-border)] rounded-[calc(var(--theme-radius)*1.4)] p-5 sm:p-8 flex flex-col gap-7">
+            {controls}
+            <PlanSelector plans={plans} value={plan.id} onChange={setPlanId} />
+            <p className="m-0 text-[13px] text-[var(--theme-text-muted)]">{plans.length > 1 ? 'Cada plan es una condición de pago del desarrollador.' : `Plan de pago: ${plan.name}.`}</p>
+          </div>
+          <div className="flex-[1_1_340px] bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)] rounded-[calc(var(--theme-radius)*1.4)] p-6 sm:p-8 flex flex-col justify-between gap-8">
+            {price > 0
+              ? <PlanBreakdown plan={plan} price={price} currency={currency} tone="dark" />
+              : <p className="m-0 text-sm text-[var(--theme-text-on-dark-muted)]">Ingresá un monto para ver el plan.</p>}
+            <div className="flex flex-col gap-3.5">
+              <Pill variant="light" arrow size="lg" block onClick={() => setIsLeadModalOpen(true)}>Consultar por este plan</Pill>
+              <p className="m-0 text-[11px] leading-normal text-[var(--theme-text-on-dark-muted)]">
+                Valores de referencia sobre el precio de lista. Sujeto a disponibilidad y a las condiciones del boleto. No representa una oferta ni una obligación para el proyecto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Container>
+      <LeadCaptureModal
+        isOpen={isLeadModalOpen}
+        onClose={() => setIsLeadModalOpen(false)}
+        unit={null}
+        projectSlug={projectSlug}
+        initialMessage={price > 0 ? planLeadMessage(plan, price, currency, model ? `el modelo ${model.label}` : undefined) : `Hola, me interesa el ${plan.name}.`}
+      />
+    </section>
+  );
+}
+
+function MortgageCalculator({ projectSlug, models, settings }: { projectSlug: string; models: CalculatorModel[]; settings: CalculatorSettings }) {
+  const { model, currency, price, controls } = usePriceChoice(models);
+  const [prima, setPrima] = useState(settings.minDownPayment);
+  const [tasa, setTasa] = useState(settings.interestRate);
+  const [plazo, setPlazo] = useState(settings.maxYears);
+  const primaOptions = withValue([15, 20, 25, 30], settings.minDownPayment);
+  const tasaOptions = withValue([6.5, 7, 8], settings.interestRate);
+  const plazoOptions = withValue([20, 25, 30], settings.maxYears);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
 
   // Monto: valor - anticipo.
   const monto = price - (price * prima / 100);
@@ -123,28 +193,7 @@ export default function Calculator({ projectSlug, models }: { projectSlug: strin
         <SectionHeading eyebrow="Cotizador" title="Calculá tu cuota." muted="En segundos." className="mb-12" />
         <div className="flex flex-wrap gap-5">
           <div className="flex-[999_1_520px] min-w-0 border border-[var(--theme-border)] rounded-[calc(var(--theme-radius)*1.4)] p-5 sm:p-8 flex flex-col gap-7">
-            {models.length > 0 && (
-              <Segmented
-                label="Modelo"
-                options={[...models.map((_, i) => i), CUSTOM]}
-                value={modelIndex}
-                onChange={setModelIndex}
-                format={i => (i === CUSTOM ? 'Otro monto' : `${models[i].label} · ${formatPrice(models[i].price, models[i].currency)}`)}
-              />
-            )}
-            {showManual && (
-              <label className="flex flex-col gap-3 text-[13px] font-semibold text-[var(--theme-text-muted)]">
-                {models.length > 0 ? `Monto (${currency})` : `Valor de la propiedad (${currency})`}
-                <input
-                  inputMode="numeric"
-                  autoFocus={models.length > 0}
-                  value={manualPrice}
-                  onChange={e => setManualPrice(e.target.value.replace(/\D/g, '') ? Number(e.target.value.replace(/\D/g, '')).toLocaleString('es-AR') : '')}
-                  placeholder="Ej. 120.000"
-                  className="h-12 px-4 rounded-[calc(var(--theme-radius)*0.6)] border border-[var(--theme-border)] bg-transparent text-base font-medium text-[var(--theme-text)] outline-none focus:border-[var(--theme-text)]"
-                />
-              </label>
-            )}
+            {controls}
             <Segmented label="Anticipo" options={primaOptions} value={prima} onChange={setPrima} format={p => `${p}%`} />
             <Segmented label="Tasa de interés anual" options={tasaOptions} value={tasa} onChange={setTasa} format={fmtPct} />
             <Segmented label="Plazo" options={plazoOptions} value={plazo} onChange={setPlazo} format={p => `${p} años`} />

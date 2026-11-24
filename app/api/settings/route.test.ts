@@ -16,8 +16,9 @@ import {
 } from '@/lib/supabase/require-project-access';
 import { mockSupabase, jsonRequest } from '@/lib/test-helpers/supabase-mock';
 import { GET, POST } from './route';
+import { newPlan } from '@/lib/financing';
 
-const DEFAULTS = { interestRate: 5.5, maxYears: 30, minDownPayment: 20 };
+const DEFAULTS = { interestRate: 5.5, maxYears: 30, minDownPayment: 20, financingPlans: [] };
 
 function get(url: string) {
   return new Request(url);
@@ -40,7 +41,7 @@ describe('GET /api/settings', () => {
 
     const res = await GET(get('http://localhost/api/settings?projectSlug=torre'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ interestRate: 6.5, maxYears: 25, minDownPayment: 15 });
+    expect(await res.json()).toEqual({ interestRate: 6.5, maxYears: 25, minDownPayment: 15, financingPlans: [] });
   });
 
   it('?projectSlug=... sin proyecto encontrado: DEFAULTS, no consulta calculator_settings', async () => {
@@ -143,7 +144,76 @@ describe('POST /api/settings', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       success: true,
-      settings: { interestRate: 7, maxYears: 15, minDownPayment: 25 },
+      settings: { interestRate: 7, maxYears: 15, minDownPayment: 25, financingPlans: [] },
     });
+  });
+});
+
+describe('/api/settings — planes de pago en pozo', () => {
+  beforeEach(() => {
+    vi.mocked(createClient).mockReset();
+    vi.mocked(requireProjectAccess).mockReset();
+    vi.mocked(resolveRequestedProjectId).mockReset().mockResolvedValue('project-1');
+  });
+  const req = (body: unknown) => jsonRequest('http://localhost/api/settings', body);
+
+  it('GET devuelve los planes válidos y descarta los rotos', async () => {
+    const plan = newPlan();
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [
+      { data: { id: 'project-1' } },
+      { data: { interest_rate: 6.5, max_years: 25, min_down_payment: 15, financing_plans: [plan, { ...plan, downPaymentPct: 99 }] } },
+    ] }) as never);
+
+    const res = await GET(new Request('http://localhost/api/settings?projectSlug=torre'));
+    expect((await res.json()).financingPlans).toEqual([plan]);
+  });
+
+  it('POST solo con planes: guarda financing_plans y no pisa el hipotecario', async () => {
+    const plan = newPlan();
+    const supabase = mockSupabase({ results: [{ data: { interest_rate: 6.5, max_years: 25, min_down_payment: 15, financing_plans: [plan] } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u' } } as never);
+
+    const res = await POST(req({ financingPlans: [plan] }));
+
+    expect(res.status).toBe(200);
+    const upserted = supabase.from.mock.results[0].value.upsert.mock.calls[0][0];
+    expect(upserted).toEqual({ project_id: 'project-1', financing_plans: [plan] });
+    expect((await res.json()).settings.financingPlans).toEqual([plan]);
+  });
+
+  it('POST solo con el hipotecario: no toca los planes', async () => {
+    const supabase = mockSupabase({ results: [{ data: { interest_rate: 7, max_years: 15, min_down_payment: 25, financing_plans: [] } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u' } } as never);
+
+    await POST(req({ interestRate: 7, maxYears: 15, minDownPayment: 25 }));
+
+    expect(supabase.from.mock.results[0].value.upsert.mock.calls[0][0]).not.toHaveProperty('financing_plans');
+  });
+
+  it('POST con un plan que suma más de 100%: 400 sin guardar', async () => {
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u' } } as never);
+
+    const res = await POST(req({ financingPlans: [{ ...newPlan(), downPaymentPct: 80 }] }));
+
+    expect(res.status).toBe(400);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('POST vacío: 400', async () => {
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [] }), user: { id: 'u' } } as never);
+    const res = await POST(req({}));
+    expect(res.status).toBe(400);
+  });
+
+  it('GET con error de la base (p. ej. falta la columna): lo registra y devuelve los valores por defecto', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [
+      { data: { id: 'project-1' } },
+      { data: null, error: { code: '42703', message: 'column financing_plans does not exist' } },
+    ] }) as never);
+    const res = await GET(new Request('http://localhost/api/settings?projectSlug=torre'));
+    expect((await res.json()).financingPlans).toEqual([]);
+    expect(spy).toHaveBeenCalled();
   });
 });

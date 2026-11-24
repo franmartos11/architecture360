@@ -10,6 +10,7 @@ import { resolveSectionOrder } from '@/lib/project-sections';
 import type { DatosProyecto, UnidadBot } from './ficha';
 import type { SlideAerea } from './material';
 import { cargarFaq } from './preguntas';
+import { parseStoredPlans } from '@/lib/financing';
 
 async function leer<T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>, que: string): Promise<T[]> {
   const { data, error } = await q;
@@ -131,7 +132,7 @@ export async function cargarDatosProyecto(sb: SupabaseClient, projectId: string)
   );
   const { data: calc, error: errCalc } = await sb
     .from('calculator_settings')
-    .select('interest_rate, max_years, min_down_payment')
+    .select('interest_rate, max_years, min_down_payment, financing_plans')
     .eq('project_id', projectId)
     .maybeSingle();
   if (errCalc) throw new Error(`No se pudo leer la calculadora: ${errCalc.message}`);
@@ -165,6 +166,7 @@ export async function cargarDatosProyecto(sb: SupabaseClient, projectId: string)
           interest_rate: Number(calc.interest_rate),
           max_years: Number(calc.max_years),
           min_down_payment: Number(calc.min_down_payment),
+          financing_plans: parseStoredPlans(calc.financing_plans),
         }
       : null,
     slides,

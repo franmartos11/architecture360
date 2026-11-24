@@ -9,6 +9,7 @@ import { fetchProjectPreview } from '@/lib/preview-fetch';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { resolveSectionList } from '@/lib/project-sections';
 import { btnPrimary } from '@/components/admin/panel-ui';
+import { invalidateCalculatorSettings } from '@/hooks/useCalculatorSettings';
 
 interface Settings {
   interestRate: number;
@@ -68,7 +69,7 @@ export default function CalculatorEditor({ onSaved, showSiteToggle }: { onSaved?
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      if (res.ok) { setSaved(settings); toast('Calculadora guardada.'); onSaved?.(); } else toast('Error al guardar.', 'error');
+      if (res.ok) { setSaved(settings); invalidateCalculatorSettings(); toast('Calculadora guardada.'); onSaved?.(); } else toast('Error al guardar.', 'error');
     } catch {
       toast('Error de conexión.', 'error');
     } finally {
