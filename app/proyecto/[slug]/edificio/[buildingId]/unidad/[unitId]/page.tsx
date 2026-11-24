@@ -66,6 +66,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
       buildingId={building.id}
       buildingName={building.name}
       floorNumber={unit.floor}
+      floorPlanImage={building.floors.find(f => f.id === unit.floorId)?.planImage || undefined}
       amenities={project.amenities}
       pointsOfInterest={project.pointsOfInterest}
       projectLocation={project.location}

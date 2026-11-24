@@ -49,6 +49,8 @@ interface UnitViewerProps {
   buildingId: string;
   buildingName: string;
   floorNumber: number;
+  /** plan_image del piso de la unidad — alimenta el mini mapa "Ubicación en planta". */
+  floorPlanImage?: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   projectLocation?: string;
@@ -105,6 +107,7 @@ export default function UnitViewer({
   buildingId,
   buildingName,
   floorNumber,
+  floorPlanImage,
   amenities = [],
   pointsOfInterest = [],
   projectLocation = '',
@@ -1136,25 +1139,43 @@ export default function UnitViewer({
           )}
         </AnimatePresence>
 
-        {/* Bottom-right: "Ubicación en planta" mini map — hidden en gallery mode y en mobile */}
-        {activeTab !== 'galeria' && hasUnitStep && (
+        {/* Bottom-right: "Ubicación en planta" — el plano real del piso con la
+             unidad resaltada. Solo en proyectos con pisos (edificio): en un
+             dúplex o loteo repetía la miga de pan, y las plantas internas de
+             una casa/dúplex ya se eligen en los tabs Planos / Planta 3D.
+             Oculto en galería y en mobile. */}
+        {activeTab !== 'galeria' && hasFloorStep && floorPlanImage && (
           <button
             onClick={() => router.push(`${basePath}/edificio/${buildingId}?piso=${floorNumber}`)}
+            aria-label={`Ver ${unit.name} en el plano de la planta ${floorNumber}`}
             className={`hidden md:block absolute right-16 z-20 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow ${
               sidebarCollapsed ? 'bottom-24 md:bottom-5' : 'bottom-5'
             }`}
           >
-            <div className="relative w-24 h-16">
-              <Image
-                src="/floorplans/floor-1.png"
-                alt="Ubicación en planta"
-                fill
-                sizes="100px"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-black/30 flex items-end p-1">
-                <span className="text-white text-[11px] font-medium leading-tight">Ubicación en planta</span>
+            {/* El polígono está en % sobre la imagen del plano: el <img> define
+                el tamaño (alto fijo, ancho según su proporción) y el SVG lo
+                cubre exacto, así la silueta cae donde corresponde. */}
+            <div className="relative p-1.5 pb-6">
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={floorPlanImage}
+                  alt=""
+                  className="block w-auto h-auto max-h-20 max-w-[10rem] select-none"
+                  draggable={false}
+                />
+                {unit.polygon && unit.polygon.length >= 3 && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <polygon
+                      points={unit.polygon.map(p => `${p.x},${p.y}`).join(' ')}
+                      vectorEffect="non-scaling-stroke"
+                      className="fill-amber-500/50 stroke-amber-600"
+                      strokeWidth={1.5}
+                    />
+                  </svg>
+                )}
               </div>
+              <span className="absolute inset-x-0 bottom-1 text-center text-gray-700 text-[11px] font-medium leading-tight">Ubicación en planta</span>
             </div>
           </button>
         )}

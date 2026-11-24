@@ -17,6 +17,8 @@ interface UnitViewerWrapperProps {
   buildingId: string;
   buildingName: string;
   floorNumber: number;
+  /** plan_image del piso de la unidad — alimenta el mini mapa "Ubicación en planta". */
+  floorPlanImage?: string;
   amenities?: Amenity[];
   pointsOfInterest?: PointOfInterest[];
   projectLocation?: string;
