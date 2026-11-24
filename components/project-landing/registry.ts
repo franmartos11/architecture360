@@ -15,6 +15,7 @@ import ConstructionProgressSection from './ConstructionProgressSection';
 import LocationSection from './LocationSection';
 import CalculatorSection from './CalculatorSection';
 import ContactSection from './ContactSection';
+import CommentsSection from './CommentsSection';
 
 // Un solo lugar donde key → componente — lo usa tanto la landing pública
 // (app/proyecto/[slug]/page.tsx) como la vista previa en vivo del admin
@@ -36,4 +37,5 @@ export const SECTION_COMPONENTS: Record<SectionKey, ComponentType<SectionProps>>
   location: LocationSection,
   calculator: CalculatorSection,
   contact: ContactSection,
+  comments: CommentsSection,
 };

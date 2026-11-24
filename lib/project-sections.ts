@@ -4,8 +4,9 @@ import { pluralize } from '@/lib/units';
 // Fuente única de verdad para qué secciones tiene la landing pública de
 // un proyecto y en qué orden por defecto — usado tanto por la landing
 // (app/proyecto/[slug]/page.tsx) como por el panel de admin (/admin/sitio).
-// Hero, Comentarios y Footer quedan fuera de este sistema a propósito: son
-// "chrome" fijo de la página, no contenido reordenable.
+// Hero y Footer quedan fuera de este sistema a propósito: son "chrome" fijo
+// de la página, no contenido reordenable. Comentarios antes también lo era,
+// pero el admin tiene que poder sacarla, así que ahora es una sección más.
 export type SectionKey =
   | 'about'
   | 'gallery'
@@ -20,7 +21,8 @@ export type SectionKey =
   | 'progress'
   | 'location'
   | 'calculator'
-  | 'contact';
+  | 'contact'
+  | 'comments';
 
 export interface SectionMeta {
   key: SectionKey;
@@ -44,6 +46,7 @@ export const SECTION_REGISTRY: SectionMeta[] = [
   { key: 'calculator', label: 'Calculadora' },
   { key: 'location', label: 'Ubicación' },
   { key: 'contact', label: 'Contacto' },
+  { key: 'comments', label: 'Comentarios' },
 ];
 
 const DEFAULT_ORDER: SectionKey[] = SECTION_REGISTRY.map(s => s.key);
@@ -105,6 +108,7 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
       return '/admin/settings';
     case 'contact':
     case 'stats':
+    case 'comments':
       return null;
   }
 }
@@ -130,6 +134,7 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
     progress: 'Etapas, porcentaje, entrega estimada y actualizaciones con fotos — con time-lapse.',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
     contact: 'Formulario de contacto — se activa según el modo de venta.',
+    comments: 'Comentarios de los visitantes sobre el proyecto. Apagala con el ojo si no querés que se pueda comentar.',
   };
   return hints[key];
 }

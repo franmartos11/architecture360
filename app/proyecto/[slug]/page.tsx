@@ -1,10 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { Project } from '@/types';
-import Reveal from '@/components/ui/Reveal';
-import CommentSection from '@/components/CommentSection';
 import ProjectHero from '@/components/project-landing/ProjectHero';
-import { Container, SectionHeading } from '@/components/project-landing/ui';
+import { Container } from '@/components/project-landing/ui';
 import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveSectionOrder } from '@/lib/project-sections';
@@ -100,18 +98,6 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         const Section = SECTION_COMPONENTS[key];
         return <Section key={key} project={project} typeConfig={typeConfig} basePath={basePath} />;
       })}
-
-      {/* Comentarios */}
-      <section id="comentarios" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
-        <Container>
-          <Reveal>
-            <SectionHeading eyebrow="Comentarios" title="Contanos qué te pareció" muted="el proyecto." className="mb-10" />
-          </Reveal>
-          <div className="max-w-3xl">
-            <CommentSection entityType="project" entityId={project.id} />
-          </div>
-        </Container>
-      </section>
 
       {/* Footer */}
       <footer className="bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">

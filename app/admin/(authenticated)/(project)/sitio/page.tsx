@@ -51,6 +51,7 @@ const SECTION_ORIGIN: Record<SectionKey, { label: string; href: string | null }>
   calculator: { label: 'Configuración', href: '/admin/settings' },
   location: { label: 'Ficha › Entorno', href: '/admin/proyecto/entorno' },
   contact: { label: 'Automático · formulario de leads', href: '/admin/leads' },
+  comments: { label: 'Automático · visitantes', href: null },
 };
 
 function originSub(key: SectionKey, status: Status): string {
