@@ -32,15 +32,8 @@ function proyecto(over: Partial<Project> = {}): Project {
 }
 
 describe('AerialView: brief', () => {
-  it('con brief: botón "Descargar brief" que abre el PDF en otra pestaña', () => {
+  it('no muestra botón de brief aunque haya uno (va en la barra del sitio)', () => {
     render(<MotionProvider><AerialView project={proyecto({ briefPdfUrl: 'https://x/brief/1-a/brief.pdf' })} /></MotionProvider>);
-    const link = screen.getByRole('link', { name: /Descargar brief/ });
-    expect(link.getAttribute('href')).toBe('https://x/brief/1-a/brief.pdf');
-    expect(link.getAttribute('target')).toBe('_blank');
-  });
-
-  it('sin brief: no aparece', () => {
-    render(<MotionProvider><AerialView project={proyecto()} /></MotionProvider>);
     expect(screen.queryByRole('link', { name: /brief/i })).toBeNull();
   });
 });
