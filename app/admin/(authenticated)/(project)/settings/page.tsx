@@ -10,6 +10,7 @@ import TeamMembersCard from '@/components/admin/TeamMembersCard';
 import TransferOwnershipCard from '@/components/admin/TransferOwnershipCard';
 import CustomDomainsSection from '@/components/admin/CustomDomainsSection';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { usePublishState } from '@/lib/publish-state-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
@@ -29,6 +30,7 @@ export default function SettingsPage() {
   const canPublish = hasRole(role, 'administrador');
   const isOwner = role === 'dueño';
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const activeProjectId = useActiveProjectId();
   const publishState = usePublishState();
   const [project, setProject] = useState<{ id: string; slug: string; name: string; project_type: string; sale_mode: string; published: boolean } | null>(null);
@@ -54,7 +56,15 @@ export default function SettingsPage() {
   const allowedModes = structure?.allowedSaleModes ?? (['venta', 'showcase'] as ProjectSaleMode[]);
 
   const handleSaveMode = async (saleMode: ProjectSaleMode) => {
-    if (!project || saleMode === project.sale_mode) return;
+    if (!project || saleMode === project.sale_mode || savingMode) return;
+    const ok = await confirmDialog({
+      title: '¿Cambiar el propósito del proyecto?',
+      message: saleMode === 'showcase'
+        ? 'Pasar a "Solo para mostrar" oculta precios, estados, leads y calculadora del sitio. Los datos no se borran.'
+        : 'Pasar a "Para vender" muestra precios, estados y el formulario de contacto en el sitio.',
+      confirmLabel: 'Sí, cambiar',
+    });
+    if (!ok) return;
     setSavingMode(true);
     const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
       method: 'PATCH',
