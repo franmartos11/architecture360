@@ -2,7 +2,7 @@
 
 import { m } from 'framer-motion';
 import { useContentIn } from '@/components/ui/Loaded';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import EmptyState from '@/components/ui/EmptyState';
 import { PlanSkeleton } from '@/components/admin/PanelSkeletons';
@@ -17,6 +17,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { POI_CATEGORY_COLORS, POI_CATEGORY_ADMIN_LABELS as CATEGORY_LABELS } from '@/lib/poiCategoryColors';
 import PlaceSearchPanel from '@/components/admin/PlaceSearchPanel';
 import type { PlaceResult } from '@/lib/google-places';
+import { needsTravelTimes, requestTravelTimes, type TravelTimes } from '@/lib/travel-times';
 import type { PoiCategory } from '@/types';
 import type { PointOfInterestRow } from '@/types/database';
 import type { OverviewPoi } from '@/components/admin/LocationOverviewMap';
@@ -132,7 +133,57 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
   })), [visible]);
 
   const placedCount = pois.filter(p => p.latitude != null).length;
-  const missingTimes = pois.filter(p => p.latitude != null && !p.drive_minutes).length;
+  const missingTimes = pois.filter(needsTravelTimes).length;
+
+  // Ficha abierta, leída desde callbacks async (el state del closure puede
+  // estar viejo cuando vuelven los tiempos).
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => { selectedIdRef.current = selectedId; });
+
+  const applyTimes = (times: TravelTimes[]) => {
+    if (!times.length) return;
+    const byId = new Map(times.map(t => [t.id, t]));
+    setPois(prev => prev.map(p => {
+      const t = byId.get(p.id);
+      return t ? { ...p, drive_minutes: t.drive_minutes, walk_minutes: t.walk_minutes, bike_minutes: t.bike_minutes } : p;
+    }));
+    const open = selectedIdRef.current ? byId.get(selectedIdRef.current) : undefined;
+    if (open) {
+      setForm(f => ({
+        ...f,
+        driveMinutes: open.drive_minutes != null ? String(open.drive_minutes) : '',
+        walkMinutes: open.walk_minutes != null ? String(open.walk_minutes) : '',
+        bikeMinutes: open.bike_minutes != null ? String(open.bike_minutes) : '',
+      }));
+    }
+  };
+
+  // Tiempos automáticos (Google Routes): sin poiIds completa los que no
+  // tienen; con poiIds calcula esos (overwrite al mover un pin). Sin
+  // coordenadas del proyecto no hay origen desde donde calcular.
+  const calcTimes = async (opts: { poiIds?: string[]; overwrite?: boolean } = {}, { silentRateLimit = false } = {}) => {
+    if (!projectId || !projectCenter) return;
+    setCalculatingTimes(true);
+    const result = await requestTravelTimes({ projectId, ...opts });
+    setCalculatingTimes(false);
+    if (result.ok) {
+      applyTimes(result.times);
+      if (result.times.length) onSaved?.();
+    } else if (!(silentRateLimit && result.status === 429)) {
+      toast(result.error, 'error');
+    }
+  };
+
+  // Al abrir la pantalla: completar solos los puntos ubicados sin tiempos.
+  // Una vez por proyecto y carga, para no reintentar en loop si Google falla.
+  const autoTimesTriedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !projectId || !projectCenter || missingTimes === 0) return;
+    if (autoTimesTriedRef.current === projectId) return;
+    autoTimesTriedRef.current = projectId;
+    calcTimes({}, { silentRateLimit: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, projectId, projectCenter, missingTimes]);
 
   const closeEdit = () => {
     setSelectedId(null);
@@ -194,35 +245,16 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
       }),
     }).catch(() => null);
     if (!res?.ok) { toast('Error al agregar el punto de interés.', 'error'); return; }
-    let created: PoiRow = await res.json();
+    const created: PoiRow = await res.json();
     setPois(prev => prev.concat([created]));
     setSelectedId(created.id);
     setAwaitingPlacement(false);
     setForm({ ...EMPTY_FORM, name: created.name, category: created.category });
 
-    // Tiempos solo para este punto; si falla, el punto ya quedó creado y
-    // el botón "Calcular tiempos" sigue disponible — sin toast de error.
-    if (projectCenter && projectId) {
-      const calc = await fetch('/api/admin/calculate-travel-times', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, poiIds: [created.id] }),
-      }).catch(() => null);
-      const data = calc?.ok ? await calc.json().catch(() => null) : null;
-      const t = data?.times?.find((x: { id: string }) => x.id === created.id);
-      if (t) {
-        created = { ...created, drive_minutes: t.drive_minutes, walk_minutes: t.walk_minutes, bike_minutes: t.bike_minutes };
-        setPois(prev => prev.map(p => p.id === created.id ? created : p));
-        setForm(f => ({
-          ...f,
-          driveMinutes: t.drive_minutes != null ? String(t.drive_minutes) : '',
-          walkMinutes: t.walk_minutes != null ? String(t.walk_minutes) : '',
-          bikeMinutes: t.bike_minutes != null ? String(t.bike_minutes) : '',
-        }));
-      }
-    }
+    selectedIdRef.current = created.id;
     toast(`«${created.name}» agregado.`);
     onSaved?.();
+    await calcTimes({ poiIds: [created.id] });
   };
 
   // Devuelve false si no se pudo guardar: el mapa vuelve el pin a su lugar.
@@ -235,10 +267,9 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     if (!res?.ok) { toast('Error al mover el punto.', 'error'); return false; }
     const updated: PoiRow = await res.json();
     setPois(prev => prev.map(p => p.id === updated.id ? updated : p));
-    if (updated.drive_minutes != null || updated.walk_minutes != null || updated.bike_minutes != null) {
-      toast('Punto movido. Si cambió mucho, revisá sus tiempos de viaje.');
-    }
     onSaved?.();
+    // Lugar nuevo → los tiempos viejos ya no sirven: recalcular pisándolos.
+    void calcTimes({ poiIds: [updated.id], overwrite: true });
     return true;
   };
 
@@ -264,11 +295,13 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latitude: lat, longitude: lng }),
-    });
-    if (res.ok) {
+    }).catch(() => null);
+    if (res?.ok) {
       const updated: PoiRow = await res.json();
       setPois(prev => prev.map(p => p.id === updated.id ? updated : p));
       onSaved?.();
+      // Ubicado (o reubicado) a mano: calcular sus tiempos para este lugar.
+      await calcTimes({ poiIds: [updated.id], overwrite: true });
     } else {
       toast('Error al ubicar el punto en el mapa.', 'error');
     }
@@ -318,25 +351,6 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  const handleCalculateTimes = async () => {
-    if (!projectId) return;
-    setCalculatingTimes(true);
-    const res = await fetch('/api/admin/calculate-travel-times', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setCalculatingTimes(false);
-    if (res.ok) {
-      toast(data.message ?? `Tiempos actualizados para ${data.updated} punto${data.updated === 1 ? '' : 's'} de interés.`);
-      load();
-      onSaved?.();
-    } else {
-      toast(data.error ?? 'Error al calcular los tiempos.', 'error');
-    }
-  };
-
   if (loading) return <PlanSkeleton />;
   if (loadError) return <ErrorState message="No se pudieron cargar los puntos de interés." onRetry={load} />;
 
@@ -347,16 +361,16 @@ export default function LocationEditor({ onSaved }: { onSaved?: () => void }) {
           {pois.length} punto{pois.length === 1 ? '' : 's'} · {placedCount} ubicado{placedCount === 1 ? '' : 's'} en el mapa
         </p>
         <div className="flex items-center gap-2">
-          {missingTimes > 0 && (
-            <button
-              onClick={handleCalculateTimes}
-              disabled={calculatingTimes || !projectId}
-              className="h-9 px-3.5 flex items-center gap-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 hover:border-gray-300 disabled:opacity-50 transition-colors bg-white"
-              title="Calcula los 3 tiempos de viaje para los puntos con coordenadas, usando Google Maps"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              {calculatingTimes ? 'Calculando...' : `Calcular tiempos (${missingTimes} sin datos)`}
-            </button>
+          {calculatingTimes && (
+            <span className="h-9 px-3 flex items-center gap-2 text-sm text-gray-500" role="status">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Calculando tiempos…
+            </span>
+          )}
+          {!calculatingTimes && missingTimes > 0 && !projectCenter && (
+            <span className="h-9 px-3 flex items-center text-xs text-amber-700" title="Los tiempos se calculan desde la ubicación del proyecto">
+              Marcá la ubicación del proyecto para calcular tiempos
+            </span>
           )}
           <button
             onClick={() => setFitToken(t => t + 1)}

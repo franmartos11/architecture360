@@ -58,6 +58,11 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
   const content = projectHasContent(project);
+  // Barra y menú: solo las secciones con contenido, salvo en la vista previa
+  // del borrador — ahí van todas, para que el dueño entre a las que le faltan
+  // cargar (esas páginas le muestran el mensaje de vacío en vez de un 404).
+  // El recorrido no: /recorrido sin tour da 404 también en el borrador.
+  const inNav = (has: boolean) => has || isDraftPreview;
   // "Plantas" del menú: el primer edificio con plano cargado. Una casa no
   // tiene plano propio (su edificio redirige a la ficha), así que no va.
   const plansBuilding = typeConfig.hasUnitStep
@@ -91,11 +96,12 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           briefUrl={project.briefPdfUrl}
           unitsAvailable={typeConfig.showStatus ? project.units.filter(u => u.status === 'available').length : undefined}
           amenitiesCount={project.amenities.length}
-          hasLocation={content.location}
-          hasUnits={content.units}
+          hasAmenities={inNav(content.amenities)}
+          hasLocation={inNav(content.location)}
+          hasUnits={inNav(content.units)}
           buildingNames={Object.fromEntries(project.buildings.map(b => [b.id, b.name]))}
           explore={{
-            hasFacade: content.facade,
+            hasFacade: inNav(content.facade),
             facadeImage: project.aerialSlides[0]?.imageUrl || project.masterplanImage || undefined,
             facadeDetail: project.aerialSlides.length > 1 ? `${project.aerialSlides.length} ángulos` : 'Vista aérea',
             plans: plansBuilding && {

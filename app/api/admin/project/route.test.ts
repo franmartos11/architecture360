@@ -506,6 +506,61 @@ describe('PATCH /api/admin/project', () => {
     expect(await res.json()).toEqual({ id: 'project-1', sale_mode: 'showcase' });
   });
 
+  describe('ubicación del proyecto y tiempos de viaje de los puntos de interés', () => {
+    function setup(previous: { latitude: number | null; longitude: number | null }, updateResult: { data?: unknown; error?: unknown } = { data: { id: 'project-1' }, error: null }) {
+      vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+      const supabase = mockSupabase({
+        results: [
+          { data: previous },   // coordenadas antes del cambio
+          updateResult,         // update del proyecto
+          { error: null },      // limpieza de tiempos de los POIs
+        ],
+      });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
+      return supabase;
+    }
+
+    it('pin movido: borra los tiempos de todos los puntos del proyecto (se recalculan solos)', async () => {
+      const supabase = setup({ latitude: -31.4, longitude: -64.1 });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { latitude: -31.5, longitude: -64.1 }));
+      expect(res.status).toBe(200);
+      expect(supabase.from).toHaveBeenCalledTimes(3);
+      expect(supabase.from.mock.calls[2][0]).toBe('points_of_interest');
+      const poiQuery = supabase.from.mock.results[2].value;
+      expect(poiQuery.update).toHaveBeenCalledWith({ drive_minutes: null, walk_minutes: null, bike_minutes: null });
+      expect(poiQuery.eq).toHaveBeenCalledWith('project_id', 'project-1');
+    });
+
+    it('primer pin (antes no había): no borra tiempos, solo pudieron cargarse a mano', async () => {
+      const supabase = setup({ latitude: null, longitude: null });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { latitude: -31.5, longitude: -64.1 }));
+      expect(res.status).toBe(200);
+      expect(supabase.from).toHaveBeenCalledTimes(2);
+    });
+
+    it('mismas coordenadas: no toca los puntos', async () => {
+      const supabase = setup({ latitude: -31.4, longitude: -64.1 });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { latitude: -31.4, longitude: -64.1 }));
+      expect(res.status).toBe(200);
+      expect(supabase.from).toHaveBeenCalledTimes(2);
+    });
+
+    it('si falla el guardado del proyecto: no toca los puntos', async () => {
+      const supabase = setup({ latitude: -31.4, longitude: -64.1 }, { error: { message: 'update failed' } });
+      const res = await PATCH(jsonRequest('http://localhost/api/admin/project', { latitude: -31.5, longitude: -64.1 }));
+      expect(res.status).toBe(500);
+      expect(supabase.from).toHaveBeenCalledTimes(2);
+    });
+
+    it('sin tocar la ubicación: ni lee las coordenadas ni toca los puntos', async () => {
+      vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
+      const supabase = mockSupabase({ results: [{ data: { id: 'project-1' }, error: null }] });
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'user-1' }, role: 'dueño' } as never);
+      await PATCH(jsonRequest('http://localhost/api/admin/project', { name: 'X' }));
+      expect(supabase.from).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('error de la base al actualizar: 500 con el mensaje', async () => {
     vi.mocked(resolveRequestedProjectId).mockResolvedValue('project-1');
     const supabase = mockSupabase({ results: [{ error: { message: 'update failed' } }] });

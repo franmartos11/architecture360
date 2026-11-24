@@ -126,7 +126,7 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
       label: unitsLabel,
       detail: !info.singleUnit && info.unitsAvailable != null ? `${info.unitsAvailable} disponibles` : undefined,
     },
-    info.amenitiesCount > 0 && { href: hrefs.amenities, label: 'Amenities' },
+    info.hasAmenities && { href: hrefs.amenities, label: 'Amenities' },
     info.hasLocation && { href: hrefs.location, label: 'Ubicación' },
   ].filter((l): l is { href: string; label: string; detail?: string } => !!l);
 

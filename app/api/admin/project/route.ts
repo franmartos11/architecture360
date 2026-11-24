@@ -212,6 +212,13 @@ export async function PATCH(request: Request) {
   if (body.sectionConfig !== undefined) updates.section_config = body.sectionConfig;
   if (body.themeConfig !== undefined) updates.theme_config = body.themeConfig;
   if (body.location !== undefined) updates.location = sanitizeText(body.location, 300);
+  // Pin del proyecto: los tiempos de viaje de los puntos de interés se
+  // miden desde acá, así que si se mueve hay que recalcularlos (ver abajo).
+  let previousCoords: { latitude: number | null; longitude: number | null } | null = null;
+  if (body.latitude !== undefined || body.longitude !== undefined) {
+    const { data: row } = await supabase.from('projects').select('latitude, longitude').eq('id', projectId).maybeSingle();
+    previousCoords = row ?? { latitude: null, longitude: null };
+  }
   if (body.latitude !== undefined) updates.latitude = body.latitude;
   if (body.longitude !== undefined) updates.longitude = body.longitude;
   if (body.masterplanImage !== undefined) updates.masterplan_image = body.masterplanImage;
@@ -283,6 +290,23 @@ export async function PATCH(request: Request) {
   }
   if (error) return serverError(error);
   if (previousSlug) revalidateProjectBySlug(previousSlug);
+  // Pin movido: los tiempos guardados se midieron desde el lugar viejo. Se
+  // vacían y el editor de Ubicación los recalcula solo al montarse. Si esto
+  // falla el proyecto igual quedó guardado: solo se loguea.
+  // Sin pin previo no hay tiempos calculados que invalidar: los que haya
+  // se cargaron a mano y se respetan.
+  if (previousCoords && previousCoords.latitude != null && previousCoords.longitude != null) {
+    const moved =
+      (body.latitude !== undefined && body.latitude !== previousCoords.latitude) ||
+      (body.longitude !== undefined && body.longitude !== previousCoords.longitude);
+    if (moved) {
+      const { error: poiErr } = await supabase
+        .from('points_of_interest')
+        .update({ drive_minutes: null, walk_minutes: null, bike_minutes: null })
+        .eq('project_id', projectId);
+      if (poiErr) console.error('[project PATCH] No se pudieron limpiar los tiempos de los POIs:', poiErr);
+    }
+  }
   // Recién con el guardado hecho: si el borrado falla queda un archivo suelto,
   // no un avance perdido. Nunca lanza.
   if (body.constructionProgress !== undefined && previousProgress) {

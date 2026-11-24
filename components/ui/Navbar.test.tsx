@@ -18,7 +18,7 @@ afterEach(() => cleanup());
 function info(over: Partial<ProjectNavInfo> = {}): ProjectNavInfo {
   return {
     projectName: 'Duplex Rincones', unitsLabel: 'Unidades', projectSlug: 'duplex', showLeads: true,
-    hasTour: false, amenitiesCount: 0, hasLocation: false, hasUnits: false, buildingNames: {}, explore: { hasFacade: false },
+    hasTour: false, amenitiesCount: 0, hasAmenities: false, hasLocation: false, hasUnits: false, buildingNames: {}, explore: { hasFacade: false },
     ...over,
   } as ProjectNavInfo;
 }
@@ -48,7 +48,7 @@ describe('Navbar', () => {
   });
 
   it('con contenido: Amenities, Ubicación y Unidades aparecen', () => {
-    render(<Navbar info={info({ amenitiesCount: 3, hasLocation: true, hasUnits: true })} />);
+    render(<Navbar info={info({ amenitiesCount: 3, hasAmenities: true, hasLocation: true, hasUnits: true })} />);
     expect(screen.getByRole('link', { name: 'Amenities' }).getAttribute('href')).toBe('/amenities');
     expect(screen.getByRole('link', { name: 'Ubicación' }).getAttribute('href')).toBe('/ubicacion');
     expect(screen.getByRole('link', { name: /Unidades/ }).getAttribute('href')).toBe('/unidades');

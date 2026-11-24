@@ -31,7 +31,7 @@ function parseCoord(v: string | null, limit: number): number | null {
 }
 
 // Buscador de lugares del admin: proxy a Places API (New) Text Search con
-// la clave del servidor (la misma que usa calculate-travel-times), sesgado
+// la clave del servidor (la misma que usa calculate-travel-times con Routes API), sesgado
 // hacia las coordenadas del proyecto. Server-side para no exponer una
 // clave con Places habilitado en el navegador.
 export async function GET(request: Request) {

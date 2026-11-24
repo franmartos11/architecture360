@@ -2,55 +2,76 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess } from '@/lib/supabase/require-project-access';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 
-// ─── Google Distance Matrix API ─────────────────────────────────────
-const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+// ─── Google Routes API (computeRouteMatrix) ─────────────────────────
+// Reemplaza a la Distance Matrix legacy, que Google ya no habilita en
+// proyectos nuevos (devolvía REQUEST_DENIED y se guardaban tiempos vacíos).
+const ROUTES_URL = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
+const FIELD_MASK = 'originIndex,destinationIndex,duration,condition,status';
+// Routes admite hasta 625 elementos por pedido; 100 deja margen de sobra.
+const DESTINATIONS_PER_REQUEST = 100;
 
 const MAX_POI_IDS = 5;
 
-type TravelMode = 'driving' | 'walking' | 'bicycling';
+type TravelMode = 'DRIVE' | 'WALK' | 'BICYCLE';
+interface LatLng { lat: number; lng: number }
 
-interface DistanceMatrixElement {
-  status: string;
-  duration?: { value: number; text: string }; // value en segundos
+interface MatrixElement {
+  destinationIndex?: number;
+  duration?: string; // "123s"
+  condition?: string;
+  status?: { code?: number };
 }
-interface DistanceMatrixResponse {
-  status: string;
-  rows: { elements: DistanceMatrixElement[] }[];
+
+type MinutesResult = { ok: true; minutes: (number | null)[] } | { ok: false; error: string };
+
+function routesErrorMessage(status: number | null): string {
+  if (status == null) return 'No se pudo conectar con Google Routes. Probá de nuevo en un momento.';
+  if (status === 403) return 'Google Routes respondió un error (403). Revisá que Routes API esté habilitada en GOOGLE_MAPS_API_KEY.';
+  if (status === 429) return 'Se alcanzó la cuota de Google Routes. Probá de nuevo en un rato.';
+  return `Google Routes respondió un error (${status}). Probá de nuevo en un momento.`;
 }
+
+const waypoint = (p: LatLng) => ({ waypoint: { location: { latLng: { latitude: p.lat, longitude: p.lng } } } });
 
 /**
- * Llama a la Distance Matrix API de Google para un origen y varios destinos.
- * Devuelve los tiempos en minutos para cada destino (null si no disponible).
+ * Minutos desde `origin` a cada destino en un modo. Un destino sin ruta
+ * (ROUTE_NOT_FOUND, ej. bici donde Google no la ofrece) da null; un error
+ * del pedido entero da { ok: false } para no guardar nada.
  */
-async function fetchTravelMinutes(
-  origin: string,       // "lat,lng"
-  destinations: string[], // ["lat,lng", ...]
-  mode: TravelMode,
-): Promise<(number | null)[]> {
-  if (!GMAPS_KEY || destinations.length === 0) return destinations.map(() => null);
+async function fetchTravelMinutes(key: string, origin: LatLng, destinations: LatLng[], mode: TravelMode): Promise<MinutesResult> {
+  const minutes: (number | null)[] = destinations.map(() => null);
+  for (let start = 0; start < destinations.length; start += DESTINATIONS_PER_REQUEST) {
+    const chunk = destinations.slice(start, start + DESTINATIONS_PER_REQUEST);
+    const res = await fetch(ROUTES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELD_MASK },
+      body: JSON.stringify({ origins: [waypoint(origin)], destinations: chunk.map(waypoint), travelMode: mode }),
+    }).catch(() => null);
 
-  const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
-  url.searchParams.set('origins', origin);
-  url.searchParams.set('destinations', destinations.join('|'));
-  url.searchParams.set('mode', mode);
-  url.searchParams.set('key', GMAPS_KEY);
+    if (!res || !res.ok) {
+      if (res) console.error('[calculate-travel-times] Routes', mode, res.status, await res.text().catch(() => ''));
+      return { ok: false, error: routesErrorMessage(res?.status ?? null) };
+    }
 
-  const res = await fetch(url.toString(), { next: { revalidate: 0 } });
-  const data: DistanceMatrixResponse = await res.json();
-
-  if (data.status !== 'OK') {
-    console.error('[calculate-travel-times] GMaps error:', data.status);
-    return destinations.map(() => null);
+    const elements: MatrixElement[] = await res.json().catch(() => []);
+    for (const el of Array.isArray(elements) ? elements : []) {
+      if (el.destinationIndex == null || el.condition !== 'ROUTE_EXISTS' || !el.duration) continue;
+      const seconds = parseFloat(el.duration);
+      if (Number.isFinite(seconds)) minutes[start + el.destinationIndex] = Math.round(seconds / 60);
+    }
   }
-
-  return data.rows[0]?.elements.map((el) =>
-    el.status === 'OK' && el.duration ? Math.round(el.duration.value / 60) : null
-  ) ?? destinations.map(() => null);
+  return { ok: true, minutes };
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────
+// Body: { projectId, poiIds?, overwrite? }
+// - Sin poiIds: completa los POIs ubicados que no tienen ningún tiempo
+//   (se dispara solo al abrir Ubicación). Nunca pisa tiempos cargados.
+// - Con poiIds (1–5): solo esos; con overwrite recalcula aunque tengan
+//   tiempos (pin movido: los tiempos viejos ya no sirven).
 export async function POST(req: Request) {
-  if (!GMAPS_KEY) {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) {
     return NextResponse.json(
       { error: 'GOOGLE_MAPS_API_KEY no configurada en variables de entorno.' },
       { status: 500 }
@@ -58,12 +79,13 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { projectId, poiIds: rawPoiIds } = body as { projectId?: string; poiIds?: unknown };
+  const { projectId, poiIds: rawPoiIds, overwrite: rawOverwrite } = body as {
+    projectId?: string; poiIds?: unknown; overwrite?: unknown;
+  };
   if (!projectId) {
     return NextResponse.json({ error: 'projectId requerido.' }, { status: 400 });
   }
-  // poiIds: modo "punto recién agregado" — calcula solo esos y solo si no
-  // tienen ningún tiempo cargado, para nunca pisar tiempos puestos a mano.
+
   let poiIds: string[] | null = null;
   if (rawPoiIds !== undefined) {
     // Tope chico: el modo por POI tiene un rate limit más generoso que el
@@ -76,28 +98,31 @@ export async function POST(req: Request) {
     }
     poiIds = rawPoiIds as string[];
   }
+  if (rawOverwrite !== undefined && typeof rawOverwrite !== 'boolean') {
+    return NextResponse.json({ error: 'overwrite debe ser true o false.' }, { status: 400 });
+  }
+  const overwrite = rawOverwrite === true;
+  if (overwrite && !poiIds) {
+    return NextResponse.json({ error: 'overwrite solo se puede usar con poiIds.' }, { status: 400 });
+  }
 
   const access = await requireProjectAccess(projectId, { revalidate: true });
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 
-  // Cada llamada golpea la Distance Matrix API de Google, que se paga por
-  // uso — sin esto, alguien con la sesión podría hacer clic repetido (o
-  // automatizarlo) y generar un costo real sin ningún freno.
-  // El modo por POI se dispara solo al agregar cada punto desde el
-  // buscador — 1 destino por llamada, de ahí el límite más alto.
+  // Routes se paga por elemento: frenar clics/automatizaciones repetidas.
+  // El modo por POI va de a 1 destino y se dispara solo al agregar/mover.
   const limited = poiIds
     ? await rateLimitOrRespond(
         { key: `calculate-travel-times-poi:user:${user.id}`, windowSeconds: 300, max: 60 },
-        'Agregaste muchos puntos seguidos — esperá unos minutos para calcular más tiempos.'
+        'Agregaste o moviste muchos puntos seguidos — esperá unos minutos para calcular más tiempos.'
       )
     : await rateLimitOrRespond(
-        { key: `calculate-travel-times:user:${user.id}`, windowSeconds: 300, max: 5 },
-        'Ya calculaste los tiempos hace poco — esperá unos minutos antes de repetirlo.'
+        { key: `calculate-travel-times:user:${user.id}`, windowSeconds: 300, max: 10 },
+        'Se calcularon tiempos hace poco — esperá unos minutos.'
       );
   if (limited) return limited;
 
-  // 1. Leer coords del proyecto
   const { data: project, error: pErr } = await supabase
     .from('projects')
     .select('id, latitude, longitude')
@@ -114,9 +139,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const origin = `${project.latitude},${project.longitude}`;
-
-  // 2. Leer POIs con coords
   const { data: pois, error: poiErr } = await supabase
     .from('points_of_interest')
     .select('id, latitude, longitude, drive_minutes, walk_minutes, bike_minutes')
@@ -126,57 +148,44 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Error al leer POIs.' }, { status: 500 });
   }
 
-  const poisWithCoords = (pois ?? []).filter(
-    (p) => p.latitude != null && p.longitude != null &&
-      (!poiIds || (poiIds.includes(p.id) && p.drive_minutes == null && p.walk_minutes == null && p.bike_minutes == null))
-  );
+  const targets = (pois ?? []).filter((p) => {
+    if (p.latitude == null || p.longitude == null) return false;
+    if (poiIds && !poiIds.includes(p.id)) return false;
+    if (overwrite) return true;
+    return p.drive_minutes == null && p.walk_minutes == null && p.bike_minutes == null;
+  });
 
-  if (poisWithCoords.length === 0) {
-    return NextResponse.json(poiIds
-      ? { updated: 0, times: [] }
-      : { updated: 0, message: 'Ningún POI tiene coordenadas para calcular.' });
-  }
+  if (targets.length === 0) return NextResponse.json({ updated: 0, times: [] });
 
-  const destinations = poisWithCoords.map((p) => `${p.latitude},${p.longitude}`);
+  const origin = { lat: project.latitude, lng: project.longitude };
+  const destinations = targets.map((p) => ({ lat: p.latitude as number, lng: p.longitude as number }));
 
-  // 3. Llamar Distance Matrix para los 3 modos en paralelo
-  const [driveMinutes, walkMinutes, bikeMinutes] = await Promise.all([
-    fetchTravelMinutes(origin, destinations, 'driving'),
-    fetchTravelMinutes(origin, destinations, 'walking'),
-    fetchTravelMinutes(origin, destinations, 'bicycling'),
+  const [drive, walk, bike] = await Promise.all([
+    fetchTravelMinutes(key, origin, destinations, 'DRIVE'),
+    fetchTravelMinutes(key, origin, destinations, 'WALK'),
+    fetchTravelMinutes(key, origin, destinations, 'BICYCLE'),
   ]);
 
-  // 4. Actualizar cada POI en Supabase
-  const updates = poisWithCoords.map((p, i) =>
-    supabase
-      .from('points_of_interest')
-      .update({
-        drive_minutes: driveMinutes[i],
-        walk_minutes: walkMinutes[i],
-        bike_minutes: bikeMinutes[i],
-      })
-      .eq('id', p.id)
-  );
+  // Si Google falló en cualquier modo no se guarda nada: antes se
+  // escribían nulls y se perdían los tiempos que hubiera.
+  const failed = [drive, walk, bike].find((r): r is { ok: false; error: string } => !r.ok);
+  if (failed) return NextResponse.json({ error: failed.error }, { status: 502 });
 
-  const results = await Promise.all(updates);
+  const times = targets.map((p, i) => ({
+    id: p.id,
+    drive_minutes: (drive as { minutes: (number | null)[] }).minutes[i],
+    walk_minutes: (walk as { minutes: (number | null)[] }).minutes[i],
+    bike_minutes: (bike as { minutes: (number | null)[] }).minutes[i],
+  }));
+
+  const results = await Promise.all(times.map(({ id, ...t }) =>
+    supabase.from('points_of_interest').update(t).eq('id', id)
+  ));
   const errors = results.filter((r) => r.error);
-
   if (errors.length > 0) {
     console.error('[calculate-travel-times] Update errors:', errors.map((r) => r.error));
-    return NextResponse.json(
-      { error: `Error al actualizar ${errors.length} POIs.` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Error al actualizar ${errors.length} POIs.` }, { status: 500 });
   }
 
-  if (poiIds) {
-    const times = poisWithCoords.map((p, i) => ({
-      id: p.id,
-      drive_minutes: driveMinutes[i],
-      walk_minutes: walkMinutes[i],
-      bike_minutes: bikeMinutes[i],
-    }));
-    return NextResponse.json({ updated: poisWithCoords.length, times });
-  }
-  return NextResponse.json({ updated: poisWithCoords.length });
+  return NextResponse.json({ updated: times.length, times });
 }

@@ -147,7 +147,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
                 )}
               </Link>
             )}
-            {info.amenitiesCount > 0 && (
+            {info.hasAmenities && (
               <Link href={hrefs.amenities} aria-current={isActive(hrefs.amenities) ? 'page' : undefined} className={navItemClass(isActive(hrefs.amenities))}>
                 Amenities
               </Link>
