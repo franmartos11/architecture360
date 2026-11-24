@@ -5,6 +5,7 @@ import { getIndexableProfileHandles } from '@/data/profile-repository';
 import { resolveProjectSlugForHost } from '@/lib/project-host';
 import { DEFAULT_PROJECT_SLUG } from '@/lib/constants';
 import type { Project } from '@/types';
+import { projectHasContent } from '@/lib/project-content';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -44,19 +45,15 @@ const protocoloDe = (host: string) => (host.startsWith('localhost') || host.star
  * subdominio propio, o el dominio raíz con el prefijo /proyecto/[slug].
  */
 function rutasDelProyecto(project: Project, base: string): MetadataRoute.Sitemap {
-  const rutas: MetadataRoute.Sitemap = [
-    { url: base, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${base}/masterplan`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/unidades`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/recorrido`, changeFrequency: 'monthly', priority: 0.6 },
-  ];
-
-  if (project.amenities.length > 0) {
-    rutas.push({ url: `${base}/amenities`, changeFrequency: 'monthly', priority: 0.6 });
-  }
-  if (project.pointsOfInterest.length > 0) {
-    rutas.push({ url: `${base}/ubicacion`, changeFrequency: 'monthly', priority: 0.6 });
-  }
+  // Solo las secciones con contenido: las vacías dan 404 (ver
+  // lib/project-content.ts, la misma regla que usa la barra).
+  const content = projectHasContent(project);
+  const rutas: MetadataRoute.Sitemap = [{ url: base, changeFrequency: 'weekly', priority: 0.9 }];
+  if (content.facade) rutas.push({ url: `${base}/masterplan`, changeFrequency: 'weekly', priority: 0.8 });
+  if (content.units) rutas.push({ url: `${base}/unidades`, changeFrequency: 'weekly', priority: 0.8 });
+  if (content.tour) rutas.push({ url: `${base}/recorrido`, changeFrequency: 'monthly', priority: 0.6 });
+  if (content.amenities) rutas.push({ url: `${base}/amenities`, changeFrequency: 'monthly', priority: 0.6 });
+  if (content.location) rutas.push({ url: `${base}/ubicacion`, changeFrequency: 'monthly', priority: 0.6 });
   for (const building of project.buildings) {
     rutas.push({ url: `${base}/edificio/${building.id}`, changeFrequency: 'weekly', priority: 0.7 });
   }

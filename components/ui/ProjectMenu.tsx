@@ -11,7 +11,7 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
 
 // Menú único del sitio público de un proyecto (rediseño C/D), para pantallas
-// de menos de 1200px — desde ahí la barra lista todas las secciones. Mismo
+// de menos de 1200px — desde ahí la barra lista las secciones. Mismo
 // orden que la barra; la sección actual queda marcada. Tablet: pantalla
 // completa. Mobile: hoja que sube desde abajo, cerca del pulgar, con
 // Contactar fijo al final.
@@ -77,8 +77,12 @@ export interface ExploreCard { href: string; label: string; image?: string; deta
 // migas de pan (ExploreSwitcher), así los dos listan lo mismo.
 export function exploreCardsFor(info: ProjectNavInfo, basePath: string): ExploreCard[] {
   const hrefs = projectNavHrefs(basePath, info.singleUnit, info.explore.plans?.buildingId);
+  // Solo las vistas con contenido: una tarjeta que lleva a una pantalla
+  // vacía ("Todavía no hay vista aérea…") no le sirve a nadie.
   const cards: (ExploreCard | null)[] = [
-    { href: hrefs.masterplan, label: 'Fachada', image: info.explore.facadeImage, detail: info.explore.facadeDetail },
+    info.explore.hasFacade
+      ? { href: hrefs.masterplan, label: 'Fachada', image: info.explore.facadeImage, detail: info.explore.facadeDetail }
+      : null,
     hrefs.plans && info.explore.plans
       ? { href: hrefs.plans, label: info.explore.plans.label, image: info.explore.plans.image, detail: info.explore.plans.detail }
       : null,
@@ -115,15 +119,16 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
 
   // Mismo orden que la barra completa (ver Navbar): Proyecto, Explorar 3D,
   // Unidades, Amenities, Ubicación → Contactar (el brief va como botón abajo).
+  // Cada sección solo si tiene contenido (ver lib/project-content.ts).
   const after = [
-    {
+    info.hasUnits && {
       href: hrefs.units,
       label: unitsLabel,
       detail: !info.singleUnit && info.unitsAvailable != null ? `${info.unitsAvailable} disponibles` : undefined,
     },
-    { href: hrefs.amenities, label: 'Amenities' },
-    { href: hrefs.location, label: 'Ubicación' },
-  ];
+    info.amenitiesCount > 0 && { href: hrefs.amenities, label: 'Amenities' },
+    info.hasLocation && { href: hrefs.location, label: 'Ubicación' },
+  ].filter((l): l is { href: string; label: string; detail?: string } => !!l);
 
   // Dialog: portal con las variables del tema, scroll lock, foco, Escape y
   // fondo. Mobile: hoja desde abajo; tablet: modal centrado de 720 px (antes

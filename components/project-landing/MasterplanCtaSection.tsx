@@ -2,6 +2,7 @@ import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { bimModelHref } from '@/lib/bim';
 import { pluralize } from '@/lib/units';
 import type { SectionProps } from './types';
+import { projectHasContent } from '@/lib/project-content';
 import { Container, SectionHeading } from './ui';
 
 interface ExploreRow {
@@ -17,11 +18,13 @@ interface ExploreRow {
 // para no romper el section_config guardado de los proyectos existentes.
 export default function MasterplanCtaSection({ project, basePath, typeConfig }: SectionProps) {
   const isHouse = !typeConfig.hasUnitStep;
-  const rows: ExploreRow[] = [
-    isHouse
+  const rows: ExploreRow[] = [];
+  // Sin vista aérea ni imagen de masterplan, /masterplan da 404.
+  if (projectHasContent(project).facade) {
+    rows.push(isHouse
       ? { title: 'Vista frontal', desc: 'Entrá a recorrer la casa desde el frente.', href: `${basePath}/masterplan` }
-      : { title: 'Masterplan', desc: 'Explorá el proyecto con el visor interactivo.', href: `${basePath}/masterplan` },
-  ];
+      : { title: 'Masterplan', desc: 'Explorá el proyecto con el visor interactivo.', href: `${basePath}/masterplan` });
+  }
   if (project.commonAreasTour) {
     rows.push({ title: 'Tour 360°', desc: 'Entrá a los espacios y mirá alrededor.', href: `${basePath}/recorrido` });
   }
@@ -36,6 +39,7 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
   if (project.bimModels.length > 0) {
     rows.push({ title: 'Modelo BIM', desc: 'Recorré el edificio en detalle, pieza por pieza.', href: bimModelHref(project.bimModels[0].id), wideOnly: true });
   }
+  if (rows.length === 0) return null;
 
   return (
     <section id="explorar" className="py-[var(--theme-spacing)] bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)]">

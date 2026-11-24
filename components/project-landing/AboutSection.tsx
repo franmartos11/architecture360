@@ -1,5 +1,6 @@
 import Reveal from '@/components/ui/Reveal';
 import type { SectionProps } from './types';
+import { projectHasContent } from '@/lib/project-content';
 import { Container, Pill, SectionHeading } from './ui';
 
 // Más que esto en tipografía de 52px es una pared de texto: el primer
@@ -18,6 +19,7 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
   const [lead, ...rest] = project.description.trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const leadIsShort = lead.length <= LEAD_MAX_CHARS;
   const isHouse = !typeConfig.hasUnitStep;
+  const hasFacade = projectHasContent(project).facade;
 
   return (
     <section id="next" className="pt-[var(--theme-spacing)] pb-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
@@ -43,10 +45,13 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
                 ))}
               </Reveal>
             )}
-            <div className="flex gap-2.5 flex-wrap">
-              <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? 'Ver vista frontal' : 'Ver masterplan'}</Pill>
-              {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">Tour 360°</Pill>}
-            </div>
+            {(hasFacade || project.commonAreasTour) && (
+              <div className="flex gap-2.5 flex-wrap">
+                {/* Sin fachada cargada /masterplan da 404: no se ofrece. */}
+                {hasFacade && <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? 'Ver vista frontal' : 'Ver masterplan'}</Pill>}
+                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">Tour 360°</Pill>}
+              </div>
+            )}
           </div>
         </SectionHeading>
       </Container>

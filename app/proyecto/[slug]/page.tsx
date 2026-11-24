@@ -11,6 +11,7 @@ import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { progressHeadline, showsConstructionProgress } from '@/lib/construction-progress-view';
 import { projectCanonical } from '@/lib/project-canonical';
+import { projectHasContent } from '@/lib/project-content';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -48,6 +49,7 @@ export default async function ProjectLandingPage({ params }: PageProps) {
   const basePath = await getProjectBasePath(slug);
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const sectionOrder = resolveSectionOrder(project.sectionConfig, typeConfig);
+  const content = projectHasContent(project);
 
   // Postura del hero: venta apunta a conversión (precio desde + CTA a
   // disponibilidad), showcase apunta a credencial académica en vez de
@@ -87,10 +89,13 @@ export default async function ProjectLandingPage({ params }: PageProps) {
         image={heroImage}
         tagline={project.tagline || (typeConfig.saleMode === 'venta' ? 'Encontrá tu lugar' : undefined)}
         meta={heroMetaLine || undefined}
-        primary={typeConfig.saleMode === 'venta' && project.units.length > 0
+        // Sin fachada cargada no hay botón a /masterplan (daría 404).
+        primary={typeConfig.saleMode === 'venta' && content.units
           ? { href: `${basePath}/unidades`, label: 'Ver disponibilidad' }
-          : { href: `${basePath}/masterplan`, label: typeConfig.hasUnitStep ? 'Ver masterplan' : 'Ver vista frontal' }}
-        secondary={project.commonAreasTour ? { href: `${basePath}/recorrido`, label: 'Tour 360°' } : undefined}
+          : content.facade
+            ? { href: `${basePath}/masterplan`, label: typeConfig.hasUnitStep ? 'Ver masterplan' : 'Ver vista frontal' }
+            : undefined}
+        secondary={content.tour ? { href: `${basePath}/recorrido`, label: 'Tour 360°' } : undefined}
         progress={progressText ? { href: '#avance', text: progressText } : undefined}
         briefUrl={project.briefPdfUrl}
       />

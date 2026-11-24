@@ -18,11 +18,18 @@ export interface ProjectNavInfo {
   briefUrl?: string;
   /** Unidades disponibles — solo cuando el proyecto muestra estado de venta. */
   unitsAvailable?: number;
+  /** 0 = sin amenities: la barra y el menú no ofrecen la sección. */
   amenitiesCount: number;
+  /** Hay mapa o puntos de interés — si no, no hay "Ubicación". Ver lib/project-content.ts. */
+  hasLocation: boolean;
+  /** Hay unidades cargadas — si no, no hay link de unidades. */
+  hasUnits: boolean;
   /** Nombre de cada edificio por id — para "Plantas · Torre A" en la barra. */
   buildingNames: Record<string, string>;
   /** Tarjetas de "Explorar 3D" del menú. plans: el primer edificio con plano. */
   explore: {
+    /** Hay vista aérea o imagen de masterplan — si no, no hay tarjeta "Fachada". */
+    hasFacade: boolean;
     facadeImage?: string;
     /** "4 ángulos" — bajada de la tarjeta en el selector de las migas. */
     facadeDetail?: string;

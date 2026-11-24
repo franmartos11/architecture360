@@ -9,6 +9,7 @@ import DraftPreviewBar from '@/components/project-landing/DraftPreviewBar';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
+import { projectHasContent } from '@/lib/project-content';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -56,6 +57,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
+  const content = projectHasContent(project);
   // "Plantas" del menú: el primer edificio con plano cargado. Una casa no
   // tiene plano propio (su edificio redirige a la ficha), así que no va.
   const plansBuilding = typeConfig.hasUnitStep
@@ -78,7 +80,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
             pantalla completa y va por debajo del nav a propósito. */}
         <ProjectChrome
           projectName={project.name}
-          hasTour={!!project.commonAreasTour}
+          hasTour={content.tour}
           singleUnit={!typeConfig.hasUnitStep && project.units[0]
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
             : undefined}
@@ -89,8 +91,11 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           briefUrl={project.briefPdfUrl}
           unitsAvailable={typeConfig.showStatus ? project.units.filter(u => u.status === 'available').length : undefined}
           amenitiesCount={project.amenities.length}
+          hasLocation={content.location}
+          hasUnits={content.units}
           buildingNames={Object.fromEntries(project.buildings.map(b => [b.id, b.name]))}
           explore={{
+            hasFacade: content.facade,
             facadeImage: project.aerialSlides[0]?.imageUrl || project.masterplanImage || undefined,
             facadeDetail: project.aerialSlides.length > 1 ? `${project.aerialSlides.length} ángulos` : 'Vista aérea',
             plans: plansBuilding && {

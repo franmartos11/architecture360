@@ -4,6 +4,7 @@ import { getSiteProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { projectCanonical } from '@/lib/project-canonical';
+import { projectHasContent } from '@/lib/project-content';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -25,7 +26,9 @@ export default async function AmenitiesPage({ params, searchParams }: PageProps)
   const { slug } = await params;
   const { edificio } = await searchParams;
   const project = await getSiteProjectBySlug(slug);
-  if (!project) notFound();
+  // Sin contenido no hay sección: la barra no la ofrece y una entrada
+  // directa (link viejo, buscador) da 404, como /recorrido sin tour.
+  if (!project || !projectHasContent(project).amenities) notFound();
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   return <AmenitiesView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;

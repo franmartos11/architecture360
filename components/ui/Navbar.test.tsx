@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import Navbar from './Navbar';
+import { exploreCardsFor } from './ProjectMenu';
 import type { ProjectNavInfo } from '@/lib/project-nav';
 
 vi.mock('next/navigation', () => ({
@@ -17,7 +18,7 @@ afterEach(() => cleanup());
 function info(over: Partial<ProjectNavInfo> = {}): ProjectNavInfo {
   return {
     projectName: 'Duplex Rincones', unitsLabel: 'Unidades', projectSlug: 'duplex', showLeads: true,
-    hasTour: false, amenitiesCount: 0, buildingNames: {}, explore: {},
+    hasTour: false, amenitiesCount: 0, hasLocation: false, hasUnits: false, buildingNames: {}, explore: { hasFacade: false },
     ...over,
   } as ProjectNavInfo;
 }
@@ -37,5 +38,26 @@ describe('Navbar', () => {
     cleanup();
     render(<Navbar info={info()} />);
     expect(screen.queryByRole('link', { name: /Brief/ })).toBeNull();
+  });
+
+  it('sin amenities, ubicación ni unidades: esos links no aparecen', () => {
+    render(<Navbar info={info()} />);
+    expect(screen.queryByRole('link', { name: 'Amenities' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ubicación' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Unidades/ })).toBeNull();
+  });
+
+  it('con contenido: Amenities, Ubicación y Unidades aparecen', () => {
+    render(<Navbar info={info({ amenitiesCount: 3, hasLocation: true, hasUnits: true })} />);
+    expect(screen.getByRole('link', { name: 'Amenities' }).getAttribute('href')).toBe('/amenities');
+    expect(screen.getByRole('link', { name: 'Ubicación' }).getAttribute('href')).toBe('/ubicacion');
+    expect(screen.getByRole('link', { name: /Unidades/ }).getAttribute('href')).toBe('/unidades');
+  });
+});
+
+describe('exploreCardsFor', () => {
+  it('sin fachada no ofrece la tarjeta "Fachada"; con fachada sí', () => {
+    expect(exploreCardsFor(info({ hasTour: true }), '').map(c => c.label)).toEqual(['Recorrido 360']);
+    expect(exploreCardsFor(info({ explore: { hasFacade: true } }), '').map(c => c.label)).toEqual(['Fachada']);
   });
 });

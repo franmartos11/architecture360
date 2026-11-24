@@ -40,8 +40,10 @@ export default function CommonAreasTour({
   const basePath = useProjectBasePath();
   // Dentro del sitio del proyecto la barra global reemplaza a la barra
   // propia del recorrido, que solo queda fuera de él.
-  const inSite = !!useProjectNav();
-  const resolvedBackHref = backHref ?? `${basePath}/masterplan`;
+  const nav = useProjectNav();
+  const inSite = !!nav;
+  // Vuelve a la fachada; si el proyecto no tiene (/masterplan da 404), al inicio.
+  const resolvedBackHref = backHref ?? (nav && !nav.explore.hasFacade ? basePath || '/' : `${basePath}/masterplan`);
 
   // Sin esto, la única forma de salir del recorrido era el botón "Volver" —
   // en modo embed (dentro de un iframe) no hay a dónde volver, así que Escape

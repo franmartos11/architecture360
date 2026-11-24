@@ -12,7 +12,8 @@ import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo 
 
 // Barra única del sitio público de un proyecto — la misma en la web, en
 // Explorar 3D y en la ficha de unidad (rediseño C/D). Según el ancho:
-// - ≥1200px: las seis secciones a la vista + Contactar, sin botón Menú.
+// - ≥1200px: las secciones a la vista + Contactar, sin botón Menú. Una
+//   sección sin contenido (ej. un proyecto sin amenities) no aparece.
 // - <1200px: barra mínima — marca, dónde estás, Contactar y Menú (el menú
 //   único de ProjectMenu). En mobile Contactar y Menú quedan solo con ícono.
 // Mismo orden en la barra, el menú y la hoja: Proyecto, Explorar 3D,
@@ -135,20 +136,27 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
               Proyecto
             </Link>
             <ExploreSwitcher info={info} current={section?.group === EXPLORE_GROUP ? section.label : undefined} />
-            <Link href={hrefs.units} aria-current={unitsActive ? 'page' : undefined} className={`flex items-center gap-2 ${navItemClass(unitsActive)}`}>
-              {unitsLabel}
-              {!info.singleUnit && info.unitsAvailable != null && (
-                <span className="px-[7px] py-0.5 rounded-full text-[11px] font-semibold bg-[var(--theme-accent)]/25 text-[var(--nav-fg)]">
-                  {info.unitsAvailable}<span className="sr-only"> disponibles</span>
-                </span>
-              )}
-            </Link>
-            <Link href={hrefs.amenities} aria-current={isActive(hrefs.amenities) ? 'page' : undefined} className={navItemClass(isActive(hrefs.amenities))}>
-              Amenities
-            </Link>
-            <Link href={hrefs.location} aria-current={isActive(hrefs.location) ? 'page' : undefined} className={navItemClass(isActive(hrefs.location))}>
-              Ubicación
-            </Link>
+            {/* Cada sección solo si tiene contenido (ver lib/project-content.ts). */}
+            {info.hasUnits && (
+              <Link href={hrefs.units} aria-current={unitsActive ? 'page' : undefined} className={`flex items-center gap-2 ${navItemClass(unitsActive)}`}>
+                {unitsLabel}
+                {!info.singleUnit && info.unitsAvailable != null && (
+                  <span className="px-[7px] py-0.5 rounded-full text-[11px] font-semibold bg-[var(--theme-accent)]/25 text-[var(--nav-fg)]">
+                    {info.unitsAvailable}<span className="sr-only"> disponibles</span>
+                  </span>
+                )}
+              </Link>
+            )}
+            {info.amenitiesCount > 0 && (
+              <Link href={hrefs.amenities} aria-current={isActive(hrefs.amenities) ? 'page' : undefined} className={navItemClass(isActive(hrefs.amenities))}>
+                Amenities
+              </Link>
+            )}
+            {info.hasLocation && (
+              <Link href={hrefs.location} aria-current={isActive(hrefs.location) ? 'page' : undefined} className={navItemClass(isActive(hrefs.location))}>
+                Ubicación
+              </Link>
+            )}
             {/* El brief es un PDF: link común (no TransitionLink), en otra pestaña. */}
             {info.briefUrl && (
               <a href={info.briefUrl} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 ${navItemClass(false)}`}>
