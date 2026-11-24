@@ -3,7 +3,7 @@
 // público y no tiene por qué viajar al navegador. Sin imports de next/react:
 // lo usa también el puente del bot, que corre con tsx fuera de Next.
 export const LEAD_COLUMNS =
-  'id, project_id, unit_id, unit_name, name, email, phone, method, message, source, status, wa_conversacion_id, calificacion, created_at';
+  'id, project_id, unit_id, unit_name, name, email, phone, method, message, source, ref, status, wa_conversacion_id, calificacion, created_at';
 
 /**
  * Últimos 6 dígitos de un teléfono: siempre caen dentro del número del abonado,

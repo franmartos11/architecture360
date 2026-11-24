@@ -121,6 +121,7 @@ export default function ProjectAdminShell({
   ];
 
   const isLeads = pathname === '/admin/leads' || pathname.startsWith('/admin/leads/');
+  const isMetricas = pathname === '/admin/metricas' || pathname.startsWith('/admin/metricas/');
   const isDashboard = pathname === '/admin';
   // Ítem de primer nivel activo: ahí se para el indicador que se desliza.
   // aria-current: "page" en el ítem que ES la página; una sección con
@@ -130,6 +131,7 @@ export default function ProjectAdminShell({
     : isUnidadesSection ? 'unidades'
     : isSitioSection ? 'sitio'
     : isLeads ? 'leads'
+    : isMetricas ? 'metricas'
     : isDashboard ? 'dashboard'
     : navItems.find(item => pathname === item.href)?.href ?? null;
   // Se vuelve a medir al abrir/cerrar el menú móvil: cerrado está oculto
@@ -228,6 +230,13 @@ export default function ProjectAdminShell({
                   {newLeadsCount}
                 </span>
               )}
+            </Link>
+          )}
+          {/* Métricas: mismo permiso que Leads (gestor+, proyecto para vender). */}
+          {canSeeLeads && (
+            <Link href="/admin/metricas" data-indicator="metricas" aria-current={isMetricas ? 'page' : undefined} className={itemClass(isMetricas)}>
+              <NavIcon d="M3 3v18h18M7 15l4-4 3 3 6-6" />
+              <span className="flex-1">Métricas</span>
             </Link>
           )}
           {hasUnitStep && !typeConfig.singleBuilding && (

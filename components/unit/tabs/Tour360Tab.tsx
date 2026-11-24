@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useTrack } from '@/components/analytics/SiteTracker';
 import { m as motion } from 'framer-motion';
 import type { Unit } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
@@ -20,6 +22,8 @@ export default function Tour360Tab({
   onFullscreenChange: (fullscreen: boolean) => void;
   sunAzimuths?: SunAzimuths | null;
 }) {
+  const track = useTrack();
+  useEffect(() => { track('tour', { unitId: unit.dbId || undefined }); }, [track, unit.dbId]);
   // orientationDegrees del visor = grados al norte desde yaw=0 del tour.
   // Asumimos que la primera panorámica mira al frente de la casa (lo
   // natural al sacarla), así que el norte queda "a la espalda" de ese

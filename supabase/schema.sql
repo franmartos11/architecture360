@@ -2982,3 +2982,219 @@ alter table wa_uso_ia enable row level security;
 drop policy if exists "admin read wa_uso_ia" on wa_uso_ia;
 create policy "admin read wa_uso_ia" on wa_uso_ia for select to authenticated
   using ((select project_role_rank(wa_uso_ia.project_id)) >= 3);
+
+-- ═══ Analítica de visitas y canales (2026-11-24) ═══════════════════════
+-- Spec: docs/superpowers/specs/2026-11-24-analitica-y-links-de-broker-design.md
+-- El sitio público manda eventos a POST /api/track (service-role); el panel
+-- los lee con las funciones de abajo (security definer con control de rol propio).
+-- El canal se cruza por TEXTO (site_events.ref / leads.ref = project_channels.slug):
+-- registrar un link "sin registrar" le asigna solo todo lo pasado.
+
+-- ─── Inmobiliarias y campañas de un proyecto ────────────────────────────
+create table if not exists project_channels (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  name text not null,
+  slug text not null check (slug = lower(slug) and length(slug) between 1 and 60),
+  kind text not null default 'inmobiliaria' check (kind in ('inmobiliaria', 'campaña')),
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (project_id, slug)
+);
+
+alter table project_channels enable row level security;
+
+drop policy if exists "gestor read project_channels" on project_channels;
+create policy "gestor read project_channels" on project_channels for select to authenticated
+  using ((select project_role_rank(project_channels.project_id)) >= 2);
+
+drop policy if exists "gestor insert project_channels" on project_channels;
+create policy "gestor insert project_channels" on project_channels for insert to authenticated
+  with check ((select project_role_rank(project_channels.project_id)) >= 2);
+
+drop policy if exists "gestor update project_channels" on project_channels;
+create policy "gestor update project_channels" on project_channels for update to authenticated
+  using ((select project_role_rank(project_channels.project_id)) >= 2)
+  with check ((select project_role_rank(project_channels.project_id)) >= 2);
+
+-- ─── Eventos del sitio público ──────────────────────────────────────────
+-- Sin IP ni datos personales: visitor_id es un uuid aleatorio del navegador.
+-- ref = canal ATRIBUIDO al visitante (first-touch, 90 días), no el link de
+-- esa llegada puntual.
+create table if not exists site_events (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  visitor_id uuid not null,
+  session_id uuid not null,
+  type text not null check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp')),
+  path text,
+  unit_id uuid references units(id) on delete set null,
+  ref text,
+  referrer_host text,
+  device text not null default 'desktop' check (device in ('mobile', 'desktop')),
+  duration_seconds int check (duration_seconds is null or duration_seconds between 0 and 1800),
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_site_events_project_created on site_events(project_id, created_at);
+create index if not exists idx_site_events_project_unit on site_events(project_id, unit_id);
+create index if not exists idx_site_events_project_ref on site_events(project_id, ref);
+
+-- Sin policies de insert/update: escribe solo /api/track con service-role.
+alter table site_events enable row level security;
+
+drop policy if exists "gestor read site_events" on site_events;
+create policy "gestor read site_events" on site_events for select to authenticated
+  using ((select project_role_rank(site_events.project_id)) >= 2);
+
+-- ─── Leads: canal y visitante ──────────────────────────────────────────
+alter table leads add column if not exists ref text;
+alter table leads add column if not exists visitor_id uuid;
+create index if not exists idx_leads_project_ref on leads(project_id, ref);
+
+-- ─── Agregados para el panel ────────────────────────────────────────────
+-- security definer + UN control explícito de permiso (gestor en adelante):
+-- con security invoker la policy de site_events evaluaba project_role_rank
+-- en cada fila escaneada y las métricas de un proyecto con muchos eventos se
+-- acercaban al timeout. "(select …)" hace que el control corra una sola vez.
+-- Sin permiso, las funciones devuelven vacío / ceros.
+-- p_since: desde cuándo ('-infinity' = todo). "Consulta web" = lead con
+-- visitor_id (formulario del sitio) o clic en WhatsApp; los leads sin
+-- visitor_id (bot, cargados a mano, anteriores a esto) van a other_leads.
+create or replace function site_metrics_summary(p_project_id uuid, p_since timestamptz)
+returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  with ev as (
+    select e.visitor_id, e.session_id, e.type, e.device
+    from site_events e
+    where e.project_id = p_project_id and e.created_at >= p_since
+      and (select project_role_rank(p_project_id)) >= 2
+  ),
+  ld as (
+    select l.visitor_id
+    from leads l
+    where l.project_id = p_project_id and l.created_at >= p_since
+      and (select project_role_rank(p_project_id)) >= 2
+  ),
+  conv as (
+    select ev.visitor_id from ev where ev.type = 'whatsapp'
+    union
+    select ld.visitor_id from ld where ld.visitor_id is not null
+  )
+  select jsonb_build_object(
+    'visitors',          (select count(distinct ev.visitor_id) from ev),
+    'sessions',          (select count(distinct ev.session_id) from ev),
+    'unit_viewers',      (select count(distinct ev.visitor_id) from ev where ev.type = 'unit'),
+    'tour_viewers',      (select count(distinct ev.visitor_id) from ev where ev.type = 'tour'),
+    'web_converters',    (select count(*) from conv),
+    'web_leads',         (select count(*) from ld where ld.visitor_id is not null),
+    'whatsapp_clickers', (select count(distinct ev.visitor_id) from ev where ev.type = 'whatsapp'),
+    'other_leads',       (select count(*) from ld where ld.visitor_id is null),
+    'mobile_visitors',   (select count(distinct ev.visitor_id) from ev where ev.device = 'mobile'),
+    'desktop_visitors',  (select count(distinct ev.visitor_id) from ev where ev.device = 'desktop')
+  )
+$$;
+
+-- Una fila por unidad con al menos una vista o un lead en el período.
+create or replace function site_unit_ranking(p_project_id uuid, p_since timestamptz)
+returns table(unit_id uuid, code text, building_name text, floor_number int, status text,
+              views bigint, viewers bigint, avg_seconds numeric, tours bigint, leads bigint)
+language sql stable security definer set search_path = public, pg_temp as $$
+  with pu as (
+    select u.id, u.code, b.name as building_name, f.number as floor_number, u.status
+    from units u
+    join floors f on f.id = u.floor_id
+    join buildings b on b.id = f.building_id
+    where b.project_id = p_project_id
+      and (select project_role_rank(p_project_id)) >= 2
+  ),
+  v as (
+    select e.unit_id as uid,
+           count(*) filter (where e.type = 'unit') as views,
+           count(distinct e.visitor_id) filter (where e.type = 'unit') as viewers,
+           round(avg(e.duration_seconds) filter (where e.type = 'unit' and e.duration_seconds is not null)) as avg_seconds,
+           count(*) filter (where e.type = 'tour') as tours
+    from site_events e
+    where e.project_id = p_project_id and e.created_at >= p_since and e.unit_id is not null
+    group by e.unit_id
+  ),
+  l as (
+    select ld.unit_id as uid, count(*) as leads
+    from leads ld
+    where ld.project_id = p_project_id and ld.created_at >= p_since and ld.unit_id is not null
+    group by ld.unit_id
+  )
+  select pu.id, pu.code, pu.building_name, pu.floor_number, pu.status,
+         coalesce(v.views, 0), coalesce(v.viewers, 0), v.avg_seconds,
+         coalesce(v.tours, 0), coalesce(l.leads, 0)
+  from pu
+  left join v on v.uid = pu.id
+  left join l on l.uid = pu.id
+  where v.uid is not null or l.uid is not null
+$$;
+
+-- Visitantes del período agrupados por canal atribuido y sitio de origen
+-- (el primero no vacío de cada visitante), con cuántos consultaron.
+create or replace function site_traffic_sources(p_project_id uuid, p_since timestamptz)
+returns table(ref text, referrer_host text, visitors bigint, converters bigint)
+language sql stable security definer set search_path = public, pg_temp as $$
+  with per_visitor as (
+    select e.visitor_id,
+           (array_agg(e.ref order by e.created_at) filter (where e.ref is not null))[1] as ref,
+           (array_agg(e.referrer_host order by e.created_at) filter (where e.referrer_host is not null))[1] as referrer_host
+    from site_events e
+    where e.project_id = p_project_id and e.created_at >= p_since
+      and (select project_role_rank(p_project_id)) >= 2
+    group by e.visitor_id
+  ),
+  conv as (
+    select e.visitor_id from site_events e
+    where e.project_id = p_project_id and e.created_at >= p_since and e.type = 'whatsapp'
+    union
+    select ld.visitor_id from leads ld
+    where ld.project_id = p_project_id and ld.created_at >= p_since and ld.visitor_id is not null
+  )
+  select pv.ref, pv.referrer_host, count(*), count(c.visitor_id)
+  from per_visitor pv
+  left join conv c on c.visitor_id = pv.visitor_id
+  group by pv.ref, pv.referrer_host
+$$;
+
+-- Refs con al menos un evento o lead: el slug de esos canales queda bloqueado
+-- (cambiarlo rompería links ya repartidos) y "Registrar" sabe si había tráfico.
+create or replace function channel_refs_with_traffic(p_project_id uuid)
+returns setof text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select distinct e.ref from site_events e where e.project_id = p_project_id and e.ref is not null
+    and (select project_role_rank(p_project_id)) >= 2
+  union
+  select distinct l.ref from leads l where l.project_id = p_project_id and l.ref is not null
+    and (select project_role_rank(p_project_id)) >= 2
+$$;
+
+revoke execute on function channel_refs_with_traffic(uuid) from public, anon;
+grant execute on function channel_refs_with_traffic(uuid) to authenticated;
+
+revoke execute on function site_metrics_summary(uuid, timestamptz) from public, anon;
+revoke execute on function site_unit_ranking(uuid, timestamptz) from public, anon;
+revoke execute on function site_traffic_sources(uuid, timestamptz) from public, anon;
+grant execute on function site_metrics_summary(uuid, timestamptz) to authenticated;
+grant execute on function site_unit_ranking(uuid, timestamptz) to authenticated;
+grant execute on function site_traffic_sources(uuid, timestamptz) to authenticated;
+
+-- ─── Backfill: unidad de los leads viejos ───────────────────────────────
+-- Antes el formulario guardaba solo el código (unit_name). Se completa
+-- unit_id cuando el código coincide con UNA sola unidad del proyecto; los
+-- ambiguos (mismo código en dos pisos/edificios) quedan sin unidad.
+update leads l
+set unit_id = m.unit_id
+from (
+  select l2.id as lead_id, (array_agg(u.id))[1] as unit_id
+  from leads l2
+  join buildings b on b.project_id = l2.project_id
+  join floors f on f.building_id = b.id
+  join units u on u.floor_id = f.id and u.code = l2.unit_name
+  where l2.unit_id is null and l2.unit_name is not null
+  group by l2.id
+  having count(*) = 1
+) m
+where l.id = m.lead_id;

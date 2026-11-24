@@ -65,6 +65,7 @@ function mapProject(
     const counts = roomCounts(allRooms);
     return {
       id: u.code,
+      dbId: u.id,
       name: isSingleUnit ? project.name : u.code,
       modelName: u.model_name ?? '',
       buildingId: building.slug,

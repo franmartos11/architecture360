@@ -187,6 +187,8 @@ export interface Floor {
 // ─── Real estate unit ──────────────────────────────────────────────
 export interface Unit {
   id: string;
+  /** uuid real de la fila (units.id). `id` es el código legible y es lo que usan URLs y front. */
+  dbId: string;
   name: string;         // e.g. "N01-07"
   modelName: string;    // e.g. "DUET 106 JARDIN"
   buildingId: string;
@@ -609,6 +611,8 @@ export interface Lead {
   method: string | null;
   message: string | null;
   source: string | null;
+  /** Canal atribuido (?ref= / utm_source) — se cruza por texto con project_channels.slug. */
+  ref?: string | null;
   status: string;
   wa_conversacion_id: string | null;
   /** Lo completa el bot de WhatsApp al avisar (ver lib/whatsapp-bot/calificacion.ts). */

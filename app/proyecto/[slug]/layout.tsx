@@ -10,6 +10,7 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { projectHasContent } from '@/lib/project-content';
+import SiteTracker from '@/components/analytics/SiteTracker';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -72,6 +73,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   return (
     <ProjectBasePathProvider basePath={basePath}>
       <ProjectWhatsappProvider numero={project.whatsappNumber}>
+      <SiteTracker projectSlug={project.slug} isDraftPreview={isDraftPreview} briefUrl={project.briefPdfUrl ?? undefined}>
       <div
         data-project-theme
         className={`${ALL_FONT_CLASSNAMES} theme-bg-image theme-bg-image--fixed bg-[var(--theme-bg)] min-h-screen`}
@@ -121,6 +123,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         </ProjectChrome>
         {isDraftPreview && <DraftPreviewBar projectId={project.id} canPublish={canPublish} />}
       </div>
+      </SiteTracker>
       </ProjectWhatsappProvider>
     </ProjectBasePathProvider>
   );

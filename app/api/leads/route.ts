@@ -8,6 +8,8 @@ import { sanitizeText, sanitizeMultiline, escapeHtml } from '@/lib/sanitize';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
 import { clientIp } from '@/lib/request-ip';
 import { leadRecipientIds } from '@/lib/lead-recipients';
+import { unitOfProject, isUuid } from '@/lib/analytics/project-unit';
+import { normalizeRef } from '@/lib/analytics/ref';
 import type { MemberRole } from '@/lib/project-roles';
 
 import { DEFAULT_PROJECT_SLUG as PROJECT_SLUG } from '@/lib/constants';
@@ -25,6 +27,12 @@ const leadSchema = z.object({
   unitName: z.string().max(100).optional(),
   method: z.string().max(50).optional(),
   source: z.string().max(50).optional(),
+  // uuid real de la unidad (Unit.dbId). Texto libre a propósito: un cliente
+  // viejo cacheado manda el código ("N01-07") y eso no puede tirar el lead.
+  unitId: z.string().max(100).nullable().optional(),
+  // Canal atribuido (?ref= / utm_source) y visitante anónimo del tracker.
+  ref: z.string().max(60).nullable().optional(),
+  visitorId: z.string().max(40).nullable().optional(),
   projectSlug: z.string().max(100).optional(),
   // Opt-in explícito a las novedades de obra por correo. Sin esto en true no se
   // le manda nada, nunca (ver /api/admin/project/progress-notify).
@@ -58,6 +66,9 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const name = sanitizeText(body.name, 200);
+  const unitId = await unitOfProject(body.unitId, project?.id);
+  const ref = normalizeRef(body.ref) || null;
+  const visitorId = isUuid(body.visitorId) ? body.visitorId : null;
   const message = sanitizeMultiline(body.message, 2000) || null;
 
   // El insert va con service-role y NO con el cliente anon: la tabla ya no
@@ -65,18 +76,26 @@ export async function POST(request: Request) {
   // —que viaja en el bundle— podría pegarle a /rest/v1/leads salteándose la
   // validación, el sanitizado y el rate limit de esta ruta). Sin .select()
   // porque no se necesita la fila de vuelta.
-  const { error } = await createAdminClient().from('leads').insert({
+  const row = {
     project_id: project?.id ?? null,
     name,
     email: body.email,
     phone: sanitizeText(body.phone, 40),
     message,
+    unit_id: unitId,
     unit_name: sanitizeText(body.unitName, 100) || null,
     method: sanitizeText(body.method, 50) || null,
     source: sanitizeText(body.source, 50) || null,
     ip_address: ip,
     wants_updates: body.wantsUpdates === true,
-  });
+  };
+  let { error } = await createAdminClient().from('leads').insert({ ...row, ref, visitor_id: visitorId });
+  // 42703 = columna inexistente: el código llegó antes que el SQL de la
+  // analítica (leads.ref / leads.visitor_id). Un lead real nunca se pierde por eso.
+  if ((error as { code?: string } | null)?.code === '42703') {
+    console.error('[leads] faltan las columnas de analítica en leads: correr el bloque 2026-11-24 de schema.sql', error);
+    ({ error } = await createAdminClient().from('leads').insert(row));
+  }
 
   if (error) {
     console.error('[leads] no se pudo guardar el lead', error);

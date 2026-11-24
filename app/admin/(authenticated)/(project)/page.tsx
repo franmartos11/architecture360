@@ -21,6 +21,7 @@ import { PageHeader, Card, CardHeader, StatStrip, Pill, SegmentedTabs, btnPrimar
 import { pluralize } from '@/lib/units';
 import { useCustomDomain } from '@/lib/custom-domain-context';
 import ObraDashboardCard from '@/components/admin/construction-progress/ObraDashboardCard';
+import SiteVisitsCard from '@/components/admin/metrics/SiteVisitsCard';
 import { editableProgress, toIsoDate } from '@/lib/construction-progress-editor';
 interface ProjectSummary {
   slug: string;
@@ -230,6 +231,8 @@ export default function AdminDashboard() {
         { label: 'Reservado', value: usd(reservedValue), hint: `${reserved} ${unitWord(reserved)}` },
         { label: 'Ventas concretadas', value: usd(soldValue), hint: `${sold} ${unitWord(sold)}` },
       ]} />
+
+      {canSeeLeads && typeConfig.showLeads && <SiteVisitsCard range={range} />}
 
       <div className="flex gap-5 flex-wrap items-stretch">
         <section className="flex-[3_1_460px] min-w-0 rounded-2xl border border-gray-200 bg-white p-5 sm:p-[22px] flex flex-col gap-[18px]">

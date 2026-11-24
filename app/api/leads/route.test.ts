@@ -78,6 +78,89 @@ describe('POST /api/leads', () => {
     expect(admin.from.mock.results[0].value.insert.mock.calls[0][0].wants_updates).toBe(expected);
   });
 
+  describe('unidad, canal y visitante', () => {
+    const UNIT_UUID = '11111111-1111-4111-8111-111111111111';
+    const VISITOR_UUID = '22222222-2222-4222-8222-222222222222';
+    const proyecto = () => mockSupabase({ results: [{ data: { id: 'project-1', name: 'Torre', owner_id: null } }] });
+    const insertado = (admin: ReturnType<typeof mockSupabase>) => {
+      const i = admin.from.mock.calls.findIndex(c => c[0] === 'leads');
+      return admin.from.mock.results[i].value.insert.mock.calls[0][0];
+    };
+
+    it('guarda unit_id cuando es un uuid de una unidad del proyecto', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [{ data: { id: UNIT_UUID } }, { error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ ...VALID_BODY, unitId: UNIT_UUID, unitName: 'N01-07' }));
+
+      expect(res.status).toBe(200);
+      expect(insertado(admin).unit_id).toBe(UNIT_UUID);
+    });
+
+    it('unitId que no es uuid (cliente viejo manda el código): guarda el lead con unit_id null', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [{ error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ ...VALID_BODY, unitId: 'N01-07', unitName: 'N01-07' }));
+
+      expect(res.status).toBe(200);
+      expect(insertado(admin).unit_id).toBeNull();
+      expect(insertado(admin).unit_name).toBe('N01-07');
+    });
+
+    it('uuid de unidad de otro proyecto: unit_id null', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [{ data: null }, { error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ ...VALID_BODY, unitId: UNIT_UUID }));
+
+      expect(res.status).toBe(200);
+      expect(insertado(admin).unit_id).toBeNull();
+    });
+
+    it('guarda ref en minúsculas y visitor_id', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [{ error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      const res = await POST(req({ ...VALID_BODY, ref: 'Pérez_Props', visitorId: VISITOR_UUID }));
+
+      expect(res.status).toBe(200);
+      expect(insertado(admin)).toMatchObject({ ref: 'perez-props', visitor_id: VISITOR_UUID });
+    });
+
+    it('base sin las columnas nuevas (SQL todavía sin correr): reintenta sin ref/visitor_id y no pierde el lead', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [
+        { error: { code: '42703', message: 'column "ref" of relation "leads" does not exist' } },
+        { error: null },
+      ] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await POST(req({ ...VALID_BODY, ref: 'perez', visitorId: VISITOR_UUID }));
+
+      expect(res.status).toBe(200);
+      const retry = admin.from.mock.results[1].value.insert.mock.calls[0][0];
+      expect(retry).not.toHaveProperty('ref');
+      expect(retry).not.toHaveProperty('visitor_id');
+      expect(retry.name).toBe('Ana Pérez');
+    });
+
+    it('visitorId que no es uuid: visitor_id null', async () => {
+      vi.mocked(createClient).mockResolvedValue(proyecto() as never);
+      const admin = mockSupabase({ results: [{ error: null }] });
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+      await POST(req({ ...VALID_BODY, visitorId: 'cualquier-cosa' }));
+
+      expect(insertado(admin).visitor_id).toBeNull();
+    });
+  });
+
   it('rate-limit alcanzado: devuelve el 429 tal cual, sin insertar', async () => {
     const supabase = mockSupabase({ results: [] });
     vi.mocked(createClient).mockResolvedValue(supabase as never);

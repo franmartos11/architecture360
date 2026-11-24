@@ -26,6 +26,7 @@ import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
+import { useUnitViewTracking } from '@/hooks/useUnitViewTracking';
 
 interface BuildingTab {
   id: string;
@@ -184,6 +185,8 @@ export default function FloorPlanViewer({
   const [layers, setLayers] = useState({ siluetas: unitIsLand, etiquetas: true, fotos: false });
   const [layersOpen, setLayersOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  // Abrir una unidad en el plano cuenta como verla, igual que entrar a su ficha.
+  useUnitViewTracking(selectedUnit?.dbId);
   // Lo que no es una unidad: una amenity ubicada en el plano o una cochera
   // del piso de cocheras. Excluyente con selectedUnit.
   const [selOther, setSelOther] = useState<{ kind: 'amenity' | 'spot'; id: string } | null>(null);

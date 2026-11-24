@@ -30,6 +30,7 @@ import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
 import { useCurrentUrl } from '@/hooks/useCurrentUrl';
 import UnitMobileView, { type MobileMediaTab } from './UnitMobileView';
+import { useUnitViewTracking } from '@/hooks/useUnitViewTracking';
 
 // Pantalla ancha (escritorio/tablet) — el mismo corte que el visor de
 // plantas. Debajo, la ficha es UnitMobileView en vez del visor completo.
@@ -124,6 +125,7 @@ export default function UnitViewer({
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
   const searchParams = useSearchParams();
+  useUnitViewTracking(unit.dbId);
   const isWide = useSyncExternalStore(subscribeWide, getWide, () => true);
   const initialCompareUnitId = searchParams.get('compare');
 

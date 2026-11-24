@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import MotionProvider from '@/components/ui/MotionProvider';
 import { stubLayout } from '@/components/admin/test-layout';
 import ProjectAdminShell from './ProjectAdminShell';
+import type { ProjectRole } from '@/lib/project-roles';
 
 let pathname = '/admin/proyecto';
 vi.mock('next/navigation', () => ({ usePathname: () => pathname }));
@@ -28,10 +29,10 @@ afterEach(cleanup);
 
 const PROJECT = { id: 'p1', slug: 'torre', name: 'Torre', project_type: 'edificio', sale_mode: 'venta' };
 
-function Shell() {
+function Shell({ role = 'dueño', project = PROJECT }: { role?: ProjectRole; project?: typeof PROJECT } = {}) {
   return (
     <MotionProvider>
-      <ProjectAdminShell project={PROJECT} userEmail={null} role="dueño">
+      <ProjectAdminShell project={project} userEmail={null} role={role}>
         <p>contenido</p>
       </ProjectAdminShell>
     </MotionProvider>
@@ -79,5 +80,30 @@ describe('ProjectAdminShell — menú', () => {
     expect(leads.className).toContain('font-semibold');
     const y = 10 + Array.from(nav().children).filter(n => !n.hasAttribute('data-sliding-indicator')).indexOf(leads) * 100;
     await waitFor(() => expect(topIndicator()!.style.transform).toContain(`translateY(${y}px)`));
+  });
+
+  describe('Métricas', () => {
+    const metricas = () => within(nav()).queryByRole('link', { name: /Métricas/ });
+
+    it('gestor en un proyecto para vender la ve', () => {
+      render(<Shell role="gestor" />);
+      expect(metricas()?.getAttribute('href')).toBe('/admin/metricas');
+    });
+
+    it('editor no la ve', () => {
+      render(<Shell role="editor" />);
+      expect(metricas()).toBeNull();
+    });
+
+    it('proyecto "solo para mostrar" no la tiene', () => {
+      render(<Shell project={{ ...PROJECT, sale_mode: 'showcase' }} />);
+      expect(metricas()).toBeNull();
+    });
+
+    it('en /admin/metricas queda marcada como página actual', () => {
+      pathname = '/admin/metricas';
+      render(<Shell />);
+      expect(metricas()?.getAttribute('aria-current')).toBe('page');
+    });
   });
 });

@@ -25,6 +25,7 @@ import type { WaVisita } from '@/types/whatsapp-bot';
 import { textoTurno } from '@/lib/whatsapp-bot/visitas';
 import { TEMPERATURA_LABEL, filasCalificacion } from '@/lib/whatsapp-bot/calificacion';
 import { downloadCsv } from '@/lib/csv';
+import { filterLeadsByChannel, leadChannelLabel, NO_CHANNEL, type Channel } from '@/lib/analytics/channels';
 import { Card, btnSecondary } from '@/components/admin/panel-ui';
 import { Avatar, ChipFiltro, Cifra, Contador, Etiqueta, PillInteres, hace } from './leads-ui';
 
@@ -46,6 +47,9 @@ interface UnitInfo {
   status: 'available' | 'reserved' | 'sold';
 }
 const UnitsContext = createContext<Map<string, UnitInfo>>(new Map());
+// Inmobiliarias y campañas del proyecto: para mostrar el canal de cada lead por su nombre.
+const CanalesContext = createContext<Channel[]>([]);
+const useCanalDe = (lead: Lead) => leadChannelLabel(lead.ref, useContext(CanalesContext));
 
 function useLeadUnit(unitName: string | null | undefined): UnitInfo | undefined {
   const units = useContext(UnitsContext);
@@ -133,6 +137,7 @@ function filtrar(leads: Lead[], filtro: Filtro, q: string): Lead[] {
 /** Cuerpo de la tarjeta: nombre, unidad y etiquetas. Es la parte que se arrastra. */
 function LeadCardBody({ lead }: { lead: Lead }) {
   const origen = origenCorto(lead);
+  const canal = useCanalDe(lead);
   const unit = useLeadUnit(lead.unit_name);
   const typology = unit ? unitTypology(unit) : null;
   return (
@@ -142,9 +147,10 @@ function LeadCardBody({ lead }: { lead: Lead }) {
         <span className="text-xs text-gray-500 shrink-0 whitespace-nowrap">{hace(lead.created_at)}</span>
       </span>
       <span className="text-sm text-gray-700 truncate">{lead.unit_name ? `${unit?.code ?? lead.unit_name}${typology ? ` · ${typology}` : ''}` : 'Consulta general'}</span>
-      {(origen || lead.calificacion) && (
+      {(origen || canal || lead.calificacion) && (
         <span className="flex gap-1.5 flex-wrap">
           {lead.calificacion && <PillInteres t={lead.calificacion.temperatura} />}
+          {canal && <Etiqueta>{canal}</Etiqueta>}
           {origen && <Etiqueta>{origen}</Etiqueta>}
         </span>
       )}
@@ -282,6 +288,9 @@ export default function TableroLeads() {
   const [query, setQuery] = useState('');
   const [unitsByCode, setUnitsByCode] = useState<Map<string, UnitInfo>>(() => new Map());
   const [visitas, setVisitas] = useState<WaVisita[]>([]);
+  const [canales, setCanales] = useState<Channel[]>([]);
+  // null = todos los canales; NO_CHANNEL = sin canal; si no, el ref.
+  const [canal, setCanal] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
 
   // Las unidades y las visitas son un extra (tipología, próxima visita): si
@@ -293,6 +302,10 @@ export default function TableroLeads() {
       .then((list: UnitInfo[]) => {
         if (Array.isArray(list)) setUnitsByCode(new Map(list.map(u => [u.code, u])));
       })
+      .catch(() => {});
+    fetch(withActiveProject('/api/admin/channels', activeProjectId))
+      .then(res => (res.ok ? res.json() : []))
+      .then((list: Channel[]) => { if (Array.isArray(list)) setCanales(list); })
       .catch(() => {});
     fetch(withActiveProject('/api/admin/whatsapp-bot/visitas', activeProjectId))
       .then(res => (res.ok ? res.json() : null))
@@ -408,7 +421,11 @@ export default function TableroLeads() {
   if (error) return <ErrorState message="No se pudieron cargar los leads." onRetry={fetchLeads} />;
 
   const q = query.trim().toLowerCase();
-  const visibleLeads = filtrar(leads, filtro, q);
+  const leadsDelCanal = filterLeadsByChannel(leads, canal);
+  const visibleLeads = filtrar(leadsDelCanal, filtro, q);
+  // Opciones del filtro: canales registrados + refs que llegaron sin registrar.
+  const refsSueltos = [...new Set(leads.map(l => l.ref).filter((r): r is string => !!r && !canales.some(c => c.slug === r)))];
+  const hayCanales = canales.length > 0 || refsSueltos.length > 0;
   const sinContactar = leads.filter(l => estadoDe(l) === 'nuevo');
   const masVieja = sinContactar.reduce<string | null>((min, l) => (!min || l.created_at < min ? l.created_at : min), null);
   const calientes = leads.filter(l => l.calificacion?.temperatura === 'caliente').length;
@@ -421,8 +438,8 @@ export default function TableroLeads() {
 
   const exportCsv = () => {
     downloadCsv('leads.csv', [
-      ['Nombre', 'Email', 'Teléfono', 'Unidad', 'Medio', 'Origen', 'Estado', 'Interés', 'Mensaje', 'Fecha'],
-      ...leads.map(l => [l.name ?? '', l.email ?? '', l.phone ?? '', l.unit_name ?? '', l.method ?? '', l.source ?? '', COLUMNS.find(c => c.id === estadoDe(l))?.label ?? l.status, l.calificacion ? TEMPERATURA_LABEL[l.calificacion.temperatura] : '', l.message ?? '', new Date(l.created_at).toLocaleString('es-AR')]),
+      ['Nombre', 'Email', 'Teléfono', 'Unidad', 'Medio', 'Origen', 'Canal', 'Estado', 'Interés', 'Mensaje', 'Fecha'],
+      ...leads.map(l => [l.name ?? '', l.email ?? '', l.phone ?? '', l.unit_name ?? '', l.method ?? '', l.source ?? '', leadChannelLabel(l.ref, canales) ?? '', COLUMNS.find(c => c.id === estadoDe(l))?.label ?? l.status, l.calificacion ? TEMPERATURA_LABEL[l.calificacion.temperatura] : '', l.message ?? '', new Date(l.created_at).toLocaleString('es-AR')]),
     ]);
   };
 
@@ -430,6 +447,7 @@ export default function TableroLeads() {
 
   return (
     <UnitsContext.Provider value={unitsByCode}>
+    <CanalesContext.Provider value={canales}>
     <ProximasContext.Provider value={proximaDe}>
     <div className="flex flex-col gap-6">
       {leads.length > 0 && (
@@ -450,9 +468,22 @@ export default function TableroLeads() {
         {leads.length > 0 && (
           <div role="group" aria-label="Filtrar leads" className="flex gap-1.5 overflow-x-auto max-w-full -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
             {FILTROS.map(f => (
-              <ChipFiltro key={f.id} activo={filtro === f.id} onClick={() => setFiltro(f.id)} cantidad={filtrar(leads, f.id, q).length}>{f.label}</ChipFiltro>
+              <ChipFiltro key={f.id} activo={filtro === f.id} onClick={() => setFiltro(f.id)} cantidad={filtrar(leadsDelCanal, f.id, q).length}>{f.label}</ChipFiltro>
             ))}
           </div>
+        )}
+        {leads.length > 0 && hayCanales && (
+          <select
+            aria-label="Filtrar por canal"
+            value={canal ?? ''}
+            onChange={e => setCanal(e.target.value || null)}
+            className="min-h-[44px] px-3 rounded-[10px] border border-gray-300 bg-white text-sm text-gray-900 outline-none focus:border-brand-700"
+          >
+            <option value="">Todos los canales</option>
+            {canales.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+            {refsSueltos.map(r => <option key={r} value={r}>?ref={r}</option>)}
+            <option value={NO_CHANNEL}>Sin canal</option>
+          </select>
         )}
         {leads.length > 0 && <button type="button" onClick={exportCsv} className={`${btnSecondary} max-sm:hidden sm:ml-auto`}>Exportar CSV</button>}
       </div>
@@ -570,6 +601,7 @@ export default function TableroLeads() {
       )}
     </div>
     </ProximasContext.Provider>
+    </CanalesContext.Provider>
     </UnitsContext.Provider>
   );
 }
@@ -590,6 +622,7 @@ function LeadDetail({ lead, proxima, onClose, onWhatsApp, onMove, onVerVisitas }
   const area = unit ? (unit.total_area ?? unit.inner_area) : null;
   const unitHref = unit?.building_id ? `/admin/edificios/${unit.building_id}/pisos/${unit.floor_id}/unidades/${unit.id}` : '/admin/inventory';
   const contactBtn = 'min-h-[44px] px-3 rounded-[10px] text-sm flex items-center justify-center gap-2';
+  const canal = useCanalDe(lead);
   const tags = leadTags(lead);
   const cerrarRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
@@ -606,7 +639,7 @@ function LeadDetail({ lead, proxima, onClose, onWhatsApp, onMove, onVerVisitas }
           <Avatar nombre={lead.name} size={52} />
           <div className="flex-1 min-w-0">
             <h2 className="m-0 font-display text-2xl leading-tight font-semibold tracking-[-0.02em] text-gray-900 break-words">{lead.name ?? 'Sin nombre'}</h2>
-            <div className="text-sm text-gray-600 mt-1">Llegó {haceFrase(lead.created_at)}{lead.unit_name ? ` · desde la ficha de ${lead.unit_name}` : tags[0] ? ` · ${tags[0]}` : ''}</div>
+            <div className="text-sm text-gray-600 mt-1">Llegó {haceFrase(lead.created_at)}{canal ? ` por ${canal}` : ''}{lead.unit_name ? ` · desde la ficha de ${lead.unit_name}` : tags[0] ? ` · ${tags[0]}` : ''}</div>
           </div>
           <button ref={cerrarRef} type="button" onClick={onClose} aria-label="Cerrar ficha" className="w-10 h-10 shrink-0 rounded-[10px] border border-gray-200 bg-white flex items-center justify-center text-gray-900 hover:border-gray-400">
             <X className="w-[18px] h-[18px]" aria-hidden="true" />

@@ -9,6 +9,8 @@ import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import Dialog from '@/components/ui/Dialog';
 import { formatPrice } from '@/lib/units';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
+import { readAttribution } from '@/lib/analytics/client-state';
+import { useTrack } from '@/components/analytics/SiteTracker';
 
 // Pantalla angosta (mobile): la consulta es una hoja desde abajo en vez del
 // modal centrado de escritorio.
@@ -54,6 +56,7 @@ export default function LeadCaptureModal({
 
   // Número del bot conectado al proyecto; sin bot no se ofrece WhatsApp.
   const whatsappNumber = useProjectWhatsapp();
+  const track = useTrack();
   const typeConfig = useProjectTypeConfig();
   const { hasFloorStep, unitIsLand, showPrice } = typeConfig;
   const isNarrow = useIsNarrow();
@@ -85,6 +88,8 @@ export default function LeadCaptureModal({
   const handleWhatsApp = () => {
     const text = encodeURIComponent(message || defaultMessage);
     if (!whatsappNumber) return;
+    // Es un botón con window.open, no un link: el listener del tracker no lo ve.
+    track('whatsapp', { unitId: unit?.dbId || undefined });
     window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${text}`, '_blank');
     onClose();
   };
@@ -109,11 +114,13 @@ export default function LeadCaptureModal({
           // salvo que la persona haya escrito su propio prefijo.
           phone: isNarrow && !phone.trim().startsWith('+') ? `+54 ${phone.trim()}` : phone,
           message,
-          unitId: unit?.id || null,
+          // uuid real de la fila; unit.id es el código legible.
+          unitId: unit?.dbId || null,
           unitName: unit?.name || 'General',
           source: 'form_modal',
           projectSlug,
           wantsUpdates,
+          ...readAttribution(),
         })
       });
       

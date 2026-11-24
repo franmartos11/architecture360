@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pill } from '@/components/project-landing/ui';
 import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import { briefWhatsappHref } from '@/lib/brief';
+import { readAttribution } from '@/lib/analytics/client-state';
 
 // Tarjeta clara (--theme-surface) — vive encima de la foto oscurecida de
 // la sección Contacto, así que usa los colores de texto "sobre claro".
@@ -50,6 +51,7 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
           source: 'home_contact_form',
           projectSlug,
           wantsUpdates,
+          ...readAttribution(),
         }),
       });
 

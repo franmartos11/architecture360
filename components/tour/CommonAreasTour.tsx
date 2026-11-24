@@ -7,6 +7,7 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { TourData } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
 import { useProjectNav } from '@/lib/project-nav-context';
+import { useTrack } from '@/components/analytics/SiteTracker';
 
 const VirtualTour = dynamic(() => import('./VirtualTour'), { ssr: false });
 
@@ -38,6 +39,9 @@ export default function CommonAreasTour({
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
   const basePath = useProjectBasePath();
+  // Embebido en un iframe del propio sitio el tracker está apagado: no cuenta doble.
+  const track = useTrack();
+  useEffect(() => { track('tour'); }, [track]);
   // Dentro del sitio del proyecto la barra global reemplaza a la barra
   // propia del recorrido, que solo queda fuera de él.
   const nav = useProjectNav();
