@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   planEdificio, planDuplex, planLoteo, planUnico, countUnits, duplicateCodes,
   positionLetter, towerPrefixes, unitCode, splitQuad, polygonAreaM2, priceForLot, parsePastedPrices, blockOfCode,
-  matchRoomByFilename, defaultRoomGroup,
+  matchRoomByFilename, defaultRoomGroup, mergeTourNodes,
 } from './guided-structure';
 
 describe('positionLetter', () => {
@@ -183,5 +183,18 @@ describe('fotos por ambiente', () => {
     expect(defaultRoomGroup({ name: 'Dormitorio 1', kind: 'bedroom' }, 1)).toBe('pb');
     expect(defaultRoomGroup({ name: 'Jardín', kind: 'other' }, 2)).toBe('ext');
     expect(defaultRoomGroup({ name: 'Baño 2', kind: 'bathroom' }, 2, 1)).toBe('nivel-1');
+  });
+});
+
+describe('mergeTourNodes', () => {
+  const n = (id: string, name = id) => ({ id, name, imageUrl: `/${id}.jpg` });
+  it('conserva el orden de los nodos existentes y agrega los nuevos al final', () => {
+    const existing = [n('suelto'), n('node-b', 'Viejo'), n('node-c')];
+    const fromRooms = [n('node-new'), n('node-b', 'Dormitorio')];
+    // node-c estaba ligado a un ambiente que ya no tiene panorámica: sale.
+    const linked = new Set(['node-b', 'node-c']);
+    expect(mergeTourNodes(existing, fromRooms, linked).map(x => [x.id, x.name])).toEqual([
+      ['suelto', 'suelto'], ['node-b', 'Dormitorio'], ['node-new', 'node-new'],
+    ]);
   });
 });

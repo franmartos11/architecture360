@@ -10,8 +10,8 @@ import {
   type PlannedBuilding, type TowerInput, type DuplexModel, type BlockInput, type LevelInput, type NumberingScheme, type GroundFloorUse,
 } from '@/lib/guided-structure';
 import { serverError } from '@/lib/api-errors';
-import { levelSchema } from '@/lib/unit-schema';
-import { z } from 'zod';
+import { unitLevelsSchema } from '@/lib/unit-schema';
+import { safeUrl } from '@/lib/schema-parts';
 
 // Carga guiada (/admin/carga). Tres operaciones, todas en UN request para
 // no pasar por el límite de escrituras por minuto del panel (proxy.ts),
@@ -320,7 +320,6 @@ const UNIT_FIELDS: Record<string, { column: string; kind: 'text' | 'url' | 'numb
   floorPlan3dUrl: { column: 'floor_plan_3d_url', kind: 'url' },
   levels: { column: 'levels', kind: 'levels' },
 };
-const levelsSchema = z.array(levelSchema).max(20);
 // Columnas NOT NULL: un null ahí rompe el update entero.
 const NOT_NULL = new Set(['code', 'type', 'bedrooms', 'bathrooms', 'living_rooms', 'floors_count', 'garage_spaces', 'balcony_area', 'external_area', 'status', 'features', 'gallery_images']);
 const CONDITIONS = ['a_estrenar', 'en_construccion', 'en_pozo', 'usada'] as const;
@@ -343,12 +342,13 @@ function buildUnitUpdate(input: Record<string, unknown>): Record<string, unknown
         break;
       }
       case 'url': {
-        const s = sanitizeText(v, 2000);
-        out[spec.column] = s || null;
+        const parsed = safeUrl.safeParse(typeof v === 'string' ? v.trim() : v);
+        if (!parsed.success) return `${key} no es una URL válida`;
+        out[spec.column] = parsed.data || null;
         break;
       }
       case 'levels': {
-        const parsed = levelsSchema.safeParse(v);
+        const parsed = unitLevelsSchema.safeParse(v);
         if (!parsed.success) return `${key} inválido`;
         out[spec.column] = parsed.data;
         break;

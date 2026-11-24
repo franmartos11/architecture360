@@ -72,6 +72,18 @@ export function modelSlotValue(units: LevelUnitLike[], planta: number, kind: Slo
   return { value, differing };
 }
 
+/** Qué unidades tienen `value` en ese casillero y cuáles lo tienen vacío. */
+export function slotCoverage(units: LevelUnitLike[], planta: number, kind: SlotKind, value: string): { have: string[]; empty: string[] } {
+  const have: string[] = [];
+  const empty: string[] = [];
+  for (const u of units) {
+    const v = readSlot(u, planta, kind);
+    if (v === value) have.push(u.code);
+    else if (!v) empty.push(u.code);
+  }
+  return { have, empty };
+}
+
 export type PlantaValues = { plano?: string | null; render?: string | null }[];
 
 export interface FillPlantasResult {
@@ -132,7 +144,7 @@ export function roomsWithGroups<T extends GroupedRoom>(rooms: T[] | null, levels
 }
 
 /** Inversa de roomsWithGroups: reparte por group sin tocar plano/render de cada nivel. */
-export function splitRoomsByGroup<T extends GroupedRoom>(rooms: T[], levels: UnitLevel[] | null, floorsCount: number): { rooms: T[]; levels: UnitLevel[] } {
+export function splitRoomsByGroup<T extends GroupedRoom>(rooms: T[], levels: UnitLevel[] | null, floorsCount: number): { rooms: T[]; levels: UnitLevel[]; floorsCount: number } {
   const levelOf = (r: T) => {
     const m = /^nivel-(\d+)$/.exec(r.group ?? '');
     return m ? Number(m[1]) : 0;
@@ -147,5 +159,8 @@ export function splitRoomsByGroup<T extends GroupedRoom>(rooms: T[], levels: Uni
     const k = levelOf(r);
     if (k === 0) base.push(r); else next[k - 1].rooms.push(r);
   }
-  return { rooms: base, levels: next };
+  // Si quedan más niveles que plantas declaradas (p. ej. un 'pa' viejo en
+  // una casa de 1 planta) se sube la cantidad: si no, los editores, que
+  // dimensionan las plantas por floors_count, no mostrarían ese nivel.
+  return { rooms: base, levels: next, floorsCount: Math.max(floorsCount, next.length + 1) };
 }

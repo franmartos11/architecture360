@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Room, UnitLevel } from '@/types';
 import {
   levelLabel, plantaLabel, ensureLevels, readSlot, modelSlotValue, fillPlantas,
-  roomsWithGroups, splitRoomsByGroup,
+  roomsWithGroups, splitRoomsByGroup, slotCoverage,
   type LevelUnitLike,
 } from './unit-levels';
 
@@ -136,7 +136,7 @@ describe('ambientes de casa por planta', () => {
   it('ida y vuelta reproduce rooms y levels', () => {
     const rooms = [r('a', 'pb'), r('c', 'ext')];
     const levels: UnitLevel[] = [{ id: 'x', label: 'Planta alta', planImage: 'p1', plan3dImage: 'r1', rooms: [r('b', 'nivel-1')] }];
-    expect(splitRoomsByGroup(roomsWithGroups(rooms, levels), levels, 2)).toEqual({ rooms, levels });
+    expect(splitRoomsByGroup(roomsWithGroups(rooms, levels), levels, 2)).toEqual({ rooms, levels, floorsCount: 2 });
   });
 });
 
@@ -168,5 +168,24 @@ describe('correcciones de la revisión', () => {
     const res = fillPlantas(unit({ floor_plan_3d_url: 'propio' }), [{ render: 'nuevo' }], [{ render: 'viejo' }]);
     expect(res.patch).toEqual({});
     expect(res.kept).toEqual([{ planta: 0, kind: 'render' }]);
+  });
+});
+
+describe('detalles menores', () => {
+  type R = Room & { group?: string };
+  const r = (id: string, group?: string): R => ({ id, name: id, ...(group ? { group } : {}) } as R);
+
+  it('separar sube floorsCount si quedan más niveles que plantas declaradas', () => {
+    expect(splitRoomsByGroup([r('b', 'nivel-1')], null, 1).floorsCount).toBe(2);
+    expect(splitRoomsByGroup([r('a', 'pb')], null, 2).floorsCount).toBe(2);
+  });
+
+  it('slotCoverage dice qué unidades tienen el valor y cuáles están vacías', () => {
+    const units = [
+      unit({ code: 'A', floor_plan_3d_url: 'r1' }),
+      unit({ code: 'B' }),
+      unit({ code: 'C', floor_plan_3d_url: 'otro' }),
+    ];
+    expect(slotCoverage(units, 0, 'render', 'r1')).toEqual({ have: ['A'], empty: ['B'] });
   });
 });

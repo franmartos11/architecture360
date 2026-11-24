@@ -194,6 +194,26 @@ describe('PATCH /api/admin/guided', () => {
     expect(res.status).toBe(400);
   });
 
+  it('plano con javascript: — 400', async () => {
+    withAccess([]);
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', roomPlanImage: 'javascript:alert(1)' }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('levels con un render javascript: — 400', async () => {
+    withAccess([]);
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', levels: [{ id: 'a', label: 'x', plan3dImage: 'javascript:alert(1)', rooms: [] }] }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('levels demasiado grande — 400', async () => {
+    withAccess([]);
+    const rooms = Array.from({ length: 200 }, (_, i) => ({ id: `r${i}`, name: 'x'.repeat(190) }));
+    const levels = Array.from({ length: 20 }, (_, i) => ({ id: `l${i}`, label: 'x', rooms }));
+    const res = await PATCH(jsonRequest(URL, { units: [{ id: 'u1', levels }] }, { method: 'PATCH' }));
+    expect(res.status).toBe(400);
+  });
+
   it('actualiza unidades y pisos propios', async () => {
     const supabase = withAccess([
       { data: [{ id: 'b1' }] },

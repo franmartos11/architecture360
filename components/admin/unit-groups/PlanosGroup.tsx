@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import ImageUploader from '@/components/admin/ImageUploader';
 import BimEditorModal from '@/components/admin/BimEditorModal';
 import { UNIT_PLAN_FIELDS, type UnitGroupProps } from '@/lib/unit-fields';
@@ -15,22 +15,36 @@ export default function PlanosGroup({ values, onChange, unitId }: UnitGroupProps
   const [planta, setPlanta] = useState(0);
   const activePlanta = Math.min(planta, plantas - 1);
   const [savingLevel, setSavingLevel] = useState(false);
+  const [levelError, setLevelError] = useState('');
+  // Las escrituras de niveles van en fila: dos subidas seguidas en plantas
+  // distintas no se pisan (la segunda relee después de que guardó la primera).
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
-  const setLevelRender = async (url: string) => {
-    const i = activePlanta - 1;
+  const writeLevelRender = async (i: number, url: string) => {
     setSavingLevel(true);
-    // Los niveles también los edita "Ambientes" (planos y ambientes de cada
-    // planta) por su lado: se releen frescos para no pisar esos cambios con
-    // la copia que el shell cargó al entrar.
-    let fresh: UnitLevel[] | null = values.levels;
-    if (unitId) {
-      const res = await fetch(`/api/admin/units/${unitId}`).catch(() => null);
-      if (res?.ok) fresh = ((await res.json()) as { levels: UnitLevel[] | null }).levels;
+    setLevelError('');
+    try {
+      // Los niveles también los edita "Ambientes" (planos y ambientes de cada
+      // planta) por su lado: se releen frescos para no pisar esos cambios con
+      // la copia que el shell cargó al entrar. Sin datos frescos no se escribe.
+      let fresh: UnitLevel[] | null = values.levels;
+      if (unitId) {
+        const res = await fetch(`/api/admin/units/${unitId}`);
+        if (!res.ok) throw new Error('unit');
+        fresh = ((await res.json()) as { levels: UnitLevel[] | null }).levels;
+      }
+      const levels = ensureLevels(fresh, plantas);
+      levels[i] = { ...levels[i], plan3dImage: url || null };
+      if ((await onChange({ levels })) === false) throw new Error('patch');
+    } catch {
+      setLevelError('No se pudo guardar el render de esta planta. Probá de nuevo.');
+    } finally {
+      setSavingLevel(false);
     }
-    const levels = ensureLevels(fresh, plantas);
-    levels[i] = { ...levels[i], plan3dImage: url || null };
-    onChange({ levels });
-    setSavingLevel(false);
+  };
+  const setLevelRender = (url: string) => {
+    const i = activePlanta - 1;
+    queue.current = queue.current.then(() => writeLevelRender(i, url));
   };
 
   const renderValue = activePlanta === 0 ? values.floorPlan3dUrl : values.levels?.[activePlanta - 1]?.plan3dImage;
@@ -71,6 +85,7 @@ export default function PlanosGroup({ values, onChange, unitId }: UnitGroupProps
             onChange={url => (activePlanta === 0 ? onChange({ floorPlan3dUrl: url || null }) : setLevelRender(url))}
             folder="floorplans"
           />
+          {levelError && <p className="text-[11px] text-red-700">{levelError}</p>}
           <p className="text-[10.5px] text-gray-400">
             {savingLevel ? 'Guardando…' : `Estás editando el render de ${(values.levels?.[activePlanta - 1]?.label || plantaLabel(activePlanta, plantas)).toLowerCase()}. ${f.hint}`}
           </p>

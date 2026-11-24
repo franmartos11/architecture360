@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
-import { defaultRoomGroup, matchRoomByFilename, type RoomGroup } from '@/lib/guided-structure';
+import { defaultRoomGroup, matchRoomByFilename, mergeTourNodes, type RoomGroup } from '@/lib/guided-structure';
 import { roomsWithGroups, splitRoomsByGroup, plantaLabel } from '@/lib/unit-levels';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -335,8 +335,6 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
     setBusy(true);
     setError('');
     const linkedNodeIds = new Set(savedRooms.filter(r => r.tourNodeId).map(r => r.tourNodeId as string));
-    // Nodos del tour que no vienen de un ambiente (cargados en el editor de tour) se conservan.
-    const foreignNodes = existingNodes.filter(n => !linkedNodeIds.has(n.id));
     const nextRooms: GRoom[] = [];
     const roomNodes: TourNode[] = [];
     for (const r of rooms) {
@@ -350,7 +348,9 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
         nextRooms.push({ ...r, tourNodeId: undefined });
       }
     }
-    const nodes = [...roomNodes, ...foreignNodes];
+    // Los nodos que no vienen de un ambiente (cargados en el editor de tour)
+    // se conservan, y todos los existentes mantienen su orden.
+    const nodes = mergeTourNodes(existingNodes, roomNodes, linkedNodeIds);
     const tourData: TourData | null = nodes.length
       ? { initialNodeId: nodes.some(n => n.id === unit.tour_data?.initialNodeId) ? unit.tour_data!.initialNodeId : nodes[0].id, nodes }
       : null;
@@ -361,7 +361,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
     const fresh = await fetchFreshLevels([unit]);
     if (!fresh) { setBusy(false); setError('No se pudo releer la casa. Probá de nuevo.'); return; }
     const split = splitRoomsByGroup(nextRooms, fresh[0].levels, fresh[0].floors_count);
-    const res = await patch({ units: [{ id: unit.id, rooms: split.rooms, levels: split.levels.length ? split.levels : null, tourData, galleryImages: gallery }] });
+    const res = await patch({ units: [{ id: unit.id, rooms: split.rooms, levels: split.levels.length ? split.levels : null, ...(split.floorsCount !== fresh[0].floors_count ? { floorsCount: split.floorsCount } : {}), tourData, galleryImages: gallery }] });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
     toast('Ambientes guardados.');

@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import ImageUploader from '@/components/admin/ImageUploader';
 import { useToast } from '@/components/ui/ToastProvider';
-import { plantaLabel, modelSlotValue, fillPlantas, type PlantaValues, type SlotKind } from '@/lib/unit-levels';
+import { useConfirm } from '@/components/ui/ConfirmProvider';
+import { plantaLabel, modelSlotValue, slotCoverage, fillPlantas, type PlantaValues, type SlotKind } from '@/lib/unit-levels';
 import { SplitLayout, StepIntro, StepFooter, Segmented, ErrorNote, allUnits, useGuidedApi, fetchFreshLevels, type GUnit, type GuidedTree } from './shared';
 
 const MODEL_FALLBACK = 'Modelo único';
@@ -32,6 +33,7 @@ function initialValues(units: GUnit[]): PlantaValues {
 export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tree: GuidedTree; reload: () => Promise<void>; onBack: () => void; onNext: () => void }) {
   const { patch } = useGuidedApi();
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const models = useMemo(() => {
     const byName = new Map<string, GUnit[]>();
     for (const u of allUnits(tree)) {
@@ -47,6 +49,8 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
     Object.fromEntries(models.map(m => [m.name, initialValues(m.units)])));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Modelos con imágenes subidas que todavía no se aplicaron.
+  const [dirty, setDirty] = useState<Set<string>>(() => new Set());
 
   if (!model) return null;
   const values = drafts[model.name] ?? initialValues(model.units);
@@ -58,6 +62,19 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
     next[planta] = { ...next[planta], [kind]: url || null };
     return { ...prev, [model.name]: next };
   });
+  const markDirty = () => setDirty(prev => new Set(prev).add(model.name));
+
+  // Salir del paso con imágenes sin aplicar las perdería: se pregunta antes.
+  const leave = async (go: () => void) => {
+    if (dirty.size > 0) {
+      const ok = await confirmDialog({
+        message: `Subiste imágenes que todavía no aplicaste (${[...dirty].join(', ')}). Si seguís, se descartan.`,
+        confirmLabel: 'Descartar y seguir',
+      });
+      if (!ok) return;
+    }
+    go();
+  };
 
   const apply = async () => {
     setError('');
@@ -82,6 +99,7 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
     const res = await patch({ units: changes.map(r => ({ id: r.u.id, ...r.patch })) });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
+    setDirty(prev => { const next = new Set(prev); next.delete(model.name); return next; });
     toast(`${filled} ${filled === 1 ? 'imagen cargada' : 'imágenes cargadas'}${kept.length ? `. Se mantuvieron: ${kept.join(', ')}` : ''}.`);
     await reload();
   };
@@ -101,7 +119,7 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
           <p className="m-0 text-[13px] text-gray-600">
             {model.name}: {model.units.map(u => u.code).join(', ')}
           </p>
-          <button type="button" onClick={onNext} className="self-start min-h-[40px] text-[13px] font-semibold text-brand-700 underline underline-offset-2">
+          <button type="button" onClick={() => leave(onNext)} className="self-start min-h-[40px] text-[13px] font-semibold text-brand-700 underline underline-offset-2">
             Lo cargo después
           </button>
         </>
@@ -114,9 +132,18 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {KINDS.map(({ kind, label }) => {
                 const { differing } = modelSlotValue(model.units, planta, kind);
+                const value = values[planta]?.[kind] ?? '';
+                // La imagen vino de una sola unidad (p. ej. un plano espejado
+                // cargado a mano): avisar que aplicar la copia a las demás.
+                const coverage = value ? slotCoverage(model.units, planta, kind, value) : null;
                 return (
                   <div key={kind} className="flex flex-col gap-1.5">
-                    <ImageUploader label={label} value={values[planta]?.[kind] ?? ''} onChange={url => setSlot(planta, kind, url)} folder="floorplans" />
+                    <ImageUploader label={label} value={value} onChange={url => { setSlot(planta, kind, url); markDirty(); }} folder="floorplans" />
+                    {coverage && coverage.have.length > 0 && coverage.empty.length > 0 && (
+                      <p className="m-0 text-xs text-gray-500">
+                        Hoy está solo en {coverage.have.join(', ')}; al aplicar se copia a {coverage.empty.join(', ')}.
+                      </p>
+                    )}
                     {differing.length > 0 && (
                       <p className="m-0 text-xs text-gray-500">
                         {differing.join(', ')} {differing.length === 1 ? 'tiene' : 'tienen'} otro cargado; no se va a pisar.
@@ -131,12 +158,12 @@ export default function DuplexPlantasStep({ tree, reload, onBack, onNext }: { tr
       </div>
       <ErrorNote>{error}</ErrorNote>
       <StepFooter
-        back={{ label: 'Plano del conjunto', onClick: onBack }}
+        back={{ label: 'Plano del conjunto', onClick: () => leave(onBack) }}
         summary={<>{loadedSlots} de {plantas * 2} imágenes · se aplican a {model.units.length} {model.units.length === 1 ? 'unidad' : 'unidades'}</>}
         primary={{ label: `Aplicar a las ${model.units.length}`, onClick: apply, busy, disabled: loadedSlots === 0 }}
       />
       <div className="flex justify-end">
-        <button type="button" onClick={onNext} className="min-h-[40px] px-4 rounded-[9px] border border-gray-300 bg-white text-[13px] font-semibold text-gray-900 hover:border-gray-400">
+        <button type="button" onClick={() => leave(onNext)} className="min-h-[40px] px-4 rounded-[9px] border border-gray-300 bg-white text-[13px] font-semibold text-gray-900 hover:border-gray-400">
           Continuar
         </button>
       </div>

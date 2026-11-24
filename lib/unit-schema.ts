@@ -16,11 +16,20 @@ import { finite, nullable, safeUrl, polygon, bounded, tourData } from '@/lib/sch
 // con el FIELD_MAP de la ruta, que ya ignoraba lo desconocido.
 
 const room = z.looseObject({ id: z.string().max(100), name: z.string().max(200) });
-export const levelSchema = z.looseObject({ id: z.string().max(100), label: z.string().max(200), rooms: z.array(room).max(200) });
+export const levelSchema = z.looseObject({
+  id: z.string().max(100),
+  label: z.string().max(200),
+  planImage: safeUrl.nullable().optional(),
+  plan3dImage: safeUrl.nullable().optional(),
+  rooms: z.array(room).max(200),
+});
 const parkingSpot = z.looseObject({ floorId: z.string().max(100), polygon });
 
 // Tope de tamaño de los jsonb grandes de la unidad (el del tour está en schema-parts).
 const MAX_BYTES = { rooms: 200_000, levels: 400_000, parkingSpots: 200_000 } as const;
+
+/** `levels` de una unidad con su tope de tamaño — lo comparten esta API y la de carga guiada. */
+export const unitLevelsSchema = bounded(z.array(levelSchema).max(20), MAX_BYTES.levels);
 
 export const unitFieldsSchema = z.object({
   code: z.string().min(1).max(200),
@@ -61,7 +70,7 @@ export const unitFieldsSchema = z.object({
   polygon: nullable(polygon),
   parkingSpots: bounded(z.array(parkingSpot).max(200), MAX_BYTES.parkingSpots),
   rooms: nullable(bounded(z.array(room).max(200), MAX_BYTES.rooms)),
-  levels: nullable(bounded(z.array(levelSchema).max(20), MAX_BYTES.levels)),
+  levels: nullable(unitLevelsSchema),
   tourImageUrl: nullable(safeUrl),
   tourData: nullable(tourData),
 }).partial();

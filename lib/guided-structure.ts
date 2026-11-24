@@ -407,6 +407,21 @@ export function parsePastedPrices(text: string): Map<string, number> {
 
 // ─── Casa: fotos por ambiente ──────────────────────────────────────
 
+/**
+ * Nodos del recorrido tras guardar los ambientes de una casa: los que ya
+ * existían quedan en su orden (actualizados si vienen de un ambiente, fuera si
+ * su ambiente ya no tiene panorámica) y los nuevos se agregan al final.
+ */
+export function mergeTourNodes<N extends { id: string }>(existing: N[], fromRooms: N[], linkedIds: Set<string>): N[] {
+  const byId = new Map(fromRooms.map(n => [n.id, n]));
+  const kept = existing.flatMap(n => {
+    const updated = byId.get(n.id);
+    if (updated) { byId.delete(n.id); return [updated]; }
+    return linkedIds.has(n.id) ? [] : [n];
+  });
+  return [...kept, ...byId.values()];
+}
+
 /** Planta de un ambiente: planta baja, la planta extra k (`nivel-k`, ver lib/unit-levels.ts) o exterior. */
 export type RoomGroup = 'pb' | 'ext' | `nivel-${number}`;
 

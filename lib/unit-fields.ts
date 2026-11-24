@@ -107,7 +107,8 @@ export function toDbShape(patch: Partial<UnitFormValues>): Partial<DbUnitRow> {
 // en un PATCH optimista (shell) o en un borrador local (wizard, fase 2).
 export interface UnitGroupProps {
   values: UnitFormValues;
-  onChange: (patch: Partial<UnitFormValues>) => void;
+  /** El shell devuelve si el PATCH salió bien; un borrador local, nada. */
+  onChange: (patch: Partial<UnitFormValues>) => void | Promise<boolean>;
 }
 
 export type CountInputChange =
