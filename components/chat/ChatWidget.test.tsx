@@ -59,7 +59,7 @@ describe('ChatWidget', () => {
     abrir();
     escribir('Hola');
     expect(fetchMock.mock.calls[0][0]).toBe('/api/chat/torre-sol');
-    expect(cuerpo(0)).toEqual({ mensaje: 'Hola', visitorId: '22222222-2222-4222-8222-222222222222', ref: 'perez' });
+    expect(cuerpo(0)).toEqual({ mensaje: 'Hola', visitorId: '22222222-2222-4222-8222-222222222222', ref: 'perez', ruta: '/' });
     expect(screen.getByText('escribiendo…')).toBeTruthy();
     soltar(new Response(JSON.stringify({ token: T, partes: ['¡Hola!', '¿Qué buscás?'], imagenes: ['https://x/f.jpg'] }), { status: 200 }));
     await screen.findByText('¿Qué buscás?');
@@ -220,5 +220,61 @@ describe('ChatWidget', () => {
     abrir();
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar chat' }));
     expect(screen.queryByRole('textbox', { name: 'Tu mensaje' })).toBeNull();
+  });
+
+  it('envía la ruta relativa dentro del proyecto para dar contexto al bot', async () => {
+    window.history.pushState({}, '', '/proyecto/torre-sol/en/edificio/b1/unidad/4B');
+    fetchMock.mockReturnValue(ok({ token: T, partes: ['Ok'], imagenes: [] }));
+    render(
+      <ProjectBasePathProvider basePath="/proyecto/torre-sol">
+        <ChatWidget projectSlug="torre-sol" nombreBot={null} />
+      </ProjectBasePathProvider>,
+    );
+    abrir();
+    expect(screen.getByRole('button', { name: '¿Cuánto sale esta unidad?' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mandame el plano' })).toBeTruthy();
+    escribir('¿Cuánto sale?');
+    await screen.findByText('Ok');
+    expect(cuerpo(0).ruta).toBe('/edificio/b1/unidad/4B');
+    window.history.pushState({}, '', '/');
+  });
+
+  it('convierte URLs en respuestas del bot en links clickeables y permite reiniciar la charla', async () => {
+    fetchMock.mockReturnValue(ok({ token: T, partes: ['Mirá la unidad en https://torre.com/unidad/4B.'], imagenes: [] }));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot="Sofía" />);
+    abrir();
+    escribir('Pasame el link');
+    const link = (await screen.findByRole('link', { name: 'https://torre.com/unidad/4B' })) as HTMLAnchorElement;
+    expect(link.href).toBe('https://torre.com/unidad/4B');
+    expect(link.target).toBe('_blank');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva charla' }));
+    expect(screen.queryByText('Pasame el link')).toBeNull();
+    expect(screen.getByRole('button', { name: '¿Qué unidades hay disponibles?' })).toBeTruthy();
+  });
+
+  it('muestra "Descargar ficha PDF" cuando el bot envía la ficha de una unidad', async () => {
+    fetchMock.mockReturnValue(ok({ token: T, partes: ['Acá tenés la ficha.'], imagenes: [], documentos: ['https://torre.com/api/ficha/torre-sol/u1'] }));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    escribir('Mandame la ficha');
+    const link = (await screen.findByRole('link', { name: 'Descargar ficha PDF' })) as HTMLAnchorElement;
+    expect(link.href).toBe('https://torre.com/api/ficha/torre-sol/u1');
+  });
+
+  it('en el comparador (?compare=...) muestra sugerencias de comparación y envía el parámetro', async () => {
+    window.history.pushState({}, '', '/proyecto/torre-sol/edificio/b1/unidad/4B?compare=5A');
+    fetchMock.mockReturnValue(ok({ token: T, partes: ['Comparando.'], imagenes: [] }));
+    render(
+      <ProjectBasePathProvider basePath="/proyecto/torre-sol">
+        <ChatWidget projectSlug="torre-sol" nombreBot={null} />
+      </ProjectBasePathProvider>,
+    );
+    abrir();
+    expect(screen.getByRole('button', { name: '¿Qué diferencias hay entre estas dos?' })).toBeTruthy();
+    escribir('Comparalas');
+    await screen.findByText('Comparando.');
+    expect(cuerpo(0).ruta).toBe('/edificio/b1/unidad/4B?compare=5A');
+    window.history.pushState({}, '', '/');
   });
 });

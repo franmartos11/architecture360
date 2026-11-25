@@ -26,6 +26,7 @@ const Pedido = z.object({
   // Un id de visitante roto (formato viejo, storage tocado) no frena el mensaje: va sin atribución.
   visitorId: z.string().max(100).optional(),
   ref: z.string().max(60).optional(),
+  ruta: z.string().max(300).optional(),
 });
 
 const SIN_CACHE = { 'Cache-Control': 'no-store' };
@@ -94,6 +95,7 @@ export async function POST(request: Request, { params }: Ctx) {
       mensaje: parsed.data.mensaje,
       visitorId: z.uuid().safeParse(parsed.data.visitorId).data ?? null,
       ref: normalizeRef(parsed.data.ref) || null,
+      ruta: parsed.data.ruta ?? null,
       sitio: await projectCanonical(slug),
       urlAdmin: urlPanel(request),
       ahora: new Date(),

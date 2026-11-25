@@ -53,11 +53,12 @@ const BUSQUEDA_VACIA = {
 };
 
 describe('HERRAMIENTAS', () => {
-  it('define las nueve herramientas estrictas y cerradas', () => {
+  it('define las diez herramientas estrictas y cerradas', () => {
     expect(HERRAMIENTAS.map(t => t.name)).toEqual([
       'buscar_unidades',
       'ver_unidad',
       'enviar_imagenes',
+      'simular_financiacion',
       'enviar_material',
       'anotar_pregunta',
       'ver_horarios_visita',
@@ -439,5 +440,59 @@ describe('canal web', () => {
     const aviso = HERRAMIENTAS.find(t => t.name === 'avisar_vendedor')!;
     expect((aviso.input_schema as { required: string[] }).required).not.toContain('telefono');
     expect(HERRAMIENTAS.find(t => t.name === 'enviar_imagenes')!.description).toContain('por WhatsApp');
+  });
+
+  it('HERRAMIENTAS y HERRAMIENTAS_WEB no superan el límite de 16 parámetros con tipo unión de Claude', () => {
+    const contarUniones = (node: unknown): number => {
+      if (!node || typeof node !== 'object') return 0;
+      if (Array.isArray(node)) return node.reduce((s, x) => s + contarUniones(x), 0);
+      const o = node as Record<string, unknown>;
+      const propio = Array.isArray(o.anyOf) || Array.isArray(o.type) ? 1 : 0;
+      return propio + Object.values(o).reduce<number>((s, v) => s + contarUniones(v), 0);
+    };
+    expect(contarUniones(HERRAMIENTAS.map(t => t.input_schema))).toBeLessThanOrEqual(16);
+    expect(contarUniones(HERRAMIENTAS_WEB.map(t => t.input_schema))).toBeLessThanOrEqual(16);
+  });
+
+  it('enviar_imagenes con que="ficha" encola la URL de la ficha PDF', async () => {
+    const d = deps({
+      canal: 'web',
+      unidades: [unidad()],
+      fichaUnidadPdf: (u) => `https://torre.com/api/ficha/torre-sol/${u.id}`,
+    });
+    const r = await ejecutarHerramienta('enviar_imagenes', { codigo: '2A', que: 'ficha' }, d);
+    expect(r.esError).toBe(false);
+    expect(d.encolarImagenes).toHaveBeenCalledWith(['https://torre.com/api/ficha/torre-sol/u-2a']);
+  });
+
+  it('simular_financiacion calcula los planes reales sobre el precio de la unidad', async () => {
+    const d = deps({
+      unidades: [unidad()],
+      planes: [{
+        id: 'p1', name: 'Plan 36', downPaymentPct: 30, installments: 36, installmentsPct: 70,
+        boosts: 0, boostsPct: 0, boostEveryMonths: 6, priceAdjustmentPct: 0, index: 'CAC',
+      }],
+    });
+    const r = await ejecutarHerramienta('simular_financiacion', { codigo: '2A' }, d);
+    expect(r.esError).toBe(false);
+    expect(r.texto).toContain('Plan 36');
+    expect(r.texto).toContain('36 cuotas');
+    expect(r.texto).toContain('CAC');
+  });
+
+  it('agendar_visita pasa la modalidad videollamada', async () => {
+    const agendar = vi.fn(async () => 'agendada' as const);
+    const d = deps({
+      visitas: {
+        config: { activo: true, duracion_min: 60, anticipacion_horas: 2, dias_adelante: 3, lugar: 'Showroom', franjas: { '5': [['10:00', '13:00']] } },
+        ocupados: [], delCliente: [], ahora: new Date('2026-11-20T12:00:00.000Z'),
+        agendar,
+        cancelar: vi.fn(async () => []),
+      },
+    });
+    const r = await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: 'Ana', modalidad: 'videollamada' }, d);
+    expect(r.esError).toBe(false);
+    expect(r.texto).toContain('videollamada');
+    expect(agendar).toHaveBeenCalledWith(expect.any(Date), expect.any(Date), 'Ana', 'videollamada');
   });
 });

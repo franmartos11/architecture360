@@ -254,3 +254,52 @@ describe('charlaWeb', () => {
     expect(await charlaWeb(sb, 'proj1', TOKEN)).toBeNull();
   });
 });
+
+describe('contexto de página', () => {
+  it('incluye el contexto de la unidad en el turno sin guardarlo en la base', async () => {
+    const responder = vi.fn(async (): Promise<ResultadoTurno> => ({ texto: 'Sale USD 100.000.' }));
+    await turnoChatWeb(base({
+      mensaje: '¿Cuánto sale?',
+      ruta: '/edificio/e1/unidad/u1',
+      responder: responder as never,
+    }));
+    const msgs = (responder.mock.calls[0] as unknown as [{ mensajes: { role: string; content: string }[] }])[0].mensajes;
+    expect(msgs[msgs.length - 1].content).toContain('unidad 2B');
+    expect(msgs[msgs.length - 1].content).toContain('Torre A');
+    expect(msgs[msgs.length - 1].content).toContain('¿Cuánto sale?');
+    expect(repoWeb.guardarMensajeWeb).toHaveBeenCalledWith(sb, 'cw1', { autor: 'cliente', tipo: 'texto', cuerpo: '¿Cuánto sale?' }, AHORA);
+  });
+
+  it('ignora rutas desconocidas sin romper el turno', async () => {
+    const responder = vi.fn(async (): Promise<ResultadoTurno> => ({ texto: 'Hola.' }));
+    await turnoChatWeb(base({ mensaje: '¿Cuánto sale?', ruta: '/cualquier-cosa?x=1', responder: responder as never }));
+    const msgs = (responder.mock.calls[0] as unknown as [{ mensajes: { role: string; content: string }[] }])[0].mensajes;
+    expect(msgs[msgs.length - 1].content).toBe('¿Cuánto sale?');
+  });
+
+  it('ficha PDF de la unidad va en documentos con el ref del visitante', async () => {
+    const r = await turnoChatWeb(base({
+      responder: vi.fn(async ({ deps }: { deps: { fichaUnidadPdf?: (u: UnidadBot) => string | null; encolarImagenes(urls: string[]): Promise<void> } }) => {
+        await deps.encolarImagenes([deps.fichaUnidadPdf!(unidad)!]);
+        return { texto: 'Ahí va la ficha.' };
+      }) as never,
+    }));
+    expect(r?.documentos).toEqual(['https://atrium.app/api/ficha/torre-sol/u1?ref=perez']);
+    expect(r?.imagenes).toEqual([]);
+  });
+
+  it('en el comparador (?compare=...) pasa ambas unidades al contexto del bot', async () => {
+    const u2: UnidadBot = { ...unidad, id: 'u2', codigo: '3A', piso: '3', precio: 135000 };
+    const responder = vi.fn(async (): Promise<ResultadoTurno> => ({ texto: 'La 3A es más grande.' }));
+    await turnoChatWeb(base({
+      mensaje: '¿Qué diferencias hay?',
+      ruta: '/edificio/e1/unidad/u1?compare=u2',
+      cargarDatos: async () => ({ ...datos, unidades: [unidad, u2] }),
+      responder: responder as never,
+    }));
+    const msgs = (responder.mock.calls[0] as unknown as [{ mensajes: { role: string; content: string }[] }])[0].mensajes;
+    expect(msgs[msgs.length - 1].content).toContain('comparador');
+    expect(msgs[msgs.length - 1].content).toContain('unidad 2B');
+    expect(msgs[msgs.length - 1].content).toContain('unidad 3A');
+  });
+});

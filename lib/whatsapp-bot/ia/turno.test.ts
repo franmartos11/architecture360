@@ -112,6 +112,7 @@ describe('responderTurno', () => {
       'buscar_unidades',
       'ver_unidad',
       'enviar_imagenes',
+      'simular_financiacion',
       'enviar_material',
       'anotar_pregunta',
       'ver_horarios_visita',

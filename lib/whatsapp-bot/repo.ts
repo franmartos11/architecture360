@@ -534,11 +534,14 @@ export async function agendarVisita(
     urlAdmin: string;
     /** Chat web: el teléfono que dejó el comprador (la charla no tiene número). */
     telefono?: string | null;
-    /** Chat web: el email que dejó, para el aviso. */
+    /** Chat web: el email que dejó, para el aviso y confirmación con .ics. */
     email?: string | null;
+    modalidad?: 'presencial' | 'videollamada';
+    lugar?: string | null;
   },
 ): Promise<'agendada' | 'ocupado'> {
   const telefono = i.telefono !== undefined ? normalizarTelefono(i.telefono) : telefonoDeContacto(i.conv.contacto_numero);
+  const modalidad = i.modalidad ?? 'presencial';
   // lead_id fresco: la IA puede haber avisado (y creado el lead) en este mismo turno.
   const { data: c, error: e1 } = await sb.from('wa_conversaciones').select('lead_id').eq('id', i.conv.id).maybeSingle();
   revisar('agendarVisita: select wa_conversaciones', e1);
@@ -559,7 +562,7 @@ export async function agendarVisita(
     i.bot,
     i.conv,
     lineasVisita({
-      titulo: '📅 Visita agendada',
+      titulo: modalidad === 'videollamada' ? '📅 Videollamada agendada' : '📅 Visita agendada',
       proyecto: i.proyecto.name,
       conv: i.conv,
       nombre: i.nombre,
@@ -569,9 +572,84 @@ export async function agendarVisita(
       minutos: Math.round((i.fin.getTime() - i.inicio.getTime()) / 60_000),
       urlAdmin: i.urlAdmin,
     }),
-    `Visita agendada en ${i.proyecto.name}`,
+    `${modalidad === 'videollamada' ? 'Videollamada' : 'Visita'} agendada en ${i.proyecto.name}`,
   );
+  if (i.email?.trim()) {
+    void emailConfirmacionVisitaCliente({
+      to: i.email.trim(),
+      nombre: i.nombre?.trim() || null,
+      proyecto: i.proyecto.name,
+      inicio: i.inicio,
+      fin: i.fin,
+      modalidad,
+      lugar: i.lugar ?? null,
+    }).catch((err) => {
+      console.error('[wa repo] email confirmación al cliente:', err instanceof Error ? err.message : 'error desconocido');
+    });
+  }
   return 'agendada';
+}
+
+const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+const icsEscape = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+
+export function construirIcsVisita(i: {
+  proyecto: string;
+  inicio: Date;
+  fin: Date;
+  modalidad: 'presencial' | 'videollamada';
+  lugar: string | null;
+}): string {
+  const titulo = i.modalidad === 'videollamada' ? `Reunión virtual — ${i.proyecto}` : `Visita — ${i.proyecto}`;
+  const loc = i.modalidad === 'videollamada' ? 'Videollamada (link a confirmar por el equipo)' : (i.lugar || i.proyecto);
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Atrium//Bot//ES',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${crypto.randomUUID()}@atrium`,
+    `DTSTAMP:${icsDate(new Date())}`,
+    `DTSTART:${icsDate(i.inicio)}`,
+    `DTEND:${icsDate(i.fin)}`,
+    `SUMMARY:${icsEscape(titulo)}`,
+    `LOCATION:${icsEscape(loc)}`,
+    `DESCRIPTION:${icsEscape(`${titulo}. Coordinado por el asistente de ${i.proyecto}.`)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ];
+  return lines.join('\r\n');
+}
+
+async function emailConfirmacionVisitaCliente(i: {
+  to: string;
+  nombre: string | null;
+  proyecto: string;
+  inicio: Date;
+  fin: Date;
+  modalidad: 'presencial' | 'videollamada';
+  lugar: string | null;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.to)) return;
+  const fecha = new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(i.inicio);
+  const saludo = i.nombre ? `Hola ${escapeHtml(i.nombre)},` : 'Hola,';
+  const donde = i.modalidad === 'videollamada'
+    ? 'Modalidad: Videollamada (el equipo te enviará el link antes de la reunión).'
+    : i.lugar ? `Lugar: ${escapeHtml(i.lugar)}` : `Proyecto: ${escapeHtml(i.proyecto)}`;
+  const ics = construirIcsVisita(i);
+  const resend = new Resend(apiKey);
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+    to: i.to,
+    subject: `Confirmación de ${i.modalidad === 'videollamada' ? 'reunión' : 'visita'} — ${i.proyecto}`,
+    html: `<p>${saludo}</p><p>Tu ${i.modalidad === 'videollamada' ? 'reunión virtual' : 'visita'} para <strong>${escapeHtml(i.proyecto)}</strong> quedó agendada:</p><p><strong>Fecha y hora:</strong> ${escapeHtml(fecha)} hs (Argentina)<br>${donde}</p><p>Adjuntamos la invitación para que la sumes a tu calendario.</p>`,
+    attachments: [{ filename: 'visita.ics', content: Buffer.from(ics, 'utf8').toString('base64') }],
+  });
 }
 
 /** Cancela las visitas futuras de esta conversación y avisa al vendedor. Devuelve las canceladas. */

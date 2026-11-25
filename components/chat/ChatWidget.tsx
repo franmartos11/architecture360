@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { FileText, MessageCircle, Send, X } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { BotMessageSquare, FileText, RotateCcw, Send, X } from 'lucide-react';
 import { useTrack } from '@/components/analytics/SiteTracker';
 import { readAttribution } from '@/lib/analytics/client-state';
 import { borrarTokenChat, guardarTokenChat, leerTokenChat } from '@/lib/chat/web-token';
@@ -14,7 +15,19 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 type Mensaje = { autor: 'cliente' | 'bot'; tipo: 'texto' | 'imagen' | 'documento'; cuerpo: string };
 
-const SUGERENCIAS = ['¿Qué unidades hay disponibles?', '¿Tienen planes de pago?', 'Quiero agendar una visita'];
+const SUGERENCIAS_GENERAL = ['¿Qué unidades hay disponibles?', '¿Tienen planes de pago?', 'Quiero agendar una visita'];
+const SUGERENCIAS_UNIDAD = ['¿Cuánto sale esta unidad?', 'Mandame el plano', 'Quiero agendar una visita'];
+const SUGERENCIAS_COMPARAR = ['¿Qué diferencias hay entre estas dos?', '¿Cuál me conviene más?', 'Quiero agendar una visita'];
+const URL_RE = /(https?:\/\/[^\s<>()]+)/g;
+
+function rutaRelativa(nextPathname: string | null, basePath: string): string {
+  const raw = nextPathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
+  const sinBase = basePath && raw.startsWith(basePath) ? raw.slice(basePath.length) : raw;
+  const path = sinBase.replace(/^\/en(?=\/|$)/, '') || '/';
+  const compare = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('compare')?.trim() : null;
+  const full = compare ? `${path}?compare=${encodeURIComponent(compare)}` : path;
+  return full.slice(0, 300);
+}
 const MAX_MENSAJE = 1000;
 const ERRORES: Record<string, string> = {
   limite_dia: 'Ahora no puedo responder. Dejanos tu consulta y te contactamos.',
@@ -47,6 +60,7 @@ export default function ChatWidget({
   const track = useTrack();
   const whatsapp = useProjectWhatsapp();
   const basePath = useProjectBasePath();
+  const nextPathname = usePathname();
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState('');
@@ -66,6 +80,12 @@ export default function ChatWidget({
     ? `¡Hola! Soy ${nombre}, el asistente virtual del proyecto. ¿En qué te puedo ayudar?`
     : '¡Hola! Soy el asistente virtual del proyecto. ¿En qué te puedo ayudar?';
   const charloAlgo = mensajes.some((m) => m.autor === 'cliente');
+  const ruta = rutaRelativa(nextPathname, basePath);
+  const sugerencias = ruta.includes('?compare=')
+    ? SUGERENCIAS_COMPARAR
+    : /^\/edificio\/[^/]+\/unidad\/[^/]+$/.test(ruta.split(/[?#]/)[0])
+      ? SUGERENCIAS_UNIDAD
+      : SUGERENCIAS_GENERAL;
 
   useEffect(() => {
     if (abierto) fin.current?.scrollIntoView({ block: 'end' });
@@ -136,6 +156,7 @@ export default function ChatWidget({
         body: JSON.stringify({
           mensaje: limpio,
           visitorId,
+          ruta,
           ...(ref ? { ref } : {}),
           ...(token.current ? { token: token.current } : {}),
         }),
@@ -178,15 +199,28 @@ export default function ChatWidget({
     }
   };
 
+  const reiniciar = () => {
+    borrarTokenChat(storage(), projectSlug);
+    token.current = null;
+    setMensajes([]);
+    setAviso(null);
+    setPendiente(null);
+    setTimeout(() => campo.current?.focus(), 0);
+  };
+
   if (!abierto) {
     return (
       <button
         type="button"
         aria-label="Abrir chat"
         onClick={abrir}
-        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[55] flex h-14 w-14 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-[110] flex h-12 w-12 sm:h-10 sm:w-auto sm:gap-2 sm:px-3.5 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <MessageCircle className="h-6 w-6" aria-hidden="true" />
+        <span className="relative flex items-center justify-center">
+          <BotMessageSquare className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
+          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-[var(--theme-accent)]" aria-hidden="true" />
+        </span>
+        <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">Asistente IA</span>
       </button>
     );
   }
@@ -195,16 +229,28 @@ export default function ChatWidget({
     <section
       role="dialog"
       aria-label={`Chat con ${nombre ?? 'el asistente virtual'}`}
-      className="fixed inset-0 z-[70] flex flex-col bg-[var(--theme-surface)] text-[var(--theme-text)] sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[560px] sm:max-h-[calc(100dvh-48px)] sm:w-[380px] sm:rounded-2xl sm:border sm:border-[var(--theme-border)] sm:shadow-[0_24px_70px_rgba(0,0,0,0.3)] overflow-hidden"
+      className="fixed inset-0 z-[120] flex flex-col bg-[var(--theme-surface)] text-[var(--theme-text)] sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[560px] sm:max-h-[calc(100dvh-48px)] sm:w-[380px] sm:rounded-[var(--theme-radius,1rem)] sm:border sm:border-[var(--theme-border)] sm:shadow-[0_24px_70px_rgba(0,0,0,0.3)] overflow-hidden"
     >
-      <header className="flex items-center gap-3 border-b border-[var(--theme-border)] px-4 py-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)]">
-          <MessageCircle className="h-[18px] w-[18px]" aria-hidden="true" />
+      <header className="flex items-center gap-3 border-b border-[var(--theme-border)] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:py-3">
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)]">
+          <BotMessageSquare className="h-[18px] w-[18px]" aria-hidden="true" />
+          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[var(--theme-surface)]" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[15px] font-semibold">{nombre ?? 'Asistente virtual'}</p>
-          <p className="m-0 text-xs text-[var(--theme-text-muted)]">Asistente virtual · responde al instante</p>
+          <p className="m-0 text-xs text-[var(--theme-text-muted)]">Asistente virtual · en línea</p>
         </div>
+        {mensajes.length > 0 && !enviando && !retomando && (
+          <button
+            type="button"
+            aria-label="Nueva charla"
+            title="Nueva charla"
+            onClick={reiniciar}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--theme-text-muted)] hover:bg-[var(--theme-bg)] hover:text-[var(--theme-text)]"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           aria-label="Cerrar chat"
@@ -229,7 +275,7 @@ export default function ChatWidget({
                 className="self-start flex items-center gap-2 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2.5 text-sm font-semibold hover:border-[var(--theme-accent)]"
               >
                 <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-                Abrir el PDF
+                {m.cuerpo.includes('/api/ficha/') ? 'Descargar ficha PDF' : 'Abrir el PDF'}
               </a>
             ) : m.tipo === 'imagen' ? (
               <a key={i} href={m.cuerpo} target="_blank" rel="noopener noreferrer" className="self-start max-w-[85%]">
@@ -241,9 +287,14 @@ export default function ChatWidget({
             ),
           )}
           {enviando && (
-            <p className="m-0 self-start rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2 text-sm italic text-[var(--theme-text-muted)]">
-              escribiendo…
-            </p>
+            <div className="self-start flex items-center gap-2 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2 text-sm italic text-[var(--theme-text-muted)]">
+              <span className="flex items-center gap-1" aria-hidden="true">
+                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse [animation-delay:300ms]" />
+              </span>
+              <span>escribiendo…</span>
+            </div>
           )}
           {aviso && (
             <div className="self-stretch rounded-xl border border-[var(--theme-border)] px-3.5 py-2.5 text-sm">
@@ -287,7 +338,7 @@ export default function ChatWidget({
           )}
           {!charloAlgo && !enviando && !retomando && (
             <div className="mt-1 flex flex-wrap gap-2">
-              {SUGERENCIAS.map((s) => (
+              {sugerencias.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -330,14 +381,37 @@ export default function ChatWidget({
           <Send className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       </form>
-      <p className="m-0 px-4 pb-3 text-[11px] text-[var(--theme-text-muted)]">
+      <p className="m-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3 text-[11px] text-[var(--theme-text-muted)]">
         Respuestas de un asistente con IA: confirmá precios y condiciones con el equipo.
       </p>
     </section>
   );
 }
 
-function Burbuja({ autor, children }: { autor: 'cliente' | 'bot'; children: React.ReactNode }) {
+function enlazarUrls(texto: string): React.ReactNode {
+  const partes = texto.split(URL_RE);
+  if (partes.length === 1) return texto;
+  return partes.map((parte, i) => {
+    if (i % 2 === 0) return <Fragment key={i}>{parte}</Fragment>;
+    const limpia = parte.replace(/[.,;:!?]+$/, '');
+    const cola = parte.slice(limpia.length);
+    return (
+      <Fragment key={i}>
+        <a
+          href={limpia}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium underline underline-offset-2 break-all"
+        >
+          {limpia}
+        </a>
+        {cola}
+      </Fragment>
+    );
+  });
+}
+
+function Burbuja({ autor, children }: { autor: 'cliente' | 'bot'; children: string }) {
   const cliente = autor === 'cliente';
   return (
     <p
@@ -347,7 +421,7 @@ function Burbuja({ autor, children }: { autor: 'cliente' | 'bot'; children: Reac
           : 'self-start border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)]'
       }`}
     >
-      {children}
+      {cliente ? children : enlazarUrls(children)}
     </p>
   );
 }

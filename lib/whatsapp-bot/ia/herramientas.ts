@@ -4,6 +4,8 @@
 // Sin imports de next/react: corre con tsx fuera de Next.
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { computePlan, INDEX_LABEL, boostsLabel, type FinancingPlan } from '@/lib/financing';
+import { formatPrice } from '@/lib/units';
 import type { DatosAviso } from '../aviso';
 import {
   coincidenUnidades,
@@ -34,6 +36,10 @@ export interface DepsHerramientas {
   material: MaterialProyecto;
   /** Link a la página pública de la unidad, o null si el sitio no está publicado. */
   linkUnidad(u: UnidadBot): string | null;
+  /** Link a la ficha PDF de la unidad (`/api/ficha/...`), o null si no aplica. */
+  fichaUnidadPdf?: (u: UnidadBot) => string | null;
+  /** Planes de financiación configurados en el proyecto, para simular cuotas reales. */
+  planes?: FinancingPlan[];
   /** Agenda de visitas; sin esto (o inactiva) las herramientas de visitas lo dicen. */
   visitas?: {
     config: ConfigVisitas;
@@ -43,7 +49,12 @@ export interface DepsHerramientas {
     delCliente: Date[];
     ahora: Date;
     /** 'sin_contacto' (chat web): el comprador todavía no dejó teléfono ni email. */
-    agendar(inicio: Date, fin: Date, nombre: string | null): Promise<'agendada' | 'ocupado' | 'sin_contacto'>;
+    agendar(
+      inicio: Date,
+      fin: Date,
+      nombre: string | null,
+      modalidad?: 'presencial' | 'videollamada',
+    ): Promise<'agendada' | 'ocupado' | 'sin_contacto'>;
     /** Cancela las visitas futuras de este cliente; devuelve sus inicios. */
     cancelar(): Promise<Date[]>;
   };
@@ -100,15 +111,29 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'enviar_imagenes',
     description:
-      'Manda por WhatsApp al cliente fotos (hasta 3), el plano o el plano 3D de una unidad. Las imágenes le llegan solas; no pegues links en tu respuesta.',
+      'Manda por WhatsApp al cliente fotos (hasta 3), el plano, el plano 3D o la ficha PDF completa de una unidad (con datos, plano, precio, planes y QR). Las imágenes y la ficha le llegan solas; no pegues links en tu respuesta.',
     strict: true,
     input_schema: {
       type: 'object',
       properties: {
         codigo: { type: 'string', description: 'Código de la unidad.' },
-        que: { type: 'string', enum: ['fotos', 'plano', 'plano_3d'], description: 'Qué mandar.' },
+        que: { type: 'string', enum: ['fotos', 'plano', 'plano_3d', 'ficha'], description: 'Qué mandar.' },
       },
       required: ['codigo', 'que'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'simular_financiacion',
+    description:
+      'Calcula los planes de pago reales configurados para una unidad (anticipo, cuotas, refuerzos, saldo a la posesión e índice de ajuste). Usala cuando pregunten por cuotas o financiación de una unidad.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        codigo: { type: 'string', description: 'Código de la unidad.' },
+      },
+      required: ['codigo'],
       additionalProperties: false,
     },
   },
@@ -176,7 +201,7 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'agendar_visita',
     description:
-      'Agenda la visita del cliente en un turno libre que devolvió ver_horarios_visita y le avisa al vendedor. No confirmes la visita al cliente hasta que esta herramienta diga que quedó agendada.',
+      'Agenda la visita o reunión (presencial o videollamada) del cliente en un turno libre que devolvió ver_horarios_visita y le avisa al vendedor. No confirmes la reunión al cliente hasta que esta herramienta diga que quedó agendada.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -184,8 +209,9 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
         dia: { type: 'string', description: 'YYYY-MM-DD, tal como aparece entre corchetes en ver_horarios_visita.' },
         hora: { type: 'string', description: 'HH:MM, una de las horas libres de ese día.' },
         nombre: { ...nullable({ type: 'string' }), description: 'Nombre del cliente si lo dijo; si no, null.' },
+        modalidad: { type: 'string', enum: ['presencial', 'videollamada'], description: 'Presencial en el proyecto/showroom o videollamada.' },
       },
-      required: ['dia', 'hora', 'nombre'],
+      required: ['dia', 'hora', 'nombre', 'modalidad'],
       additionalProperties: false,
     },
   },
@@ -258,7 +284,9 @@ export const HERRAMIENTAS_WEB: Anthropic.Beta.BetaTool[] = HERRAMIENTAS.map((t) 
       ...t.input_schema,
       properties: {
         ...s.properties,
-        telefono: { ...nullable({ type: 'string' }), description: 'Teléfono que dejó el cliente en la charla; si no lo dejó, null.' },
+        // Anthropic limita a 16 los parámetros con tipo unión (anyOf) en strict mode:
+        // HERRAMIENTAS ya usa 16, así que teléfono va como string ("" = no lo dejó).
+        telefono: { type: 'string', description: 'Teléfono que dejó el cliente en la charla; si no lo dejó, "".' },
       },
       required: [...s.required, 'telefono'],
     },
@@ -274,13 +302,19 @@ const BuscarInput = z.object({
   estado: z.enum(['available', 'reserved', 'sold', 'todas']).nullish(),
 });
 const VerInput = z.object({ codigo: z.string() });
-const EnviarInput = z.object({ codigo: z.string(), que: z.enum(['fotos', 'plano', 'plano_3d']) });
+const EnviarInput = z.object({ codigo: z.string(), que: z.enum(['fotos', 'plano', 'plano_3d', 'ficha']) });
+const SimularInput = z.object({ codigo: z.string() });
 const MaterialInput = z.object({
   que: z.enum(['renders', 'masterplan', 'brief', 'edificio', 'amenity', 'avance_obra']),
   nombre: z.string().nullish(),
 });
 const HorariosInput = z.object({ dia: z.string().nullish() });
-const AgendarInput = z.object({ dia: z.string(), hora: z.string(), nombre: z.string().nullish() });
+const AgendarInput = z.object({
+  dia: z.string(),
+  hora: z.string(),
+  nombre: z.string().nullish(),
+  modalidad: z.enum(['presencial', 'videollamada']).default('presencial'),
+});
 const CancelarInput = z.object({}).passthrough();
 const PreguntaInput = z.object({ tema: z.string().trim().min(1).max(120), pregunta: z.string().trim().min(1).max(1000) });
 const AvisarInput = z.object({
@@ -368,13 +402,39 @@ async function enviar(input: z.infer<typeof EnviarInput>, deps: DepsHerramientas
     if (!u.plano) return error(`La unidad ${u.codigo} no tiene plano cargado.`);
     urls = [u.plano];
     que = 'el plano';
-  } else {
+  } else if (input.que === 'plano_3d') {
     if (!u.plano3d) return error(`La unidad ${u.codigo} no tiene plano 3D cargado.`);
     urls = [u.plano3d];
     que = 'el plano 3D';
+  } else {
+    const pdf = deps.fichaUnidadPdf?.(u);
+    if (!pdf) return error(`La ficha PDF de la unidad ${u.codigo} no está disponible en este canal.`);
+    urls = [pdf];
+    que = 'la ficha PDF';
   }
   await deps.encolarImagenes(urls);
   return ok(`Listo: ${que} de la unidad ${u.codigo} ${enCamino(deps)}.`);
+}
+
+function simularFinanciacion(input: z.infer<typeof SimularInput>, deps: DepsHerramientas): ResultadoHerramienta {
+  const [u] = buscarPorCodigo(deps.unidades, input.codigo);
+  if (!u) return error(`No existe la unidad ${input.codigo}`);
+  if (!u.precio || u.precio <= 0) return error(`La unidad ${u.codigo} no tiene precio visible para simular financiación.`);
+  const planes = deps.planes ?? [];
+  if (planes.length === 0) return error('Este proyecto no tiene planes de financiación cargados.');
+  const fmt = (n: number) => formatPrice(Math.round(n), u.moneda || 'USD');
+  const bloques = planes.map(p => {
+    const r = computePlan(u.precio!, p);
+    const partes = [`${p.downPaymentPct >= 100 ? 'Pago contado' : 'Anticipo'} ${fmt(r.downPayment)}`];
+    if (p.installments > 0) partes.push(`${p.installments} cuotas de ${fmt(r.installmentAmount)}`);
+    if (p.boosts > 0) partes.push(`${boostsLabel(p.boosts, p.boostEveryMonths)} de ${fmt(r.boostAmount)}`);
+    if (r.possessionAmount > 0.5) partes.push(`Saldo a la posesión ${fmt(r.possessionAmount)}`);
+    const ajuste = p.index !== 'ninguno' && (p.installments > 0 || p.boosts > 0) ? ` · Ajustable por ${INDEX_LABEL[p.index]}` : '';
+    const nota = p.note?.trim() ? ` (${p.note.trim()})` : '';
+    const precioPlan = p.priceAdjustmentPct ? ` [Precio con el plan: ${fmt(r.planPrice)}]` : '';
+    return `- ${p.name}${precioPlan}: ${partes.join(' · ')}${ajuste}${nota}`;
+  });
+  return ok(`Planes de financiación para ${u.codigo} (precio base ${fmt(u.precio)}):\n${bloques.join('\n')}`);
 }
 
 async function enviarMaterial(input: z.infer<typeof MaterialInput>, deps: DepsHerramientas): Promise<ResultadoHerramienta> {
@@ -416,12 +476,13 @@ async function agendar(input: z.infer<typeof AgendarInput>, deps: DepsHerramient
   const libre = turnosLibres(v.config, v.ocupados, v.ahora, input.dia.trim()).some((t) => t.getTime() === inicio.getTime());
   if (!libre) return error('Ese horario no está disponible. Consultá de nuevo ver_horarios_visita y ofrecé otro.');
   const fin = new Date(inicio.getTime() + v.config.duracion_min * 60_000);
-  const r = await v.agendar(inicio, fin, limpio(input.nombre) ?? null);
+  const r = await v.agendar(inicio, fin, limpio(input.nombre) ?? null, input.modalidad);
   if (r === 'ocupado') return error('Ese turno se acaba de ocupar. Consultá de nuevo ver_horarios_visita y ofrecé otro.');
   if (r === 'sin_contacto') return ok(PEDIR_CONTACTO);
-  const lugar = v.config.lugar ? ` en ${v.config.lugar}` : '';
+  const modalidadTxt = input.modalidad === 'videollamada' ? ' (videollamada)' : '';
+  const lugar = input.modalidad === 'presencial' && v.config.lugar ? ` en ${v.config.lugar}` : '';
   return ok(
-    `Listo: visita agendada el ${textoTurno(inicio)}${lugar}. Confirmale al cliente día, hora y lugar. Si todavía no avisaste al equipo de este cliente, hacelo con avisar_vendedor.`,
+    `Listo: reunión${modalidadTxt} agendada el ${textoTurno(inicio)}${lugar}. Confirmale al cliente día, hora${lugar ? ', lugar' : ''} y modalidad. Si todavía no avisaste al equipo de este cliente, hacelo con avisar_vendedor.`,
   );
 }
 
@@ -480,6 +541,10 @@ export async function ejecutarHerramienta(
       case 'enviar_imagenes': {
         const p = EnviarInput.safeParse(input);
         return p.success ? await enviar(p.data, deps) : invalido(nombre, p.error);
+      }
+      case 'simular_financiacion': {
+        const p = SimularInput.safeParse(input);
+        return p.success ? simularFinanciacion(p.data, deps) : invalido(nombre, p.error);
       }
       case 'enviar_material': {
         const p = MaterialInput.safeParse(input);

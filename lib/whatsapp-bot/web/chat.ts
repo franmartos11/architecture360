@@ -42,7 +42,7 @@ export type RespuestaChatWeb = {
   error?: ErrorChatWeb;
 };
 
-const esDocumento = (url: string) => /\.pdf(?:[?#]|$)/i.test(url);
+const esDocumento = (url: string) => /\.pdf(?:[?#]|$)|\/api\/ficha\//i.test(url);
 
 /** Ruta del sitio ("/demo/f.jpg") → URL absoluta contra el origen público; las absolutas quedan igual. */
 function urlAbsoluta(url: string, sitio: string): string {
@@ -58,6 +58,73 @@ function paraIa(ms: WaMensaje[]): WaMensaje[] {
   return ms.map((m) => (m.autor === 'bot' && (m.tipo === 'imagen' || m.tipo === 'documento') ? { ...m, cuerpo: null } : m));
 }
 
+/** Traduce la ruta actual del navegador a contexto verificado del proyecto (nunca texto crudo del cliente). */
+export function contextoPaginaWeb(ruta: string | null | undefined, datos: DatosProyecto): string | null {
+  if (!ruta) return null;
+  const [sinHash] = ruta.split('#');
+  const qIndex = sinHash.indexOf('?');
+  const pathPart = qIndex >= 0 ? sinHash.slice(0, qIndex) : sinHash;
+  const queryPart = qIndex >= 0 ? sinHash.slice(qIndex + 1) : '';
+  const limpia = pathPart.replace(/\/+$/, '') || '/';
+  const compareParam = queryPart ? new URLSearchParams(queryPart).get('compare')?.trim() : null;
+
+  const unidadMatch = /^\/edificio\/([^/]+)\/unidad\/([^/]+)$/.exec(limpia);
+  if (unidadMatch) {
+    let bId: string;
+    let uId: string;
+    try {
+      bId = decodeURIComponent(unidadMatch[1]);
+      uId = decodeURIComponent(unidadMatch[2]);
+    } catch {
+      return null;
+    }
+    const u =
+      datos.unidades.find((x) => x.id === uId && x.edificioId === bId) ??
+      datos.unidades.find((x) => x.id === uId);
+    if (!u) return null;
+    const detalle = [u.tipo, u.edificio].filter(Boolean).join(' · ');
+    if (compareParam) {
+      const u2 = datos.unidades.find((x) => x.id === compareParam || x.codigo === compareParam);
+      if (u2 && u2.id !== u.id) {
+        const d2 = [u2.tipo, u2.edificio].filter(Boolean).join(' · ');
+        return `[Contexto de navegación: el cliente está en el comparador viendo lado a lado la unidad ${u.codigo}${detalle ? ` (${detalle})` : ''} y la unidad ${u2.codigo}${d2 ? ` (${d2})` : ''}. Si pide diferencias, comparación o recomendación entre ambas, consultá ver_unidad de las dos y comparalas de forma clara (precio, m², ambientes, piso, orientación, cocheras, expensas y características).]`;
+      }
+    }
+    return `[Contexto de navegación: el cliente está viendo la ficha de la unidad ${u.codigo}${detalle ? ` (${detalle})` : ''}. Si pregunta "cuánto sale", "tiene cochera", "mandame el plano", etc. sin aclarar cuál, se refiere a esta unidad (usá ver_unidad para los datos en vivo).]`;
+  }
+
+  const edifRecorridoMatch = /^\/edificio\/([^/]+)\/recorrido$/.exec(limpia);
+  if (edifRecorridoMatch) {
+    try {
+      const bId = decodeURIComponent(edifRecorridoMatch[1]);
+      const b = datos.edificios.find((x) => x.id === bId);
+      if (b) return `[Contexto de navegación: el cliente está viendo el recorrido 360° de ${b.name}.]`;
+    } catch { /* ruta inválida */ }
+    return null;
+  }
+
+  const edifMatch = /^\/edificio\/([^/]+)$/.exec(limpia);
+  if (edifMatch) {
+    try {
+      const bId = decodeURIComponent(edifMatch[1]);
+      const b = datos.edificios.find((x) => x.id === bId);
+      if (b) return `[Contexto de navegación: el cliente está viendo ${b.name}.]`;
+    } catch { /* ruta inválida */ }
+    return null;
+  }
+
+  const secciones: Record<string, string> = {
+    '/': 'la portada principal del proyecto',
+    '/unidades': 'el listado de unidades',
+    '/amenities': 'la sección de amenities',
+    '/ubicacion': 'la sección de ubicación y entorno',
+    '/masterplan': 'el masterplan del proyecto',
+    '/recorrido': 'el recorrido 360° del proyecto',
+  };
+  const sec = secciones[limpia];
+  return sec ? `[Contexto de navegación: el cliente está viendo ${sec}.]` : null;
+}
+
 export async function turnoChatWeb(i: {
   sb: SupabaseClient;
   bot: WaBot;
@@ -66,6 +133,8 @@ export async function turnoChatWeb(i: {
   mensaje: string;
   visitorId: string | null;
   ref: string | null;
+  /** Ruta relativa dentro del proyecto que está viendo el usuario en el navegador. */
+  ruta?: string | null;
   /** URL pública del proyecto (projectCanonical). */
   sitio: string;
   urlAdmin: string;
@@ -141,6 +210,15 @@ async function responderEnCharla(
   const system = armarSystem(ficha, bot, datos.proyecto.name, 'web');
   const activas = configVisitas?.activo ? await visitasActivas(sb, i.projectId, ahora) : [];
   const mensajes = aMensajesClaude(paraIa(historia));
+  const ctx = contextoPaginaWeb(i.ruta, datos);
+  if (ctx && mensajes.length > 0) {
+    const ultima = mensajes[mensajes.length - 1];
+    if (ultima.role === 'user') {
+      ultima.content = typeof ultima.content === 'string'
+        ? `${ctx}\n${ultima.content}`
+        : [{ type: 'text', text: ctx }, ...ultima.content];
+    }
+  }
 
   const imagenes: string[] = [];
   const documentos: string[] = [];
@@ -152,6 +230,7 @@ async function responderEnCharla(
       canal: 'web',
       unidades: datos.unidades,
       material: armarMaterial(datos),
+      planes: datos.calculadora?.financing_plans ?? [],
       ...(configVisitas?.activo
         ? {
             visitas: {
@@ -161,7 +240,7 @@ async function responderEnCharla(
                 .filter((v) => v.conversacion_id === charla.id && new Date(v.inicio) > ahora)
                 .map((v) => new Date(v.inicio)),
               ahora,
-              agendar: async (inicio, fin, nombre) => {
+              agendar: async (inicio, fin, nombre, modalidad) => {
                 // Sin lead no hay a quién confirmarle la visita: la IA pide el contacto.
                 const lead = await leadDeCharlaWeb(sb, charla.id);
                 if (!lead) return 'sin_contacto';
@@ -175,6 +254,8 @@ async function responderEnCharla(
                   urlAdmin: i.urlAdmin,
                   telefono: lead.phone,
                   email: lead.email,
+                  modalidad,
+                  lugar: configVisitas.lugar,
                 });
               },
               cancelar: async () =>
@@ -194,6 +275,15 @@ async function responderEnCharla(
         await registrarPregunta(sb, { projectId: i.projectId, conversacionId: charla.id, ...p });
       },
       linkUnidad: (u) => (u.id && u.edificioId ? urlUnidad(i.sitio, u.edificioId, u.id) : null),
+      fichaUnidadPdf: (u) => {
+        if (!u.id || !datos.proyecto.slug) return null;
+        try {
+          const origin = new URL(i.sitio).origin;
+          return `${origin}/api/ficha/${datos.proyecto.slug}/${u.id}${i.ref ? `?ref=${encodeURIComponent(i.ref)}` : ''}`;
+        } catch {
+          return null;
+        }
+      },
       encolarImagenes: async (urls) => {
         for (const u of urls.map((x) => urlAbsoluta(x, i.sitio))) (esDocumento(u) ? documentos : imagenes).push(u);
       },

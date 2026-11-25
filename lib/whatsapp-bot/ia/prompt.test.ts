@@ -17,11 +17,11 @@ describe('armarSystem', () => {
     expect(t.trimEnd().endsWith('# Proyecto: Torre Alba\nFICHA')).toBe(true);
   });
 
-  it('las condiciones de financiación salen solo del conocimiento del vendedor, no del simulador', () => {
+  it('indica usar simular_financiacion y no presentar el simulador de referencia como oferta', () => {
     const t = armarSystem('F', { nombre_bot: null, criterio_aviso: null }, 'Torre Alba')[0].text;
-    expect(t).toContain('solo podés mencionar las condiciones que figuren en "Información adicional del vendedor"');
+    expect(t).toContain('simular_financiacion');
     expect(t).toContain('Simulador de cuotas de referencia');
-    expect(t).toContain('nunca lo presentes como financiación disponible');
+    expect(t).toContain('si no hay planes ni condiciones cargadas, decí que lo consultás con el equipo');
   });
 
   it('sin nombre se presenta como asistente virtual del proyecto', () => {
