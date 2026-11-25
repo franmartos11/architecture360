@@ -92,6 +92,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   const parsed = AccionConversacion.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Acción inválida' }, { status: 400 });
+  // Una charla del sitio la atiende solo el bot: no hay vendedor que la tome.
+  if (conv.canal === 'web' && parsed.data.accion !== 'leido') {
+    return NextResponse.json({ error: 'Esta charla fue en el sitio: no se puede tomar ni devolver.' }, { status: 409 });
+  }
 
   const cambios =
     parsed.data.accion === 'tomar'

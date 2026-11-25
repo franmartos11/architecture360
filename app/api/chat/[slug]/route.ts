@@ -23,13 +23,16 @@ type Ctx = { params: Promise<{ slug: string }> };
 const Pedido = z.object({
   token: z.uuid().optional(),
   mensaje: z.string().trim().min(1).max(1000),
-  visitorId: z.uuid().optional(),
+  // Un id de visitante roto (formato viejo, storage tocado) no frena el mensaje: va sin atribución.
+  visitorId: z.string().max(100).optional(),
   ref: z.string().max(60).optional(),
 });
 
 const SIN_CACHE = { 'Cache-Control': 'no-store' };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: SIN_CACHE });
-const noEncontrado = () => json({ error: 'Chat no disponible' }, 404);
+// El navegador olvida su token solo si la charla no existe; con el chat apagado un rato, la guarda.
+const chatApagado = () => json({ error: 'Chat no disponible', motivo: 'chat_apagado' }, 404);
+const charlaInexistente = () => json({ error: 'La charla no existe', motivo: 'charla_inexistente' }, 404);
 
 /** Base del panel para los links "Ver chat" del aviso (la configurada antes que el Host del pedido). */
 function urlPanel(request: Request): string {
@@ -76,7 +79,7 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const chat = await chatDelProyecto(slug);
-  if (!chat) return noEncontrado();
+  if (!chat) return chatApagado();
   if (!process.env.ANTHROPIC_API_KEY) return json({ error: 'El chat no está disponible en este momento.' }, 503);
 
   // El turno entero tiene que entrar en los 60 s de la función.
@@ -89,7 +92,7 @@ export async function POST(request: Request, { params }: Ctx) {
       projectId: chat.proyecto.id,
       token: parsed.data.token ?? null,
       mensaje: parsed.data.mensaje,
-      visitorId: parsed.data.visitorId ?? null,
+      visitorId: z.uuid().safeParse(parsed.data.visitorId).data ?? null,
       ref: normalizeRef(parsed.data.ref) || null,
       sitio: await projectCanonical(slug),
       urlAdmin: urlPanel(request),
@@ -98,7 +101,7 @@ export async function POST(request: Request, { params }: Ctx) {
       // Los emails de "nuevo lead" no demoran la respuesta, pero terminan aunque la función responda.
       enSegundoPlano: (tarea) => after(tarea),
     });
-    if (!r) return noEncontrado();
+    if (!r) return charlaInexistente();
     return json(r);
   } catch (e) {
     console.error('[chat web] falló el turno:', e);
@@ -115,10 +118,10 @@ export async function GET(request: Request, { params }: Ctx) {
   if (limitado) return limitado;
 
   const chat = await chatDelProyecto(slug);
-  if (!chat) return noEncontrado();
+  if (!chat) return chatApagado();
   try {
     const charla = await charlaWeb(chat.sb, chat.proyecto.id, token.data);
-    if (!charla) return noEncontrado();
+    if (!charla) return charlaInexistente();
     return json(charla);
   } catch (e) {
     console.error('[chat web] no se pudo leer la charla:', e);

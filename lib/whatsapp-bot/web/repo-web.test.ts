@@ -12,6 +12,7 @@ import {
   turnosWebHoy,
 } from './repo-web';
 import type { DatosAvisoWeb } from './lead';
+import { huellaToken } from './token';
 
 const { enviarEmail, ResendFalso } = vi.hoisted(() => {
   const enviarEmail = vi.fn<(arg: unknown) => Promise<{ data: { id: string }; error: null }>>(async () => ({ data: { id: "e1" }, error: null }));
@@ -56,11 +57,13 @@ const datos = (p: Partial<DatosAvisoWeb> = {}): DatosAvisoWeb => ({
 describe('crearConversacionWeb', () => {
   it('canal web, token nuevo, sin número y fuera de lo que mira el puente', async () => {
     const f = sbFalso((q) => (q.op === 'insert' ? { data: { ...conv(), id: 'nueva' } } : undefined));
-    const c = await crearConversacionWeb(f.sb, { id: 'bot1', project_id: 'proj1' });
+    const { conv: c, token } = await crearConversacionWeb(f.sb, { id: 'bot1', project_id: 'proj1' });
     expect(c.id).toBe('nueva');
     const v = f.escrituras()[0].valores as Record<string, unknown>;
     expect(v).toMatchObject({ bot_id: 'bot1', project_id: 'proj1', canal: 'web', contacto_numero: null, creada_post_vinculo: false });
-    expect(v.web_token).toMatch(/^[0-9a-f-]{36}$/);
+    // La base guarda la huella: quien lea la tabla (el panel) no puede escribir como el comprador.
+    expect(v.web_token).toBe(huellaToken(token));
+    expect(v.web_token).not.toBe(token);
   });
 });
 
@@ -69,7 +72,7 @@ describe('conversacionWeb', () => {
     const f = sbFalso(() => ({ data: conv() }));
     expect((await conversacionWeb(f.sb, 'proj1', TOKEN))?.id).toBe('cw1');
     const q = f.consultas[0];
-    expect(tiene(q, 'eq', 'web_token', TOKEN)).toBe(true);
+    expect(tiene(q, 'eq', 'web_token', huellaToken(TOKEN))).toBe(true);
     expect(tiene(q, 'eq', 'project_id', 'proj1')).toBe(true);
     expect(tiene(q, 'eq', 'canal', 'web')).toBe(true);
   });

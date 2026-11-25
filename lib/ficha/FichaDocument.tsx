@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, Image as PdfImage, Link, StyleSheet } from '@react-pdf/renderer';
 import type { FichaContent } from './content';
+import { fichaHeaderLayout, HEADER_GAP } from './header';
 
 // Dibujo de la ficha PDF de una unidad (A4 vertical). El contenido ya viene
 // decidido por buildFichaContent; acá solo hay diagramación.
@@ -13,11 +14,12 @@ const s = StyleSheet.create({
   page: { paddingTop: 32, paddingHorizontal: 36, paddingBottom: 54, fontSize: 9.5, color: INK, fontFamily: 'Helvetica' },
   draft: { backgroundColor: '#fdf3d7', color: '#7a5a00', fontSize: 8.5, fontFamily: 'Helvetica-Bold', textAlign: 'center', paddingVertical: 5, marginBottom: 12, borderRadius: 3 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  headerLeft: { flex: 1, paddingRight: 12 },
-  projectName: { fontSize: 20, fontFamily: 'Helvetica-Bold' },
-  location: { fontSize: 9.5, color: MUTED, marginTop: 2 },
-  headerRight: { alignItems: 'flex-end' },
-  unitName: { fontSize: 16, fontFamily: 'Helvetica-Bold' },
+  headerLeft: { flex: 1, paddingRight: HEADER_GAP },
+  // Tamaño y corte los decide fichaHeaderLayout; maxLines por si la medición se queda corta.
+  projectName: { fontFamily: 'Helvetica-Bold', lineHeight: 1.15, maxLines: 2, textOverflow: 'ellipsis' },
+  location: { fontSize: 9.5, color: MUTED, marginTop: 2, maxLines: 2, textOverflow: 'ellipsis' },
+  headerRight: { alignItems: 'flex-end', flexShrink: 0 },
+  unitName: { fontFamily: 'Helvetica-Bold', textAlign: 'right', maxLines: 2, textOverflow: 'ellipsis' },
   statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
   statusText: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -49,7 +51,8 @@ const s = StyleSheet.create({
   footer: { position: 'absolute', bottom: 24, left: 36, right: 36, fontSize: 7.5, color: '#8a8f98', flexDirection: 'row', justifyContent: 'space-between' },
 });
 
-// La URL impresa se tipea a mano: nunca partirla con un guion.
+// La URL impresa se tipea a mano: nunca partirla con un guion. Los títulos
+// tampoco: fichaHeaderLayout mide cortando por palabras enteras.
 const noHyphenation = (word: string) => [word];
 
 export interface FichaDocumentProps {
@@ -59,6 +62,7 @@ export interface FichaDocumentProps {
 }
 
 export function FichaDocument({ content: c, images, qr }: FichaDocumentProps) {
+  const head = fichaHeaderLayout({ projectName: c.projectName, unitName: c.unitName, statusLabel: c.status?.label });
   return (
     <Document title={`Ficha ${c.unitName} — ${c.projectName}`} author={c.projectName}>
       <Page size="A4" style={s.page}>
@@ -66,11 +70,11 @@ export function FichaDocument({ content: c, images, qr }: FichaDocumentProps) {
 
         <View style={s.header}>
           <View style={s.headerLeft}>
-            <Text style={[s.projectName, { color: c.accent }]}>{c.projectName}</Text>
+            <Text hyphenationCallback={noHyphenation} style={[s.projectName, { color: c.accent, fontSize: head.project.fontSize }]}>{head.project.text}</Text>
             {!!c.location && <Text style={s.location}>{c.location}</Text>}
           </View>
-          <View style={s.headerRight}>
-            <Text style={s.unitName}>{c.unitName}</Text>
+          <View style={[s.headerRight, { width: head.rightWidth }]}>
+            <Text hyphenationCallback={noHyphenation} style={[s.unitName, { fontSize: head.unit.fontSize }]}>{head.unit.text}</Text>
             {c.status && (
               <View style={s.statusRow}>
                 <View style={[s.statusDot, { backgroundColor: c.status.color }]} />

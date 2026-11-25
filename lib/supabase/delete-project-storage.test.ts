@@ -54,7 +54,15 @@ describe('deleteProjectStorageFiles', () => {
         common_areas_tour: { nodes: [{ imageUrl: `${BASE_URL}/proj/tour1.png` }] },
       },
       buildings: [{ id: 'b1', cover_image: `${BASE_URL}/b1/cover.png`, amenities_tour: null }],
-      floors: [{ id: 'f1', plan_image: `${BASE_URL}/f1/plan.png` }],
+      floors: [{
+        id: 'f1',
+        plan_image: `${BASE_URL}/f1/plan.png`,
+        view_photos: [
+          { direction: 'N', url: `${BASE_URL}/floor-views/f1-n.jpg` },
+          { direction: 'SE', url: `${BASE_URL}/floor-views/f1-se.jpg` },
+        ],
+        view_panorama: `${BASE_URL}/tours/f1-360.jpg`,
+      }],
       units: [
         {
           interior_image_url: `${BASE_URL}/u1/interior.png`,
@@ -87,6 +95,9 @@ describe('deleteProjectStorageFiles', () => {
         'proj/tour1.png',
         'b1/cover.png',
         'f1/plan.png',
+        'floor-views/f1-n.jpg',
+        'floor-views/f1-se.jpg',
+        'tours/f1-360.jpg',
         'u1/interior.png',
         'u1/g1.png', // solo una vez pese a estar duplicada
         'slides/1.png',
@@ -133,6 +144,19 @@ describe('deleteProjectStorageFiles', () => {
     });
     await deleteProjectStorageFiles(supabase as never, 'project-1');
     expect(supabase._remove).toHaveBeenCalledWith(['proj/master.png']);
+  });
+
+  it('vista por piso con datos viejos o rotos (no array, sin url): no tira y borra lo que sí es archivo', async () => {
+    const supabase = mockSupabase({
+      projects: null,
+      buildings: [{ id: 'b1', cover_image: null, amenities_tour: null }],
+      floors: [
+        { id: 'f1', plan_image: null, view_photos: { N: 'x' }, view_panorama: null },
+        { id: 'f2', plan_image: null, view_photos: [null, { direction: 'N' }, { url: 42 }, { url: `${BASE_URL}/floor-views/f2.jpg` }], view_panorama: '' },
+      ],
+    });
+    await deleteProjectStorageFiles(supabase as never, 'project-1');
+    expect(supabase._remove).toHaveBeenCalledWith(['floor-views/f2.jpg']);
   });
 
   it('sin ningún archivo, no llama a storage.remove()', async () => {

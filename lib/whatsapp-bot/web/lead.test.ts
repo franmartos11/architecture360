@@ -80,7 +80,13 @@ describe('planearLeadWeb', () => {
     expect(r.cambios.phone).toBe('5491122334455');
     expect(r.cambios.email).toBe('Ana@Mail.com');
     expect(r.cambios.visitor_id).toBe('v1');
-    expect(r.cambios.ref).toBe('perez-prop');
+  });
+
+  it('un lead que ya existía no queda a nombre de la inmobiliaria del chat: solo se anota', () => {
+    const r = planearLeadWeb(lead({ ref: null, message: null }), datos, ahora);
+    if (r.tipo !== 'update') throw new Error('update esperado');
+    expect('ref' in r.cambios).toBe(false);
+    expect(r.cambios.message).toBe('[Chat web 20/11/2026] Quiere visitar el sábado (llegó por el link de perez-prop)');
   });
 
   it('nunca pisa el origen, la inmobiliaria ni la charla de WhatsApp de un lead existente', () => {
@@ -100,8 +106,9 @@ describe('planearLeadWeb', () => {
   });
 
   it('suma una nota fechada al mensaje', () => {
-    const r1 = planearLeadWeb(lead({ message: 'Hola' }), datos, ahora);
-    const r2 = planearLeadWeb(lead({ message: null }), datos, ahora);
+    const sinRef = { ...datos, ref: null };
+    const r1 = planearLeadWeb(lead({ message: 'Hola' }), sinRef, ahora);
+    const r2 = planearLeadWeb(lead({ message: null }), sinRef, ahora);
     if (r1.tipo !== 'update' || r2.tipo !== 'update') throw new Error('update esperado');
     expect(r1.cambios.message).toBe('Hola\n\n[Chat web 20/11/2026] Quiere visitar el sábado');
     expect(r2.cambios.message).toBe('[Chat web 20/11/2026] Quiere visitar el sábado');

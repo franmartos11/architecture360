@@ -18,21 +18,26 @@ import {
   vistaPrevia,
 } from '../repo';
 import { buscarLeadWeb, planearLeadWeb, type DatosAvisoWeb } from './lead';
+import { huellaToken, nuevoToken } from './token';
 
 export type MensajeWeb = { autor: 'cliente' | 'bot'; tipo: 'texto' | 'imagen' | 'documento'; cuerpo: string };
 
-/** Charla nueva: fuera del seguimiento y del re-aviso del puente (canal 'web', sin número). */
+/**
+ * Charla nueva: fuera del seguimiento y del re-aviso del puente (canal 'web',
+ * sin número). Devuelve el token para el navegador; la base guarda su huella.
+ */
 export async function crearConversacionWeb(
   sb: SupabaseClient,
   bot: Pick<WaBot, 'id' | 'project_id'>,
-): Promise<WaConversacion> {
+): Promise<{ conv: WaConversacion; token: string }> {
+  const token = nuevoToken();
   const { data, error } = await sb
     .from('wa_conversaciones')
     .insert({
       bot_id: bot.id,
       project_id: bot.project_id,
       canal: 'web',
-      web_token: globalThis.crypto.randomUUID(),
+      web_token: huellaToken(token),
       contacto_numero: null,
       creada_post_vinculo: false,
       modo: 'bot',
@@ -40,7 +45,7 @@ export async function crearConversacionWeb(
     .select('*')
     .single();
   revisar('crearConversacionWeb: insert wa_conversaciones', error);
-  return data as WaConversacion;
+  return { conv: data as WaConversacion, token };
 }
 
 /** La charla web de ese token en ese proyecto; null si no existe (o es de otro proyecto). */
@@ -52,7 +57,7 @@ export async function conversacionWeb(
   const { data, error } = await sb
     .from('wa_conversaciones')
     .select('*')
-    .eq('web_token', token)
+    .eq('web_token', huellaToken(token))
     .eq('project_id', projectId)
     .eq('canal', 'web')
     .maybeSingle();

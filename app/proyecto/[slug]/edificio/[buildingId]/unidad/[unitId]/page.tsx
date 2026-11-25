@@ -8,6 +8,7 @@ import type { UnitViewTab } from '@/types';
 import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
 import { projectCanonical } from '@/lib/project-canonical';
 import { pickUnitView } from '@/lib/floor-views';
+import { findSiteUnit, unitBimModel } from '@/lib/site-unit';
 
 const VALID_TABS: UnitViewTab[] = ['planta3d', 'tour360', 'plano', 'galeria', 'vista', 'amenities', 'ubicacion'];
 
@@ -20,8 +21,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug, buildingId, unitId } = await params;
   // Misma lectura (cacheada) que usa la página: no se pide el proyecto dos veces.
   const project = await getSiteProjectBySlug(slug);
-  const unit = project?.units.find(u => u.id === decodeURIComponent(unitId));
-  if (!unit) return { title: 'Unidad no encontrada' };
+  // El código solo es único por piso: se busca dentro del edificio de la URL.
+  const found = findSiteUnit(project, buildingId, unitId);
+  if (!found) return { title: 'Unidad no encontrada' };
+  const { building, unit } = found;
 
   const title = `Unidad ${unit.name} | Interior`;
   // Un local / cochera no tiene dormitorios: se describe por su categoría.
@@ -31,7 +34,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = unit.interiorImageUrl || unit.galleryImages?.[0] || undefined;
 
   return {
-    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}/unidad/${unitId}`) },
+    // Canónica con el código aunque se haya entrado por el uuid (como la ficha).
+    alternates: { canonical: await projectCanonical(slug, `/edificio/${building.id}/unidad/${encodeURIComponent(unit.id)}`) },
     title,
     description,
     openGraph: { title, description, images: image ? [image] : undefined },
@@ -44,10 +48,9 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
   const { tab, volver } = await searchParams;
 
   const project = await getSiteProjectBySlug(slug);
-  const building = project?.buildings.find(b => b.id === buildingId);
-  const unit = project?.units.find(u => u.id === decodeURIComponent(unitId));
-
-  if (!project || !building || !unit) notFound();
+  const found = findSiteUnit(project, buildingId, unitId);
+  if (!project || !found) notFound();
+  const { building, unit } = found;
 
   const initialTab = VALID_TABS.includes(tab as UnitViewTab) ? (tab as UnitViewTab) : undefined;
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
@@ -57,11 +60,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
     <UnitViewerWrapper
       unit={unit}
       allUnits={project.units}
-      bimModel={
-        project.bimModels?.find(m => m.unitIds?.includes(unit.id)) ??
-        project.bimModels?.find(m => m.floorIds?.includes(unit.floorId)) ??
-        project.bimModels?.find(m => m.unitIds?.length === 0 && m.floorIds?.length === 0)
-      }
+      bimModel={unitBimModel(project.bimModels, unit)}
       projectSlug={slug}
       projectName={project.name}
       buildingId={building.id}

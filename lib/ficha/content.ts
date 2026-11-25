@@ -9,6 +9,8 @@ import { normalizeRef } from '@/lib/analytics/ref';
 import { getPreset } from '@/lib/theme-presets';
 import { contrastRatio } from '@/lib/color-contrast';
 import { slugify } from '@/lib/slug';
+import { formatPhoneForDisplay } from '@/lib/phone-format';
+import { toWinAnsi } from './winansi';
 
 // Qué muestra la ficha PDF de una unidad. Puro: decide contenido y textos;
 // el dibujo vive en FichaDocument y la carga de datos en la ruta. Nunca
@@ -135,7 +137,26 @@ function accentOf(project: Project): string {
   }
 }
 
+// Lo que no es texto impreso: links, colores, URLs de imágenes. No se limpia
+// (cambiarle un carácter a una URL la rompe).
+const NOT_PRINTED = new Set<string>(['qrUrl', 'href', 'accent', 'color', 'imageUrls']);
+
+/** Todo el texto de la ficha pasado a WinAnsi (ver ./winansi), sin tocar lo de NOT_PRINTED. */
+function printable<T>(value: T, key?: string): T {
+  if (key && NOT_PRINTED.has(key)) return value;
+  if (typeof value === 'string') return toWinAnsi(value) as T;
+  if (Array.isArray(value)) return value.map(v => printable(v)) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, printable(v, k)])) as T;
+  }
+  return value;
+}
+
 export function buildFichaContent(input: FichaInput): FichaContent {
+  return printable(fichaContentRaw(input));
+}
+
+function fichaContentRaw(input: FichaInput): FichaContent {
   const { project, unit, typeConfig, plans, now } = input;
   const today = fichaDate(now);
   const currency = unit.currency || 'USD';
@@ -169,7 +190,7 @@ export function buildFichaContent(input: FichaInput): FichaContent {
     plansNote: planRows.length > 0 ? `Montos calculados al ${today}. Las cuotas se ajustan según el índice indicado.` : null,
     qrUrl: ref ? `${input.unitUrl}?ref=${encodeURIComponent(ref)}` : input.unitUrl,
     qrLead,
-    whatsapp: digits ? { label: `+${digits}`, href: `https://wa.me/${digits}` } : null,
+    whatsapp: digits ? { label: formatPhoneForDisplay(digits), href: `https://wa.me/${digits}` } : null,
     accent: accentOf(project),
     draft: input.isDraft,
     generatedOn: today,

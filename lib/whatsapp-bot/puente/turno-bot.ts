@@ -235,9 +235,10 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
           sb,
           conv,
           {
+            ...d,
+            // El del contacto, siempre: un teléfono que mande la IA no lo pisa.
             telefono: conv.contacto_numero ?? destino, // en el puente siempre hay número (destinoWhatsapp)
             conversacionId: conv.id,
-            ...d,
             // Spec §7.7: el aviso lista las unidades con ambientes, m² y precio.
             unidadesTexto: unidadesParaAviso(d.unidades, datos.unidades),
           },

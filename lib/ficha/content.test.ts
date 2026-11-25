@@ -169,7 +169,7 @@ describe('QR, contacto, acento, imágenes, borrador', () => {
 
   it('WhatsApp solo con número', () => {
     expect(buildFichaContent(input({ project: project({ whatsappNumber: '5491122334455' }) })).whatsapp)
-      .toEqual({ label: '+5491122334455', href: 'https://wa.me/5491122334455' });
+      .toEqual({ label: '+54 9 11 2233-4455', href: 'https://wa.me/5491122334455' });
     expect(buildFichaContent(input()).whatsapp).toBeNull();
   });
 
@@ -184,6 +184,24 @@ describe('QR, contacto, acento, imágenes, borrador', () => {
     const d = buildFichaContent(input({ unit: unit({ interiorImageUrl: 'int', galleryImages: ['g1'], technicalPlanUrl: 'tp', plan3dUrl: 'p3d' }) }));
     expect(d.imageUrls).toEqual({ hero: 'int', plan: 'tp' });
     expect(buildFichaContent(input()).imageUrls).toEqual({ hero: null, plan: null });
+  });
+
+  it('todo el texto sale apto para Helvetica (WinAnsi); las URLs no se tocan', () => {
+    const c = buildFichaContent(input({
+      project: project({ name: 'Torre Sol ☀️', location: 'Córdoba → Nueva Córdoba', whatsappNumber: '5491122334455' }),
+      unit: unit({ name: 'A‑01 🏠', modelName: 'DUET ≈ 106', orientation: 'NE ⬈' }),
+      plans: [{ ...PLAN, name: 'Plan “36” ✨', note: 'Anticipo ≤ 30% 💰' }],
+      ref: 'inmo-sur',
+    }));
+    expect(c.projectName).toBe('Torre Sol');
+    expect(c.location).toBe('Córdoba -> Nueva Córdoba');
+    expect(c.unitName).toBe('A-01');
+    expect(c.subtitle).toBe('DUET ~ 106');
+    expect(c.specs).toContain('Orientación NE');
+    expect(c.plans[0].name).toBe('Plan “36”');
+    expect(c.plans[0].note).toBe('Anticipo <= 30%');
+    expect(c.qrUrl).toBe(`${UNIT_URL}?ref=inmo-sur`);
+    expect(c.whatsapp?.href).toBe('https://wa.me/5491122334455');
   });
 
   it('borrador y fecha de generación', () => {

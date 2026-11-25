@@ -74,4 +74,19 @@ describe('GET /conversaciones/[id]', () => {
     expect(res.status).toBe(401);
     expect(requireProjectAccess).toHaveBeenLastCalledWith('p1', { minRole: 'gestor' });
   });
+
+  it('PATCH tomar/devolver sobre una charla del sitio: 409 (leído sí se puede)', async () => {
+    const pedir = (accion: string) => PATCH(
+      new Request('http://x', { method: 'PATCH', body: JSON.stringify({ accion }) }),
+      { params: Promise.resolve({ id: 'c1' }) }
+    );
+    for (const accion of ['tomar', 'devolver']) {
+      vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: { id: 'c1', project_id: 'p1', canal: 'web' } }] }) as never);
+      vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [] }), user: { id: 'u' }, role: 'gestor' } as never);
+      expect((await pedir(accion)).status).toBe(409);
+    }
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: { id: 'c1', project_id: 'p1', canal: 'web' } }] }) as never);
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase: mockSupabase({ results: [{ data: { id: 'c1' } }] }), user: { id: 'u' }, role: 'gestor' } as never);
+    expect((await pedir('leido')).status).toBe(200);
+  });
 });

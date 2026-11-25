@@ -437,6 +437,18 @@ describe('correrTurnoIA', () => {
     expect(d.repo.encolar.mock.calls[0][1]).toMatchObject({ orden_at: '2026-11-20T14:58:00.001Z', parte: 0 });
   });
 
+  it('en WhatsApp el teléfono del aviso es siempre el del contacto, aunque la IA mande otro', async () => {
+    const d = deps({
+      responder: async (i) => {
+        await i.deps.avisar({ nombre: 'Ana', telefono: '5491199998888', unidades: [], resumen: 'x' });
+        return { texto: 'ok' };
+      },
+    });
+    await correrTurnoIA(d, 'bot1', 'conv1');
+    const datos = (d.repo.registrarAviso.mock.calls[0] as unknown as unknown[])[2] as { telefono: string };
+    expect(datos.telefono).toBe('5491155551234');
+  });
+
   it('avisar_vendedor pasa por registrarAviso con el teléfono y la conversación', async () => {
     const d = deps({
       responder: async (i) => {

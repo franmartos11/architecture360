@@ -10,6 +10,8 @@ vi.mock('@/lib/analytics/client-state', () => ({
 }));
 
 import ChatWidget from './ChatWidget';
+import { ProjectWhatsappProvider } from '@/lib/project-whatsapp-context';
+import { ProjectBasePathProvider } from '@/lib/project-base-path-context';
 
 const T = '11111111-1111-4111-8111-111111111111';
 const ok = (body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -111,14 +113,81 @@ describe('ChatWidget', () => {
 
   it('una charla que ya no existe se olvida', async () => {
     window.localStorage.setItem('atrium_chat_torre-sol', JSON.stringify({ token: T, at: Date.now() }));
-    fetchMock.mockReturnValueOnce(Promise.resolve(new Response('{}', { status: 404 })));
+    fetchMock.mockReturnValueOnce(Promise.resolve(new Response(JSON.stringify({ error: 'x', motivo: 'charla_inexistente' }), { status: 404 })));
     render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
     abrir();
     await waitFor(() => expect(window.localStorage.getItem('atrium_chat_torre-sol')).toBeNull());
   });
 
+  it('con el chat apagado un rato, la charla guardada no se pierde', async () => {
+    window.localStorage.setItem('atrium_chat_torre-sol', JSON.stringify({ token: T, at: Date.now() }));
+    fetchMock.mockReturnValueOnce(Promise.resolve(new Response(JSON.stringify({ error: 'x', motivo: 'chat_apagado' }), { status: 404 })));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(window.localStorage.getItem('atrium_chat_torre-sol')).not.toBeNull();
+  });
+
+  it('mientras carga la charla guardada no se puede escribir (no se mezclan mensajes)', async () => {
+    window.localStorage.setItem('atrium_chat_torre-sol', JSON.stringify({ token: T, at: Date.now() }));
+    let soltar!: (r: Response) => void;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => { soltar = r; }));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    expect((screen.getByRole('textbox', { name: 'Tu mensaje' }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: '¿Qué unidades hay disponibles?' })).toBeNull();
+    soltar(new Response(JSON.stringify({ mensajes: [] }), { status: 200 }));
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Tu mensaje' }) as HTMLInputElement).disabled).toBe(false));
+  });
+
+  it('en un tope ofrece seguir por WhatsApp o dejar los datos en el formulario', async () => {
+    fetchMock.mockReturnValueOnce(ok({ token: null, partes: [], imagenes: [], documentos: [], error: 'limite_dia' }));
+    render(
+      <ProjectBasePathProvider basePath="/proyecto/torre-sol">
+        <ProjectWhatsappProvider numero="5491144440000">
+          <ChatWidget projectSlug="torre-sol" nombreBot={null} formulario />
+        </ProjectWhatsappProvider>
+      </ProjectBasePathProvider>,
+    );
+    abrir();
+    escribir('Hola');
+    const wa = await screen.findByRole('link', { name: 'Escribir por WhatsApp' });
+    expect(wa.getAttribute('href')).toBe('https://wa.me/5491144440000');
+    expect(screen.getByRole('link', { name: 'Dejar mis datos' }).getAttribute('href')).toBe('/proyecto/torre-sol#contacto');
+  });
+
+  it('sin formulario ni WhatsApp, el tope no ofrece links', async () => {
+    fetchMock.mockReturnValueOnce(ok({ token: null, partes: [], imagenes: [], documentos: [], error: 'limite_charla' }));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    escribir('Hola');
+    await screen.findByText(/Llegamos al límite/);
+    expect(screen.queryByRole('link', { name: 'Dejar mis datos' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Escribir por WhatsApp' })).toBeNull();
+  });
+
+  it('si no pudo responder, Reintentar vuelve a mandar el mismo mensaje sin repetir la burbuja', async () => {
+    fetchMock.mockReturnValueOnce(ok({ token: T, partes: [], imagenes: [], documentos: [], error: 'sin_respuesta' })).mockReturnValueOnce(ok({ token: T, partes: ['Listo'], imagenes: [], documentos: [] }));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    escribir('Hola');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar' }));
+    await screen.findByText('Listo');
+    expect(cuerpo(1)).toMatchObject({ mensaje: 'Hola', token: T });
+    expect(screen.getAllByText('Hola')).toHaveLength(1);
+  });
+
+  it('chat no disponible en el servidor (503): muestra su mensaje y no ofrece reintentar', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(new Response(JSON.stringify({ error: 'El chat no está disponible en este momento.' }), { status: 503 })));
+    render(<ChatWidget projectSlug="torre-sol" nombreBot={null} />);
+    abrir();
+    escribir('Hola');
+    await screen.findByText('El chat no está disponible en este momento.');
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull();
+  });
+
   it.each([
-    ['limite_dia', 'Ahora no puedo responder. Dejanos tu consulta en el formulario de contacto.'],
+    ['limite_dia', 'Ahora no puedo responder. Dejanos tu consulta y te contactamos.'],
     ['limite_charla', 'Llegamos al límite de esta charla. Dejanos tu contacto y te escribimos.'],
   ])('tope %s: mensaje claro', async (error, texto) => {
     fetchMock.mockReturnValueOnce(ok({ token: null, partes: [], imagenes: [], error }));

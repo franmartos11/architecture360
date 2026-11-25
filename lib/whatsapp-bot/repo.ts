@@ -498,14 +498,20 @@ function lineasVisita(i: {
   nombre: string | null;
   /** Teléfono a mostrar; default, el del contacto de WhatsApp. */
   telefono: string | null;
+  /** Chat web: el contacto puede ser solo un email. */
+  email?: string | null;
   inicio: Date;
   minutos: number;
   urlAdmin: string;
 }): string {
   const telefono = i.telefono;
+  const contacto =
+    i.conv.canal === 'web'
+      ? [telefono, i.email?.trim()].filter(Boolean).join(' · ') || 'sin contacto'
+      : (telefono ?? NUMERO_OCULTO);
   return [
     `${i.titulo} – ${i.proyecto}`,
-    `${i.nombre?.trim() || i.conv.contacto_nombre?.trim() || 'Sin nombre'} · ${telefono ?? NUMERO_OCULTO}`,
+    `${i.nombre?.trim() || i.conv.contacto_nombre?.trim() || 'Sin nombre'} · ${contacto}`,
     `${textoTurno(i.inicio)} (${i.minutos} min)`,
     ...(telefono ? [`Escribile: wa.me/${telefono}`] : []),
     `Ver chat: ${i.urlAdmin.replace(/\/+$/, '')}/admin/leads?c=${i.conv.id}`,
@@ -528,6 +534,8 @@ export async function agendarVisita(
     urlAdmin: string;
     /** Chat web: el teléfono que dejó el comprador (la charla no tiene número). */
     telefono?: string | null;
+    /** Chat web: el email que dejó, para el aviso. */
+    email?: string | null;
   },
 ): Promise<'agendada' | 'ocupado'> {
   const telefono = i.telefono !== undefined ? normalizarTelefono(i.telefono) : telefonoDeContacto(i.conv.contacto_numero);
@@ -556,6 +564,7 @@ export async function agendarVisita(
       conv: i.conv,
       nombre: i.nombre,
       telefono,
+      email: i.email,
       inicio: i.inicio,
       minutos: Math.round((i.fin.getTime() - i.inicio.getTime()) / 60_000),
       urlAdmin: i.urlAdmin,

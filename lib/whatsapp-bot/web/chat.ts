@@ -5,7 +5,7 @@
 // Spec: docs/superpowers/specs/2026-11-24-chat-web-design.md
 import type Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { WaBot, WaMensaje } from '@/types/whatsapp-bot';
+import type { WaBot, WaConversacion, WaMensaje } from '@/types/whatsapp-bot';
 import { cargarDatosProyecto } from '../datos';
 import { armarFicha, resumenInventario, unidadesParaAviso, type DatosProyecto } from '../ficha';
 import { HERRAMIENTAS_WEB, type DepsHerramientas } from '../ia/herramientas';
@@ -82,10 +82,10 @@ export async function turnoChatWeb(i: {
 }): Promise<RespuestaChatWeb | null> {
   const { sb, bot, ahora } = i;
 
-  let conv = i.token ? await conversacionWeb(sb, i.projectId, i.token) : null;
-  if (i.token && !conv) return null;
-  const sinRespuesta = (error: ErrorChatWeb): RespuestaChatWeb => ({
-    token: conv?.web_token ?? null,
+  const existente = i.token ? await conversacionWeb(sb, i.projectId, i.token) : null;
+  if (i.token && !existente) return null;
+  const sinRespuesta = (token: string | null, error: ErrorChatWeb): RespuestaChatWeb => ({
+    token,
     partes: [],
     imagenes: [],
     documentos: [],
@@ -93,14 +93,44 @@ export async function turnoChatWeb(i: {
   });
 
   // Los topes van antes de guardar: un mensaje que no se va a responder no queda en la charla.
-  if (conv && (await contarMensajesCliente(sb, conv.id)) >= LIMITES_CHAT_WEB.mensajesPorCharla) {
-    return sinRespuesta('limite_charla');
+  if (existente && (await contarMensajesCliente(sb, existente.id)) >= LIMITES_CHAT_WEB.mensajesPorCharla) {
+    return sinRespuesta(i.token, 'limite_charla');
   }
-  if ((await turnosWebHoy(sb, i.projectId, ahora)) >= LIMITES_CHAT_WEB.turnosPorDia) return sinRespuesta('limite_dia');
+  if ((await turnosWebHoy(sb, i.projectId, ahora)) >= LIMITES_CHAT_WEB.turnosPorDia) return sinRespuesta(i.token, 'limite_dia');
 
-  if (!conv) conv = await crearConversacionWeb(sb, bot);
-  const charla = conv;
-  await guardarMensajeWeb(sb, charla.id, { autor: 'cliente', tipo: 'texto', cuerpo: i.mensaje }, ahora);
+  const nueva = existente ? null : await crearConversacionWeb(sb, bot);
+  const charla = existente ?? nueva!.conv;
+  const token = i.token ?? nueva!.token;
+  // Con la charla creada, cualquier falla devuelve su token: el navegador la
+  // sigue (y "Reintentar" no abre otra) y el mensaje del cliente no se pierde.
+  try {
+    return await responderEnCharla(i, charla, token);
+  } catch (e) {
+    console.error('[chat web] falló el turno:', e);
+    return sinRespuesta(token, 'sin_respuesta');
+  }
+}
+
+/** Mismo texto del cliente hace menos de esto, sin respuesta después: es un "Reintentar". */
+const MS_REINTENTO = 2 * 60_000;
+
+async function responderEnCharla(
+  i: Parameters<typeof turnoChatWeb>[0],
+  charla: WaConversacion,
+  token: string,
+): Promise<RespuestaChatWeb> {
+  const { sb, bot, ahora } = i;
+  const previos = i.token ? await mensajesWeb(sb, charla.id) : [];
+  const ultimo = previos.at(-1);
+  const reintento =
+    ultimo?.autor === 'cliente' &&
+    ultimo.cuerpo === i.mensaje &&
+    ahora.getTime() - new Date(ultimo.enviado_at).getTime() < MS_REINTENTO;
+  const historia = [...previos];
+  if (!reintento) {
+    await guardarMensajeWeb(sb, charla.id, { autor: 'cliente', tipo: 'texto', cuerpo: i.mensaje }, ahora);
+    historia.push(mensajeCliente(charla.id, i.mensaje, ahora));
+  }
 
   const datos = await (i.cargarDatos ?? cargarDatosProyecto)(sb, i.projectId);
   const configVisitas = normalizarConfigVisitas(bot.visitas);
@@ -110,7 +140,7 @@ export async function turnoChatWeb(i: {
   );
   const system = armarSystem(ficha, bot, datos.proyecto.name, 'web');
   const activas = configVisitas?.activo ? await visitasActivas(sb, i.projectId, ahora) : [];
-  const mensajes = aMensajesClaude(paraIa(await mensajesWeb(sb, charla.id)));
+  const mensajes = aMensajesClaude(paraIa(historia));
 
   const imagenes: string[] = [];
   const documentos: string[] = [];
@@ -144,6 +174,7 @@ export async function turnoChatWeb(i: {
                   proyecto: datos.proyecto,
                   urlAdmin: i.urlAdmin,
                   telefono: lead.phone,
+                  email: lead.email,
                 });
               },
               cancelar: async () =>
@@ -198,12 +229,12 @@ export async function turnoChatWeb(i: {
       origen: 'web',
       uso: r.uso,
       motivoSinRespuesta: r.motivoSinRespuesta ?? null,
-    });
+    }, (m) => console.error('[chat web]', m));
   }
 
   const partes = !r.motivoSinRespuesta && r.texto ? partirRespuesta(r.texto) : [];
   if (r.motivoSinRespuesta || (partes.length === 0 && imagenes.length === 0 && documentos.length === 0)) {
-    return { token: charla.web_token ?? null, partes: [], imagenes: [], documentos: [], error: 'sin_respuesta' };
+    return { token, partes: [], imagenes: [], documentos: [], error: 'sin_respuesta' };
   }
 
   // Después del mensaje del cliente y en el orden en que se muestran: imágenes y texto.
@@ -214,7 +245,16 @@ export async function turnoChatWeb(i: {
     ...partes.map((cuerpo) => ({ autor: 'bot' as const, tipo: 'texto' as const, cuerpo })),
   ];
   for (const [n, m] of salientes.entries()) await guardarMensajeWeb(sb, charla.id, m, new Date(desde + n));
-  return { token: charla.web_token ?? null, partes, imagenes, documentos };
+  return { token, partes, imagenes, documentos };
+}
+
+/** El mensaje recién guardado, con forma de fila, para la historia de este turno. */
+function mensajeCliente(convId: string, cuerpo: string, at: Date): WaMensaje {
+  const iso = at.toISOString();
+  return {
+    id: 'nuevo', conversacion_id: convId, wa_id: null, direccion: 'entrante', autor: 'cliente', tipo: 'texto',
+    cuerpo, media_path: null, enviado_at: iso, ack: null, created_at: iso, orden_at: null, salida_id: null,
+  };
 }
 
 /** La charla guardada, para retomarla en el navegador; null si el token no es de este proyecto. */

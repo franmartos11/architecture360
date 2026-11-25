@@ -38,7 +38,7 @@ const datos: DatosProyecto = {
   edificios: [], pisos: [], unidades: [unidad], amenities: [], pois: [], calculadora: null, slides: [], avance: null, faq: [],
 };
 const bot = { id: 'bot1', project_id: 'proj1', nombre_bot: 'Sofía', criterio_aviso: null, conocimiento: null, visitas: null, estado: 'desconectado', vendedor_whatsapp: null } as unknown as WaBot;
-const conv = { id: 'cw1', web_token: TOKEN, lead_id: null } as unknown as WaConversacion;
+const conv = { id: 'cw1', web_token: 'huella', lead_id: null } as unknown as WaConversacion;
 
 const msg = (autor: 'cliente' | 'bot', cuerpo: string, tipo: 'texto' | 'imagen' = 'texto', i = 0) =>
   ({ id: `m${i}`, autor, tipo, cuerpo, direccion: autor === 'cliente' ? 'entrante' : 'saliente', enviado_at: new Date(AHORA.getTime() - 10_000 + i).toISOString(), orden_at: null }) as WaMensaje;
@@ -55,7 +55,7 @@ function base(over: Partial<Parameters<typeof turnoChatWeb>[0]> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  repoWeb.crearConversacionWeb.mockResolvedValue(conv);
+  repoWeb.crearConversacionWeb.mockResolvedValue({ conv, token: TOKEN });
   repoWeb.conversacionWeb.mockResolvedValue(conv);
   repoWeb.contarMensajesCliente.mockResolvedValue(0);
   repoWeb.turnosWebHoy.mockResolvedValue(0);
@@ -87,7 +87,7 @@ describe('turnoChatWeb', () => {
   });
 
   it('la historia sale de la base, nunca del navegador', async () => {
-    repoWeb.mensajesWeb.mockResolvedValue([msg('cliente', 'Hola', 'texto', 0), msg('bot', 'Hola, ¿qué buscás?', 'texto', 1), msg('cliente', '2 ambientes', 'texto', 2), msg('cliente', '¿Precio?', 'texto', 3)]);
+    repoWeb.mensajesWeb.mockResolvedValue([msg('cliente', 'Hola', 'texto', 0), msg('bot', 'Hola, ¿qué buscás?', 'texto', 1), msg('cliente', '2 ambientes', 'texto', 2)]);
     const i = base({ token: TOKEN, mensaje: '¿Precio?' });
     await turnoChatWeb(i);
     expect(repoWeb.crearConversacionWeb).not.toHaveBeenCalled();
@@ -160,9 +160,34 @@ describe('turnoChatWeb', () => {
     expect(repoWeb.guardarMensajeWeb.mock.calls[0][2]).toMatchObject({ autor: 'cliente' });
   });
 
+  it('Reintentar tras un error: el mismo mensaje recién guardado no se duplica', async () => {
+    repoWeb.mensajesWeb.mockResolvedValue([msg('cliente', 'Hola', 'texto', 0), msg('bot', 'Hola, ¿qué buscás?', 'texto', 1), msg('cliente', '¿Precio?', 'texto', 2)]);
+    const i = base({ token: TOKEN, mensaje: '¿Precio?' });
+    const r = await turnoChatWeb(i);
+    expect(repoWeb.guardarMensajeWeb.mock.calls.filter((c) => c[2].autor === 'cliente')).toHaveLength(0);
+    expect(r?.partes).toEqual(['Hola, ¿qué buscás?']);
+    const mensajes = (vi.mocked(i.responder).mock.calls[0][0] as { mensajes: unknown[] }).mensajes;
+    expect(mensajes.at(-1)).toEqual({ role: 'user', content: '¿Precio?' });
+  });
+
+  it('el mismo texto un rato después sí es un mensaje nuevo', async () => {
+    const viejo = { ...msg('cliente', '¿Precio?', 'texto', 0), enviado_at: new Date(AHORA.getTime() - 10 * 60_000).toISOString() };
+    repoWeb.mensajesWeb.mockResolvedValue([viejo, msg('bot', 'USD 100.000', 'texto', 1)]);
+    await turnoChatWeb(base({ token: TOKEN, mensaje: '¿Precio?' }));
+    expect(repoWeb.guardarMensajeWeb.mock.calls.filter((c) => c[2].autor === 'cliente')).toHaveLength(1);
+  });
+
+  it('si algo falla con la charla ya creada: devuelve el token y "sin respuesta" (no queda huérfana)', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const i = base({ cargarDatos: async () => { throw new Error('base caída'); } });
+    expect(await turnoChatWeb(i)).toEqual({ token: TOKEN, partes: [], imagenes: [], documentos: [], error: 'sin_respuesta' });
+    expect(String(log.mock.calls[0][0])).toContain('[chat web]');
+    log.mockRestore();
+  });
+
   it('registra el uso con origen web', async () => {
     await turnoChatWeb(base());
-    expect(repo.registrarUsoIa).toHaveBeenCalledWith(sb, expect.objectContaining({ origen: 'web', projectId: 'proj1', botId: 'bot1', conversacionId: 'cw1' }));
+    expect(repo.registrarUsoIa).toHaveBeenCalledWith(sb, expect.objectContaining({ origen: 'web', projectId: 'proj1', botId: 'bot1', conversacionId: 'cw1' }), expect.any(Function));
   });
 
   it('avisar: pasa el contacto, la atribución del sitio y las unidades descriptas', async () => {

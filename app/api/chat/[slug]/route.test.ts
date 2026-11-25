@@ -111,6 +111,24 @@ describe('POST /api/chat/[slug]', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 
+  it('un visitante con id inválido no bloquea el mensaje: se manda sin atribución', async () => {
+    conChat();
+    const res = await POST(post({ mensaje: 'Hola', visitorId: 'viejo-formato' }), ctx);
+    expect(res.status).toBe(200);
+    expect(vi.mocked(turnoChatWeb).mock.calls[0][0].visitorId).toBeNull();
+  });
+
+  it('el 404 dice si el chat está apagado o si la charla no existe (el navegador solo olvida la segunda)', async () => {
+    conChat(undefined, { ...BOT, chat_web: false });
+    expect((await (await POST(post({ mensaje: 'Hola', token: TOKEN }), ctx)).json()).motivo).toBe('chat_apagado');
+    conChat();
+    vi.mocked(turnoChatWeb).mockResolvedValue(null);
+    expect((await (await POST(post({ mensaje: 'Hola', token: TOKEN }), ctx)).json()).motivo).toBe('charla_inexistente');
+    conChat();
+    vi.mocked(charlaWeb).mockResolvedValue(null);
+    expect((await (await GET(get(`?token=${TOKEN}`), ctx)).json()).motivo).toBe('charla_inexistente');
+  });
+
   it('ref vacío queda null', async () => {
     conChat();
     await POST(post({ mensaje: 'Hola', ref: '***' }), ctx);

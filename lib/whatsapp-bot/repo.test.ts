@@ -1320,6 +1320,16 @@ describe('visitas', () => {
     expect(cuerpo).toContain('wa.me/5491122334455');
   });
 
+  it('visita de una charla web con solo email: el aviso lo muestra en vez de "número oculto"', async () => {
+    const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : q.tabla === 'wa_salida' ? { data: salida() } : undefined));
+    const c = conv({ canal: 'web', contacto_numero: null, contacto_wid: null });
+    await agendarVisita(f.sb, { ...base(), conv: c, telefono: null, email: 'ana@x.com' });
+    const cuerpo = (f.escrituras().find((q) => q.tabla === 'wa_salida')?.valores as { cuerpo: string }).cuerpo;
+    expect(cuerpo).toContain('Ana · ana@x.com');
+    expect(cuerpo).not.toContain('número oculto');
+    expect(cuerpo).not.toContain('wa.me');
+  });
+
   it('charla web con el WhatsApp desconectado: agenda pero no encola el aviso', async () => {
     const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : undefined));
     const c = conv({ canal: 'web', contacto_numero: null, contacto_wid: null });

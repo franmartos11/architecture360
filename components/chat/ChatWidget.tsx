@@ -5,6 +5,8 @@ import { FileText, MessageCircle, Send, X } from 'lucide-react';
 import { useTrack } from '@/components/analytics/SiteTracker';
 import { readAttribution } from '@/lib/analytics/client-state';
 import { borrarTokenChat, guardarTokenChat, leerTokenChat } from '@/lib/chat/web-token';
+import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
+import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 // Chat del sitio: el asistente del proyecto (el mismo cerebro del bot de
 // WhatsApp) en una burbuja. La charla vive en el servidor; el navegador solo
@@ -15,7 +17,7 @@ type Mensaje = { autor: 'cliente' | 'bot'; tipo: 'texto' | 'imagen' | 'documento
 const SUGERENCIAS = ['¿Qué unidades hay disponibles?', '¿Tienen planes de pago?', 'Quiero agendar una visita'];
 const MAX_MENSAJE = 1000;
 const ERRORES: Record<string, string> = {
-  limite_dia: 'Ahora no puedo responder. Dejanos tu consulta en el formulario de contacto.',
+  limite_dia: 'Ahora no puedo responder. Dejanos tu consulta y te contactamos.',
   limite_charla: 'Llegamos al límite de esta charla. Dejanos tu contacto y te escribimos.',
   sin_respuesta: 'No pude responder eso ahora. Probá escribirlo de nuevo en un momento.',
 };
@@ -29,13 +31,29 @@ function storage(): Storage | null {
   }
 }
 
-export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: string; nombreBot: string | null }) {
+/** Aviso debajo de la charla: un error o un tope; `salidas` ofrece seguir por otro lado. */
+type Aviso = { texto: string; salidas?: boolean };
+
+export default function ChatWidget({
+  projectSlug,
+  nombreBot,
+  formulario = false,
+}: {
+  projectSlug: string;
+  nombreBot: string | null;
+  /** El sitio tiene formulario de contacto (sección #contacto de la portada). */
+  formulario?: boolean;
+}) {
   const track = useTrack();
+  const whatsapp = useProjectWhatsapp();
+  const basePath = useProjectBasePath();
   const [abierto, setAbierto] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  /** Cargando la charla guardada: hasta que llegue no se escribe (los mensajes se mezclarían). */
+  const [retomando, setRetomando] = useState(false);
   /** Mensaje que no llegó al servidor: "Reintentar" lo vuelve a mandar sin repetir la burbuja. */
   const [pendiente, setPendiente] = useState<string | null>(null);
   const token = useRef<string | null>(null);
@@ -62,23 +80,30 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
     return () => document.removeEventListener('keydown', onKey);
   }, [abierto]);
 
+  /** La charla de este token ya no existe (no confundir con el chat apagado un rato). */
+  const olvidarSiNoExiste = (status: number, data: { motivo?: string } | null) => {
+    if (status !== 404 || data?.motivo !== 'charla_inexistente') return;
+    borrarTokenChat(storage(), projectSlug);
+    token.current = null;
+  };
+
   const retomar = async () => {
     const t = leerTokenChat(storage(), projectSlug, Date.now());
     if (!t) return;
     token.current = t;
+    setRetomando(true);
     try {
       const res = await fetch(`/api/chat/${projectSlug}?token=${t}`);
-      if (res.status === 404) {
-        borrarTokenChat(storage(), projectSlug);
-        if (token.current === t) token.current = null;
+      const data = (await res.json().catch(() => null)) as { mensajes?: Mensaje[]; motivo?: string } | null;
+      if (!res.ok) {
+        olvidarSiNoExiste(res.status, data);
         return;
       }
-      if (!res.ok) return;
-      const data = (await res.json()) as { mensajes?: Mensaje[] };
-      // Si ya escribió algo mientras cargaba, lo nuevo va después de lo guardado.
-      if (Array.isArray(data.mensajes)) setMensajes((actuales) => [...(data.mensajes as Mensaje[]), ...actuales]);
+      if (Array.isArray(data?.mensajes)) setMensajes(data.mensajes);
     } catch {
       /* sin conexión: se ve el saludo y la charla sigue al mandar */
+    } finally {
+      setRetomando(false);
     }
   };
 
@@ -93,7 +118,7 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
 
   const enviar = async (mensaje: string, reintento = false) => {
     const limpio = mensaje.trim().slice(0, MAX_MENSAJE);
-    if (!limpio || enviando) return;
+    if (!limpio || enviando || retomando) return;
     if (!reintento) setMensajes((ms) => [...ms, { autor: 'cliente', tipo: 'texto', cuerpo: limpio }]);
     setTexto('');
     setAviso(null);
@@ -101,7 +126,7 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
     setEnviando(true);
     const fallo = () => {
       setPendiente(limpio);
-      setAviso(NO_SE_PUDO);
+      setAviso({ texto: NO_SE_PUDO });
     };
     try {
       const { visitorId, ref } = readAttribution();
@@ -116,16 +141,14 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
         }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { token?: string | null; partes?: string[]; imagenes?: string[]; documentos?: string[]; error?: string }
+        | { token?: string | null; partes?: string[]; imagenes?: string[]; documentos?: string[]; error?: string; motivo?: string }
         | null;
       if (!res.ok || !data) {
-        if (res.status === 429 && data?.error) setAviso(data.error);
+        // Muchos mensajes seguidos (429) o chat sin servicio (503): el mensaje
+        // del servidor lo explica y reintentar enseguida no sirve.
+        if ((res.status === 429 || res.status === 503) && data?.error) setAviso({ texto: data.error, salidas: res.status === 503 });
         else {
-          // La charla ya no existe (se borró): la próxima arranca de cero.
-          if (res.status === 404 && token.current) {
-            borrarTokenChat(storage(), projectSlug);
-            token.current = null;
-          }
+          olvidarSiNoExiste(res.status, data);
           fallo();
         }
         return;
@@ -136,7 +159,10 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
         guardarTokenChat(storage(), projectSlug, data.token, Date.now());
       }
       if (data.error) {
-        setAviso(ERRORES[data.error] ?? ERRORES.sin_respuesta);
+        const tope = data.error === 'limite_dia' || data.error === 'limite_charla';
+        setAviso({ texto: ERRORES[data.error] ?? ERRORES.sin_respuesta, salidas: tope });
+        // El mensaje quedó guardado: reintentar no lo repite (el servidor lo reconoce).
+        if (!tope) setPendiente(limpio);
         return;
       }
       setMensajes((ms) => [
@@ -221,7 +247,30 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
           )}
           {aviso && (
             <div className="self-stretch rounded-xl border border-[var(--theme-border)] px-3.5 py-2.5 text-sm">
-              <p className="m-0">{aviso}</p>
+              <p className="m-0">{aviso.texto}</p>
+              {aviso.salidas && (whatsapp || formulario) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {whatsapp && (
+                    <a
+                      href={`https://wa.me/${whatsapp}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full bg-[var(--theme-accent)] px-3.5 py-1.5 text-[13px] font-semibold text-[var(--theme-text-on-accent)]"
+                    >
+                      Escribir por WhatsApp
+                    </a>
+                  )}
+                  {formulario && (
+                    <a
+                      href={`${basePath}#contacto`}
+                      onClick={() => setAbierto(false)}
+                      className="rounded-full border border-[var(--theme-border)] px-3.5 py-1.5 text-[13px] font-semibold"
+                    >
+                      Dejar mis datos
+                    </a>
+                  )}
+                </div>
+              )}
               {pendiente && (
                 <button
                   type="button"
@@ -233,7 +282,10 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
               )}
             </div>
           )}
-          {!charloAlgo && !enviando && (
+          {retomando && (
+            <p className="m-0 self-center text-xs text-[var(--theme-text-muted)]">Cargando la charla…</p>
+          )}
+          {!charloAlgo && !enviando && !retomando && (
             <div className="mt-1 flex flex-wrap gap-2">
               {SUGERENCIAS.map((s) => (
                 <button
@@ -264,6 +316,7 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
           aria-label="Tu mensaje"
           placeholder="Escribí tu consulta…"
           value={texto}
+          disabled={retomando}
           maxLength={MAX_MENSAJE}
           onChange={(e) => setTexto(e.target.value)}
           className="min-h-[44px] flex-1 rounded-full border border-[var(--theme-border)] bg-transparent px-4 text-base sm:text-sm outline-none focus:border-[var(--theme-accent)]"
@@ -271,7 +324,7 @@ export default function ChatWidget({ projectSlug, nombreBot }: { projectSlug: st
         <button
           type="submit"
           aria-label="Enviar"
-          disabled={enviando || !texto.trim()}
+          disabled={enviando || retomando || !texto.trim()}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] disabled:opacity-40"
         >
           <Send className="h-[18px] w-[18px]" aria-hidden="true" />

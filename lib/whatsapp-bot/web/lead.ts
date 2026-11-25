@@ -89,11 +89,13 @@ export function planearLeadWeb(
   if (vacio(existente.email) && email) cambios.email = email;
   if (vacio(existente.phone) && phone) cambios.phone = phone;
   if (vacio(existente.unit_name) && unitName) cambios.unit_name = unitName;
-  // Atribución del primer contacto: solo se completa si faltaba.
   if (vacio(existente.visitor_id) && d.visitorId) cambios.visitor_id = d.visitorId;
-  if (vacio(existente.ref) && d.ref) cambios.ref = d.ref;
   if (!existente.wa_conversacion_id) cambios.wa_conversacion_id = d.conversacionId;
-  const nota = `[Chat web ${fechaAR(ahora)}] ${d.resumen}`;
+  // La inmobiliaria nunca se asigna a un lead que ya existía (decisión del
+  // usuario): el contacto del chat no está verificado y alcanzaría con tipear
+  // el teléfono de un comprador conocido para quedarse con él. Queda anotada.
+  const porLink = d.ref ? ` (llegó por el link de ${d.ref})` : '';
+  const nota = `[Chat web ${fechaAR(ahora)}] ${d.resumen}${porLink}`;
   cambios.message = vacio(existente.message) ? nota : `${existente.message}\n\n${nota}`;
   if (d.calificacion) cambios.calificacion = mezclarCalificacion(existente.calificacion, d.calificacion);
   return { tipo: 'update', id: existente.id, cambios };

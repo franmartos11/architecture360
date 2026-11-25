@@ -123,7 +123,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           {children}
         </ProjectChrome>
         {isDraftPreview && <DraftPreviewBar projectId={project.id} canPublish={canPublish} />}
-        {project.chat && !isDraftPreview && <ChatWidgetLoader projectSlug={project.slug} nombreBot={project.chat.nombreBot} />}
+        {project.chat && !isDraftPreview && <ChatWidgetLoader projectSlug={project.slug} nombreBot={project.chat.nombreBot} formulario={typeConfig.showLeads} />}
       </div>
       </SiteTracker>
       </ProjectWhatsappProvider>

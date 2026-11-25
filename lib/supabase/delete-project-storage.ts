@@ -8,21 +8,23 @@ interface TourDataLike { nodes?: TourNodeLike[] | null }
 interface LevelLike { planImage?: string | null }
 interface BeforeAfterLike { beforeImage?: string | null; afterImage?: string | null }
 interface ThemeConfigLike { backgroundImageUrl?: string | null }
+interface FloorViewPhotoLike { url?: string | null }
 
 // De una URL pública de Supabase Storage extrae la key relativa al bucket
 // (lo que pide storage.remove()) — "https://xxx.supabase.co/storage/v1/
 // object/public/project-media/units/foo.png" → "units/foo.png". Cualquier
 // URL que no sea de nuestro bucket (una pegada a mano, un asset de
 // /public/ local, etc.) no tiene nada que borrar acá — se ignora.
-function toStorageKey(url: string | null | undefined): string | null {
-  if (!url) return null;
+function toStorageKey(url: unknown): string | null {
+  // Los jsonb pueden traer cualquier cosa: solo un string puede ser una URL.
+  if (typeof url !== 'string' || !url) return null;
   const marker = `/${BUCKET}/`;
   const i = url.indexOf(marker);
   if (i === -1) return null;
   return url.slice(i + marker.length);
 }
 
-function collectFromTourData(tourData: TourDataLike | null | undefined, into: (string | null | undefined)[]) {
+function collectFromTourData(tourData: TourDataLike | null | undefined, into: unknown[]) {
   for (const node of tourData?.nodes ?? []) into.push(node?.imageUrl);
 }
 
@@ -34,7 +36,7 @@ function collectFromTourData(tourData: TourDataLike | null | undefined, into: (s
 // unidad) solo borraba las filas y dejaba los archivos huérfanos en
 // Storage para siempre.
 export async function deleteProjectStorageFiles(supabase: SupabaseClient, projectId: string): Promise<void> {
-  const urls: (string | null | undefined)[] = [];
+  const urls: unknown[] = [];
 
   const { data: project } = await supabase
     .from('projects')
@@ -60,10 +62,19 @@ export async function deleteProjectStorageFiles(supabase: SupabaseClient, projec
   }
   const buildingIds = (buildings ?? []).map(b => b.id);
 
+  // '*' por lo mismo que en projects: si view_photos/view_panorama no
+  // estuvieran migradas, una lista explícita deja floors en null y se saltean
+  // también los archivos de todas las unidades.
   const { data: floors } = buildingIds.length
-    ? await supabase.from('floors').select('id, plan_image').in('building_id', buildingIds)
+    ? await supabase.from('floors').select('*').in('building_id', buildingIds)
     : { data: [] };
-  for (const f of floors ?? []) urls.push(f.plan_image);
+  for (const f of floors ?? []) {
+    // Vista por piso: fotos por orientación (carpeta floor-views) y 360 (tours).
+    urls.push(f.plan_image, f.view_panorama);
+    if (Array.isArray(f.view_photos)) {
+      for (const photo of f.view_photos as (FloorViewPhotoLike | null)[]) urls.push(photo?.url);
+    }
+  }
   const floorIds = (floors ?? []).map(f => f.id);
 
   const { data: units } = floorIds.length

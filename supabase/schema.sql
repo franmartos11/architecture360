@@ -3236,6 +3236,12 @@ alter table wa_conversaciones drop constraint if exists wa_conversaciones_canal_
 alter table wa_conversaciones add constraint wa_conversaciones_canal_check check (canal in ('whatsapp', 'web'));
 alter table wa_conversaciones add column if not exists web_token uuid unique;
 alter table wa_conversaciones alter column contacto_numero drop not null;
+-- Sin número solo las charlas web: una de WhatsApp sin número sería un error del puente.
+alter table wa_conversaciones drop constraint if exists wa_conversaciones_numero_check;
+alter table wa_conversaciones add constraint wa_conversaciones_numero_check
+  check (canal = 'web' or contacto_numero is not null);
+-- web_token guarda la huella (sha-256) del token del navegador, no el token:
+-- leer la tabla (panel, Realtime) no permite escribir como el comprador.
 alter table wa_uso_ia drop constraint if exists wa_uso_ia_origen_check;
 alter table wa_uso_ia add constraint wa_uso_ia_origen_check
   check (origen in ('respuesta', 'seguimiento', 'simulador', 'web'));
