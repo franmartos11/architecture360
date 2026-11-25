@@ -159,6 +159,36 @@ describe('deleteProjectStorageFiles', () => {
     expect(supabase._remove).toHaveBeenCalledWith(['floor-views/f2.jpg']);
   });
 
+  it('avance de obra: borra las fotos y el clip de cada novedad (también los borradores)', async () => {
+    const supabase = mockSupabase({
+      projects: {
+        construction_progress: {
+          stages: [],
+          updates: [
+            { id: 'u1', date: '2026-10-01', title: 'Losa', images: [`${BASE_URL}/construction/a.jpg`, `${BASE_URL}/construction/b.jpg`], video: `${BASE_URL}/construction/clip.mp4` },
+            { id: 'u2', date: '2026-11-01', title: 'Borrador', images: [`${BASE_URL}/construction/c.jpg`], draft: true },
+          ],
+        },
+      },
+    });
+    await deleteProjectStorageFiles(supabase as never, 'p1');
+    expect(supabase._remove.mock.calls.flatMap(c => c[0]).sort()).toEqual(
+      ['construction/a.jpg', 'construction/b.jpg', 'construction/c.jpg', 'construction/clip.mp4'],
+    );
+  });
+
+  it('avance de obra viejo o roto (sin updates, images que no es array): no tira', async () => {
+    const supabase = mockSupabase({
+      projects: {
+        construction_progress: { updates: [null, { images: 'x', video: 42 }, { images: [`${BASE_URL}/construction/ok.jpg`, null] }] },
+      },
+    });
+    await deleteProjectStorageFiles(supabase as never, 'p1');
+    expect(supabase._remove.mock.calls.flatMap(c => c[0])).toEqual(['construction/ok.jpg']);
+    const otro = mockSupabase({ projects: { construction_progress: 'basura' } });
+    await expect(deleteProjectStorageFiles(otro as never, 'p1')).resolves.toBeUndefined();
+  });
+
   it('sin ningún archivo, no llama a storage.remove()', async () => {
     const supabase = mockSupabase({ projects: null, buildings: [] });
     await deleteProjectStorageFiles(supabase as never, 'project-1');

@@ -9,6 +9,7 @@ interface LevelLike { planImage?: string | null }
 interface BeforeAfterLike { beforeImage?: string | null; afterImage?: string | null }
 interface ThemeConfigLike { backgroundImageUrl?: string | null }
 interface FloorViewPhotoLike { url?: string | null }
+interface ConstructionUpdateLike { images?: unknown; video?: unknown }
 
 // De una URL pública de Supabase Storage extrae la key relativa al bucket
 // (lo que pide storage.remove()) — "https://xxx.supabase.co/storage/v1/
@@ -22,6 +23,18 @@ function toStorageKey(url: unknown): string | null {
   const i = url.indexOf(marker);
   if (i === -1) return null;
   return url.slice(i + marker.length);
+}
+
+// Avance de obra (projects.construction_progress, carpeta "construction"):
+// fotos y clip de cada novedad, publicadas o en borrador. Es un jsonb que
+// puede venir viejo o roto: solo se toma lo que tenga forma de lista.
+function collectFromConstructionProgress(progress: unknown, into: unknown[]) {
+  const updates = (progress as { updates?: unknown } | null)?.updates;
+  if (!Array.isArray(updates)) return;
+  for (const u of updates as (ConstructionUpdateLike | null)[]) {
+    if (Array.isArray(u?.images)) into.push(...u.images);
+    into.push(u?.video);
+  }
 }
 
 function collectFromTourData(tourData: TourDataLike | null | undefined, into: unknown[]) {
@@ -53,6 +66,7 @@ export async function deleteProjectStorageFiles(supabase: SupabaseClient, projec
     }
     urls.push((project.theme_config as ThemeConfigLike | null)?.backgroundImageUrl);
     collectFromTourData(project.common_areas_tour as TourDataLike | null, urls);
+    collectFromConstructionProgress(project.construction_progress, urls);
   }
 
   const { data: buildings } = await supabase.from('buildings').select('id, cover_image, amenities_tour').eq('project_id', projectId);
