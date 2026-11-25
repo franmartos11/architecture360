@@ -209,7 +209,7 @@ export default function ChatWidget({
           type="button"
           aria-label="Cerrar chat"
           onClick={() => setAbierto(false)}
-          className="flex min-h-[40px] items-center gap-1 rounded-full px-2.5 text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-bg-alt)]"
+          className="flex min-h-[40px] items-center gap-1 rounded-full px-2.5 text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-bg)] hover:text-[var(--theme-text)]"
         >
           <span className="sm:hidden">Cerrar</span>
           <X className="h-5 w-5" aria-hidden="true" />
@@ -226,7 +226,7 @@ export default function ChatWidget({
                 href={m.cuerpo}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="self-start flex items-center gap-2 rounded-2xl border border-[var(--theme-border)] px-3.5 py-2.5 text-sm font-semibold hover:bg-[var(--theme-bg-alt)]"
+                className="self-start flex items-center gap-2 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2.5 text-sm font-semibold hover:border-[var(--theme-accent)]"
               >
                 <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Abrir el PDF
@@ -241,7 +241,7 @@ export default function ChatWidget({
             ),
           )}
           {enviando && (
-            <p className="m-0 self-start rounded-2xl bg-[var(--theme-bg-alt)] px-3.5 py-2 text-sm italic text-[var(--theme-text-muted)]">
+            <p className="m-0 self-start rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2 text-sm italic text-[var(--theme-text-muted)]">
               escribiendo…
             </p>
           )}
@@ -292,7 +292,7 @@ export default function ChatWidget({
                   key={s}
                   type="button"
                   onClick={() => void enviar(s)}
-                  className="rounded-full border border-[var(--theme-border)] px-3.5 py-2 text-[13px] hover:bg-[var(--theme-bg-alt)]"
+                  className="rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2 text-[13px] hover:border-[var(--theme-accent)]"
                 >
                   {s}
                 </button>
@@ -319,7 +319,7 @@ export default function ChatWidget({
           disabled={retomando}
           maxLength={MAX_MENSAJE}
           onChange={(e) => setTexto(e.target.value)}
-          className="min-h-[44px] flex-1 rounded-full border border-[var(--theme-border)] bg-transparent px-4 text-base sm:text-sm outline-none focus:border-[var(--theme-accent)]"
+          className="min-h-[44px] flex-1 rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-4 text-base sm:text-sm text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] outline-none focus:border-[var(--theme-accent)]"
         />
         <button
           type="submit"
@@ -344,7 +344,7 @@ function Burbuja({ autor, children }: { autor: 'cliente' | 'bot'; children: Reac
       className={`m-0 max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
         cliente
           ? 'self-end bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)]'
-          : 'self-start bg-[var(--theme-bg-alt)]'
+          : 'self-start border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)]'
       }`}
     >
       {children}

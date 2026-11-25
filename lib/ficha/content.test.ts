@@ -18,7 +18,7 @@ const unit = (over: Partial<Unit> = {}): Unit => ({
 });
 
 const project = (over: Partial<Project> = {}): Project => ({
-  id: 'p1', slug: 'torre-sol', name: 'Torre Sol', description: '', location: 'Córdoba', masterplanImage: '',
+  id: 'p1', slug: 'torre-sol', name: 'Torre Sol', description: '', location: 'Córdoba', masterplanImage: '', locales: ['es'],
   projectType: 'edificio', saleMode: 'venta', processGallery: [], beforeAfter: [], collaborators: [],
   aerialSlides: [], buildings: [], units: [], amenities: [], pointsOfInterest: [], bimModels: [],
   themeConfig: { presetKey: 'editorial' },
@@ -178,12 +178,38 @@ describe('QR, contacto, acento, imágenes, borrador', () => {
     expect(buildFichaContent(input({ project: project({ themeConfig: { presetKey: 'editorial', customColors: { accent: '#f5f5f5' } } }) })).accent).toBe('#1c1a17');
   });
 
+  it('resuelve paleta completa y radio del tema (nocturno y brutalista)', () => {
+    const nocturno = buildFichaContent(input({ project: project({ themeConfig: { presetKey: 'nocturno' } }) }));
+    expect(nocturno.theme.bg).toBe('#121214');
+    expect(nocturno.theme.surface).toBe('#1c1c20');
+    expect(nocturno.theme.text).toBe('#f2f2f2');
+    expect(nocturno.theme.accent).toBe('#22d3ee');
+    expect(nocturno.theme.radius).toBe(10);
+
+    const brutal = buildFichaContent(input({ project: project({ themeConfig: { presetKey: 'brutalista', customColors: { bgAlt: '#1a1a1a' } } }) }));
+    expect(brutal.theme.bg).toBe('#ffffff');
+    expect(brutal.theme.bgAlt).toBe('#1a1a1a');
+    expect(brutal.theme.accent).toBe('#c1440e');
+    expect(brutal.theme.radius).toBe(0);
+    expect(brutal.theme.radiusSm).toBe(0);
+  });
+
   it('imágenes por prioridad', () => {
-    const c = buildFichaContent(input({ unit: unit({ galleryImages: ['g1'], floorPlan3dUrl: 'f3d', plan3dUrl: 'p3d', roomPlanImage: 'rp' }) }));
-    expect(c.imageUrls).toEqual({ hero: 'g1', plan: 'p3d' });
+    const c = buildFichaContent(input({ unit: unit({ galleryImages: ['g1', 'g2'], floorPlan3dUrl: 'f3d', plan3dUrl: 'p3d', roomPlanImage: 'rp' }) }));
+    expect(c.imageUrls).toEqual({
+      hero: 'g1',
+      plan: 'p3d',
+      gallery: [{ url: 'g2', caption: null }, { url: 'f3d', caption: 'Planta 3D' }],
+      extraPlans: [],
+    });
     const d = buildFichaContent(input({ unit: unit({ interiorImageUrl: 'int', galleryImages: ['g1'], technicalPlanUrl: 'tp', plan3dUrl: 'p3d' }) }));
-    expect(d.imageUrls).toEqual({ hero: 'int', plan: 'tp' });
-    expect(buildFichaContent(input()).imageUrls).toEqual({ hero: null, plan: null });
+    expect(d.imageUrls).toEqual({
+      hero: 'int',
+      plan: 'tp',
+      gallery: [{ url: 'g1', caption: null }],
+      extraPlans: [],
+    });
+    expect(buildFichaContent(input()).imageUrls).toEqual({ hero: null, plan: null, gallery: [], extraPlans: [] });
   });
 
   it('todo el texto sale apto para Helvetica (WinAnsi); las URLs no se tocan', () => {
@@ -208,5 +234,104 @@ describe('QR, contacto, acento, imágenes, borrador', () => {
     const c = buildFichaContent(input({ isDraft: true }));
     expect(c.draft).toBe(true);
     expect(c.generatedOn).toBe('24/11/2026');
+  });
+});
+
+describe('datos ampliados del sistema', () => {
+  it('avance de obra, comodidades, ambientes, amenities, entorno y mapa', () => {
+    const p = project({
+      tagline: 'Viví frente al parque',
+      latitude: -31.4201,
+      longitude: -64.1888,
+      constructionProgress: {
+        stages: [{ id: 's1', label: 'Estructura' }],
+        currentStageId: 's1',
+        percent: 45,
+        deliveryEstimate: 'Diciembre 2027',
+        updates: [],
+      },
+      amenities: [
+        { id: 'a1', name: 'Pileta', images: [] },
+        { id: 'a2', name: 'SUM Torre A', buildingId: 'b1', images: [] },
+        { id: 'a3', name: 'Gym Torre B', buildingId: 'b2', images: [] },
+      ],
+      pointsOfInterest: [
+        { id: 'p1', name: 'Parque Sarmiento', category: 'entretenimiento', walkMinutes: 5 },
+        { id: 'p2', name: 'Sanatorio Allende', category: 'salud', distanceLabel: '3 cuadras' },
+      ],
+    });
+    const u = unit({
+      features: ['Losa radiante', 'Apto crédito'],
+      rooms: [{ id: 'r1', name: 'Living comedor', area: 28, features: ['Balcón'] }],
+      levels: [{ id: 'l1', label: 'Planta Alta', planImage: 'https://x.supabase.co/pa.jpg', rooms: [{ id: 'r2', name: 'Suite', area: 18 }] }],
+      parkingSpots: [{ floorId: 'sub1', label: 'C-12', floorLabel: 'Subsuelo 1', polygon: [] }],
+    });
+    const c = buildFichaContent(input({ project: p, unit: u }));
+    expect(c.projectSummary).toBe('Viví frente al parque');
+    expect(c.progress).toBe('45% de avance · Estructura · Entrega estimada diciembre 2027');
+    expect(c.features).toEqual(['Losa radiante', 'Apto crédito']);
+    expect(c.rooms).toEqual([
+      { name: 'Living comedor', area: '28 m²', features: 'Balcón' },
+      { name: 'Planta Alta · Suite', area: '18 m²', features: null },
+    ]);
+    expect(c.amenities).toEqual(['Pileta', 'SUM Torre A']);
+    expect(c.nearby).toEqual(['Parque Sarmiento (5 min a pie)', 'Sanatorio Allende (3 cuadras)']);
+    expect(c.mapUrl).toBe('https://maps.google.com/?q=-31.4201,-64.1888');
+    expect(c.specs).toContain('Cochera asignada: C-12 (Subsuelo 1)');
+    expect(c.imageUrls.extraPlans).toEqual([{ url: 'https://x.supabase.co/pa.jpg', label: 'Planta Alta' }]);
+  });
+
+  it('galería incluye vista desde el piso según orientación y respeta tope de 3', () => {
+    const b = {
+      id: 'b1',
+      name: 'Torre A',
+      totalFloors: 5,
+      coverImage: 'https://x.supabase.co/cover.jpg',
+      floors: [
+        {
+          id: 'f3',
+          number: 3,
+          label: 'Piso 3',
+          planImage: '',
+          unitDots: [],
+          viewPhotos: [
+            { direction: 'N' as const, url: 'https://x.supabase.co/vn.jpg' },
+            { direction: 'NE' as const, url: 'https://x.supabase.co/vne.jpg' },
+          ],
+        },
+      ],
+    };
+    const u = unit({
+      orientation: 'NE',
+      interiorImageUrl: 'https://x.supabase.co/hero.jpg',
+      galleryImages: ['https://x.supabase.co/g1.jpg', 'https://x.supabase.co/g2.jpg'],
+    });
+    const c = buildFichaContent(input({ building: b, unit: u }));
+    expect(c.imageUrls.gallery).toEqual([
+      { url: 'https://x.supabase.co/vne.jpg', caption: 'Vista desde Piso 3 (NE)' },
+      { url: 'https://x.supabase.co/g1.jpg', caption: null },
+      { url: 'https://x.supabase.co/g2.jpg', caption: null },
+    ]);
+  });
+
+  it('showcase incluye descripción y ficha académica/créditos; venta no', () => {
+    const baseShowcase = project({
+      saleMode: 'showcase',
+      description: 'Proyecto experimental de vivienda colectiva.',
+      academicInstitution: 'FAUD UNC',
+      academicYear: '2026',
+      collaborators: [{ handle: 'ana', displayName: 'Ana Gómez', contribution: 'Renders' }],
+    });
+    const s = buildFichaContent(input({ project: baseShowcase }));
+    expect(s.projectSummary).toBe('Proyecto experimental de vivienda colectiva.');
+    expect(s.academic).toEqual([
+      { label: 'Institución', value: 'FAUD UNC' },
+      { label: 'Año', value: '2026' },
+      { label: 'Créditos', value: 'Ana Gómez (Renders)' },
+    ]);
+
+    const v = buildFichaContent(input({ project: { ...baseShowcase, saleMode: 'venta' } }));
+    expect(v.projectSummary).toBeNull();
+    expect(v.academic).toEqual([]);
   });
 });

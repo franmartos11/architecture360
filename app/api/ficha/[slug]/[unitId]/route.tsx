@@ -59,19 +59,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     const plans = await readFinancingPlans(await createClient(), project.id);
     const unitUrl = await projectCanonical(slug, `/edificio/${building.id}/unidad/${encodeURIComponent(unit.id)}`);
     const content = buildFichaContent({
-      project, unit, buildingName: building.name, typeConfig, plans, unitUrl,
+      project, unit, buildingName: building.name, building, typeConfig, plans, unitUrl,
       ref: new URL(request.url).searchParams.get('ref'),
       isDraft: view.isDraftPreview,
       now: new Date(),
     });
 
     const origin = appOrigin(request);
-    const [hero, plan, qr] = await Promise.all([
+    const [hero, plan, qr, galleryBufs, extraPlanBufs] = await Promise.all([
       loadPdfImage(content.imageUrls.hero, fetch, origin),
       loadPdfImage(content.imageUrls.plan, fetch, origin),
       qrPng(content.qrUrl),
+      Promise.all(content.imageUrls.gallery.map(g => loadPdfImage(g.url, fetch, origin))),
+      Promise.all(content.imageUrls.extraPlans.map(p => loadPdfImage(p.url, fetch, origin))),
     ]);
-    const pdf = await renderToBuffer(<FichaDocument content={content} images={{ hero, plan }} qr={qr} />);
+    const gallery = content.imageUrls.gallery
+      .map((g, i) => (galleryBufs[i] ? { data: galleryBufs[i]!, caption: g.caption } : null))
+      .filter((g): g is { data: Buffer; caption: string | null } => g !== null);
+    const extraPlans = content.imageUrls.extraPlans
+      .map((p, i) => (extraPlanBufs[i] ? { data: extraPlanBufs[i]!, label: p.label } : null))
+      .filter((p): p is { data: Buffer; label: string } => p !== null);
+
+    const pdf = await renderToBuffer(<FichaDocument content={content} images={{ hero, plan, gallery, extraPlans }} qr={qr} />);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {

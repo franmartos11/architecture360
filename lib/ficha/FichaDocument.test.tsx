@@ -62,4 +62,46 @@ describe('FichaDocument', () => {
     const hyph = blocks[blocks.length - 1].props.hyphenationCallback as ((w: string) => string[]) | undefined;
     expect(hyph?.('edificio')).toEqual(['edificio']);
   });
+
+  it('renderiza secciones ampliadas (comodidades, ambientes, amenities, galería y entorno)', async () => {
+    const img = await sharp({ create: { width: 800, height: 500, channels: 3, background: '#88a' } }).jpeg().toBuffer();
+    const richProject = {
+      ...project,
+      tagline: 'Viviendas luminosas frente al parque.',
+      latitude: -31.42,
+      longitude: -64.18,
+      constructionProgress: { stages: [{ id: 's1', label: 'Terminaciones' }], currentStageId: 's1', percent: 75, deliveryEstimate: 'Diciembre 2027', updates: [] },
+      amenities: [{ id: 'a1', name: 'Pileta', images: [] }, { id: 'a2', name: 'SUM', images: [] }],
+      pointsOfInterest: [{ id: 'p1', name: 'Parque Sarmiento', category: 'entretenimiento', walkMinutes: 5 }],
+    } as unknown as Project;
+    const richUnit = {
+      ...unit,
+      features: ['Losa radiante', 'Apto crédito'],
+      rooms: [{ id: 'r1', name: 'Living', area: 28, features: ['Balcón'] }],
+    } as unknown as Unit;
+    const c = buildFichaContent({
+      project: richProject,
+      unit: richUnit,
+      buildingName: 'Torre A',
+      typeConfig: getProjectTypeConfig('edificio', 'venta'),
+      plans,
+      unitUrl: UNIT_URL,
+      ref: null,
+      isDraft: false,
+      now: new Date('2026-11-24T15:00:00Z'),
+    });
+    const buf = await renderToBuffer(
+      <FichaDocument
+        content={c}
+        images={{
+          hero: img,
+          plan: img,
+          gallery: [{ data: img, caption: 'Vista desde Piso 1 (NE)' }],
+          extraPlans: [{ data: img, label: 'Planta Alta' }],
+        }}
+        qr={await qrPng(c.qrUrl)}
+      />
+    );
+    expect(buf.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+  });
 });
