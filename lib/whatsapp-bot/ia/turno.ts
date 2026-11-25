@@ -22,6 +22,7 @@ function llamar(
   cliente: Cliente,
   system: Anthropic.Beta.BetaTextBlockParam[],
   messages: Anthropic.Beta.BetaMessageParam[],
+  tools: Anthropic.Beta.BetaToolUnion[],
   signal?: AbortSignal,
 ): Promise<Anthropic.Beta.BetaMessage> {
   return cliente.beta.messages.create({
@@ -31,7 +32,7 @@ function llamar(
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     system,
-    tools: HERRAMIENTAS,
+    tools,
     // Caché automática del historial: las iteraciones del bucle reusan el prefijo.
     cache_control: { type: 'ephemeral' },
     messages,
@@ -43,13 +44,14 @@ async function llamarConReintento(
   cliente: Cliente,
   system: Anthropic.Beta.BetaTextBlockParam[],
   messages: Anthropic.Beta.BetaMessageParam[],
+  tools: Anthropic.Beta.BetaToolUnion[],
   signal?: AbortSignal,
 ): Promise<Anthropic.Beta.BetaMessage | null> {
   for (let intento = 0; intento < 2; intento++) {
     // Se acabó el tiempo del turno (ver `signal` en responderTurno): no reintentar.
     if (signal?.aborted) return null;
     try {
-      return await llamar(cliente, system, messages, signal);
+      return await llamar(cliente, system, messages, tools, signal);
     } catch (e) {
       if (signal?.aborted) return null;
       if (!(e instanceof Anthropic.APIError)) throw e;
@@ -70,7 +72,10 @@ export async function responderTurno(i: {
    * vencer, el turno termina sin respuesta ('error').
    */
   signal?: AbortSignal;
+  /** Herramientas del canal (el chat web usa HERRAMIENTAS_WEB); default, las de WhatsApp. */
+  herramientas?: Anthropic.Beta.BetaToolUnion[];
 }): Promise<ResultadoTurno> {
+  const tools = i.herramientas ?? HERRAMIENTAS;
   const historial = [...i.mensajes];
   // Sin prefill en este modelo: el último mensaje tiene que ser del cliente.
   if (historial.length === 0 || historial[historial.length - 1].role !== 'user') {
@@ -79,7 +84,7 @@ export async function responderTurno(i: {
 
   let uso: UsoTurno = USO_VACIO;
   for (let n = 0; n < MAX_ITERACIONES; n++) {
-    const r = await llamarConReintento(i.cliente, i.system, [...historial], i.signal);
+    const r = await llamarConReintento(i.cliente, i.system, [...historial], tools, i.signal);
     if (!r) return { texto: null, motivoSinRespuesta: 'error', uso };
     uso = sumarUso(uso, r);
 

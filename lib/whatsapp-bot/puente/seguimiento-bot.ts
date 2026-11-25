@@ -9,7 +9,7 @@ import { armarSystem } from '../ia/prompt';
 import { armarMaterial, urlUnidad } from '../material';
 import type * as Repo from '../repo';
 import { fechaBuenosAires } from '../repo';
-import { partirRespuesta } from '../reglas';
+import { destinoWhatsapp, partirRespuesta } from '../reglas';
 import { consignaSeguimiento, debeHacerSeguimiento, esSinSeguimiento } from '../seguimiento';
 import type { DepsTurnoBot } from './turno-bot';
 
@@ -87,7 +87,7 @@ export async function correrSeguimiento(deps: DepsSeguimiento, botId: string, co
   const ultimoAhora = despues.filter((m) => m.autor === 'cliente').at(-1)?.id ?? null;
   if (ultimoAhora !== ultimoAntes) return 'cliente_volvio';
 
-  const destino = conv.contacto_wid ?? conv.contacto_numero;
+  const destino = destinoWhatsapp(conv);
   const base = ahora.toISOString();
   let parte = 0;
   const encolar = (cuerpo: string | null, adjunto: string | null) =>

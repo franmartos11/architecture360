@@ -73,4 +73,23 @@ describe('BotWhatsapp', () => {
     render(createElement(BotWhatsapp));
     await screen.findByText('El servidor del bot no responde');
   });
+
+  it('el interruptor "Chat en el sitio" se guarda y avisa que sin WhatsApp conectado los avisos van por email', async () => {
+    const fetchFalso = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return new Response(JSON.stringify({ ...bot('p1'), chat_web: true }));
+      if (url.includes('/preguntas')) return new Response(JSON.stringify({ preguntas: [] }));
+      if (url.includes('/metricas')) return new Response(JSON.stringify({ dias: 30, porDia: [], unidades: [] }));
+      return new Response(JSON.stringify({ bot: bot('p1'), puenteVivo: true }));
+    });
+    vi.stubGlobal('fetch', fetchFalso);
+    render(createElement(BotWhatsapp));
+    const sw = await screen.findByRole('switch', { name: 'Chat en el sitio' });
+    expect(screen.queryByText('Los avisos del chat llegan por email y al panel mientras el WhatsApp no esté conectado.')).toBeNull();
+    fireEvent.click(sw);
+    await screen.findByText('Los avisos del chat llegan por email y al panel mientras el WhatsApp no esté conectado.');
+    await waitFor(() => {
+      const patch = fetchFalso.mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ chat_web: true });
+    }, { timeout: 3000 });
+  });
 });

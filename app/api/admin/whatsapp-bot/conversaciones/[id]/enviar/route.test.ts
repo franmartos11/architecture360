@@ -60,4 +60,16 @@ describe('POST /conversaciones/[id]/enviar', () => {
     vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'gestor' } as never);
     expect((await call()).status).toBe(409);
   });
+
+  it('charla del chat del sitio: 409, no se responde desde el panel', async () => {
+    vi.mocked(createClient).mockResolvedValue(mockSupabase({ results: [{ data: { ...conv, canal: 'web', contacto_numero: null } }] }) as never);
+    const admin = mockSupabase({ results: [{ data: { estado: 'conectado' } }] });
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+    const supabase = mockSupabase({ results: [] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'gestor' } as never);
+    const res = await call();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Esta charla fue en el sitio: no se puede responder desde acá.' });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
 });

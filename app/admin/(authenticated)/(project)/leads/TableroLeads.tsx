@@ -85,13 +85,14 @@ const FILTROS: { id: Filtro; label: string }[] = [
   { id: '7d', label: 'Últimos 7 días' },
 ];
 
-const METHOD_LABEL: Record<string, string> = { whatsapp: 'WhatsApp', email: 'Email', phone: 'Llamada', telefono: 'Llamada', form: 'Formulario', formulario: 'Formulario' };
+const METHOD_LABEL: Record<string, string> = { whatsapp: 'WhatsApp', email: 'Email', phone: 'Llamada', telefono: 'Llamada', form: 'Formulario', formulario: 'Formulario', chat: 'Chat' };
 // Orígenes conocidos con su nombre legible (el resto se muestra capitalizado).
-const SOURCE_LABEL: Record<string, string> = { whatsapp_bot: 'Bot de WhatsApp', sitio: 'Sitio', web: 'Sitio' };
+const SOURCE_LABEL: Record<string, string> = { whatsapp_bot: 'Bot de WhatsApp', chat_web: 'Chat del sitio', sitio: 'Sitio', web: 'Sitio' };
 
 /** Origen en una sola etiqueta corta: "WhatsApp · Bot", "Formulario · Sitio". */
 function origenCorto(lead: Lead): string | null {
   if (lead.source?.toLowerCase() === 'whatsapp_bot') return 'WhatsApp · Bot';
+  if (lead.source?.toLowerCase() === 'chat_web') return 'Sitio · Chat';
   const t = leadTags(lead);
   return t.length ? t.join(' · ') : null;
 }

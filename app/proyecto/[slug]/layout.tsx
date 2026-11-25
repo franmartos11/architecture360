@@ -11,6 +11,7 @@ import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { projectHasContent } from '@/lib/project-content';
 import SiteTracker from '@/components/analytics/SiteTracker';
+import ChatWidgetLoader from '@/components/chat/ChatWidgetLoader';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -122,6 +123,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           {children}
         </ProjectChrome>
         {isDraftPreview && <DraftPreviewBar projectId={project.id} canPublish={canPublish} />}
+        {project.chat && !isDraftPreview && <ChatWidgetLoader projectSlug={project.slug} nombreBot={project.chat.nombreBot} />}
       </div>
       </SiteTracker>
       </ProjectWhatsappProvider>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   filtrarConversaciones, burbuja, posicionAviso, modoLabel, restanteLabel, pendientesVisibles, tiempoCorto,
-  motivoPausaLabel, avisoChat, numeroVisible, tituloConversacion,
+  motivoPausaLabel, avisoChat, numeroVisible, tituloConversacion, pasaFiltro, esChatWeb, AVISO_CHAT_WEB,
 } from './conversaciones-logica';
 import type { WaConversacion, WaMensaje } from '@/types/whatsapp-bot';
 
@@ -182,5 +182,39 @@ describe('tiempoCorto', () => {
     expect(tiempoCorto('2026-01-09T20:00:00', now)).toBe('ayer');
     expect(tiempoCorto('2026-01-02T20:00:00', now)).toMatch(/2/);
     expect(tiempoCorto(null, now)).toBe('');
+  });
+});
+
+describe('charlas del chat del sitio', () => {
+  const ahora = Date.parse('2026-11-20T15:00:00Z');
+  const web = conv({ id: 'w', canal: 'web', contacto_numero: null, creada_post_vinculo: false, no_leidos: 0 });
+  const wa = conv({ id: 'a', no_leidos: 2 });
+  const humano = conv({ id: 'h', modo: 'humano', humano_hasta: '2026-11-21T00:00:00Z' });
+
+  it('esChatWeb', () => {
+    expect(esChatWeb(web)).toBe(true);
+    expect(esChatWeb(wa)).toBe(false);
+    expect(esChatWeb(conv({ canal: undefined }))).toBe(false);
+  });
+
+  it('el filtro Web deja solo las del sitio', () => {
+    expect([web, wa, humano].filter(c => pasaFiltro(c, 'web', ahora)).map(c => c.id)).toEqual(['w']);
+  });
+
+  it('Sin leer, Bot y Vendedor no incluyen las del sitio', () => {
+    expect([web, wa, humano].filter(c => pasaFiltro(c, 'sin_leer', ahora)).map(c => c.id)).toEqual(['a']);
+    expect([web, wa, humano].filter(c => pasaFiltro(c, 'bot', ahora)).map(c => c.id)).toEqual(['a']);
+    expect([web, wa, humano].filter(c => pasaFiltro(c, 'vendedor', ahora)).map(c => c.id)).toEqual(['h']);
+    expect([web, wa, humano].filter(c => pasaFiltro(c, 'todas', ahora))).toHaveLength(3);
+  });
+
+  it('una charla del sitio no se toma ni se devuelve, y explica por qué', () => {
+    expect(modoLabel(web, ahora)).toEqual({ humano: false, texto: '💬 Chat del sitio', accion: null });
+    expect(avisoChat(web)).toBe(AVISO_CHAT_WEB);
+    expect(AVISO_CHAT_WEB).toBe('Esta charla fue en el sitio. Seguí por WhatsApp o teléfono con los datos del lead.');
+  });
+
+  it('sin nombre se titula "Visitante del sitio"', () => {
+    expect(tituloConversacion(web)).toBe('Visitante del sitio');
   });
 });

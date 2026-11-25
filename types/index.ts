@@ -557,6 +557,8 @@ export interface Project {
   id: string;
   /** Número (solo dígitos) del bot de WhatsApp conectado; ausente si no hay bot conectado. */
   whatsappNumber?: string;
+  /** Chat del sitio (asistente del bot) encendido; ausente si no hay. */
+  chat?: { nombreBot: string | null };
   slug: string;
   name: string;
   description: string;
@@ -623,6 +625,8 @@ export interface Lead {
   source: string | null;
   /** Canal atribuido (?ref= / utm_source) — se cruza por texto con project_channels.slug. */
   ref?: string | null;
+  /** Visitante del sitio (analítica) que dejó el contacto. */
+  visitor_id?: string | null;
   status: string;
   wa_conversacion_id: string | null;
   /** Lo completa el bot de WhatsApp al avisar (ver lib/whatsapp-bot/calificacion.ts). */

@@ -18,7 +18,7 @@ import type { ResultadoTurno } from '../ia/turno';
 import type { RegistroUsoIa } from '../ia/uso';
 import type * as Repo from '../repo';
 import { fechaBuenosAires } from '../repo';
-import { debeResponder, esContestadorAutomatico, estaEnModoHumano, partirRespuesta } from '../reglas';
+import { debeResponder, destinoWhatsapp, esContestadorAutomatico, estaEnModoHumano, partirRespuesta } from '../reglas';
 
 export type DepsTurnoBot = {
   sb: SupabaseClient;
@@ -159,7 +159,7 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
   const ultimoCliente = [...msgs].reverse().find((m) => m.autor === 'cliente');
   const base = new Date(new Date(ultimoCliente?.enviado_at ?? ahora).getTime() + 1).toISOString();
   let parte = 0;
-  const destino = conv.contacto_wid ?? conv.contacto_numero;
+  const destino = destinoWhatsapp(conv);
   const encolar = (cuerpo: string | null, adjunto: string | null): Promise<WaSalida> =>
     repo.encolar(sb, {
       bot_id: bot.id,
@@ -235,7 +235,7 @@ export async function correrTurnoIA(deps: DepsTurnoBot, botId: string, convId: s
           sb,
           conv,
           {
-            telefono: conv.contacto_numero,
+            telefono: conv.contacto_numero ?? destino, // en el puente siempre hay número (destinoWhatsapp)
             conversacionId: conv.id,
             ...d,
             // Spec §7.7: el aviso lista las unidades con ambientes, m² y precio.

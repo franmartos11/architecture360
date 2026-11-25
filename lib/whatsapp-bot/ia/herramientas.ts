@@ -27,6 +27,8 @@ import {
 export const MAX_IMAGENES = 3;
 
 export interface DepsHerramientas {
+  /** 'web' = chat del sitio: las imágenes se muestran en el chat (default 'whatsapp'). */
+  canal?: 'whatsapp' | 'web';
   unidades: UnidadBot[];
   /** Material del proyecto (renders, masterplan, brief, edificios, amenities, obra). */
   material: MaterialProyecto;
@@ -40,14 +42,16 @@ export interface DepsHerramientas {
     /** Inicios de las visitas futuras de este cliente. */
     delCliente: Date[];
     ahora: Date;
-    agendar(inicio: Date, fin: Date, nombre: string | null): Promise<'agendada' | 'ocupado'>;
+    /** 'sin_contacto' (chat web): el comprador todavía no dejó teléfono ni email. */
+    agendar(inicio: Date, fin: Date, nombre: string | null): Promise<'agendada' | 'ocupado' | 'sin_contacto'>;
     /** Cancela las visitas futuras de este cliente; devuelve sus inicios. */
     cancelar(): Promise<Date[]>;
   };
   /** Anota una pregunta que no se pudo responder, para que el equipo cargue la respuesta. */
   anotarPregunta(d: { tema: string; pregunta: string }): Promise<void>;
   encolarImagenes(urls: string[]): Promise<void>;
-  avisar(d: Omit<DatosAviso, 'telefono' | 'conversacionId'>): Promise<'avisado' | 'ya_avisado'>;
+  /** `telefono` lo pasa solo el chat web (en WhatsApp es el del contacto); 'sin_contacto' = sin teléfono ni email. */
+  avisar(d: Omit<DatosAviso, 'telefono' | 'conversacionId'> & { telefono?: string }): Promise<'avisado' | 'ya_avisado' | 'sin_contacto'>;
 }
 
 export type ResultadoHerramienta = { texto: string; esError: boolean };
@@ -239,6 +243,28 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
   },
 ];
 
+/**
+ * Chat del sitio: mismas herramientas, sin hablar de WhatsApp, y avisar_vendedor
+ * pide el teléfono (en WhatsApp ya se conoce el del contacto).
+ */
+export const HERRAMIENTAS_WEB: Anthropic.Beta.BetaTool[] = HERRAMIENTAS.map((t) => {
+  const description = t.description?.replace(/Manda por WhatsApp al cliente/g, 'Muestra en el chat al cliente');
+  if (t.name !== 'avisar_vendedor') return { ...t, description };
+  const s = t.input_schema as { properties: Record<string, unknown>; required: string[] };
+  return {
+    ...t,
+    description: `${description} Necesita un teléfono o un email del cliente: pedíselos antes en la charla.`,
+    input_schema: {
+      ...t.input_schema,
+      properties: {
+        ...s.properties,
+        telefono: { ...nullable({ type: 'string' }), description: 'Teléfono que dejó el cliente en la charla; si no lo dejó, null.' },
+      },
+      required: [...s.required, 'telefono'],
+    },
+  };
+});
+
 const BuscarInput = z.object({
   ambientes: z.number().int().nullish(),
   dormitorios: z.number().int().nullish(),
@@ -259,6 +285,7 @@ const CancelarInput = z.object({}).passthrough();
 const PreguntaInput = z.object({ tema: z.string().trim().min(1).max(120), pregunta: z.string().trim().min(1).max(1000) });
 const AvisarInput = z.object({
   nombre: z.string().nullish(),
+  telefono: z.string().nullish(),
   email: z.string().nullish(),
   unidades_interes: z.array(z.string()),
   resumen: z.string(),
@@ -276,6 +303,11 @@ const AvisarInput = z.object({
 });
 
 const ok = (texto: string): ResultadoHerramienta => ({ texto, esError: false });
+const PEDIR_CONTACTO =
+  'Todavía no tengo cómo contactar al cliente. Pedile su nombre y un teléfono o email; cuando los tengas, volvé a intentarlo.';
+/** Cómo le llegan las imágenes al cliente, según el canal. */
+const enCamino = (deps: DepsHerramientas) =>
+  deps.canal === 'web' ? 'ya se muestran en el chat' : 'ya van en camino al cliente por WhatsApp';
 const error = (texto: string): ResultadoHerramienta => ({ texto, esError: true });
 
 const limpio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : undefined);
@@ -342,16 +374,16 @@ async function enviar(input: z.infer<typeof EnviarInput>, deps: DepsHerramientas
     que = 'el plano 3D';
   }
   await deps.encolarImagenes(urls);
-  return ok(`Listo: ${que} de la unidad ${u.codigo} ya van en camino al cliente por WhatsApp.`);
+  return ok(`Listo: ${que} de la unidad ${u.codigo} ${enCamino(deps)}.`);
 }
 
 async function enviarMaterial(input: z.infer<typeof MaterialInput>, deps: DepsHerramientas): Promise<ResultadoHerramienta> {
   const r = elegirMaterial(deps.material, input.que, input.nombre ?? null, MAX_IMAGENES);
   if ('error' in r) return error(r.error);
   await deps.encolarImagenes(r.urls);
-  if (input.que === 'brief') return ok('Listo: el brief del proyecto (PDF) ya va en camino al cliente por WhatsApp.');
+  if (input.que === 'brief') return ok(deps.canal === 'web' ? 'Listo: el brief del proyecto (PDF) ya se muestra en el chat.' : 'Listo: el brief del proyecto (PDF) ya va en camino al cliente por WhatsApp.');
   const n = r.urls.length === 1 ? '1 imagen' : `${r.urls.length} imágenes`;
-  return ok(`Listo: ${n} (${r.descripcion}) ya van en camino al cliente por WhatsApp.`);
+  return ok(`Listo: ${n} (${r.descripcion}) ${enCamino(deps)}.`);
 }
 
 const sinVisitas = () =>
@@ -386,6 +418,7 @@ async function agendar(input: z.infer<typeof AgendarInput>, deps: DepsHerramient
   const fin = new Date(inicio.getTime() + v.config.duracion_min * 60_000);
   const r = await v.agendar(inicio, fin, limpio(input.nombre) ?? null);
   if (r === 'ocupado') return error('Ese turno se acaba de ocupar. Consultá de nuevo ver_horarios_visita y ofrecé otro.');
+  if (r === 'sin_contacto') return ok(PEDIR_CONTACTO);
   const lugar = v.config.lugar ? ` en ${v.config.lugar}` : '';
   return ok(
     `Listo: visita agendada el ${textoTurno(inicio)}${lugar}. Confirmale al cliente día, hora y lugar. Si todavía no avisaste al equipo de este cliente, hacelo con avisar_vendedor.`,
@@ -407,13 +440,16 @@ async function anotar(input: z.infer<typeof PreguntaInput>, deps: DepsHerramient
 async function avisar(input: z.infer<typeof AvisarInput>, deps: DepsHerramientas): Promise<ResultadoHerramienta> {
   const nombre = limpio(input.nombre);
   const email = limpio(input.email);
+  const telefono = limpio(input.telefono);
   const r = await deps.avisar({
     ...(nombre ? { nombre } : {}),
     ...(email ? { email } : {}),
+    ...(telefono ? { telefono } : {}),
     unidades: input.unidades_interes,
     resumen: input.resumen,
     ...(input.calificacion ? { calificacion: normalizarCalificacion(input.calificacion, new Date()) } : {}),
   });
+  if (r === 'sin_contacto') return ok(PEDIR_CONTACTO);
   return ok(
     r === 'ya_avisado'
       ? 'El equipo ya estaba avisado de este cliente; no hace falta volver a avisar.'

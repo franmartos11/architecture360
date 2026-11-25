@@ -9,6 +9,7 @@ export type WaTipo = 'texto' | 'imagen' | 'audio' | 'documento' | 'otro';
 export type WaOrigen = 'bot' | 'vendedor' | 'aviso';
 export type WaEstadoSalida = 'pendiente' | 'enviando' | 'enviado' | 'error';
 export type WaDireccion = 'entrante' | 'saliente';
+export type WaCanal = 'whatsapp' | 'web';
 
 export interface WaBot {
   id: string;
@@ -32,6 +33,8 @@ export interface WaBot {
   vendedor_user_id: string | null;
   conocimiento: string | null;
   criterio_aviso: string | null;
+  /** Chat en el sitio público del proyecto (independiente del WhatsApp). Opcional: bases sin migrar. */
+  chat_web?: boolean;
   /** Seguimiento automático (ver lib/whatsapp-bot/seguimiento.ts). Opcionales: bases sin migrar. */
   seguimiento_activo?: boolean;
   seguimiento_horas?: number;
@@ -47,7 +50,12 @@ export interface WaConversacion {
   id: string;
   bot_id: string;
   project_id: string;
-  contacto_numero: string;
+  /** null en las charlas del chat web (el teléfono que deja el comprador va al lead). */
+  contacto_numero: string | null;
+  /** 'web' = chat del sitio: el puente de WhatsApp no las toca. Opcional: bases sin migrar. */
+  canal?: WaCanal;
+  /** Secreto de una charla web; solo lo tiene el navegador que la empezó. */
+  web_token?: string | null;
   contacto_wid: string | null;
   contacto_nombre: string | null;
   creada_post_vinculo: boolean;

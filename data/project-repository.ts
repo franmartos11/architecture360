@@ -14,6 +14,7 @@ import { polygonCenter } from '@/lib/amenities';
 import { parseConstructionProgress } from '@/lib/construction-progress-sanitize';
 import { hasRole, rankToRole } from '@/lib/project-roles';
 import { withoutDraftUpdates } from '@/lib/construction-progress-public';
+import { leerChatPublico } from '@/lib/chat/public-chat';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -453,6 +454,8 @@ async function fetchProjectBySlug(
     } catch {
       // sin número
     }
+    const chat = await leerChatPublico((fn, args) => supabase.rpc(fn, args), project.id);
+    if (chat) mapped.chat = chat;
   }
   return mapped;
 }

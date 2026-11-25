@@ -23,6 +23,8 @@ export type MetricasBot = {
   unidades: { unidad: string; leads: number }[];
   /** Costo de la IA en el período (null si wa_uso_ia todavía no existe). */
   costoIa: CostoIa | null;
+  /** Chat del sitio en el mismo período, aparte de WhatsApp (cada número null si su tabla no responde). */
+  web: { charlas: number | null; contactos: number | null; costoUsd: number | null };
 };
 
 export type CostoIa = {
@@ -67,6 +69,8 @@ export function resumenCostoIa(filas: FilaUsoIa[]): CostoIa {
       cacheReadTokens: f.cache_read_tokens,
       cacheWriteTokens: f.cache_write_tokens,
     });
+    // El chat del sitio se mide aparte (costoWebUsd).
+    if (f.origen === 'web') continue;
     if (f.origen === 'simulador') {
       if (c !== null) simuladorUsd = (simuladorUsd ?? 0) + c;
       continue;
@@ -87,6 +91,23 @@ export function resumenCostoIa(filas: FilaUsoIa[]): CostoIa {
     cachePct: entrada > 0 ? Math.round((deCache / entrada) * 100) : null,
     simuladorUsd,
   };
+}
+
+/** USD estimados del chat del sitio; null si no hubo turnos con precio. */
+export function costoWebUsd(filas: FilaUsoIa[]): number | null {
+  let usd: number | null = null;
+  for (const f of filas) {
+    if (f.origen !== 'web') continue;
+    const c = costoEstimadoUsd({
+      modelo: f.modelo,
+      inputTokens: f.input_tokens,
+      outputTokens: f.output_tokens,
+      cacheReadTokens: f.cache_read_tokens,
+      cacheWriteTokens: f.cache_write_tokens,
+    });
+    if (c !== null) usd = (usd ?? 0) + c;
+  }
+  return usd;
 }
 
 const fechaAR = (d: Date) => new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);

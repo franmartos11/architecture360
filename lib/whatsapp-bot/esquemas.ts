@@ -68,6 +68,8 @@ export const ConfigBot = z
       .int()
       .refine((h) => (HORAS_SEGUIMIENTO_OPCIONES as readonly number[]).includes(h), 'Elegí una de las opciones'),
     visitas: ConfigVisitasEsquema,
+    /** Chat en el sitio público (independiente del WhatsApp). */
+    chat_web: z.boolean(),
   })
   .partial();
 

@@ -8,7 +8,7 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import { useProjectRole } from '@/lib/project-role-context';
 import { hasRole } from '@/lib/project-roles';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, ArrowRight, Bot, CalendarDays, ChevronRight, Flame, Hand, Info, Search, Send, TriangleAlert, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bot, CalendarDays, ChevronRight, Flame, Globe, Hand, Info, Search, Send, TriangleAlert, User } from 'lucide-react';
 import type { Lead } from '@/types';
 import type { WaConversacion, WaMensaje, WaSalida, WaVisita } from '@/types/whatsapp-bot';
 import { fechaAR, textoTurno } from '@/lib/whatsapp-bot/visitas';
@@ -16,7 +16,7 @@ import { filasCalificacion } from '@/lib/whatsapp-bot/calificacion';
 import { Avatar, ChipFiltro, Etiqueta, PillInteres, PuntoVivo, hace } from './leads-ui';
 import {
   filtrarConversaciones, burbuja, posicionAviso, modoLabel, pendientesVisibles, tiempoCorto,
-  avisoChat, numeroVisible, tituloConversacion as titulo,
+  avisoChat, numeroVisible, tituloConversacion as titulo, pasaFiltro, esChatWeb, AVISO_CHAT_WEB, type FiltroChat,
   type MensajePendiente, type SalidaPendiente,
 } from './conversaciones-logica';
 
@@ -42,8 +42,6 @@ const TONO_BURBUJA = {
 const BURBUJA_CLASS = 'max-w-[85%] sm:max-w-[72%] px-3.5 py-2.5 text-[15px] leading-[1.45]';
 const ETIQUETA_CLASS = 'flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.08em] mb-1';
 const HORA_CLASS = 'text-[11px] mt-1 text-right tabular-nums';
-
-type FiltroChat = 'todas' | 'sin_leer' | 'bot' | 'vendedor';
 
 /** "Hoy", "Ayer" o "sáb 21/11" para los separadores del chat. */
 function etiquetaDia(iso: string, ahora: number): string {
@@ -481,16 +479,16 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
   };
 
   const buscadas = useMemo(() => filtrarConversaciones(lista, busqueda), [lista, busqueda]);
-  const pasaFiltro = (c: WaConversacion, f: FiltroChat) =>
-    f === 'sin_leer' ? c.no_leidos > 0 : f === 'bot' ? !modoLabel(c, ahora).humano : f === 'vendedor' ? modoLabel(c, ahora).humano : true;
-  const filtradas = buscadas.filter(c => pasaFiltro(c, filtro));
+  const filtradas = buscadas.filter(c => pasaFiltro(c, filtro, ahora));
 
   if (cargando) return <LoadingSpinner text="Cargando conversaciones..." tone="light" />;
   if (error) return <ErrorState message="No se pudieron cargar las conversaciones." onRetry={() => { setCargando(true); cargarLista(true); }} />;
 
   const conv = detalle?.conversacion ?? lista.find(c => c.id === conversacionId) ?? null;
   const modo = conv ? modoLabel(conv, ahora) : null;
-  const aviso = conv ? avisoChat(conv) : null;
+  const convWeb = !!conv && esChatWeb(conv);
+  // En una charla web el aviso va donde estaría la caja de respuesta.
+  const aviso = conv && !convWeb ? avisoChat(conv) : null;
   const posAviso = detalle ? posicionAviso(mensajes, detalle.conversacion.avisado_at) : null;
   const leadDe = (c: WaConversacion) => leads.find(l => (c.lead_id && l.id === c.lead_id) || l.wa_conversacion_id === c.id) ?? null;
   const visitaDe = (c: WaConversacion) =>
@@ -515,6 +513,8 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
     { id: 'sin_leer', label: 'Sin leer' },
     { id: 'bot', label: 'Bot' },
     { id: 'vendedor', label: 'Vendedor' },
+    // Solo si el proyecto tiene charlas del chat del sitio.
+    ...(lista.some(esChatWeb) ? [{ id: 'web' as const, label: 'Web' }] : []),
   ];
 
   return (
@@ -535,7 +535,7 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
           {lista.length > 0 && (
             <div role="group" aria-label="Filtrar conversaciones" className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
               {FILTROS_CHAT.map(f => (
-                <ChipFiltro key={f.id} chico activo={filtro === f.id} onClick={() => setFiltro(f.id)} cantidad={buscadas.filter(c => pasaFiltro(c, f.id)).length}>{f.label}</ChipFiltro>
+                <ChipFiltro key={f.id} chico activo={filtro === f.id} onClick={() => setFiltro(f.id)} cantidad={buscadas.filter(c => pasaFiltro(c, f.id, ahora)).length}>{f.label}</ChipFiltro>
               ))}
             </div>
           )}
@@ -554,7 +554,9 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
           {filtradas.map(c => {
             const on = c.id === conversacionId;
             const humano = modoLabel(c, ahora).humano;
-            const pista = avisoChat(c);
+            const web = esChatWeb(c);
+            // En la lista, una charla web ya se distingue por su etiqueta: el aviso va adentro.
+            const pista = web ? null : avisoChat(c);
             const sinLeer = c.no_leidos > 0;
             const l = leadDe(c);
             const v = visitaDe(c);
@@ -581,10 +583,16 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
                       {sinLeer && <span className="w-2 h-2 rounded-full bg-brand-700 shrink-0" aria-label="Sin leer" />}
                     </span>
                     <span className="flex gap-1.5 flex-wrap mt-1">
-                      <Etiqueta className={on ? 'bg-white' : ''}>
-                        {humano ? <User className="w-3.5 h-3.5" aria-hidden="true" /> : <Bot className="w-3.5 h-3.5" aria-hidden="true" />}
-                        {humano ? (vendedorNombre?.trim() || 'Vendedor') : 'Bot'}
-                      </Etiqueta>
+                      {web ? (
+                        <Etiqueta className={on ? 'bg-white' : ''}>
+                          <Globe className="w-3.5 h-3.5" aria-hidden="true" />Web
+                        </Etiqueta>
+                      ) : (
+                        <Etiqueta className={on ? 'bg-white' : ''}>
+                          {humano ? <User className="w-3.5 h-3.5" aria-hidden="true" /> : <Bot className="w-3.5 h-3.5" aria-hidden="true" />}
+                          {humano ? (vendedorNombre?.trim() || 'Vendedor') : 'Bot'}
+                        </Etiqueta>
+                      )}
                       {v && <Etiqueta className={on ? 'bg-white' : ''}>Visita {textoTurno(new Date(v.inicio)).split(' ').filter((_, i) => i !== 1).join(' ')}</Etiqueta>}
                       {c.avisado_at && !v && <Etiqueta className="bg-amber-50 text-amber-800"><Flame className="w-3 h-3" aria-hidden="true" />Avisado</Etiqueta>}
                       {pista && <Etiqueta className="bg-amber-50 text-amber-800 max-w-full"><TriangleAlert className="w-3 h-3 shrink-0" aria-hidden="true" /><span className="truncate">{pista}</span></Etiqueta>}
@@ -613,12 +621,18 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <h2 className="m-0 text-base sm:text-lg font-semibold text-gray-900 truncate">{titulo(conv)}</h2>
-                    {conv.contacto_nombre?.trim() && <span className="text-sm text-gray-600 tabular-nums">{numeroVisible(conv)}</span>}
+                    {conv.contacto_nombre?.trim() && !convWeb && <span className="text-sm text-gray-600 tabular-nums">{numeroVisible(conv)}</span>}
                   </div>
-                  <div className={`flex items-center gap-1.5 mt-0.5 text-[13px] font-medium ${modo?.humano ? 'text-gray-700' : 'text-brand-700'}`}>
-                    {modo?.humano ? <User className="w-3.5 h-3.5" aria-hidden="true" /> : <PuntoVivo />}
-                    {modo?.humano ? sinEmoji(modo.texto) : 'El bot está respondiendo'}
-                  </div>
+                  {convWeb ? (
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[13px] font-medium text-gray-700">
+                      <Globe className="w-3.5 h-3.5" aria-hidden="true" />Chat del sitio · lo atendió el bot
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-1.5 mt-0.5 text-[13px] font-medium ${modo?.humano ? 'text-gray-700' : 'text-brand-700'}`}>
+                      {modo?.humano ? <User className="w-3.5 h-3.5" aria-hidden="true" /> : <PuntoVivo />}
+                      {modo?.humano ? sinEmoji(modo.texto) : 'El bot está respondiendo'}
+                    </div>
+                  )}
                   {aviso && (
                     <div className="flex items-center gap-1 text-[13px] text-amber-800 mt-0.5" role="status">
                       <TriangleAlert className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -692,6 +706,15 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
               <div ref={finRef} />
             </div>
 
+            {convWeb ? (
+              <div className="px-3 sm:px-5 py-4 bg-white border-t border-gray-200 flex items-start gap-2 text-sm text-gray-700" role="note">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="m-0 flex-1">
+                  {AVISO_CHAT_WEB}
+                  {lead && <> <button type="button" className="font-semibold text-brand-700 underline underline-offset-2 cursor-pointer" onClick={() => irATab(`tab=tablero&lead=${lead.id}`)}>Ver lead</button></>}
+                </p>
+              </div>
+            ) : (
             <div className="px-3 sm:px-5 pt-3.5 pb-4 bg-white border-t border-gray-200">
               {accionError && <div className="text-[13px] font-medium text-red-700 mb-2" role="alert">{accionError}</div>}
               <form className="flex gap-2.5" onSubmit={e => { e.preventDefault(); enviar(); }}>
@@ -714,6 +737,7 @@ export default function Conversaciones({ conversacionId }: { conversacionId: str
                 </p>
               )}
             </div>
+            )}
           </>
         )}
       </section>

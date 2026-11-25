@@ -4,6 +4,7 @@ import { ConfigBot, camposDeError, validarConfigContraBot } from '@/lib/whatsapp
 import { asignarHostPorDefecto } from '@/lib/whatsapp-bot/host-default';
 import type { WaBot } from '@/types/whatsapp-bot';
 import { serverError } from '@/lib/api-errors';
+import { revalidateProjectById } from '@/lib/revalidate-project';
 
 const PUENTE_VIVO_MS = 3 * 60 * 1000;
 
@@ -73,6 +74,8 @@ export async function PATCH(request: Request) {
   if (error) return serverError(error);
   const bot = data as WaBot;
   await completarHost(bot);
+  // El sitio público está cacheado: la burbuja del chat (y el nombre que muestra) aparece al guardar.
+  if ('chat_web' in config || 'nombre_bot' in config) await revalidateProjectById(projectId);
   if (bot.estado !== 'esperando_qr') bot.qr = null;
   return NextResponse.json(bot);
 }

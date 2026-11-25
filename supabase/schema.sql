@@ -2971,7 +2971,7 @@ create table if not exists wa_uso_ia (
   project_id uuid not null references projects(id) on delete cascade,
   bot_id uuid references wa_bots(id) on delete set null,
   conversacion_id uuid references wa_conversaciones(id) on delete set null,
-  origen text not null check (origen in ('respuesta', 'seguimiento', 'simulador')),
+  origen text not null check (origen in ('respuesta', 'seguimiento', 'simulador', 'web')),
   modelo text,
   llamadas int not null default 0,
   input_tokens int not null default 0,
@@ -3032,7 +3032,7 @@ create table if not exists site_events (
   project_id uuid not null references projects(id) on delete cascade,
   visitor_id uuid not null,
   session_id uuid not null,
-  type text not null check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha')),
+  type text not null check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha', 'chat')),
   path text,
   unit_id uuid references units(id) on delete set null,
   ref text,
@@ -3223,3 +3223,37 @@ where l.id = m.lead_id;
 -- de editor en adelante. Con planes cargados, el sitio los muestra en vez
 -- del simulador hipotecario.
 alter table calculator_settings add column if not exists financing_plans jsonb not null default '[]'::jsonb;
+
+-- ═══ Chat en el sitio (2026-11-24) ══════════════════════════════════════
+-- Spec: docs/superpowers/specs/2026-11-24-chat-web-design.md
+-- El cerebro del bot de WhatsApp atiende un chat en el sitio público. Las
+-- charlas web son filas de wa_conversaciones con canal 'web' y un token
+-- secreto; las escribe solo la ruta /api/chat (service-role). El puente de
+-- WhatsApp nunca las toca. El interruptor es wa_bots.chat_web.
+alter table wa_bots add column if not exists chat_web boolean not null default false;
+alter table wa_conversaciones add column if not exists canal text not null default 'whatsapp';
+alter table wa_conversaciones drop constraint if exists wa_conversaciones_canal_check;
+alter table wa_conversaciones add constraint wa_conversaciones_canal_check check (canal in ('whatsapp', 'web'));
+alter table wa_conversaciones add column if not exists web_token uuid unique;
+alter table wa_conversaciones alter column contacto_numero drop not null;
+alter table wa_uso_ia drop constraint if exists wa_uso_ia_origen_check;
+alter table wa_uso_ia add constraint wa_uso_ia_origen_check
+  check (origen in ('respuesta', 'seguimiento', 'simulador', 'web'));
+alter table site_events drop constraint if exists site_events_type_check;
+alter table site_events add constraint site_events_type_check
+  check (type in ('page', 'unit', 'tour', 'brief', 'whatsapp', 'ficha', 'chat'));
+
+-- El sitio pregunta si muestra la burbuja sin leer wa_bots (RLS). No mira
+-- el estado del WhatsApp: el chat web funciona sin el teléfono vinculado.
+create or replace function public_project_chat(p_project_id uuid) returns jsonb
+language sql security definer stable
+set search_path = public
+as $$
+  select jsonb_build_object('nombre_bot', b.nombre_bot)
+  from wa_bots b
+  join projects p on p.id = b.project_id
+  where b.project_id = p_project_id
+    and b.chat_web
+    and p.published
+$$;
+grant execute on function public_project_chat(uuid) to anon, authenticated;

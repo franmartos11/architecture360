@@ -20,6 +20,11 @@ export async function POST(request: Request, { params }: Ctx) {
   if (!access) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const { supabase, user } = access;
 
+  // El chat del sitio deriva al equipo con el lead; nadie le contesta desde acá.
+  if (conv.canal === 'web') {
+    return NextResponse.json({ error: 'Esta charla fue en el sitio: no se puede responder desde acá.' }, { status: 409 });
+  }
+
   const parsed = TextoEnvio.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Mensaje inválido' }, { status: 400 });

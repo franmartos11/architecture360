@@ -20,14 +20,23 @@ export function motivoPausaLabel(motivo: string | null | undefined): string | nu
   return MOTIVOS_PAUSA[motivo] ?? null;
 }
 
+/** Charla del chat del sitio: se lee pero no se responde desde el panel. */
+export function esChatWeb(c: Pick<WaConversacion, 'canal'>): boolean {
+  return c.canal === 'web';
+}
+
+export const AVISO_CHAT_WEB = 'Esta charla fue en el sitio. Seguí por WhatsApp o teléfono con los datos del lead.';
+
 /** Aviso del chat: un chat previo al vínculo siempre lo explica, aunque todavía no haya pasado un turno. */
-export function avisoChat(c: Pick<WaConversacion, 'creada_post_vinculo' | 'ia_pausada_motivo'>): string | null {
+export function avisoChat(c: Pick<WaConversacion, 'creada_post_vinculo' | 'ia_pausada_motivo'> & Partial<Pick<WaConversacion, 'canal'>>): string | null {
+  if (esChatWeb(c)) return AVISO_CHAT_WEB;
   if (!c.creada_post_vinculo) return MOTIVOS_PAUSA.pre_vinculo;
   return motivoPausaLabel(c.ia_pausada_motivo);
 }
 
 /** El número para mostrar: un @lid que WhatsApp nunca resolvió es "Número oculto". */
 export function numeroVisible(c: Pick<WaConversacion, 'contacto_numero'>): string {
+  if (!c.contacto_numero) return 'Visitante del sitio';
   return c.contacto_numero.includes('@') ? 'Número oculto' : `+${c.contacto_numero}`;
 }
 
@@ -46,7 +55,7 @@ export function filtrarConversaciones(lista: WaConversacion[], busqueda: string)
   const digitos = busqueda.replace(/\D/g, '');
   return lista.filter(c => {
     if (c.contacto_nombre && normalizar(c.contacto_nombre).replace(/[^\p{L}\p{N}]/gu, '').includes(q)) return true;
-    return !!digitos && c.contacto_numero.replace(/\D/g, '').includes(digitos);
+    return !!digitos && (c.contacto_numero ?? '').replace(/\D/g, '').includes(digitos);
   });
 }
 
@@ -85,9 +94,10 @@ export function restanteLabel(hasta: string | null, ahora: number): string | nul
  * previo al vínculo lo atiende siempre una persona y no tiene botón.
  */
 export function modoLabel(
-  c: Pick<WaConversacion, 'modo' | 'humano_hasta'> & Partial<Pick<WaConversacion, 'creada_post_vinculo'>>,
+  c: Pick<WaConversacion, 'modo' | 'humano_hasta'> & Partial<Pick<WaConversacion, 'creada_post_vinculo' | 'canal'>>,
   ahora: number,
 ): { humano: boolean; texto: string; accion: 'tomar' | 'devolver' | null } {
+  if (esChatWeb(c)) return { humano: false, texto: '💬 Chat del sitio', accion: null };
   if (c.creada_post_vinculo === false) return { humano: true, texto: '👤 Atendido por vos', accion: null };
   if (!estaEnModoHumano(c, new Date(ahora))) return { humano: false, texto: '🤖 Bot respondiendo', accion: 'tomar' };
   const r = restanteLabel(c.humano_hasta, ahora);
@@ -140,4 +150,16 @@ export function tiempoCorto(iso: string | null, ahora: Date = new Date()): strin
   if (dif <= 0) return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   if (dif === 1) return 'ayer';
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+}
+
+export type FiltroChat = 'todas' | 'sin_leer' | 'bot' | 'vendedor' | 'web';
+
+/** Filtros de la lista. Las charlas del sitio solo aparecen en "Todas" y "Web": no se atienden desde acá. */
+export function pasaFiltro(c: WaConversacion, f: FiltroChat, ahora: number): boolean {
+  if (f === 'todas') return true;
+  if (f === 'web') return esChatWeb(c);
+  if (esChatWeb(c)) return false;
+  if (f === 'sin_leer') return c.no_leidos > 0;
+  const humano = modoLabel(c, ahora).humano;
+  return f === 'vendedor' ? humano : !humano;
 }

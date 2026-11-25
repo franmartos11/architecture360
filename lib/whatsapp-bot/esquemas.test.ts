@@ -17,6 +17,11 @@ describe('ConfigBot', () => {
     expect(ConfigBot.safeParse({ conocimiento: 'a'.repeat(20001) }).success).toBe(false);
     expect(ConfigBot.safeParse({ conocimiento: 'a'.repeat(20000) }).success).toBe(true);
   });
+  it('acepta el interruptor del chat del sitio', () => {
+    const r = ConfigBot.safeParse({ chat_web: true });
+    expect(r.success && r.data.chat_web).toBe(true);
+    expect(ConfigBot.safeParse({ chat_web: 'si' }).success).toBe(false);
+  });
   it('es parcial', () => {
     expect(ConfigBot.safeParse({}).success).toBe(true);
     expect(ConfigBot.safeParse({ activo: true }).success).toBe(true);

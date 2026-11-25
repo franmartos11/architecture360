@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import {
   conversion,
+  costoWebUsd,
   RANGOS_METRICAS,
   resumenCostoIa,
   type FilaUsoIa,
@@ -39,13 +40,15 @@ export async function GET(request: Request) {
         .from('wa_mensajes')
         .select('id, wa_conversaciones!inner(project_id)', cabeza)
         .eq('wa_conversaciones.project_id', projectId)
+        .eq('wa_conversaciones.canal', 'whatsapp')
         .eq('autor', autor)
         .gte('enviado_at', desde),
     );
 
-  const [conversacionesRes, mensajesClientes, respuestasBot, leadsRes, leadsCalientes, visitasAgendadas, visitasRealizadas, preguntasPendientes, usoRes] =
+  // Las métricas del bot son de WhatsApp; el chat del sitio va en su propio bloque.
+  const [conversacionesRes, mensajesClientes, respuestasBot, leadsRes, leadsCalientes, visitasAgendadas, visitasRealizadas, preguntasPendientes, usoRes, charlasWeb, contactosWeb] =
     await Promise.all([
-      supabase.from('wa_conversaciones').select('created_at').eq('project_id', projectId).gte('created_at', desde).limit(MAX_FILAS),
+      supabase.from('wa_conversaciones').select('created_at').eq('project_id', projectId).eq('canal', 'whatsapp').gte('created_at', desde).limit(MAX_FILAS),
       mensajes('cliente'),
       mensajes('bot'),
       supabase.from('leads').select('unit_name').eq('project_id', projectId).eq('source', 'whatsapp_bot').gte('created_at', desde).limit(MAX_FILAS),
@@ -69,6 +72,8 @@ export async function GET(request: Request) {
         .eq('project_id', projectId)
         .gte('created_at', desde)
         .limit(MAX_FILAS * 4),
+      contar(supabase.from('wa_conversaciones').select('id', cabeza).eq('project_id', projectId).eq('canal', 'web').gte('created_at', desde)),
+      contar(supabase.from('leads').select('id', cabeza).eq('project_id', projectId).eq('source', 'chat_web').gte('created_at', desde)),
     ]);
 
   const creadas = conversacionesRes.error ? null : ((conversacionesRes.data ?? []) as { created_at: string }[]).map((c) => c.created_at);
@@ -89,6 +94,11 @@ export async function GET(request: Request) {
     porDia: serieDiaria(creadas ?? [], dias, ahora),
     unidades: unidadesMasPedidas((leads ?? []).map((l) => l.unit_name)),
     costoIa: usoRes.error ? null : resumenCostoIa((usoRes.data ?? []) as FilaUsoIa[]),
+    web: {
+      charlas: charlasWeb,
+      contactos: contactosWeb,
+      costoUsd: usoRes.error ? null : costoWebUsd((usoRes.data ?? []) as FilaUsoIa[]),
+    },
   };
   return NextResponse.json(m);
 }

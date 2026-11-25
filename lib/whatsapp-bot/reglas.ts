@@ -16,12 +16,22 @@ const MS_ESCRIBIENDO_MAX = 8000;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * A dónde manda el puente un mensaje de esta charla. Las del chat web no tienen
+ * número: llegar acá con una es un error (el puente solo toca canal 'whatsapp').
+ */
+export function destinoWhatsapp(c: Pick<WaConversacion, 'contacto_wid' | 'contacto_numero'>): string {
+  const d = c.contacto_wid ?? c.contacto_numero;
+  if (!d) throw new Error('Charla del chat web: no tiene número de WhatsApp');
+  return d;
+}
+
+/**
  * Normaliza un teléfono/id de WhatsApp a dígitos E.164 sin "+".
  * Supuesto (orientado a Argentina): un número de 10 dígitos sin código de país
  * se toma como argentino (área + número) y recibe prefijo 549 (móvil).
  * Otros códigos de país se dejan tal cual. Devuelve null si no hay entre 8 y 15 dígitos.
  */
-export function normalizarTelefono(raw: string): string | null {
+export function normalizarTelefono(raw: string | null | undefined): string | null {
   const texto = String(raw ?? '');
   // Los ids @lid son identificadores opacos de WhatsApp, no teléfonos.
   if (texto.includes('@lid')) return null;

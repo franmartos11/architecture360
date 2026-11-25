@@ -3,6 +3,7 @@ import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/
 import { serverError } from '@/lib/api-errors';
 
 const LIMITE = 200;
+const LIMITE_WEB = 50;
 
 export async function GET(request: Request) {
   const projectId = await resolveRequestedProjectId(request);
@@ -24,12 +25,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ noLeidos });
   }
 
-  const { data, error } = await access.supabase
-    .from('wa_conversaciones')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
-    .limit(LIMITE);
-  if (error) return serverError(error);
-  return NextResponse.json(data ?? []);
+  // WhatsApp y chat del sitio por separado: muchas charlas web (un sitio con
+  // tráfico, o abuso) nunca desplazan de la lista a las de WhatsApp.
+  const lista = (canal: 'whatsapp' | 'web', limite: number) =>
+    access.supabase
+      .from('wa_conversaciones')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('canal', canal)
+      .order('ultimo_mensaje_at', { ascending: false, nullsFirst: false })
+      .limit(limite);
+  const [wa, web] = await Promise.all([lista('whatsapp', LIMITE), lista('web', LIMITE_WEB)]);
+  if (wa.error) return serverError(wa.error);
+  if (web.error) return serverError(web.error);
+  const momento = (c: { ultimo_mensaje_at?: string | null }) => (c.ultimo_mensaje_at ? Date.parse(c.ultimo_mensaje_at) : -Infinity);
+  const todas = [...(wa.data ?? []), ...(web.data ?? [])].sort((a, b) => (momento(b) - momento(a)) || 0);
+  return NextResponse.json(todas);
 }

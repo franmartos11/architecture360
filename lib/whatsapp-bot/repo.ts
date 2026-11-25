@@ -46,7 +46,7 @@ function fallar(contexto: string, error: { message: string }): never {
   throw new Error(`[wa repo] ${contexto}: ${error.message}`);
 }
 
-function revisar(contexto: string, error: ErrorSb): void {
+export function revisar(contexto: string, error: ErrorSb): void {
   if (error) fallar(contexto, error);
 }
 
@@ -241,7 +241,7 @@ const MARCAS_TIPO: Record<WaMensaje['tipo'], string> = {
   otro: 'Mensaje',
 };
 
-function vistaPrevia(m: Pick<WaMensaje, 'cuerpo' | 'tipo'>): string {
+export function vistaPrevia(m: Pick<WaMensaje, 'cuerpo' | 'tipo'>): string {
   const t = m.cuerpo?.trim() || MARCAS_TIPO[m.tipo];
   return t.length > 200 ? `${t.slice(0, 199)}…` : t;
 }
@@ -421,6 +421,7 @@ export async function conversacionesParaSeguimiento(
     .from('wa_conversaciones')
     .select('id, ultimo_mensaje_at, ultimo_entrante_at')
     .eq('bot_id', botId)
+    .eq('canal', 'whatsapp')
     .eq('modo', 'bot')
     .eq('creada_post_vinculo', true)
     .is('avisado_at', null)
@@ -460,14 +461,24 @@ export async function visitasActivas(sb: SupabaseClient, projectId: string, desd
   return (data ?? []) as WaVisita[];
 }
 
-/** Aviso al vendedor de una visita agendada o cancelada (si tiene WhatsApp cargado). */
+/**
+ * Aviso al vendedor de una visita agendada o cancelada (si tiene WhatsApp
+ * cargado). Chat web sin WhatsApp conectado: un aviso encolado saldría días
+ * después, así que va por email al equipo.
+ */
 async function avisarVisita(
   sb: SupabaseClient,
   bot: WaBot,
   conv: WaConversacion,
   texto: string,
+  asunto: string,
 ): Promise<void> {
   const destino = bot.vendedor_whatsapp?.trim() ? normalizarTelefono(bot.vendedor_whatsapp) : null;
+  if (conv.canal === 'web' && (!destino || bot.estado !== 'conectado')) {
+    const html = texto.split('\n').map((l) => escapeHtml(l)).join('<br>');
+    await emailAlEquipo(sb, bot.project_id, asunto, `<p>${html}</p>`, 'visita');
+    return;
+  }
   if (!destino) return;
   await encolar(sb, {
     bot_id: bot.id,
@@ -485,11 +496,13 @@ function lineasVisita(i: {
   proyecto: string;
   conv: WaConversacion;
   nombre: string | null;
+  /** Teléfono a mostrar; default, el del contacto de WhatsApp. */
+  telefono: string | null;
   inicio: Date;
   minutos: number;
   urlAdmin: string;
 }): string {
-  const telefono = telefonoDeContacto(i.conv.contacto_numero);
+  const telefono = i.telefono;
   return [
     `${i.titulo} – ${i.proyecto}`,
     `${i.nombre?.trim() || i.conv.contacto_nombre?.trim() || 'Sin nombre'} · ${telefono ?? NUMERO_OCULTO}`,
@@ -513,8 +526,11 @@ export async function agendarVisita(
     nombre: string | null;
     proyecto: { name: string };
     urlAdmin: string;
+    /** Chat web: el teléfono que dejó el comprador (la charla no tiene número). */
+    telefono?: string | null;
   },
 ): Promise<'agendada' | 'ocupado'> {
+  const telefono = i.telefono !== undefined ? normalizarTelefono(i.telefono) : telefonoDeContacto(i.conv.contacto_numero);
   // lead_id fresco: la IA puede haber avisado (y creado el lead) en este mismo turno.
   const { data: c, error: e1 } = await sb.from('wa_conversaciones').select('lead_id').eq('id', i.conv.id).maybeSingle();
   revisar('agendarVisita: select wa_conversaciones', e1);
@@ -526,7 +542,7 @@ export async function agendarVisita(
     inicio: i.inicio.toISOString(),
     fin: i.fin.toISOString(),
     nombre: i.nombre?.trim().slice(0, 120) || i.conv.contacto_nombre,
-    telefono: telefonoDeContacto(i.conv.contacto_numero),
+    telefono,
   });
   if (error && (error as { code?: string }).code === '23505') return 'ocupado';
   revisar('agendarVisita: insert wa_visitas', error);
@@ -539,10 +555,12 @@ export async function agendarVisita(
       proyecto: i.proyecto.name,
       conv: i.conv,
       nombre: i.nombre,
+      telefono,
       inicio: i.inicio,
       minutos: Math.round((i.fin.getTime() - i.inicio.getTime()) / 60_000),
       urlAdmin: i.urlAdmin,
     }),
+    `Visita agendada en ${i.proyecto.name}`,
   );
   return 'agendada';
 }
@@ -571,10 +589,12 @@ export async function cancelarVisitasDeConversacion(
         proyecto: i.proyecto.name,
         conv: i.conv,
         nombre: v.nombre,
+        telefono: v.telefono ?? telefonoDeContacto(i.conv.contacto_numero),
         inicio: new Date(v.inicio),
         minutos: Math.round((new Date(v.fin).getTime() - new Date(v.inicio).getTime()) / 60_000),
         urlAdmin: i.urlAdmin,
       }),
+      `Visita cancelada en ${i.proyecto.name}`,
     );
   }
   return canceladas;
@@ -828,18 +848,31 @@ async function entrantesDesdeAviso(sb: SupabaseClient, convId: string, avisadoAt
  * Si no se pueden leer los miembros, igual se avisa al dueño. Un try/catch por
  * destinatario: que falle uno no corta a los demás. Nunca rompe el aviso.
  */
-async function emailNuevoLead(
+export async function emailNuevoLead(
   sb: SupabaseClient,
   projectId: string,
   proyecto: string,
-  d: DatosAviso,
+  d: { nombre?: string | null; email?: string | null; resumen: string },
   telefono: string,
+  canal: 'whatsapp' | 'web' = 'whatsapp',
 ): Promise<void> {
+  const html = `<p><strong>${escapeHtml(d.nombre?.trim() || 'Sin nombre')}</strong> dejó sus datos ${canal === 'web' ? 'en el chat del sitio de' : 'por WhatsApp en'} <strong>${escapeHtml(proyecto)}</strong>.</p>
+            <p>Email: ${escapeHtml(d.email || '—')}<br>Teléfono: ${escapeHtml(telefono)}</p>
+            <p>Mensaje: ${escapeHtml(d.resumen)}</p>
+            <p>Entrá a tu panel de administración → Leads para ver el detalle.</p>`;
+  await emailAlEquipo(sb, projectId, `Nuevo lead en ${proyecto}`, html, 'nuevo lead');
+}
+
+/**
+ * Email al dueño y al equipo comercial del proyecto (ver lib/lead-recipients).
+ * Sin RESEND_API_KEY no hace nada. Nunca rechaza: un try/catch por destinatario.
+ */
+async function emailAlEquipo(sb: SupabaseClient, projectId: string, asunto: string, html: string, que: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
   try {
     const { data: p, error } = await sb.from('projects').select('owner_id').eq('id', projectId).maybeSingle();
-    revisar('emailNuevoLead: select projects', error);
+    revisar('emailAlEquipo: select projects', error);
     const ownerId = (p as { owner_id: string | null } | null)?.owner_id;
     if (!ownerId) return;
 
@@ -849,7 +882,7 @@ async function emailNuevoLead(
         .from('project_members')
         .select('user_id, role, status')
         .eq('project_id', projectId);
-      revisar('emailNuevoLead: select project_members', eM);
+      revisar('emailAlEquipo: select project_members', eM);
       miembros = (data ?? []) as typeof miembros;
     } catch (err) {
       console.error(
@@ -859,10 +892,6 @@ async function emailNuevoLead(
     }
 
     const resend = new Resend(apiKey);
-    const html = `<p><strong>${escapeHtml(d.nombre?.trim() || 'Sin nombre')}</strong> dejó sus datos por WhatsApp en <strong>${escapeHtml(proyecto)}</strong>.</p>
-            <p>Email: ${escapeHtml(d.email || '—')}<br>Teléfono: ${escapeHtml(telefono)}</p>
-            <p>Mensaje: ${escapeHtml(d.resumen)}</p>
-            <p>Entrá a tu panel de administración → Leads para ver el detalle.</p>`;
     for (const userId of leadRecipientIds(ownerId, miembros)) {
       try {
         const { data: u, error: e2 } = await sb.auth.admin.getUserById(userId);
@@ -872,20 +901,20 @@ async function emailNuevoLead(
         const { error: e3 } = await resend.emails.send({
           from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
           to,
-          subject: `Nuevo lead en ${proyecto}`,
+          subject: asunto,
           html,
         });
         if (e3) throw new Error(`resend: ${e3.message}`);
       } catch (err) {
         console.error(
-          '[wa repo] no se pudo mandar el email de nuevo lead:',
+          `[wa repo] no se pudo mandar el email de ${que}:`,
           err instanceof Error ? err.message : 'error desconocido',
         );
       }
     }
   } catch (err) {
     console.error(
-      '[wa repo] no se pudo mandar el email de nuevo lead:',
+      `[wa repo] no se pudo mandar el email de ${que}:`,
       err instanceof Error ? err.message : 'error desconocido',
     );
   }
@@ -901,7 +930,7 @@ async function emailNuevoLead(
  * duplicar la nota del lead o el aviso, pero nunca lo pierde.
  */
 /** Suma la calificación nueva a la del lead (lo que no vino conserva lo anterior). */
-async function actualizarCalificacion(sb: SupabaseClient, leadId: string, nueva: CalificacionLead): Promise<void> {
+export async function actualizarCalificacion(sb: SupabaseClient, leadId: string, nueva: CalificacionLead): Promise<void> {
   const { data, error } = await sb.from('leads').select('calificacion').eq('id', leadId).maybeSingle();
   revisar('actualizarCalificacion: select leads', error);
   if (!data) return;
@@ -919,7 +948,7 @@ async function actualizarCalificacion(sb: SupabaseClient, leadId: string, nueva:
  * los leads del proyecto en cada aviso. Si la columna todavía no existe en la
  * base (schema sin aplicar), cae a traerlos todos, como antes.
  */
-async function candidatosPorTelefono(sb: SupabaseClient, projectId: string, telefono: string): Promise<Lead[]> {
+export async function candidatosPorTelefono(sb: SupabaseClient, projectId: string, telefono: string): Promise<Lead[]> {
   const tail = phoneTail(normalizarTelefono(telefono));
   if (tail) {
     const { data, error } = await sb.from('leads').select(LEAD_COLUMNS).eq('project_id', projectId).eq('phone_tail', tail);

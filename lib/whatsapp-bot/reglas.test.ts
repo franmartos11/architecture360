@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   debeRearmarAviso,
+  destinoWhatsapp,
   debeResponder,
   esContestadorAutomatico,
   estaEnModoHumano,
@@ -129,4 +130,15 @@ describe('partirRespuesta', () => {
 it('msEscribiendo acotado', () => {
   expect(msEscribiendo('ok')).toBe(2000);
   expect(msEscribiendo('x'.repeat(5000))).toBe(8000);
+});
+
+describe('destinoWhatsapp', () => {
+  it('usa el wid y, si no hay, el número', () => {
+    expect(destinoWhatsapp({ contacto_wid: '5491122334455@c.us', contacto_numero: '5491122334455' })).toBe('5491122334455@c.us');
+    expect(destinoWhatsapp({ contacto_wid: null, contacto_numero: '5491122334455' })).toBe('5491122334455');
+  });
+
+  it('una charla del chat web no tiene a quién mandarle: falla en vez de encolar', () => {
+    expect(() => destinoWhatsapp({ contacto_wid: null, contacto_numero: null })).toThrow(/chat web/);
+  });
 });

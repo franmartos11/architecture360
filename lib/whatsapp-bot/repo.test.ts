@@ -1310,6 +1310,51 @@ describe('visitas', () => {
     expect(f.escrituras().some((q) => q.tabla === 'wa_salida')).toBe(false);
   });
 
+  it('agendarVisita de una charla web: usa el teléfono del lead y no hay chat de WhatsApp', async () => {
+    const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : q.tabla === 'wa_salida' ? { data: salida() } : undefined));
+    const c = conv({ canal: 'web', contacto_numero: null, contacto_wid: null, contacto_nombre: null });
+    expect(await agendarVisita(f.sb, { ...base(), conv: c, telefono: '5491122334455' })).toBe('agendada');
+    expect(f.escrituras().find((q) => q.tabla === 'wa_visitas')?.valores).toMatchObject({ telefono: '5491122334455' });
+    const cuerpo = (f.escrituras().find((q) => q.tabla === 'wa_salida')?.valores as { cuerpo: string }).cuerpo;
+    expect(cuerpo).toContain('5491122334455');
+    expect(cuerpo).toContain('wa.me/5491122334455');
+  });
+
+  it('charla web con el WhatsApp desconectado: agenda pero no encola el aviso', async () => {
+    const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : undefined));
+    const c = conv({ canal: 'web', contacto_numero: null, contacto_wid: null });
+    const b = bot({ vendedor_whatsapp: '5491144440000', estado: 'desconectado' });
+    expect(await agendarVisita(f.sb, { ...base(b), conv: c, telefono: null })).toBe('agendada');
+    expect(f.escrituras().some((q) => q.tabla === 'wa_visitas')).toBe(true);
+    expect(f.escrituras().some((q) => q.tabla === 'wa_salida')).toBe(false);
+  });
+
+  it('charla web sin WhatsApp conectado: la visita le llega al equipo por email', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    const f = sbFalso((q) => {
+      if (q.tabla === 'wa_conversaciones') return { data: { lead_id: 'lead7' } };
+      if (q.tabla === 'projects') return { data: { owner_id: 'owner1' } };
+      if (q.tabla === 'project_members') return { data: [] };
+      return undefined;
+    });
+    const c = conv({ canal: 'web', contacto_numero: null, contacto_wid: null });
+    const b = bot({ vendedor_whatsapp: null, estado: 'desconectado' });
+    expect(await agendarVisita(f.sb, { ...base(b), conv: c, telefono: '5491122334455' })).toBe('agendada');
+    expect(f.escrituras().some((q) => q.tabla === 'wa_salida')).toBe(false);
+    expect(enviarEmail).toHaveBeenCalledTimes(1);
+    const arg = enviarEmail.mock.calls[0][0] as { subject: string; html: string };
+    expect(arg.subject).toBe('Visita agendada en Torre Sol');
+    expect(arg.html).toContain('vie 20/11 11:00 (60 min)');
+    expect(arg.html).toContain('5491122334455');
+  });
+
+  it('charla de WhatsApp sin vendedor: sin email de visita (como siempre)', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    const f = sbFalso((q) => (q.tabla === 'wa_conversaciones' ? { data: { lead_id: 'lead7' } } : undefined));
+    await agendarVisita(f.sb, base(bot({ vendedor_whatsapp: null })));
+    expect(enviarEmail).not.toHaveBeenCalled();
+  });
+
   it('cancelarVisitasDeConversacion: solo futuras de esta charla y avisa por cada una', async () => {
     const f = sbFalso((q) =>
       q.tabla === 'wa_visitas'
@@ -1339,6 +1384,12 @@ describe('conversacionesParaSeguimiento', () => {
     expect(tiene(q, 'eq', 'bot_id', 'bot1')).toBe(true);
     expect(tiene(q, 'eq', 'modo', 'bot')).toBe(true);
     expect(tiene(q, 'is', 'avisado_at', null)).toBe(true);
+  });
+
+  it('nunca toma charlas del chat web', async () => {
+    const f = sbFalso(() => ({ data: [] }));
+    await conversacionesParaSeguimiento(f.sb, 'bot1', AHORA, 72, 14);
+    expect(tiene(f.consultas[0], 'eq', 'canal', 'whatsapp')).toBe(true);
   });
 });
 

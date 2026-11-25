@@ -47,6 +47,21 @@ describe('GET /conversaciones/[id]', () => {
     expect(q.limit).toHaveBeenCalledWith(200);
   });
 
+  it('charla del sitio: las imágenes que mostró el bot se ven (la URL está en el cuerpo)', async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      mockSupabase({ results: [{ data: { id: 'c1', project_id: 'p1', canal: 'web' } }] }) as never
+    );
+    const supabase = mockSupabase({
+      results: [
+        { data: [{ id: 'm1', tipo: 'imagen', autor: 'bot', cuerpo: 'https://x/f.jpg', enviado_at: '2026-01-01T10:01:00Z', orden_at: null, media_path: null, salida_id: null }] },
+        { data: [] },
+      ],
+    });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u' }, role: 'gestor' } as never);
+    const json = await (await GET(new Request('http://x'), { params: Promise.resolve({ id: 'c1' }) })).json();
+    expect(json.mensajes[0]).toMatchObject({ media_url: 'https://x/f.jpg', cuerpo: null });
+  });
+
   it('PATCH (tomar/devolver/leído) exige gestor en adelante', async () => {
     vi.mocked(createClient).mockResolvedValue(
       mockSupabase({ results: [{ data: { id: 'c1', project_id: 'p1' } }] }) as never

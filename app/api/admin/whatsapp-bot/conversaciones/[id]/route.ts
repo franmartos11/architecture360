@@ -68,14 +68,18 @@ export async function GET(_request: Request, { params }: Ctx) {
     for (const s of salidas ?? []) if (s.adjunto_url) adjuntos.set(s.id, s.adjunto_url);
   }
 
-  const mensajes = filas.map((m) => ({
-    ...m,
-    media_url: m.media_path
+  const mensajes = filas.map((m) => {
+    // Chat del sitio: el bot muestra imágenes públicas del proyecto y guarda su URL en el cuerpo.
+    if (conv.canal === 'web' && m.tipo === 'imagen' && !m.media_path && /^https?:\/\//.test(m.cuerpo ?? '')) {
+      return { ...m, cuerpo: null, media_url: m.cuerpo };
+    }
+    const media_url = m.media_path
       ? (firmadas.get(m.media_path) ?? null)
       : m.salida_id
         ? (adjuntos.get(m.salida_id) ?? null)
-        : null,
-  }));
+        : null;
+    return { ...m, media_url };
+  });
   return NextResponse.json({ conversacion: conv, mensajes, salidas });
 }
 

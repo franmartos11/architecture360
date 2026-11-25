@@ -22,7 +22,8 @@ export const NUMERO_OCULTO = 'número oculto';
  * Teléfono (dígitos) del contacto para mostrar y para el link wa.me; null si
  * no hay: un @lid que WhatsApp nunca resolvió (o cualquier otro wid sin número).
  */
-export function telefonoDeContacto(contacto: string): string | null {
+export function telefonoDeContacto(contacto: string | null): string | null {
+  if (!contacto) return null;
   const n = normalizarTelefono(contacto);
   if (n) return n;
   if (contacto.includes('@')) return null;
@@ -99,14 +100,21 @@ export function textoAviso(i: {
   proyecto: string;
   nombre?: string;
   telefono: string | null;
+  /** Chat web: el contacto puede ser solo un email. */
+  email?: string | null;
+  canal?: 'whatsapp' | 'web';
   unidadesTexto: string[];
   resumen: string;
   urlChat: string;
   calificacion?: CalificacionLead;
 }): string {
+  const web = i.canal === 'web';
+  const contacto = web
+    ? [i.telefono, i.email?.trim()].filter(Boolean).join(' · ') || 'sin contacto'
+    : (i.telefono ?? NUMERO_OCULTO);
   const lineas = [
-    `🔥 Cliente interesado – ${i.proyecto}`,
-    `${i.nombre?.trim() || 'Sin nombre'} · ${i.telefono ?? NUMERO_OCULTO}`,
+    `🔥 Cliente interesado${web ? ' (chat del sitio)' : ''} – ${i.proyecto}`,
+    `${i.nombre?.trim() || 'Sin nombre'} · ${contacto}`,
   ];
   if (i.calificacion) lineas.push(textoCalificacion(i.calificacion));
   if (i.unidadesTexto.length) lineas.push(`Le interesa: ${i.unidadesTexto.join('; ')}`);

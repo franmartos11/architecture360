@@ -63,7 +63,7 @@ export type RegistroUsoIa = {
   projectId: string;
   botId: string | null;
   conversacionId: string | null;
-  origen: 'respuesta' | 'seguimiento' | 'simulador';
+  origen: 'respuesta' | 'seguimiento' | 'simulador' | 'web';
   uso: UsoTurno;
   motivoSinRespuesta?: string | null;
 };

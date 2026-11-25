@@ -100,4 +100,14 @@ describe('telefonoDeContacto', () => {
   it('un número que no se puede normalizar queda en dígitos', () => {
     expect(telefonoDeContacto('+1 (234) 567')).toBe('1234567');
   });
+
+  it('chat web con solo email: lo dice y no inventa teléfono', () => {
+    const t = textoAviso({ proyecto: 'Torre X', nombre: 'Ana', telefono: null, email: 'ana@x.com', canal: 'web', unidadesTexto: [], resumen: 'R', urlChat: 'U' });
+    expect(t).toBe('🔥 Cliente interesado (chat del sitio) – Torre X\nAna · ana@x.com\nR\nVer chat: U');
+  });
+
+  it('chat web con teléfono y email', () => {
+    const t = textoAviso({ proyecto: 'Torre X', nombre: 'Ana', telefono: '5491155551234', email: 'ana@x.com', canal: 'web', unidadesTexto: [], resumen: 'R', urlChat: 'U' });
+    expect(t).toBe('🔥 Cliente interesado (chat del sitio) – Torre X\nAna · 5491155551234 · ana@x.com\nR\nEscribile: wa.me/5491155551234\nVer chat: U');
+  });
 });

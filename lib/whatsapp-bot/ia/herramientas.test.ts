@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { UnidadBot } from '../ficha';
-import { HERRAMIENTAS, ejecutarHerramienta, type DepsHerramientas } from './herramientas';
+import { HERRAMIENTAS, HERRAMIENTAS_WEB, ejecutarHerramienta, type DepsHerramientas } from './herramientas';
 
 function unidad(over: Partial<UnidadBot> = {}): UnidadBot {
   return {
@@ -381,3 +381,63 @@ describe('visitas', () => {
   });
 });
 
+
+describe('canal web', () => {
+  const AVISO = {
+    nombre: 'Ana', email: null, unidades_interes: [], resumen: 'Quiere visitar', motivo: 'pidió visita', calificacion: null,
+  };
+
+  it('avisar_vendedor pasa el teléfono que dejó el comprador', async () => {
+    const d = deps();
+    await ejecutarHerramienta('avisar_vendedor', { ...AVISO, telefono: ' 5491122334455 ' }, d);
+    expect(vi.mocked(d.avisar).mock.calls[0][0]).toMatchObject({ nombre: 'Ana', telefono: '5491122334455' });
+  });
+
+  it('sin contacto, avisar_vendedor pide nombre y teléfono o email sin marcar error', async () => {
+    const d = deps({ avisar: vi.fn(async () => 'sin_contacto' as const) });
+    const r = await ejecutarHerramienta('avisar_vendedor', { ...AVISO, telefono: null }, d);
+    expect(r.esError).toBe(false);
+    expect(r.texto).toContain('teléfono');
+    expect(r.texto).not.toContain('ya fue avisado');
+  });
+
+  it('agendar_visita sin contacto pide el contacto antes de agendar', async () => {
+    const d = deps({
+      visitas: {
+        config: { activo: true, duracion_min: 60, anticipacion_horas: 2, dias_adelante: 3, lugar: null, franjas: { '5': [['10:00', '13:00']] } },
+        ocupados: [], delCliente: [], ahora: new Date('2026-11-20T12:00:00.000Z'),
+        agendar: vi.fn(async () => 'sin_contacto' as const),
+        cancelar: vi.fn(async () => []),
+      },
+    });
+    const r = await ejecutarHerramienta('agendar_visita', { dia: '2026-11-20', hora: '11:00', nombre: null }, d);
+    expect(r.texto).toContain('teléfono');
+    expect(r.texto).not.toContain('Listo');
+  });
+
+  it('las imágenes se muestran en el chat, no van por WhatsApp', async () => {
+    const d = deps({ canal: 'web', unidades: [unidad({ fotos: ['https://x/1.jpg'] })] });
+    const r = await ejecutarHerramienta('enviar_imagenes', { codigo: '2A', que: 'fotos' }, d);
+    expect(r.texto).not.toContain('WhatsApp');
+    expect(r.texto).toContain('chat');
+  });
+
+  it('HERRAMIENTAS_WEB: avisar_vendedor pide el teléfono; el resto, mismos esquemas sin hablar de WhatsApp', () => {
+    expect(HERRAMIENTAS_WEB.map(t => t.name)).toEqual(HERRAMIENTAS.map(t => t.name));
+    for (const [i, t] of HERRAMIENTAS_WEB.entries()) {
+      expect(t.description).not.toContain('WhatsApp');
+      if (t.name === 'avisar_vendedor') continue;
+      expect(t.input_schema).toEqual(HERRAMIENTAS[i].input_schema);
+    }
+    const aviso = HERRAMIENTAS_WEB.find(t => t.name === 'avisar_vendedor')!;
+    const schema = aviso.input_schema as { properties: Record<string, unknown>; required: string[] };
+    expect(schema.required).toContain('telefono');
+    expect(schema.properties.telefono).toBeDefined();
+  });
+
+  it('HERRAMIENTAS de WhatsApp no cambian', () => {
+    const aviso = HERRAMIENTAS.find(t => t.name === 'avisar_vendedor')!;
+    expect((aviso.input_schema as { required: string[] }).required).not.toContain('telefono');
+    expect(HERRAMIENTAS.find(t => t.name === 'enviar_imagenes')!.description).toContain('por WhatsApp');
+  });
+});

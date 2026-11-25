@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/whatsapp-bot/host-default', () => ({ asignarHostPorDefecto: vi.fn(async () => null) }));
+vi.mock('@/lib/revalidate-project', () => ({ revalidateProjectById: vi.fn(async () => {}) }));
 vi.mock('@/lib/supabase/require-project-access', () => ({
   requireProjectAccess: vi.fn(),
   resolveRequestedProjectId: vi.fn(),
@@ -9,6 +10,7 @@ vi.mock('@/lib/supabase/require-project-access', () => ({
 
 import { requireProjectAccess, resolveRequestedProjectId } from '@/lib/supabase/require-project-access';
 import { asignarHostPorDefecto } from '@/lib/whatsapp-bot/host-default';
+import { revalidateProjectById } from '@/lib/revalidate-project';
 import { mockSupabase } from '@/lib/test-helpers/supabase-mock';
 import { GET, PATCH } from './route';
 
@@ -99,5 +101,31 @@ describe('/api/admin/whatsapp-bot', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).id).toBe('b');
     expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('PATCH del chat del sitio: lo guarda y refresca el sitio público para que aparezca la burbuja', async () => {
+    vi.mocked(revalidateProjectById).mockClear();
+    const supabase = mockSupabase({ results: [{ data: { id: 'b', host_permitido: 'srv1' } }, { data: { id: 'b', estado: 'desconectado', chat_web: true, host_permitido: 'srv1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'administrador' } as never);
+    const res = await PATCH(req({ chat_web: true }));
+    expect(res.status).toBe(200);
+    expect(supabase.from.mock.results[1].value.update).toHaveBeenCalledWith({ chat_web: true });
+    expect(revalidateProjectById).toHaveBeenCalledWith('p1');
+  });
+
+  it('PATCH del nombre del bot también refresca el sitio (la burbuja lo muestra)', async () => {
+    vi.mocked(revalidateProjectById).mockClear();
+    const supabase = mockSupabase({ results: [{ data: { id: 'b', host_permitido: 'srv1' } }, { data: { id: 'b', estado: 'desconectado', host_permitido: 'srv1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'administrador' } as never);
+    await PATCH(req({ nombre_bot: 'Sofía' }));
+    expect(revalidateProjectById).toHaveBeenCalledWith('p1');
+  });
+
+  it('PATCH de otras cosas no toca la caché del sitio', async () => {
+    vi.mocked(revalidateProjectById).mockClear();
+    const supabase = mockSupabase({ results: [{ data: { id: 'b', host_permitido: 'srv1' } }, { data: { id: 'b', estado: 'desconectado', host_permitido: 'srv1' } }] });
+    vi.mocked(requireProjectAccess).mockResolvedValue({ supabase, user: { id: 'u1' }, role: 'administrador' } as never);
+    await PATCH(req({ conocimiento: 'x' }));
+    expect(revalidateProjectById).not.toHaveBeenCalled();
   });
 });

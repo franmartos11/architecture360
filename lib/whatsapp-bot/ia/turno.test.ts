@@ -89,6 +89,13 @@ describe('responderTurno', () => {
     expect(MENSAJES).toHaveLength(1);
   });
 
+  it('usa las herramientas que se le pasan (canal web)', async () => {
+    const { cliente, create } = clienteFalso(fin('Hola'));
+    const herramientas = [{ name: 'solo_esta', input_schema: { type: 'object' as const, properties: {} } }];
+    await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps(), herramientas });
+    expect(create.mock.calls[0][0].tools).toBe(herramientas);
+  });
+
   it('usa el modelo y los parámetros acordados', async () => {
     const { cliente, create } = clienteFalso(fin('Hola'));
     await responderTurno({ cliente, system: SYSTEM, mensajes: MENSAJES, deps: deps() });

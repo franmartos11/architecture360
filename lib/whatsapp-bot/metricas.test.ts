@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversion, resumenCostoIa, serieDiaria, unidadesMasPedidas } from './metricas';
+import { conversion, costoWebUsd, resumenCostoIa, serieDiaria, unidadesMasPedidas } from './metricas';
 
 describe('serieDiaria', () => {
   it('un día por fila (hora de Argentina), con ceros donde no hubo', () => {
@@ -69,5 +69,24 @@ describe('resumenCostoIa', () => {
     expect(resumenCostoIa([])).toEqual({
       usd: null, incompleto: false, turnos: 0, conversaciones: 0, usdPorConversacion: null, cachePct: null, simuladorUsd: null,
     });
+  });
+});
+
+describe('chat del sitio en el costo', () => {
+  const fila = (o: Record<string, unknown>) => ({
+    origen: 'respuesta', conversacion_id: 'c1', modelo: 'claude-opus-5-5',
+    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, ...o,
+  });
+
+  it('el costo del bot de WhatsApp no suma los turnos del chat web', () => {
+    const c = resumenCostoIa([fila({ output_tokens: 1_000_000 }), fila({ origen: 'web', conversacion_id: 'w1', output_tokens: 1_000_000 })]);
+    expect(c.usd).toBeCloseTo(20, 6);
+    expect(c.turnos).toBe(1);
+    expect(c.conversaciones).toBe(1);
+  });
+
+  it('costoWebUsd suma solo el origen web; null si no hubo turnos con precio', () => {
+    expect(costoWebUsd([fila({ output_tokens: 1_000_000 }), fila({ origen: 'web', output_tokens: 500_000 })])).toBeCloseTo(10, 6);
+    expect(costoWebUsd([fila({ output_tokens: 1 })])).toBeNull();
   });
 });

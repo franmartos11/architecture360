@@ -8,4 +8,9 @@ describe('trackSchema', () => {
     const r = trackSchema.safeParse({ id: U, projectSlug: 'torre-sol', visitorId: U, sessionId: U, type: 'ficha', path: '/edificio/b/unidad/A', unitId: U });
     expect(r.success).toBe(true);
   });
+
+  it('acepta el primer mensaje del chat del sitio', () => {
+    const r = trackSchema.safeParse({ id: U, projectSlug: 'torre-sol', visitorId: U, sessionId: U, type: 'chat', path: '/' });
+    expect(r.success).toBe(true);
+  });
 });

@@ -42,4 +42,25 @@ describe('armarSystem', () => {
     const b = armarSystem('F', { nombre_bot: 'Sofía', criterio_aviso: 'c' }, 'P');
     expect(a).toEqual(b);
   });
+
+  it('sin canal es el system de WhatsApp de siempre', () => {
+    const bot = { nombre_bot: 'Sofía', criterio_aviso: 'c' };
+    expect(armarSystem('F', bot, 'P')).toEqual(armarSystem('F', bot, 'P', 'whatsapp'));
+    expect(armarSystem('F', bot, 'P')[0].text).toContain('Atendés por WhatsApp');
+  });
+
+  it('canal web: habla del chat del sitio y pide el contacto antes de avisar o agendar', () => {
+    const t = armarSystem('F', { nombre_bot: null, criterio_aviso: null }, 'Torre Alba', 'web')[0].text;
+    expect(t).not.toContain('por WhatsApp');
+    expect(t).not.toContain('como en WhatsApp');
+    expect(t).toContain('chat del sitio');
+    expect(t).toContain('antes de avisar al equipo o agendar una visita, pedí nombre y un teléfono o email');
+    expect(t).toContain('avisar_vendedor');
+    expect(t.trimEnd().endsWith('F')).toBe(true);
+  });
+
+  it('canal web es determinístico', () => {
+    const bot = { nombre_bot: 'Sofía', criterio_aviso: 'c' };
+    expect(armarSystem('F', bot, 'P', 'web')).toEqual(armarSystem('F', bot, 'P', 'web'));
+  });
 });

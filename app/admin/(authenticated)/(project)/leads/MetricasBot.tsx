@@ -195,6 +195,20 @@ export default function MetricasBot() {
           <CostoIa c={m.costoIa} />
         </div>
       )}
+      {m?.web && ((m.web.charlas ?? 0) > 0 || m.web.costoUsd !== null) && (
+        <div className="border-t border-gray-200 pt-5 flex flex-col gap-2.5">
+          <span className="text-[13px] font-semibold text-gray-900">Chat en el sitio</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <Cifra valor={num(m.web.charlas)} label="Charlas" detalle="Visitantes que escribieron" />
+            <Cifra
+              valor={num(m.web.contactos)}
+              label="Dejaron contacto"
+              detalle={m.web.charlas && m.web.contactos !== null ? `${Math.round((m.web.contactos / m.web.charlas) * 100)}% de las charlas` : undefined}
+            />
+            <Cifra valor={usd(m.web.costoUsd)} label="Costo de la IA" detalle="Estimado, aparte del WhatsApp" />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

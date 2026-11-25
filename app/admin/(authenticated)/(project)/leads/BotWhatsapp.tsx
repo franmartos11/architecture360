@@ -19,7 +19,7 @@ import PreguntasBot from './PreguntasBot';
 const AUTOSAVE_MS = 800;
 const POLL_QR_MS = 3000;
 
-type Campo = 'activo' | 'nombre_bot' | 'vendedor_nombre' | 'vendedor_whatsapp' | 'conocimiento' | 'criterio_aviso' | 'seguimiento_activo' | 'seguimiento_horas' | 'visitas';
+type Campo = 'activo' | 'nombre_bot' | 'vendedor_nombre' | 'vendedor_whatsapp' | 'conocimiento' | 'criterio_aviso' | 'seguimiento_activo' | 'seguimiento_horas' | 'visitas' | 'chat_web';
 type Form = {
   activo: boolean;
   nombre_bot: string;
@@ -30,6 +30,7 @@ type Form = {
   seguimiento_activo: boolean;
   seguimiento_horas: number;
   visitas: ConfigVisitas;
+  chat_web: boolean;
 };
 
 const OPCIONES_SEGUIMIENTO: { horas: number; label: string }[] = [
@@ -51,6 +52,7 @@ function formDesde(bot: WaBot | null): Form {
     seguimiento_activo: bot?.seguimiento_activo ?? false,
     seguimiento_horas: bot?.seguimiento_horas ?? 72,
     visitas: normalizarConfigVisitas(bot?.visitas) ?? CONFIG_VISITAS_DEFAULT,
+    chat_web: bot?.chat_web ?? false,
   };
 }
 
@@ -442,6 +444,22 @@ export default function BotWhatsapp() {
                 {(errores.seguimiento_activo || errores.seguimiento_horas) && (
                   <span className="w-full text-xs font-medium text-red-700" role="alert">{errores.seguimiento_activo ?? errores.seguimiento_horas}</span>
                 )}
+              </div>
+
+              <div className="sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 rounded-xl border border-[#ECE9E3] bg-gray-50">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="text-sm font-semibold text-gray-900">Chat en el sitio</div>
+                  <div className="text-[13px] text-gray-600 mt-0.5">
+                    Una burbuja en el sitio público del proyecto con este mismo asistente: usa el nombre, lo que tiene que saber y cuándo avisar de acá. Gasta como el bot. Funciona aunque el WhatsApp no esté vinculado.
+                  </div>
+                </div>
+                <Interruptor label="Chat en el sitio" checked={form.chat_web} onChange={v => cambiar('chat_web', v)} />
+                {form.chat_web && (estado !== 'conectado' || !form.vendedor_whatsapp.trim()) && (
+                  <span className="w-full text-[13px] text-amber-800" role="status">
+                    Los avisos del chat llegan por email y al panel mientras el WhatsApp no esté conectado.
+                  </span>
+                )}
+                {errores.chat_web && <span className="w-full text-xs font-medium text-red-700" role="alert">{errores.chat_web}</span>}
               </div>
             </div>
           </section>
