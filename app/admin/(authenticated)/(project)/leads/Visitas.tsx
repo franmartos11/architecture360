@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { Calendar, Check, ChevronLeft, ChevronRight, Info, MessageSquare } from 'lucide-react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorState from '@/components/ui/ErrorState';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -72,6 +72,8 @@ export default function Visitas() {
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [agenda, setAgenda] = useState<ConfigVisitas | null>(null);
   const [semana, setSemana] = useState(0);
+  const [diaFiltro, setDiaFiltro] = useState<string | null>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState<'todas' | 'agendada' | 'confirmada'>('todas');
   // Hora de referencia para separar próximas de pasadas: se toma al cargar.
   const [ahora, setAhora] = useState(() => Date.now());
 
@@ -151,13 +153,21 @@ export default function Visitas() {
   const noVino = pasadas.filter(v => v.estado === 'no_vino').length;
   const pasadasValidas = pasadas.filter(v => v.estado !== 'cancelada').length;
 
+  const proximasFiltradas = proximas.filter(v => {
+    if (diaFiltro && fechaAR(new Date(v.inicio)) !== diaFiltro) return false;
+    if (estadoFiltro !== 'todas' && v.estado !== estadoFiltro) return false;
+    return true;
+  });
+
   // Próximas agrupadas por día.
   const porDia = new Map<string, WaVisita[]>();
-  for (const v of proximas) {
+  for (const v of proximasFiltradas) {
     const f = fechaAR(new Date(v.inicio));
     if (!porDia.has(f)) porDia.set(f, []);
     porDia.get(f)!.push(v);
   }
+  const porConfirmarCount = activas.filter(v => v.estado === 'agendada').length;
+  const confirmadasCount = activas.filter(v => v.estado === 'confirmada').length;
 
   // Semana (lunes a domingo, hora AR) que muestra la tira de días.
   const hoy = fechaAR(new Date(ahora));
@@ -185,8 +195,9 @@ export default function Visitas() {
           <button key={a.estado} type="button" onClick={() => cambiar(v, a.estado)} disabled={ocupada === v.id} className={BTN_PRIMARIO}>{a.label}</button>
         ))}
         {v.conversacion_id && (
-          <button type="button" onClick={() => verChat(v.conversacion_id!)} className={BTN}>
-            {pasada && v.estado === 'no_vino' ? 'Reagendar por WhatsApp' : 'Ver chat'}
+          <button type="button" onClick={() => verChat(v.conversacion_id!)} className={`${BTN} gap-1.5`}>
+            <MessageSquare className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
+            {pasada && v.estado === 'no_vino' ? 'Reagendar' : 'Ver chat'}
           </button>
         )}
         {acciones(v, pasada).filter(a => !a.primaria).map(a => (
@@ -246,9 +257,18 @@ export default function Visitas() {
         </div>
 
         <section aria-label="Semana" className="rounded-2xl border border-gray-200 bg-white px-4 sm:px-5 py-4">
-          <div className="flex items-center justify-between gap-3 mb-3.5">
+          <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
             <h2 className="m-0 text-[15px] font-semibold text-gray-900">{tituloSemana}</h2>
-            <div className="flex gap-1.5">
+            <div className="flex items-center gap-1.5">
+              {(semana !== 0 || diaFiltro) && (
+                <button
+                  type="button"
+                  onClick={() => { setSemana(0); setDiaFiltro(null); }}
+                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:border-gray-400"
+                >
+                  Hoy
+                </button>
+              )}
               <button type="button" aria-label="Semana anterior" onClick={() => setSemana(s => s - 1)} className="w-9 h-9 rounded-lg border border-gray-300 bg-white flex items-center justify-center text-gray-900 hover:border-gray-400">
                 <ChevronLeft className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -258,31 +278,93 @@ export default function Visitas() {
             </div>
           </div>
           <ol className="m-0 p-0 list-none grid grid-cols-7 gap-1 sm:gap-1.5 text-center">
-            {dias.map(({ d, f, cuantas, cerrado, esHoy }) => (
-              <li
-                key={f}
-                aria-label={`${formato(d, { weekday: 'long', day: 'numeric' })}: ${cuantas ? `${cuantas} ${cuantas === 1 ? 'visita' : 'visitas'}` : cerrado ? 'cerrado' : 'sin visitas'}`}
-                className={`py-2.5 rounded-[10px] ${cuantas ? 'bg-brand-700 text-white' : cerrado ? 'bg-gray-100 text-gray-500' : ''} ${esHoy && !cuantas ? 'ring-1 ring-inset ring-gray-300' : ''}`}
-              >
-                <div className={`text-[11px] sm:text-xs ${cuantas ? 'text-white/80' : 'text-gray-600'}`}>{diaCorto(d)}</div>
-                <div className="text-base sm:text-lg font-semibold mt-0.5 tabular-nums">{formato(d, { day: 'numeric' })}</div>
-                <div className="text-[11px] sm:text-xs mt-0.5 h-4 font-semibold">
-                  {cuantas ? <><span className="sm:hidden">{cuantas}</span><span className="hidden sm:inline">{cuantas} {cuantas === 1 ? 'visita' : 'visitas'}</span></> : cerrado ? <span className="font-normal hidden sm:inline">Cerrado</span> : ''}
-                </div>
-              </li>
-            ))}
+            {dias.map(({ d, f, cuantas, cerrado, esHoy }) => {
+              const seleccionado = diaFiltro === f;
+              return (
+                <li key={f}>
+                  <button
+                    type="button"
+                    onClick={() => setDiaFiltro(prev => (prev === f ? null : f))}
+                    aria-pressed={seleccionado}
+                    aria-label={`${formato(d, { weekday: 'long', day: 'numeric' })}: ${cuantas ? `${cuantas} ${cuantas === 1 ? 'visita' : 'visitas'}` : cerrado ? 'cerrado' : 'sin visitas'}`}
+                    className={`w-full py-2.5 rounded-[10px] transition-all cursor-pointer ${
+                      cuantas
+                        ? 'bg-brand-700 text-white hover:bg-brand-800'
+                        : cerrado
+                          ? 'bg-gray-100 text-gray-500 hover:bg-gray-200/70'
+                          : 'hover:bg-gray-50'
+                    } ${seleccionado ? 'ring-2 ring-offset-2 ring-gray-900' : esHoy && !cuantas ? 'ring-1 ring-inset ring-gray-300' : ''}`}
+                  >
+                    <div className={`text-[11px] sm:text-xs ${cuantas ? 'text-white/80' : 'text-gray-600'}`}>{diaCorto(d)}</div>
+                    <div className="text-base sm:text-lg font-semibold mt-0.5 tabular-nums">{formato(d, { day: 'numeric' })}</div>
+                    <div className="text-[11px] sm:text-xs mt-0.5 h-4 font-semibold">
+                      {cuantas ? <><span className="sm:hidden">{cuantas}</span><span className="hidden sm:inline">{cuantas} {cuantas === 1 ? 'visita' : 'visitas'}</span></> : cerrado ? <span className="font-normal hidden sm:inline">Cerrado</span> : ''}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         </section>
 
-        <Nota icono={<Info className="w-4 h-4" />}>Las agenda el bot de WhatsApp. Cambiar el estado acá no le avisa nada al cliente.</Nota>
+        <Nota icono={<Info className="w-4 h-4" />}>Las agenda el bot por WhatsApp o por el chat del sitio. Cambiar el estado acá no le avisa al cliente.</Nota>
         {errorAccion && <p className="m-0 text-[13px] font-medium text-red-700" role="alert">{errorAccion}</p>}
 
         <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-          <h2 className="m-0 px-5 py-4 text-base font-semibold text-gray-900 border-b border-gray-100">Próximas</h2>
+          <div className="px-5 py-3.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="m-0 text-base font-semibold text-gray-900">Próximas</h2>
+              {diaFiltro && (
+                <button
+                  type="button"
+                  onClick={() => setDiaFiltro(null)}
+                  className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  {formato(mediodia(diaFiltro), { day: 'numeric', month: 'short' })} ×
+                </button>
+              )}
+            </div>
+            {proximas.length > 0 && (
+              <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-xs">
+                {(
+                  [
+                    { id: 'todas', label: `Todas (${proximas.length})` },
+                    { id: 'agendada', label: `Por confirmar (${porConfirmarCount})` },
+                    { id: 'confirmada', label: `Confirmadas (${confirmadasCount})` },
+                  ] as const
+                ).map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setEstadoFiltro(tab.id)}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${estadoFiltro === tab.id ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {porDia.size === 0 ? (
-            <p className="m-0 px-5 py-5 text-sm text-gray-600">
-              No hay visitas agendadas. {puedeVerAgenda ? 'Activá la agenda en la pestaña Bot de WhatsApp para que el bot pueda agendar.' : 'Las agenda el bot cuando un cliente quiere visitar.'}
-            </p>
+            <div className="px-5 py-6 flex flex-col items-start gap-3">
+              <p className="m-0 text-sm text-gray-600">
+                {diaFiltro || estadoFiltro !== 'todas'
+                  ? 'No hay visitas que coincidan con este filtro.'
+                  : puedeVerAgenda && !agenda?.activo
+                    ? 'La agenda del bot está apagada. Activala para que los clientes puedan reservar horario directo desde el chat.'
+                    : 'No hay visitas agendadas. Cuando un cliente reserve desde WhatsApp o el chat del sitio, aparece acá.'}
+              </p>
+              {!diaFiltro && estadoFiltro === 'todas' && puedeVerAgenda && !agenda?.activo && (
+                <button
+                  type="button"
+                  onClick={() => router.replace('?tab=bot', { scroll: false })}
+                  className={`${BTN_PRIMARIO} gap-1.5`}
+                >
+                  <Calendar className="w-4 h-4" aria-hidden="true" />
+                  Activar agenda en Bot
+                </button>
+              )}
+            </div>
           ) : (
             [...porDia.entries()].map(([f, vs]) => {
               const d = mediodia(f);
@@ -309,7 +391,7 @@ export default function Visitas() {
       </div>
 
       {((puedeVerAgenda && agenda) || realizadas + noVino > 0) && (
-      <aside className="flex-[1_1_280px] min-w-0 flex flex-col gap-4">
+      <aside className="flex-[1_1_280px] min-w-0 flex flex-col gap-4 lg:sticky lg:top-20">
         {puedeVerAgenda && agenda && (
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between gap-3">

@@ -21,11 +21,30 @@ export default async function ProjectAdminLayout({ children }: { children: React
   const access = await requireProjectAccess(projectId);
   if (!access) redirect('/admin/proyectos');
 
-  const { data: project } = await access.supabase
-    .from('projects')
-    .select('id, slug, name, project_type, sale_mode, published')
-    .eq('id', projectId)
-    .maybeSingle();
+  const [
+    { data: project },
+    { count: unitsCount },
+    domainsMap,
+    { data: firstBuilding },
+  ] = await Promise.all([
+    access.supabase
+      .from('projects')
+      .select('id, slug, name, project_type, sale_mode, published')
+      .eq('id', projectId)
+      .maybeSingle(),
+    access.supabase
+      .from('units')
+      .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
+      .eq('floors.buildings.project_id', projectId),
+    getActiveDomains(access.supabase, [projectId]),
+    access.supabase
+      .from('buildings')
+      .select('id, floors(id, number)')
+      .eq('project_id', projectId)
+      .order('created_at')
+      .limit(1)
+      .maybeSingle(),
+  ]);
   if (!project) redirect('/admin/proyectos');
 
   // Formas "de una sola cosa" (casa, loteo): el sidebar linkea DIRECTO al
@@ -34,25 +53,15 @@ export default async function ProjectAdminLayout({ children }: { children: React
   // de nuevo cada vez que se toca el ítem del menú.
   let singleBuildingHref: string | null = null;
   const cfg = getProjectTypeConfig(project.project_type, project.sale_mode);
-  if (cfg.singleBuilding) {
-    const { data: b } = await access.supabase
-      .from('buildings').select('id').eq('project_id', projectId).order('created_at').limit(1).maybeSingle();
-    if (b) {
-      const { data: f } = await access.supabase
-        .from('floors').select('id').eq('building_id', b.id).order('number').limit(1).maybeSingle();
-      if (f) singleBuildingHref = `/admin/edificios/${b.id}/pisos/${f.id}`;
-    }
+  if (cfg.singleBuilding && firstBuilding) {
+    const floors = ((firstBuilding as { floors?: { id: string; number: number }[] }).floors ?? [])
+      .slice()
+      .sort((a, b) => a.number - b.number);
+    if (floors[0]) singleBuildingHref = `/admin/edificios/${firstBuilding.id}/pisos/${floors[0].id}`;
   }
 
-  // Conteo de unidades para el menú ("Unidades 48") — una sola consulta
-  // con join, igual que /api/admin/project.
-  const { count: unitsCount } = await access.supabase
-    .from('units')
-    .select('id, floors!inner(buildings!inner(project_id))', { count: 'exact', head: true })
-    .eq('floors.buildings.project_id', projectId);
-
   // Dominio propio activo (si hay): el panel muestra y copia ESA dirección.
-  const customDomain = (await getActiveDomains(access.supabase, [project.id])).get(project.id) ?? null;
+  const customDomain = domainsMap.get(project.id) ?? null;
 
   return (
     <ActiveProjectIdProvider projectId={project.id}>

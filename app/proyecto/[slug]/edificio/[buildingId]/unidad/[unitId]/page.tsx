@@ -1,3 +1,5 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
@@ -6,7 +8,6 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
 import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
-import { projectCanonical } from '@/lib/project-canonical';
 import { pickUnitView } from '@/lib/floor-views';
 import { findSiteUnit, unitBimModel } from '@/lib/site-unit';
 
@@ -19,6 +20,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId, unitId } = await params;
+  const locale = await getLocale();
   // Misma lectura (cacheada) que usa la página: no se pide el proyecto dos veces.
   const project = await getSiteProjectBySlug(slug);
   // El código solo es único por piso: se busca dentro del edificio de la URL.
@@ -35,10 +37,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   return {
     // Canónica con el código aunque se haya entrado por el uuid (como la ficha).
-    alternates: { canonical: await projectCanonical(slug, `/edificio/${building.id}/unidad/${encodeURIComponent(unit.id)}`) },
+    alternates: await alternatesFor(slug, `/edificio/${building.id}/unidad/${encodeURIComponent(unit.id)}`, project?.locales ?? ['es'], locale),
     title,
     description,
-    openGraph: { title, description, images: image ? [image] : undefined },
+    openGraph: { title, description, images: image ? [image] : undefined, locale: locale === 'en' ? 'en_US' : 'es_AR' },
     twitter: { card: 'summary_large_image', title, description, images: image ? [image] : undefined },
   };
 }
@@ -56,10 +58,18 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const basePath = await getProjectBasePath(slug);
 
+  const slimUnits = project.units.map(u => ({
+    ...u,
+    polygon: undefined,
+    parkingSpots: undefined,
+    rooms: u.rooms?.map(r => ({ ...r, polygon: undefined })),
+    levels: u.levels?.map(l => ({ ...l, rooms: l.rooms.map(r => ({ ...r, polygon: undefined })) })),
+  }));
+
   return (
     <UnitViewerWrapper
       unit={unit}
-      allUnits={project.units}
+      allUnits={slimUnits}
       bimModel={unitBimModel(project.bimModels, unit)}
       projectSlug={slug}
       projectName={project.name}

@@ -15,6 +15,7 @@ import { parseConstructionProgress } from '@/lib/construction-progress-sanitize'
 import { hasRole, rankToRole } from '@/lib/project-roles';
 import { withoutDraftUpdates } from '@/lib/construction-progress-public';
 import { leerChatPublico } from '@/lib/chat/public-chat';
+import { parseLocales } from '@/lib/i18n/project-locales';
 import type {
   ProjectRow, BuildingRow, FloorRow, UnitRow, AerialSlideRow, AerialHotspotRow, AmenityRow, PointOfInterestRow,
 } from '@/types/database';
@@ -238,6 +239,7 @@ function mapProject(
     bimModels,
     commonAreasTour: project.common_areas_tour ?? undefined,
     tourOrientationDegrees: project.tour_orientation_degrees ?? undefined,
+    locales: parseLocales(project.locales),
   };
 }
 
@@ -400,7 +402,7 @@ async function fetchProjectBySlug(
   // ~570ms contra los ~196ms que cuesta pedirlos juntos. Como es latencia y
   // no volumen, el ahorro es el mismo para un proyecto chico que para uno
   // grande. slides→hotspots sigue siendo la única cadena real acá adentro.
-  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators, bimModels] = await Promise.all([
+  const [buildingsResult, { slides, hotspots }, amenities, pointsOfInterest, collaborators, bimModels, whatsappDigits, publicChat] = await Promise.all([
     supabase.from('buildings').select('*, floors(*, units(*))').eq('project_id', project.id),
     (async () => {
       const { data: slideRows } = await supabase
@@ -434,6 +436,14 @@ async function fetchProjectBySlug(
       .eq('status', 'accepted')
       .then(({ data }) => (data ?? []) as unknown as CollaboratorJoinRow[]),
     getPublicBimModelsByProject(project.id, supabase),
+    onlyPublished
+      ? Promise.resolve(supabase.rpc('public_project_whatsapp', { p_project_id: project.id }))
+          .then(({ data }) => (typeof data === 'string' ? data.replace(/\D/g, '') : ''))
+          .catch(() => '')
+      : Promise.resolve(''),
+    onlyPublished
+      ? leerChatPublico((fn, args) => supabase.rpc(fn, args), project.id)
+      : Promise.resolve(null),
   ]);
   // Nota: PostgREST corta a 1000 filas por defecto. El límite pega sobre los
   // buildings (el nivel de arriba), no sobre lo embebido — al revés de las
@@ -444,19 +454,8 @@ async function fetchProjectBySlug(
   );
 
   const mapped = mapProject(project as ProjectRow, buildings, floors, units, slides, hotspots, amenities, pointsOfInterest, collaborators, bimModels);
-  if (onlyPublished) {
-    // Número del bot de WhatsApp conectado (null si no hay o está desconectado).
-    // Si la función no existe todavía o falla, simplemente no hay número.
-    try {
-      const { data: numero } = await supabase.rpc('public_project_whatsapp', { p_project_id: project.id });
-      const digits = typeof numero === 'string' ? numero.replace(/\D/g, '') : '';
-      if (digits) mapped.whatsappNumber = digits;
-    } catch {
-      // sin número
-    }
-    const chat = await leerChatPublico((fn, args) => supabase.rpc(fn, args), project.id);
-    if (chat) mapped.chat = chat;
-  }
+  if (whatsappDigits) mapped.whatsappNumber = whatsappDigits;
+  if (publicChat) mapped.chat = publicChat;
   return mapped;
 }
 

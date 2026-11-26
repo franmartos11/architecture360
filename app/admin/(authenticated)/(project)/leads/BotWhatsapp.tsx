@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { btnPrimary, fieldClass } from '@/components/admin/panel-ui';
 import type { WaBot, WaPedido } from '@/types/whatsapp-bot';
-import { Smartphone } from 'lucide-react';
+import { BotMessageSquare, Calendar, HelpCircle, Sliders, Smartphone } from 'lucide-react';
 import { Interruptor } from './leads-ui';
 import { panelDelBot, resolverEspera, remezclarFallidos, ESPERA_PEDIDO_MS } from './bot-whatsapp-estado';
 import SimuladorBot from './SimuladorBot';
@@ -301,9 +301,42 @@ export default function BotWhatsapp() {
       {/* Resultados solo con el bot ya creado (antes no hay nada que medir). */}
       {bot && <MetricasBot key={`metricas-${activeProjectId}`} />}
 
+      {/* Resumen rápido de canales + saltos directos para evitar scrollear toda la página */}
+      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { href: '#bot-canales', label: 'Canales', icon: Smartphone, on: panel === 'conectado' || form.chat_web },
+              { href: '#bot-preguntas', label: 'Preguntas', icon: HelpCircle, on: false },
+              { href: '#bot-atencion', label: 'Cómo atiende', icon: Sliders, on: form.activo || form.chat_web },
+              { href: '#bot-agenda', label: 'Agenda', icon: Calendar, on: form.visitas.activo },
+            ] as const
+          ).map(({ href, label, icon: Icon, on }) => (
+            <a
+              key={href}
+              href={href}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-800 transition-colors"
+            >
+              <Icon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
+              {label}
+              {on && <span className="w-1.5 h-1.5 rounded-full bg-brand-700" aria-hidden="true" />}
+            </a>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${form.chat_web ? 'bg-brand-100 text-brand-800' : 'bg-gray-100 text-gray-600'}`}>
+            <BotMessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+            Chat web {form.chat_web ? 'activo' : 'apagado'}
+          </span>
+          {(guardando || guardado) && (
+            <span className="text-gray-600 font-medium" aria-live="polite">{guardando ? 'Guardando…' : 'Guardado'}</span>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-6 items-start">
         <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">
-          <section className={SECCION}>
+          <section id="bot-canales" className={`${SECCION} scroll-mt-20`}>
             <div className="px-5 sm:px-6 py-5 flex flex-wrap items-center gap-4">
               <span className="w-11 h-11 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0" aria-hidden="true">
                 <Smartphone className="w-5 h-5" />
@@ -389,15 +422,14 @@ export default function BotWhatsapp() {
           </section>
 
           {/* key: al cambiar de proyecto arranca de cero (lista del anterior). */}
-          <PreguntasBot key={`preguntas-${activeProjectId}`} />
+          <div id="bot-preguntas" className="scroll-mt-20">
+            <PreguntasBot key={`preguntas-${activeProjectId}`} />
+          </div>
 
-          <section className={`${SECCION} overflow-hidden`}>
-            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="m-0 text-base font-semibold text-gray-900">Cómo atiende</h2>
-                <p className="m-0 mt-1 text-sm text-gray-600">Lo que dice el bot y a quién le pasa los leads.</p>
-              </div>
-              <span className="pt-1 text-xs text-gray-600 whitespace-nowrap" aria-live="polite">{guardando ? 'Guardando…' : guardado ? 'Guardado' : ''}</span>
+          <section id="bot-atencion" className={`${SECCION} overflow-hidden scroll-mt-20`}>
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
+              <h2 className="m-0 text-base font-semibold text-gray-900">Cómo atiende</h2>
+              <p className="m-0 mt-1 text-sm text-gray-600">Lo que dice el bot y a quién le pasa los leads.</p>
             </div>
             <div className="px-5 sm:px-6 py-5 grid gap-x-4 gap-y-[18px] sm:grid-cols-2">
               {errores._general && <p className={`${ERROR_TEXT} sm:col-span-2`} role="alert">{errores._general}</p>}
@@ -464,10 +496,12 @@ export default function BotWhatsapp() {
             </div>
           </section>
 
-          <AgendaVisitas valor={form.visitas} onChange={v => cambiar('visitas', v)} error={errores.visitas} />
+          <div id="bot-agenda" className="scroll-mt-20">
+            <AgendaVisitas valor={form.visitas} onChange={v => cambiar('visitas', v)} error={errores.visitas} />
+          </div>
         </div>
 
-        <aside className="flex-[1_1_340px] min-w-0">
+        <aside className="flex-[1_1_340px] min-w-0 lg:sticky lg:top-20">
           {/* key: al cambiar de proyecto arranca de cero (charla del anterior). */}
           <SimuladorBot key={`simulador-${activeProjectId}`} />
         </aside>

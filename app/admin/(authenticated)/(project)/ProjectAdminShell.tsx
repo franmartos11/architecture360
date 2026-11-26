@@ -150,9 +150,9 @@ export default function ProjectAdminShell({
 
   return (
     <ProjectTypeProvider projectType={project.project_type} saleMode={project.sale_mode}>
-    <div className="atrium-ui min-h-screen bg-[#F5F3EE] flex flex-col md:flex-row">
+    <div className="atrium-ui min-h-[calc(100dvh-3.5rem)] bg-[#F5F3EE] flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="carga-guiada w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex-shrink-0 md:min-h-screen flex flex-col">
+      <aside className="carga-guiada w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex-shrink-0 md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto flex flex-col">
         <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3 md:block">
           <div className="min-w-0">
             <Link href="/admin/proyectos" className="text-xs text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-1.5 min-h-[36px]">
@@ -246,14 +246,19 @@ export default function ProjectAdminShell({
             </Link>
           )}
 
-          <div className="mt-auto pt-6 flex flex-col gap-2">
+          {navItems.length > 0 && (
+            <div className="pt-3 mt-2 border-t border-gray-200/80 flex flex-col gap-1">
+              {navItems.map(item => (
+                <Link key={item.href} href={item.href} data-indicator={item.href} aria-current={pathname === item.href ? 'page' : undefined} className={itemClass(pathname === item.href)}>
+                  <NavIcon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-auto pt-4">
             <PublishReadinessCard />
-            {navItems.map(item => (
-              <Link key={item.href} href={item.href} data-indicator={item.href} aria-current={pathname === item.href ? 'page' : undefined} className={itemClass(pathname === item.href)}>
-                <NavIcon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-                <span className="flex-1">{item.label}</span>
-              </Link>
-            ))}
           </div>
         </nav>
       </aside>
