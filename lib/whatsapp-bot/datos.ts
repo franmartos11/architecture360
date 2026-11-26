@@ -69,7 +69,11 @@ export function unidadDesdeFila(u: FilaUnidad, edificio: string, piso: string, e
   const esVivienda = unitIsDwelling(u);
   const amb = living + dormitorios;
   const cocheras = (u.garage_covered ?? 0) + (u.garage_uncovered ?? 0) || u.garage_spaces || u.parking_spots?.length || 0;
-  const fotos = [u.interior_image_url, ...(u.gallery_images ?? [])].filter((x): x is string => !!x);
+  const fotos = Array.from(new Set([
+    u.interior_image_url,
+    ...(u.gallery_images ?? []),
+    ...rooms.flatMap(r => [r.imageUrl, ...(r.images ?? [])]),
+  ].filter((x): x is string => !!x)));
   const total = nn(u.total_area);
   const cubierta = nn(u.inner_area);
   return {

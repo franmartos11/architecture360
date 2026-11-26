@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Unit } from '@/types';
+import { unitGalleryImages } from '@/lib/units';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 
@@ -120,6 +121,6 @@ export default function ComparePaneContent({ unit, contentType, bare = false }: 
     case 'plano':
       return <ImagePane url={unit.technicalPlanUrl || unit.plan3dUrl} emptyText="Esta unidad no tiene plano técnico cargado." bare={bare} />;
     case 'galeria':
-      return <GalleryPane key={unit.id} images={unit.galleryImages ?? []} bare={bare} />;
+      return <GalleryPane key={unit.id} images={unitGalleryImages(unit)} bare={bare} />;
   }
 }

@@ -86,18 +86,22 @@ export default function PlanoTab({
               {hasRooms ? 'Ambientes' : 'Plantas'}
             </button>
           )}
-          <button
-            onClick={() => onPlanViewChange('3d')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            Plano 3D
-          </button>
-          <button
-            onClick={() => onPlanViewChange('2d')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '2d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            Plano técnico
-          </button>
+          {!!unit.plan3dUrl && (
+            <button
+              onClick={() => onPlanViewChange('3d')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Plano 3D
+            </button>
+          )}
+          {!!unit.technicalPlanUrl && (
+            <button
+              onClick={() => onPlanViewChange('2d')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '2d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Plano técnico
+            </button>
+          )}
           {/* Solo si este depto tiene al menos una cochera marcada y con
               plano — mismo criterio de "sin contenido no se muestra" que
               usan los tabs del visor. */}

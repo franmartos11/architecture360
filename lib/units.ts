@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/i18n/locales';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
 import type { Unit, Room, RoomKind, ParkingSpot, UnitParkingSpot, UnitCategory } from '@/types';
 
 // Utilidades de unidades usadas en todo el sitio (producción y admin) —
@@ -73,8 +75,11 @@ export function priceChangeFromInput(
   return parsed !== (stored ?? null) ? { price: parsed } : null;
 }
 
-export function getStatusLabel(status: string): string {
-  return { available: 'Disponible para vender', reserved: 'Reservado', sold: 'Vendido' }[status] || status;
+export function getStatusLabel(status: string, locale: Locale = 'es'): string {
+  const labels = locale === 'en'
+    ? { available: 'Available', reserved: 'Reserved', sold: 'Sold' }
+    : { available: 'Disponible para vender', reserved: 'Reservado', sold: 'Vendido' };
+  return labels[status as keyof typeof labels] || status;
 }
 
 // Tipología de una unidad derivada de sus dormitorios — para casas, que no
@@ -116,6 +121,21 @@ export const CATEGORY_SHORT: Partial<Record<UnitCategory, string>> = {
   comercial: 'Local',
   cochera: 'Cochera',
 };
+
+const UNIT_CATEGORY_LABEL_EN: Record<UnitCategory, string> = {
+  vivienda: 'Residence',
+  comercial: 'Commercial unit',
+  cochera: 'Parking space',
+};
+const CATEGORY_SHORT_EN: Partial<Record<UnitCategory, string>> = { comercial: 'Retail', cochera: 'Parking' };
+
+export function unitCategoryLabel(c: UnitCategory, locale: Locale = 'es'): string {
+  return (locale === 'en' ? UNIT_CATEGORY_LABEL_EN : UNIT_CATEGORY_LABEL)[c];
+}
+
+export function categoryShortLabel(c: UnitCategory, locale: Locale = 'es'): string | undefined {
+  return (locale === 'en' ? CATEGORY_SHORT_EN : CATEGORY_SHORT)[c];
+}
 
 const TYPE_BY_CATEGORY: Partial<Record<UnitCategory, string>> = {
   comercial: 'local comercial',
@@ -162,20 +182,29 @@ export function parseOrientation(raw: string | null | undefined): { degrees?: nu
 // Etiqueta para mostrar una tipología cualquiera (conocida o derivada) —
 // reemplaza al viejo Record exhaustivo, que se rompía apenas aparecía un
 // valor fuera del enum (ej. "5 dormitorios").
-export function unitTypeLabel(type: string): string {
+export function unitTypeLabel(type: string, locale: Locale = 'es'): string {
   if (!type) return '';
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  const t = etiquetaCatalogo(type, locale);
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // Pluralización simple en español: "Unidad"→"Unidades", "Lote"→"Lotes",
 // "Casa"→"Casas", "Espacio"→"Espacios", "Dúplex"→"Dúplex" (invariante) —
 // un "+s" liso rompe cualquier palabra que termine en consonante (daba
 // "UNIDADS"). Usada para pluralizar unitLabel/buildingLabel donde haga falta.
-export function pluralize(word: string): string {
+export function pluralize(word: string, locale: Locale = 'es'): string {
+  if (locale === 'en') return pluralizeEn(word);
   const last = word.slice(-1).toLowerCase();
   if ('aeiouáéíóú'.includes(last)) return `${word}s`;
   if (last === 's' || last === 'x') return word;
   return `${word}es`;
+}
+
+/** Plural inglés de las etiquetas del sitio (Unit, Lot, House, Duplex, Phase...). */
+function pluralizeEn(word: string): string {
+  if (/(s|x|z|ch|sh)$/i.test(word)) return `${word}es`;
+  if (/[^aeiou]y$/i.test(word)) return `${word.slice(0, -1)}ies`;
+  return `${word}s`;
 }
 
 // ─── Programa de ambientes de una casa ─────────────────────────────
@@ -191,6 +220,22 @@ export const ROOM_KIND_LABEL: Record<RoomKind, string> = {
   storage: 'Depósito',
   other: 'Ambiente',
 };
+
+const ROOM_KIND_LABEL_EN: Record<RoomKind, string> = {
+  bedroom: 'Bedroom',
+  bathroom: 'Bathroom',
+  kitchen: 'Kitchen',
+  living: 'Living room',
+  dining: 'Dining room',
+  studio: 'Study',
+  laundry: 'Laundry room',
+  storage: 'Storage room',
+  other: 'Room',
+};
+
+export function roomKindLabel(kind: RoomKind, locale: Locale = 'es'): string {
+  return (locale === 'en' ? ROOM_KIND_LABEL_EN : ROOM_KIND_LABEL)[kind];
+}
 
 // Características ofrecidas según el tipo de ambiente — así una cocina no
 // muestra "En suite" ni un depósito "Con placard".
@@ -230,17 +275,36 @@ export const UNIT_CONDITION_OPTIONS: { value: NonNullable<Unit['condition']>; la
   { value: 'usada', label: 'Usada' },
 ];
 
-export function unitConditionLabel(condition: Unit['condition'] | null | undefined): string {
+const UNIT_CONDITION_EN: Record<NonNullable<Unit['condition']>, string> = {
+  a_estrenar: 'Brand new',
+  en_construccion: 'Under construction',
+  en_pozo: 'Pre-construction',
+  usada: 'Resale',
+};
+
+export function unitConditionLabel(condition: Unit['condition'] | null | undefined, locale: Locale = 'es'): string {
+  if (locale === 'en') return condition ? UNIT_CONDITION_EN[condition] ?? '' : '';
   return UNIT_CONDITION_OPTIONS.find(o => o.value === condition)?.label ?? '';
 }
 
 // "2 cocheras (1 cubierta, 1 descubierta)" — usa el desglose si está, y si
 // no cae al par viejo garageSpaces/garageType.
-export function cocheraLabel(u: Pick<Unit, 'garageSpaces' | 'garageType' | 'garageCovered' | 'garageUncovered'>): string {
+export function cocheraLabel(
+  u: Partial<Pick<Unit, 'garageSpaces' | 'garageType' | 'garageCovered' | 'garageUncovered'>>,
+  locale: Locale = 'es',
+): string {
   const cov = u.garageCovered ?? 0;
   const unc = u.garageUncovered ?? 0;
   const total = cov + unc || u.garageSpaces || 0;
   if (total === 0) return '';
+  if (locale === 'en') {
+    const s = (n: number) => (n === 1 ? '' : 's');
+    const noun = `${total} parking space${s(total)}`;
+    if (cov > 0 && unc > 0) return `${noun} (${cov} covered, ${unc} uncovered)`;
+    if (cov > 0) return `${total} covered parking space${s(total)}`;
+    if (unc > 0) return `${total} uncovered parking space${s(total)}`;
+    return noun;
+  }
   const noun = `${total} cochera${total !== 1 ? 's' : ''}`;
   if (cov > 0 && unc > 0) return `${noun} (${cov} cubierta${cov !== 1 ? 's' : ''}, ${unc} descubierta${unc !== 1 ? 's' : ''})`;
   if (cov > 0) return `${noun} cubierta${cov !== 1 ? 's' : ''}`;
@@ -377,4 +441,25 @@ export function areaMismatch(total: number | null, parts: (number | null)[], tol
   if (total == null || !(total > 0)) return false;
   const sum = parts.reduce<number>((acc, p) => acc + (p ?? 0), 0);
   return sum > 0 && Math.abs(sum - total) > tolerance;
+}
+
+/**
+ * Galería principal de la unidad: fotos cargadas en la galería + fotos de los
+ * ambientes del plano (planta baja y niveles extra), sin duplicados.
+ */
+export function unitGalleryImages(unit: Pick<Unit, 'galleryImages' | 'rooms' | 'levels'>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (url: string | null | undefined) => {
+    const clean = url?.trim();
+    if (!clean || seen.has(clean)) return;
+    seen.add(clean);
+    out.push(clean);
+  };
+  for (const img of unit.galleryImages ?? []) push(img);
+  for (const room of allProgramRooms(unit.rooms, unit.levels)) {
+    push(room.imageUrl);
+    for (const img of room.images ?? []) push(img);
+  }
+  return out;
 }

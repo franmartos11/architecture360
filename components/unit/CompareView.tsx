@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab } from '@/types';
+import { unitGalleryImages } from '@/lib/units';
 import ComparePicker from './ComparePicker';
 import CompareMetricsBar from './CompareMetricsBar';
 import ComparePaneContent, { type CompareContentType } from './ComparePaneContent';
@@ -16,7 +17,19 @@ const CONTENT_TYPES: { id: CompareContentType; label: string }[] = [
   { id: 'plano', label: 'Planos' },
   { id: 'galeria', label: 'Galería' },
 ];
-const SUPPORTED_TYPES = CONTENT_TYPES.map(t => t.id);
+
+function unitHasCompareContent(u: Unit, type: CompareContentType): boolean {
+  switch (type) {
+    case 'planta3d':
+      return !!u.floorPlan3dUrl || !!u.levels?.some(l => l.plan3dImage);
+    case 'tour360':
+      return !!(u.tourImageUrl || u.tourData);
+    case 'plano':
+      return !!(u.roomPlanImage || u.technicalPlanUrl || u.plan3dUrl || u.levels?.some(l => l.planImage));
+    case 'galeria':
+      return unitGalleryImages(u).length > 0;
+  }
+}
 
 interface CompareViewProps {
   unit: Unit;
@@ -32,10 +45,23 @@ interface CompareViewProps {
 
 export default function CompareView({ unit, allUnits, initialContentType, initialCompareUnitId, onClose, showPrice = false, showLeads = false, projectSlug }: CompareViewProps) {
   const [compareUnitId, setCompareUnitId] = useState<string | null>(initialCompareUnitId ?? null);
+  const candidates = useMemo(() => allUnits.filter(u => u.id !== unit.id), [allUnits, unit.id]);
+  const compareUnit = candidates.find(u => u.id === compareUnitId) ?? null;
+  const availableTypes = useMemo(() => {
+    const visible = CONTENT_TYPES.filter(
+      t => unitHasCompareContent(unit, t.id) || (compareUnit ? unitHasCompareContent(compareUnit, t.id) : false)
+    );
+    return visible.length > 0 ? visible : CONTENT_TYPES;
+  }, [unit, compareUnit]);
+
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [contentType, setContentType] = useState<CompareContentType>(() =>
-    SUPPORTED_TYPES.includes(initialContentType as CompareContentType) ? (initialContentType as CompareContentType) : 'planta3d'
-  );
+  const [contentType, setContentType] = useState<CompareContentType>(() => {
+    const initial = availableTypes.find(t => t.id === initialContentType)?.id;
+    return initial ?? availableTypes[0].id;
+  });
+  const activeContentType: CompareContentType = availableTypes.some(t => t.id === contentType)
+    ? contentType
+    : availableTypes[0].id;
   const [metricsVisible, setMetricsVisible] = useState(true);
   const contactModal = useContactModal();
   const [contactUnit, setContactUnit] = useState<Unit | null>(null);
@@ -45,12 +71,6 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
-
-  // Cualquier otra unidad es candidata — no todos los aspectos comparables
-  // (360°, galería, planos) dependen de tener recorrido cargado, así que
-  // no filtramos por eso acá; cada aspecto muestra su propio estado vacío.
-  const candidates = useMemo(() => allUnits.filter(u => u.id !== unit.id), [allUnits, unit.id]);
-  const compareUnit = candidates.find(u => u.id === compareUnitId) ?? null;
 
   // El slider central arrastrable solo tiene sentido en el layout lado a
   // lado (desktop) — en mobile los paneles quedan apilados verticalmente.
@@ -111,8 +131,8 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         <CompareMobile
           unit={unit}
           compareUnit={compareUnit}
-          contentTypes={CONTENT_TYPES}
-          contentType={contentType}
+          contentTypes={availableTypes}
+          contentType={activeContentType}
           onContentTypeChange={setContentType}
           onClose={onClose}
           onPick={() => setPickerOpen(true)}
@@ -150,8 +170,8 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
           nombre de unidad; no chocan porque los badges se centran dentro de
           cada panel (25%/75% de ancho) y esto se centra en toda la pantalla (50%) */}
       <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 flex items-center p-1 bg-gray-100 rounded-full border border-gray-200 shadow-lg overflow-x-auto max-w-[90vw]">
-        {CONTENT_TYPES.map(t => {
-          const isActive = contentType === t.id;
+        {availableTypes.map(t => {
+          const isActive = activeContentType === t.id;
           return (
             <button
               key={t.id}
@@ -178,7 +198,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
           style={{ width: leftWidth }}
           className="relative w-full md:w-1/2 h-1/2 md:h-full border-b md:border-b-0 md:border-r border-gray-200 bg-gray-100 overflow-hidden"
         >
-          <ComparePaneContent unit={unit} contentType={contentType} />
+          <ComparePaneContent unit={unit} contentType={activeContentType} />
           {/* Badge A */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
@@ -194,7 +214,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         >
           {compareUnit ? (
             <>
-              <ComparePaneContent unit={compareUnit} contentType={contentType} />
+              <ComparePaneContent unit={compareUnit} contentType={activeContentType} />
               {/* Badge B */}
               <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />

@@ -67,4 +67,15 @@ describe('unitCopyPatch', () => {
     expect(r.filledLabels).toContain('Superficie total');
     expect(r.keptLabels).toEqual(expect.arrayContaining(['Modelo', 'Precio']));
   });
+
+  it('copia el recorrido 360° cuando la unidad destino no tiene escenas', () => {
+    const tour = { initialNodeId: 'n1', nodes: [{ id: 'n1', name: 'Living', imageUrl: '/360.jpg' }] };
+    const r = unitCopyPatch(
+      { ...target, tour_data: { initialNodeId: '', nodes: [] }, tour_image_url: null },
+      { ...source, tour_data: tour, tour_image_url: '/legacy-360.jpg' },
+    );
+    expect(r.patch.tourData).toEqual(tour);
+    expect(r.patch.tourImageUrl).toBe('/legacy-360.jpg');
+    expect(r.filledLabels).toEqual(expect.arrayContaining(['Recorrido 360°', 'Imagen 360°']));
+  });
 });

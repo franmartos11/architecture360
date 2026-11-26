@@ -15,7 +15,7 @@ import { showUnitCalculator } from '@/lib/financing';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import type { Unit, UnitViewTab, Room, Amenity, PointOfInterest } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
-import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL, cocheraLabel, unitConditionLabel, drawnParkingSpots } from '@/lib/units';
+import { getStatusColor, getStatusLabel, formatPrice, hasRoomProgram, allProgramRooms, ROOM_KIND_LABEL, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL, cocheraLabel, unitConditionLabel, drawnParkingSpots, unitGalleryImages } from '@/lib/units';
 import { getSunAzimuths } from '@/lib/sun-position';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
@@ -169,12 +169,13 @@ export default function UnitViewer({
   // clickea "360°" o "Planos" para encontrar una pantalla vacía. Los tabs
   // Amenities/Ubicación ya seguían este criterio; acá se unifica para los
   // 4 tabs de la unidad.
+  const galleryImages = useMemo(() => unitGalleryImages(unit), [unit]);
   const tabHasContent: Record<UnitViewTab, boolean> = {
     planta3d: !!unit.floorPlan3dUrl || !!unit.levels?.some(l => l.plan3dImage) || (!!bimModel && (!!bimModel.geometryUrl || bimModel.galleryImages.length > 0)),
     tour360: hasTour,
     plano: hasRooms || hasPlantaPlans || !!unit.roomPlanImage || !!unit.technicalPlanUrl || !!unit.plan3dUrl
       || !!unit.levels?.some(l => l.planImage) || hasParking,
-    galeria: (unit.galleryImages?.length ?? 0) > 0,
+    galeria: galleryImages.length > 0,
     vista: !!floorView,
     amenities: amenities.some(a => !a.buildingId || a.buildingId === buildingId),
     ubicacion: pointsOfInterest.length > 0,
@@ -236,9 +237,10 @@ export default function UnitViewer({
   // (si no, el selector abriría en una vista vacía).
   const [planView, setPlanView] = useState<'3d' | '2d' | 'ambientes' | 'cochera'>(
     hasRooms || hasPlantaPlans ? 'ambientes'
-    : (unit.plan3dUrl || unit.technicalPlanUrl || unit.floorPlan3dUrl) ? '3d'
+    : unit.plan3dUrl ? '3d'
+    : unit.technicalPlanUrl ? '2d'
     : hasParking ? 'cochera'
-    : '3d'
+    : 'ambientes'
   );
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   // Programa de ambientes de la sidebar — fila expandible + lightbox de fotos.
@@ -298,9 +300,9 @@ export default function UnitViewer({
       
       if (e.key === 'ArrowRight') {
         if (lightboxOpen) {
-          setLightboxIndex((i) => Math.min(i + 1, (unit.galleryImages?.length || 1) - 1));
+          setLightboxIndex((i) => Math.min(i + 1, (galleryImages.length || 1) - 1));
         } else {
-          setGalleryIndex((i) => Math.min(i + 1, (unit.galleryImages?.length || 1) - 1));
+          setGalleryIndex((i) => Math.min(i + 1, (galleryImages.length || 1) - 1));
         }
       } else if (e.key === 'ArrowLeft') {
         if (lightboxOpen) {
@@ -315,7 +317,7 @@ export default function UnitViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, lightboxOpen, unit.galleryImages?.length]);
+  }, [activeTab, lightboxOpen, galleryImages.length]);
 
   // Keyboard navigation for el lightbox de amenities
   useEffect(() => {
@@ -376,15 +378,15 @@ export default function UnitViewer({
 
   // Preload images
   const currentImg = lightboxOpen ? lightboxIndex : galleryIndex;
-  const nextImgUrl = unit.galleryImages?.[currentImg + 1];
-  const prevImgUrl = unit.galleryImages?.[currentImg - 1];
+  const nextImgUrl = galleryImages[currentImg + 1];
+  const prevImgUrl = galleryImages[currentImg - 1];
 
   // Modales y visores a pantalla completa — los mismos en las dos fichas.
   const overlays = (
     <>
         <ImageLightbox
           isOpen={lightboxOpen}
-          images={unit.galleryImages ?? []}
+          images={galleryImages}
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxOpen(false)}
@@ -489,7 +491,7 @@ export default function UnitViewer({
       : (
         <GaleriaTab
           key="galeria"
-          images={unit.galleryImages ?? []}
+          images={galleryImages}
           activeIndex={galleryIndex}
           onIndexChange={setGalleryIndex}
           onOpenLightbox={(index, rect) => { setLightboxOrigin(rect); setLightboxIndex(index); setLightboxOpen(true); }}
@@ -1120,9 +1122,9 @@ export default function UnitViewer({
               />
             )}
 
-            {activeTab === 'galeria' && unit.galleryImages && unit.galleryImages.length > 0 && (
+            {activeTab === 'galeria' && galleryImages.length > 0 && (
               <GaleriaTab
-                images={unit.galleryImages}
+                images={galleryImages}
                 activeIndex={galleryIndex}
                 onIndexChange={setGalleryIndex}
                 onOpenLightbox={(index, rect) => { setLightboxOrigin(rect); setLightboxIndex(index); setLightboxOpen(true); }}

@@ -65,6 +65,8 @@ export const UNIT_COPY_FIELDS = [
   { col: 'floor_plan_3d_url', key: 'floorPlan3dUrl', label: 'Planta 3D' },
   { col: 'plan_3d_url', key: 'plan3dUrl', label: 'Plano 3D' },
   { col: 'technical_plan_url', key: 'technicalPlanUrl', label: 'Plano técnico' },
+  { col: 'tour_data', key: 'tourData', label: 'Recorrido 360°' },
+  { col: 'tour_image_url', key: 'tourImageUrl', label: 'Imagen 360°' },
 ] as const;
 
 // Defaults de alta de la tabla `units` (supabase/schema.sql) — un valor
@@ -82,6 +84,10 @@ const DEFAULT_UNIT_TYPE = '2 dormitorios';
 export function isUnitColumnEmpty(col: string, value: unknown, row: Record<string, unknown>): boolean {
   if (value == null || value === '') return true;
   if (Array.isArray(value)) return value.length === 0;
+  if (col === 'tour_data') {
+    const nodes = (value as { nodes?: unknown[] } | null)?.nodes;
+    return !Array.isArray(nodes) || nodes.length === 0;
+  }
   // La tipología de alta solo es "vacía" si los dormitorios tampoco se
   // tocaron — si no, es un 2 dormitorios de verdad.
   if (col === 'type') return value === DEFAULT_UNIT_TYPE && isUnitColumnEmpty('bedrooms', row.bedrooms, row);

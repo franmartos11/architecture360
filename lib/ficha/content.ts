@@ -2,7 +2,7 @@ import type { Building, Project, Room, Unit } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import {
   formatPrice, getStatusLabel, getStatusColor, unitIsDwelling, unitCategory,
-  UNIT_CATEGORY_LABEL, cocheraLabel, unitConditionLabel,
+  UNIT_CATEGORY_LABEL, cocheraLabel, unitConditionLabel, unitGalleryImages,
 } from '@/lib/units';
 import { boostsLabel, computePlan, showUnitCalculator, INDEX_LABEL, type FinancingPlan } from '@/lib/financing';
 import { progressHeadline } from '@/lib/construction-progress-view';
@@ -320,7 +320,7 @@ function collectGallery(
       push(photo.url, `Vista desde ${view.floorLabel} (${photo.direction})`);
     }
   }
-  for (const img of unit.galleryImages ?? []) {
+  for (const img of unitGalleryImages(unit)) {
     push(img, null);
   }
   push(unit.floorPlan3dUrl, 'Planta 3D');

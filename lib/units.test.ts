@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, parsePriceInput, priceChangeFromInput, areaMismatch, UNIT_CURRENCIES, fmtM2, formatPrice, unitCategory, unitIsDwelling, typeForCategory, similarityScore } from './units';
+import { deriveUnitType, unitTypeLabel, hasRoomProgram, roomCounts, synthesizeRoomProgram, allProgramRooms, bearingToCardinal, parseOrientation, roomFeatureOptions, drawnParkingSpots, parkingFloorGroups, remapParkingSpotFloors, parsePriceInput, priceChangeFromInput, areaMismatch, UNIT_CURRENCIES, fmtM2, formatPrice, unitCategory, unitIsDwelling, typeForCategory, similarityScore, unitGalleryImages } from './units';
 import type { ParkingSpot, Room, Unit, UnitParkingSpot } from '@/types';
 
 describe('deriveUnitType', () => {
@@ -263,5 +263,20 @@ describe('categoría de unidad', () => {
     const base = { totalArea: 12, bedrooms: 0, bathrooms: 1, type: 'x' } as Unit;
     expect(similarityScore({ ...base, category: 'cochera' }, { ...base, category: 'vivienda' })).toBe(0);
     expect(similarityScore({ ...base, category: 'cochera' }, { ...base, category: 'cochera' })).toBeGreaterThan(0);
+  });
+});
+
+describe('unitGalleryImages', () => {
+  it('combina galería principal y fotos de ambientes (incluidos niveles) sin duplicar', () => {
+    const imgs = unitGalleryImages({
+      galleryImages: ['/g1.jpg', '/r1.jpg'],
+      rooms: [
+        { id: 'r1', name: 'Living', imageUrl: '/r1.jpg', images: ['/r2.jpg'] },
+      ],
+      levels: [
+        { id: 'l1', label: 'PA', planImage: null, rooms: [{ id: 'r2', name: 'Suite', imageUrl: '/r3.jpg', images: ['/g1.jpg', '/r4.jpg'] }] },
+      ],
+    });
+    expect(imgs).toEqual(['/g1.jpg', '/r1.jpg', '/r2.jpg', '/r3.jpg', '/r4.jpg']);
   });
 });

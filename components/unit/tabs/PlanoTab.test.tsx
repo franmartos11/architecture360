@@ -28,5 +28,18 @@ describe('PlanoTab — plano de cada planta sin ambientes', () => {
     expect(screen.getByRole('button', { name: 'Plantas' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Planta alta' })).toBeTruthy();
     expect(screen.getByAltText('plano de planta').getAttribute('src')).toBe('/pb.png');
+    expect(screen.queryByRole('button', { name: 'Plano 3D' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Plano técnico' })).toBeNull();
+  });
+
+  it('muestra Plano 3D y Plano técnico solo cuando están cargados', () => {
+    const conPlanos = { ...unit, plan3dUrl: '/p3d.png', technicalPlanUrl: '/tec.png' } as unknown as Unit;
+    render(
+      <MotionProvider>
+        <PlanoTab unit={conPlanos} hasRooms={false} hasPlantaPlans planView="ambientes" onPlanViewChange={() => {}} onSelectRoom={() => {}} />
+      </MotionProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Plano 3D' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Plano técnico' })).toBeTruthy();
   });
 });
