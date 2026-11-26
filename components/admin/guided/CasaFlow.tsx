@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { uploadViaSignedUrl } from '@/lib/signed-upload';
+import { compressImage } from '@/lib/image-compress';
 import { defaultRoomGroup, matchRoomByFilename, mergeTourNodes, type RoomGroup } from '@/lib/guided-structure';
 import { roomsWithGroups, splitRoomsByGroup, plantaLabel } from '@/lib/unit-levels';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
@@ -314,7 +315,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const [tab, setTab] = useState<RoomGroup>('pb');
   // Carga masiva: fotos que no se pudieron asignar solas por el nombre.
   const [unassigned, setUnassigned] = useState<{ url: string; name: string }[]>([]);
-  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+  const [bulk, setBulk] = useState<{ done: number; total: number; pct: number } | null>(null);
   const bulkInput = useRef<HTMLInputElement>(null);
   const [panos, setPanos] = useState<Record<string, string>>(() => Object.fromEntries(
     savedRooms.filter(r => r.tourNodeId).map(r => [r.id, existingNodes.find(n => n.id === r.tourNodeId)?.imageUrl ?? '']),
@@ -391,16 +392,40 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
   const uploadAll = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const list = [...files].filter(f => f.type.startsWith('image/'));
-    setBulk({ done: 0, total: list.length });
+    if (list.length === 0) return;
+    setBulk({ done: 0, total: list.length, pct: 0 });
     const uploaded: { url: string; name: string }[] = [];
+    const pcts = new Array<number>(list.length).fill(0);
     let failed = 0;
-    for (let i = 0; i < list.length; i++) {
-      const file = list[i];
-      const res = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', file, { folder: 'units' });
-      if (res.ok) uploaded.push({ url: res.data.url, name: file.name });
-      else failed++;
-      setBulk({ done: i + 1, total: list.length });
-    }
+    let cursor = 0;
+    let done = 0;
+
+    const worker = async () => {
+      while (cursor < list.length) {
+        const idx = cursor++;
+        const file = list[idx];
+        const compressed = await compressImage(file);
+        const res = await uploadViaSignedUrl<{ url: string }>(
+          '/api/admin/upload',
+          compressed,
+          { folder: 'units' },
+          {
+            onProgress: pct => {
+              pcts[idx] = pct;
+              const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / list.length);
+              setBulk(prev => (prev ? { ...prev, pct: avg } : prev));
+            },
+          }
+        );
+        pcts[idx] = 100;
+        done += 1;
+        if (res.ok) uploaded.push({ url: res.data.url, name: file.name });
+        else failed++;
+        const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / list.length);
+        setBulk({ done, total: list.length, pct: avg });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, list.length) }, worker));
     // Se asigna recién al terminar y contra los ambientes ACTUALES: si
     // alguien borró o renombró un ambiente durante la subida, sus fotos van
     // a "para asignar a mano" en vez de perderse.
@@ -480,7 +505,7 @@ function AmbientesStep({ unit, reload, onBack, onNext }: { unit: GUnit; reload: 
             onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); uploadAll(e.dataTransfer.files); }}
             className="max-sm:w-full flex items-center justify-center gap-2.5 min-h-[52px] px-[18px] rounded-xl border-[1.5px] border-dashed border-[#C9C3B7] bg-gray-50 text-[13px] font-semibold text-gray-900 hover:border-gray-400 disabled:opacity-70">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
-            {bulk ? `Subiendo ${bulk.done} de ${bulk.total}…` : 'Soltar todas las fotos juntas'}
+            {bulk ? `Subiendo ${bulk.done} de ${bulk.total}${bulk.pct > 0 ? ` (${bulk.pct}%)` : ''}…` : 'Soltar todas las fotos juntas'}
           </button>
         </div>
         <p className="m-0 -mt-3 text-xs text-gray-500">Si el archivo se llama como el ambiente (&quot;cocina.jpg&quot;, &quot;dorm2.jpg&quot;, &quot;baño 1.png&quot;) se asigna solo.</p>

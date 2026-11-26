@@ -64,10 +64,13 @@ export default function MultiImageUploader({
 }: MultiImageUploaderProps) {
   const [pending, setPending] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [avgPct, setAvgPct] = useState(0);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const pctMapRef = useRef<Map<number, number>>(new Map());
+  const pctSeqRef = useRef(0);
   // Subidas en curso, contadas fuera del estado para decidir en el momento
   // (dos tandas seguidas desde la cámara) sin esperar un render.
   const pendingRef = useRef(0);
@@ -116,8 +119,22 @@ export default function MultiImageUploader({
   // galería en el orden en que se eligieron — así una carga de 20 fotos no
   // obliga a repetir "+ Agregar imagen" veinte veces.
   const uploadOne = async (file: File): Promise<string | null> => {
+    const key = ++pctSeqRef.current;
+    pctMapRef.current.set(key, 0);
     const toUpload = compress ? await compressImage(file) : file;
-    const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
+    const result = await uploadViaSignedUrl<{ url: string }>(
+      '/api/admin/upload',
+      toUpload,
+      { folder },
+      {
+        onProgress: pct => {
+          pctMapRef.current.set(key, pct);
+          const vals = [...pctMapRef.current.values()];
+          setAvgPct(Math.round(vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length)));
+        },
+      }
+    );
+    pctMapRef.current.set(key, 100);
     setProgress(p => ({ ...p, done: p.done + 1 }));
     return result.ok ? result.data.url : null;
   };
@@ -139,6 +156,10 @@ export default function MultiImageUploader({
     if (files.length === 0) return;
 
     const startingFresh = pendingRef.current === 0;
+    if (startingFresh) {
+      pctMapRef.current.clear();
+      setAvgPct(0);
+    }
     pendingRef.current += files.length;
     setPending(pendingRef.current);
     setProgress(p => (startingFresh ? { done: 0, total: files.length } : { ...p, total: p.total + files.length }));
@@ -165,7 +186,7 @@ export default function MultiImageUploader({
   const full = max != null && values.length >= max;
 
   const ids = values.map((_, i) => `${idPrefix}${i}`);
-  const uploadingLabel = `Subiendo ${progress.done}/${progress.total}...`;
+  const uploadingLabel = `Subiendo ${progress.done}/${progress.total}${avgPct > 0 ? ` (${avgPct}%)` : ''}…`;
 
   const dropzone = (
     <div
@@ -190,7 +211,16 @@ export default function MultiImageUploader({
         ${cameraButtons ? 'hidden sm:block' : ''}
         ${dragOver ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 hover:border-gray-300 text-gray-500'}`}
     >
-      {uploading ? uploadingLabel : 'Arrastrá una o más imágenes o hacé click para elegirlas'}
+      {uploading ? (
+        <div className="space-y-1.5">
+          <span>{uploadingLabel}</span>
+          <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gray-900 transition-[width] duration-150" style={{ width: `${Math.max(8, avgPct)}%` }} />
+          </div>
+        </div>
+      ) : (
+        'Arrastrá una o más imágenes o hacé click para elegirlas'
+      )}
     </div>
   );
 
