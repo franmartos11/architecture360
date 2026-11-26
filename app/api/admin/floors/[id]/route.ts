@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const updates: Record<string, unknown> = {};
   if (body.number !== undefined) updates.number = body.number;
   if (body.label !== undefined) updates.label = sanitizeText(body.label, 100);
-  if (body.planImage !== undefined) updates.plan_image = body.planImage;
+  if (body.planImage !== undefined) updates.plan_image = body.planImage || null;
   if (body.unitDots !== undefined) updates.unit_dots = body.unitDots;
   if (body.floorKind !== undefined) updates.floor_kind = body.floorKind;
   if (body.floorKindDescription !== undefined) updates.floor_kind_description = sanitizeText(body.floorKindDescription, 300) || null;

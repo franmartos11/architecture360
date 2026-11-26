@@ -73,7 +73,7 @@ export default function FloorsEditor({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: updates.label,
-        planImage: updates.plan_image,
+        ...(updates.plan_image !== undefined ? { planImage: updates.plan_image || null } : {}),
         floorKind: updates.floor_kind,
         floorKindDescription: updates.floor_kind_description,
       }),
@@ -351,7 +351,11 @@ export default function FloorsEditor({
         <FloorPlanModal
           floor={planTarget}
           onClose={() => setPlanTarget(null)}
-          onSave={url => { handleUpdateFloor(planTarget.id, { plan_image: url }); setPlanTarget(prev => (prev ? { ...prev, plan_image: url } : prev)); }}
+          onSave={url => {
+            const next = url || null;
+            handleUpdateFloor(planTarget.id, { plan_image: next });
+            setPlanTarget(prev => (prev ? { ...prev, plan_image: next } : prev));
+          }}
         />
       )}
       {viewsTarget && (

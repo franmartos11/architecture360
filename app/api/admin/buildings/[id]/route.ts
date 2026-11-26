@@ -55,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.name !== undefined) updates.name = sanitizeText(body.name, 150);
   if (body.totalFloors !== undefined) updates.total_floors = body.totalFloors;
   if (body.amenitiesTour !== undefined) updates.amenities_tour = body.amenitiesTour;
-  if (body.coverImage !== undefined) updates.cover_image = body.coverImage;
+  if (body.coverImage !== undefined) updates.cover_image = body.coverImage || null;
   if (body.tourOrientationDegrees !== undefined) updates.tour_orientation_degrees = body.tourOrientationDegrees;
 
   const { data, error } = await supabase.from('buildings').update(updates).eq('id', id).select().single();

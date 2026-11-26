@@ -108,13 +108,14 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
   // archivo quedaba huérfano en el storage y el edificio seguía sin
   // portada, sin ningún aviso de que se había perdido.
   const handleCoverImageChange = async (url: string) => {
-    setBuilding(prev => (prev ? { ...prev, cover_image: url } : prev));
+    const next = url || null;
+    setBuilding(prev => (prev ? { ...prev, cover_image: next } : prev));
     const res = await fetch(`/api/admin/buildings/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coverImage: url }),
+      body: JSON.stringify({ coverImage: next }),
     });
-    if (res.ok) toast('Foto guardada.'); else toast('Error al guardar la foto.', 'error');
+    if (res.ok) toast(next ? 'Foto guardada.' : 'Foto quitada.'); else toast('Error al guardar la foto.', 'error');
   };
 
   const handleUpdateFloor = async (floorId: string, updates: Partial<FloorRow>) => {
@@ -123,7 +124,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: updates.label,
-        planImage: updates.plan_image,
+        ...(updates.plan_image !== undefined ? { planImage: updates.plan_image || null } : {}),
         floorKind: updates.floor_kind,
         floorKindDescription: updates.floor_kind_description,
       }),
@@ -345,7 +346,7 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
               <>
                 <ImageUploader
                   value={floors[0].plan_image ?? ''}
-                  onChange={url => handleUpdateFloor(floors[0].id, { plan_image: url })}
+                  onChange={url => handleUpdateFloor(floors[0].id, { plan_image: url || null })}
                   folder="floorplans"
                 />
                 {(() => {

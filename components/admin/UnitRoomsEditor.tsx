@@ -331,6 +331,21 @@ export default function UnitRoomsEditor({
   // recorrido es único por unidad (no por planta), así que viaja aparte de
   // los rooms en el mismo PATCH.
   const handleRoomPanoramaUpload = async (room: Room, url: string) => {
+    if (!url) {
+      const removedNodeId = room.tourNodeId;
+      const nextRooms = rooms.map(r => (r.id === room.id ? { ...r, tourNodeId: undefined } : r));
+      if (!removedNodeId || !unitTourData) {
+        const ok = await persistLevel({ rooms: nextRooms });
+        if (ok) toast('Panorámica quitada.');
+        return;
+      }
+      const nextNodes = unitTourData.nodes.filter(n => n.id !== removedNodeId);
+      const nextInitial = unitTourData.initialNodeId === removedNodeId ? (nextNodes[0]?.id ?? '') : unitTourData.initialNodeId;
+      const nextTour: TourData | null = nextNodes.length > 0 ? { initialNodeId: nextInitial, nodes: nextNodes } : null;
+      const ok = await persistLevel({ rooms: nextRooms }, { tourData: nextTour });
+      if (ok) toast('Panorámica quitada.');
+      return;
+    }
     const ok = await applyRoomAssignments('tours', [{ roomId: room.id, url }]);
     if (ok) toast('Panorámica vinculada al ambiente.');
   };

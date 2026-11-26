@@ -141,23 +141,38 @@ export default function ImageUploader({
               }}
             />
           </div>
-          {showUrlInput ? (
-            <input
-              value={value}
-              onChange={e => onChange(e.target.value)}
-              placeholder="Pegá una URL directamente"
-              autoFocus
-              className="w-full text-xs px-2.5 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-gray-500"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowUrlInput(true)}
-              className="min-h-[32px] text-[11px] text-gray-500 hover:text-gray-700 underline underline-offset-2"
-            >
-              ...o pegar una URL en cambio
-            </button>
-          )}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            {showUrlInput ? (
+              <input
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder="Pegá una URL directamente"
+                autoFocus
+                className="w-full text-xs px-2.5 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-gray-500"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(true)}
+                className="min-h-[32px] text-[11px] text-gray-500 hover:text-gray-700 underline underline-offset-2"
+              >
+                ...o pegar una URL en cambio
+              </button>
+            )}
+            {value && !uploading && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setWarning('');
+                  onChange('');
+                }}
+                className="min-h-[32px] text-[11px] font-medium text-red-700 hover:text-red-800 underline underline-offset-2"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
           {folder === 'tours' && !error && (
             <p className="text-[11px] text-gray-400">Si viene en formato estéreo (dos mitades apiladas, una por ojo), la recortamos sola al subir.</p>
           )}
