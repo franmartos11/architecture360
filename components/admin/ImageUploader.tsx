@@ -28,8 +28,16 @@ interface ImageUploaderProps {
 // Subida de imagen a Supabase Storage con drag&drop, más un campo de
 // texto de respaldo por si quieren pegar una URL externa directamente
 // en vez de subir un archivo.
-export default function ImageUploader({ value, onChange, folder, label, onUploadingChange, compress = false }: ImageUploaderProps) {
+export default function ImageUploader({
+  value,
+  onChange,
+  folder,
+  label,
+  onUploadingChange,
+  compress = folder !== 'tours' && folder !== 'floorplans',
+}: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -44,6 +52,7 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
   const handleFile = async (file: File) => {
     setError('');
     setWarning('');
+    setUploadPct(0);
     setUploadingState(true);
     let toUpload = file;
     if (folder === 'tours') {
@@ -54,7 +63,12 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
     } else if (compress) {
       toUpload = await compressImage(file);
     }
-    const result = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
+    const result = await uploadViaSignedUrl<{ url: string }>(
+      '/api/admin/upload',
+      toUpload,
+      { folder },
+      { onProgress: pct => setUploadPct(pct) }
+    );
     if (result.ok) onChange(result.data.url);
     else setError(result.error);
     setUploadingState(false);
@@ -100,7 +114,19 @@ export default function ImageUploader({ value, onChange, folder, label, onUpload
             className={`px-3 py-2.5 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500
               ${dragOver ? 'border-brand-500 text-brand-700' : 'border-gray-200 hover:border-gray-300 text-gray-500'}`}
           >
-            {uploading ? 'Subiendo...' : 'Arrastrá una imagen o hacé click para elegir un archivo'}
+            {uploading ? (
+              <div className="space-y-1.5">
+                <span>{uploadPct > 0 ? `Subiendo ${uploadPct}%…` : 'Preparando…'}</span>
+                <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gray-900 transition-[width] duration-150"
+                    style={{ width: `${Math.max(8, uploadPct)}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              'Arrastrá una imagen o hacé click para elegir un archivo'
+            )}
             <input
               ref={inputRef}
               type="file"

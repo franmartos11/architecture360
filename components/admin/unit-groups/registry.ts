@@ -9,6 +9,7 @@ export interface UnitGroupNavItem {
   label: string;
   /** Segmento de ruta bajo .../unidades/[unitId]/ */
   slug: string;
+  secondary?: boolean;
   applies: (tc: ProjectTypeConfig) => boolean;
   status: (unit: DbUnitRow, tc: ProjectTypeConfig) => UnitGroupStatus;
 }
@@ -42,7 +43,12 @@ export const UNIT_GROUP_NAV: UnitGroupNavItem[] = [
     status: (u) => (u.price != null ? 'complete' : 'empty'),
   },
   {
-    key: 'imagenes', label: 'Imágenes', slug: 'fotos',
+    key: 'ambientes', label: 'Ambientes, fotos y 360°', slug: 'ambientes',
+    applies: (tc) => !tc.unitIsLand,
+    status: (u) => ((u.rooms ?? []).length > 0 ? 'complete' : 'empty'),
+  },
+  {
+    key: 'imagenes', label: 'Fotos extra / portada', slug: 'fotos', secondary: true,
     applies: () => true,
     status: (u) => {
       const hasMain = !!u.interior_image_url;
@@ -52,7 +58,7 @@ export const UNIT_GROUP_NAV: UnitGroupNavItem[] = [
     },
   },
   {
-    key: 'planos', label: 'Planos', slug: 'planos',
+    key: 'planos', label: 'Otros planos (2D/3D)', slug: 'planos', secondary: true,
     applies: (tc) => !tc.unitIsLand,
     status: (u) => {
       const count = [u.floor_plan_3d_url, u.plan_3d_url, u.technical_plan_url].filter(Boolean).length;
@@ -61,12 +67,7 @@ export const UNIT_GROUP_NAV: UnitGroupNavItem[] = [
     },
   },
   {
-    key: 'ambientes', label: 'Ambientes', slug: 'ambientes',
-    applies: (tc) => !tc.unitIsLand,
-    status: (u) => ((u.rooms ?? []).length > 0 ? 'complete' : 'empty'),
-  },
-  {
-    key: 'tour', label: 'Recorrido 360°', slug: 'tour',
+    key: 'tour', label: 'Editor 360° (avanzado)', slug: 'tour', secondary: true,
     applies: (tc) => !tc.unitIsLand,
     status: (u) => {
       const { nodeCount, orphanCount, hasStart } = getTourStats(u.tour_data);

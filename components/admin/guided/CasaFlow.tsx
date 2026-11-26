@@ -32,7 +32,7 @@ export default function CasaFlow({ project, tree, reload, step, goTo }: FlowProp
           <StepIntro eyebrow="Casa" title="Todavía no encontramos la casa de este proyecto.">
             Normalmente se crea sola al dar de alta el proyecto. Abrí el asistente anterior para crearla y volvé acá.
           </StepIntro>
-          <Link href="/admin/wizard" className="self-start min-h-[48px] px-5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 flex items-center">
+          <Link href="/admin/carga" className="self-start min-h-[48px] px-5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 flex items-center">
             Crear la casa →
           </Link>
         </div>

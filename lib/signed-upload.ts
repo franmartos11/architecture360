@@ -8,10 +8,50 @@
 
 export type SignedUploadResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
+export interface SignedUploadOptions {
+  onProgress?: (pct: number) => void;
+}
+
+function putWithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress: (pct: number) => void
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('content-type', contentType);
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable && ev.total > 0) {
+        onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve({ ok: true });
+        return;
+      }
+      let message: string | undefined;
+      try {
+        message = (JSON.parse(xhr.responseText) as { message?: string }).message;
+      } catch {
+        // Ignore non-JSON error bodies
+      }
+      resolve({ ok: false, error: message ?? `Error al subir el archivo (HTTP ${xhr.status})` });
+    };
+    xhr.onerror = () => resolve({ ok: false, error: 'Error de conexión al subir el archivo' });
+    xhr.send(file);
+  });
+}
+
 export async function uploadViaSignedUrl<T>(
   endpoint: string,
   file: File,
-  extra: Record<string, string> = {}
+  extra: Record<string, string> = {},
+  options?: SignedUploadOptions
 ): Promise<SignedUploadResult<T>> {
   let ticket: { signedUrl: string; contentType?: string; error?: string } & T;
   try {
@@ -26,20 +66,30 @@ export async function uploadViaSignedUrl<T>(
     return { ok: false, error: 'Error de conexión al subir el archivo' };
   }
 
-  try {
-    const put = await fetch(ticket.signedUrl, {
-      method: 'PUT',
-      headers: { 'content-type': ticket.contentType ?? file.type, 'x-upsert': 'false' },
-      body: file,
-    });
-    if (!put.ok) {
-      // Supabase contesta { statusCode, error, message } — el message es
-      // lo legible (ej. "The object exceeded the maximum allowed size").
-      const body = await put.json().catch(() => ({}));
-      return { ok: false, error: body.message ?? `Error al subir el archivo (HTTP ${put.status})` };
+  if (options?.onProgress && typeof XMLHttpRequest !== 'undefined') {
+    const put = await putWithProgress(
+      ticket.signedUrl,
+      file,
+      ticket.contentType ?? file.type,
+      options.onProgress
+    );
+    if (!put.ok) return { ok: false, error: put.error };
+  } else {
+    try {
+      const put = await fetch(ticket.signedUrl, {
+        method: 'PUT',
+        headers: { 'content-type': ticket.contentType ?? file.type, 'x-upsert': 'false' },
+        body: file,
+      });
+      if (!put.ok) {
+        // Supabase contesta { statusCode, error, message } — el message es
+        // lo legible (ej. "The object exceeded the maximum allowed size").
+        const body = await put.json().catch(() => ({}));
+        return { ok: false, error: body.message ?? `Error al subir el archivo (HTTP ${put.status})` };
+      }
+    } catch {
+      return { ok: false, error: 'Error de conexión al subir el archivo' };
     }
-  } catch {
-    return { ok: false, error: 'Error de conexión al subir el archivo' };
   }
 
   const data: Record<string, unknown> = { ...ticket };

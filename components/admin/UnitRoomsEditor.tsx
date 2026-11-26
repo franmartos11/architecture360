@@ -2,7 +2,7 @@
 
 import { m } from 'framer-motion';
 import { useContentIn } from '@/components/ui/Loaded';
-import { useState, useEffect, useMemo, startTransition } from 'react';
+import { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import PolygonCanvas, { type PolygonShape } from '@/components/admin/PolygonCanvas';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -15,6 +15,10 @@ import { useActiveProjectId, withActiveProject } from '@/lib/active-project-cont
 import { slugify } from '@/lib/slug';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
+import { matchRoomByFilename } from '@/lib/guided-structure';
+import { preparePanorama } from '@/lib/panorama';
+import { compressImage } from '@/lib/image-compress';
+import { uploadViaSignedUrl } from '@/lib/signed-upload';
 import type { TourData, TourNode, Room, UnitLevel } from '@/types';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 import { levelLabel } from '@/lib/unit-levels';
@@ -67,6 +71,10 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
   const [otherUnits, setOtherUnits] = useState<CopySourceUnit[]>([]);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [batchUpload, setBatchUpload] = useState<{ mode: 'photos' | 'tours'; done: number; total: number } | null>(null);
+  const [batchUnmatched, setBatchUnmatched] = useState<string[]>([]);
+  const batchPhotosRef = useRef<HTMLInputElement>(null);
+  const batchToursRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
   const confirmDialog = useConfirm();
@@ -288,6 +296,93 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
     if (ok) toast('Panorámica vinculada al ambiente.');
   };
 
+  const handleBatchRoomUpload = async (uploadMode: 'photos' | 'tours', fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0 || rooms.length === 0) return;
+
+    const matched: { file: File; roomId: string }[] = [];
+    const unmatched: string[] = [];
+    for (const file of files) {
+      const roomId = matchRoomByFilename(file.name, rooms);
+      if (roomId) matched.push({ file, roomId });
+      else unmatched.push(file.name);
+    }
+
+    setBatchUnmatched(unmatched);
+    if (matched.length === 0) {
+      toast('Ningún nombre de archivo coincidió con un ambiente.', 'error');
+      return;
+    }
+
+    setBatchUpload({ mode: uploadMode, done: 0, total: matched.length });
+    const folder = uploadMode === 'tours' ? 'tours' : 'units';
+
+    const uploaded = await Promise.all(
+      matched.map(async ({ file, roomId }) => {
+        const toUpload = uploadMode === 'tours'
+          ? (await preparePanorama(file)).file
+          : await compressImage(file);
+        const res = await uploadViaSignedUrl<{ url: string }>('/api/admin/upload', toUpload, { folder });
+        setBatchUpload(prev => (prev ? { ...prev, done: prev.done + 1 } : prev));
+        return res.ok ? { roomId, url: res.data.url } : null;
+      })
+    );
+
+    const hits = uploaded.filter((u): u is { roomId: string; url: string } => u !== null);
+    if (hits.length === 0) {
+      setBatchUpload(null);
+      toast('No se pudo subir ningún archivo.', 'error');
+      return;
+    }
+
+    let nextRooms = [...rooms];
+    let nextTour: TourData | undefined;
+
+    if (uploadMode === 'photos') {
+      const byRoom = new Map<string, string[]>();
+      for (const h of hits) {
+        const list = byRoom.get(h.roomId) ?? [];
+        list.push(h.url);
+        byRoom.set(h.roomId, list);
+      }
+      nextRooms = nextRooms.map(r => {
+        const urls = byRoom.get(r.id);
+        if (!urls?.length) return r;
+        const primary = r.imageUrl || urls[0];
+        const rest = r.imageUrl ? urls : urls.slice(1);
+        const merged = [...(r.images ?? []), ...rest];
+        return { ...r, imageUrl: primary, images: merged.length ? merged : undefined };
+      });
+    } else {
+      const currentTour = unitTourData ?? { initialNodeId: '', nodes: [] };
+      const nodes = [...currentTour.nodes];
+      let initialNodeId = currentTour.initialNodeId;
+      for (const h of hits) {
+        const room = nextRooms.find(r => r.id === h.roomId);
+        if (!room) continue;
+        const existingIdx = nodes.findIndex(n => n.id === room.tourNodeId);
+        if (existingIdx >= 0) {
+          nodes[existingIdx] = { ...nodes[existingIdx], imageUrl: h.url };
+        } else {
+          const taken = new Set(nodes.map(n => n.id));
+          let nodeId = room.id;
+          let n = 2;
+          while (taken.has(nodeId)) { nodeId = `${room.id}-${n}`; n++; }
+          nodes.push({ id: nodeId, name: room.name, imageUrl: h.url, initialView: { yaw: 0, pitch: 0, fov: Math.PI / 2 } });
+          if (!initialNodeId) initialNodeId = nodeId;
+          nextRooms = nextRooms.map(r => (r.id === room.id ? { ...r, tourNodeId: nodeId } : r));
+        }
+      }
+      nextTour = { initialNodeId: initialNodeId || nodes[0]?.id || '', nodes };
+    }
+
+    const ok = await persistLevel({ rooms: nextRooms }, nextTour ? { tourData: nextTour } : undefined);
+    setBatchUpload(null);
+    if (ok) {
+      toast(`${hits.length} ${hits.length === 1 ? 'archivo asignado' : 'archivos asignados'} por nombre.`);
+    }
+  };
+
   const handleDeleteRoom = async (id: string) => {
     const confirmed = await confirmDialog({ message: '¿Borrar este ambiente?', confirmLabel: 'Borrar ambiente', danger: true });
     if (!confirmed) return;
@@ -440,9 +535,59 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         )}
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
               <h3 className="font-semibold text-gray-900 text-sm">Ambientes</h3>
+              {rooms.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    disabled={!!batchUpload}
+                    onClick={() => batchPhotosRef.current?.click()}
+                    className="h-7 px-2.5 rounded-md border border-gray-200 text-[11px] font-medium text-gray-700 hover:border-gray-300 disabled:opacity-50 transition-colors"
+                  >
+                    {batchUpload?.mode === 'photos'
+                      ? `Fotos ${batchUpload.done}/${batchUpload.total}…`
+                      : 'Fotos por nombre'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!batchUpload}
+                    onClick={() => batchToursRef.current?.click()}
+                    className="h-7 px-2.5 rounded-md border border-gray-200 text-[11px] font-medium text-gray-700 hover:border-gray-300 disabled:opacity-50 transition-colors"
+                  >
+                    {batchUpload?.mode === 'tours'
+                      ? `360° ${batchUpload.done}/${batchUpload.total}…`
+                      : '360° por nombre'}
+                  </button>
+                  <input
+                    ref={batchPhotosRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => { handleBatchRoomUpload('photos', e.target.files); e.target.value = ''; }}
+                  />
+                  <input
+                    ref={batchToursRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => { handleBatchRoomUpload('tours', e.target.files); e.target.value = ''; }}
+                  />
+                </div>
+              )}
             </div>
+            {batchUnmatched.length > 0 && (
+              <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2 text-[11px] text-amber-800">
+                <span className="truncate">
+                  Sin coincidencia ({batchUnmatched.length}): {batchUnmatched.join(', ')} — asignalos manualmente en el ambiente.
+                </span>
+                <button type="button" onClick={() => setBatchUnmatched([])} className="shrink-0 font-medium underline">
+                  Cerrar
+                </button>
+              </div>
+            )}
 
             <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
               {rooms.map((r, i) => {

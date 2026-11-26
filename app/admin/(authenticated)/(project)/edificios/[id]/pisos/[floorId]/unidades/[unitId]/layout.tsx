@@ -11,6 +11,13 @@ import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { unitCopyPatch } from '@/lib/unit-copy';
+import {
+  REPLICATE_GROUPS,
+  defaultReplicateGroups,
+  sameColumnCandidates,
+  sameTypologyCandidates,
+  type ReplicateGroup,
+} from '@/lib/unit-replicate';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { unitAgreement } from '@/lib/project-types';
@@ -21,7 +28,8 @@ import { UnitShellContext } from './unit-shell-context';
 import type { UnitRow as DbUnitRow } from '@/types/database';
 
 type SiblingUnit = Pick<DbUnitRow, 'id' | 'code'>;
-type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code'> & {
+type OtherUnitRow = Pick<DbUnitRow, 'id' | 'code' | 'model_name' | 'type' | 'category'> & {
+  building_id: string | null;
   building_name: string | null;
   floor_number: number | null;
 };
@@ -64,6 +72,10 @@ export default function UnitShellLayout({
   const [copyOpen, setCopyOpen] = useState(false);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [replicateOpen, setReplicateOpen] = useState(false);
+  const [replicateGroups, setReplicateGroups] = useState<ReplicateGroup[]>([]);
+  const [replicateTargets, setReplicateTargets] = useState<string[]>([]);
+  const [replicating, setReplicating] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
 
   const load = useCallback(() => {
@@ -95,6 +107,56 @@ export default function UnitShellLayout({
   }, [unitIsLand, activeProjectId]);
 
   const copyOptions = useMemo(() => otherUnits.filter(u => u.id !== unitId), [otherUnits, unitId]);
+  const sameTypology = useMemo(
+    () => (unit ? sameTypologyCandidates({ id: unit.id, model_name: unit.model_name, type: unit.type, category: unit.category }, copyOptions) : []),
+    [unit, copyOptions],
+  );
+  const sameColumn = useMemo(
+    () => (unit ? sameColumnCandidates({ id: unit.id, code: unit.code, building_id: buildingId }, copyOptions) : []),
+    [unit, buildingId, copyOptions],
+  );
+
+  const openReplicate = () => {
+    if (!unit) return;
+    setCopyOpen(false);
+    setReplicateOpen(o => {
+      if (o) return false;
+      const defaults = defaultReplicateGroups(unit);
+      setReplicateGroups(defaults.length > 0 ? defaults : ['design', 'media', 'tour']);
+      setReplicateTargets((sameTypology.length > 0 ? sameTypology : sameColumn).map(u => u.id));
+      return true;
+    });
+  };
+
+  const handleReplicate = async () => {
+    if (!unit || replicateTargets.length === 0 || replicateGroups.length === 0) return;
+    const labels = REPLICATE_GROUPS.filter(g => replicateGroups.includes(g.id)).map(g => g.label.toLowerCase());
+    const ok = await confirmDialog({
+      message: `Se va a aplicar ${labels.join(', ')} de "${unit.code}" a ${replicateTargets.length} ${replicateTargets.length === 1 ? unitLabelLower : pluralize(unitLabelLower)}. No cambia códigos, precios ni estados.`,
+      confirmLabel: 'Replicar',
+    });
+    if (!ok) return;
+    setReplicating(true);
+    try {
+      const res = await fetch('/api/admin/units/replicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: unit.id, targetIds: replicateTargets, groups: replicateGroups }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(data?.error ?? 'No se pudo replicar.', 'error');
+        return;
+      }
+      const count = Array.isArray(data?.updated) ? data.updated.length : replicateTargets.length;
+      toast(`Replicado en ${count} ${count === 1 ? unitLabelLower : pluralize(unitLabelLower)}.`);
+      setReplicateOpen(false);
+    } catch {
+      toast('No se pudo conectar para replicar.', 'error');
+    } finally {
+      setReplicating(false);
+    }
+  };
 
   const patch = useCallback(async (updates: Partial<UnitFormValues>) => {
     setUnit(prev => (prev ? { ...prev, ...toDbShape(updates) } : prev));
@@ -213,15 +275,25 @@ export default function UnitShellLayout({
               {curIdx >= 0 ? `${curIdx + 1} de ${siblings.length} · ` : ''}{getStatusLabel(unit.status).toLowerCase()}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <p className="m-0 text-xs text-gray-600 shrink-0" aria-live="polite">{saving ? 'Guardando...' : savedLabel}</p>
             {!unitIsLand && copyOptions.length > 0 && (
-              <button
-                type="button" onClick={() => setCopyOpen(o => !o)}
-                className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${copyOpen ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
-              >
-                Copiar de {uAgree.otro} {unitLabelLower}…
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setReplicateOpen(false); setCopyOpen(o => !o); }}
+                  className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${copyOpen ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
+                >
+                  Copiar de {uAgree.otro}…
+                </button>
+                <button
+                  type="button"
+                  onClick={openReplicate}
+                  className={`h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${replicateOpen ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
+                >
+                  Replicar a otras…
+                </button>
+              </>
             )}
             <button
               type="button" onClick={() => goSibling(-1)} disabled={curIdx <= 0}
@@ -265,10 +337,102 @@ export default function UnitShellLayout({
           </div>
         )}
 
+        {replicateOpen && (
+          <div className="flex flex-col gap-3 p-4 rounded-xl border border-gray-200 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="m-0 text-xs font-semibold text-gray-900">Replicar "{unit.code}" a otras {pluralize(unitLabelLower)}</p>
+                <p className="m-0 text-[11px] text-gray-600 mt-0.5">Copia los bloques elegidos en lote. No cambia códigos, precios, estados ni ubicación en el plano.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {sameTypology.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReplicateTargets(sameTypology.map(u => u.id))}
+                    className="h-7 px-2.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-[11px] font-medium text-gray-800"
+                  >
+                    Misma tipología ({sameTypology.length})
+                  </button>
+                )}
+                {sameColumn.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReplicateTargets(sameColumn.map(u => u.id))}
+                    className="h-7 px-2.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-[11px] font-medium text-gray-800"
+                  >
+                    Misma columna ({sameColumn.length})
+                  </button>
+                )}
+                {replicateTargets.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReplicateTargets([])}
+                    className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-gray-500 hover:text-gray-900"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {REPLICATE_GROUPS.map(g => {
+                const checked = replicateGroups.includes(g.id);
+                return (
+                  <label key={g.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${checked ? 'border-gray-900 bg-gray-900 text-white font-medium' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'}`}>
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      onChange={() => setReplicateGroups(prev => checked ? prev.filter(x => x !== g.id) : [...prev, g.id])}
+                    />
+                    {g.label}
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="max-h-40 overflow-y-auto flex flex-wrap gap-1.5 p-2 rounded-lg border border-gray-100 bg-gray-50">
+              {copyOptions.map(u => {
+                const sel = replicateTargets.includes(u.id);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setReplicateTargets(prev => sel ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                    aria-pressed={sel}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${sel ? 'border-brand-700 bg-brand-700 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'}`}
+                  >
+                    {u.code}{u.floor_number != null ? ` · P${u.floor_number}` : ''}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReplicateOpen(false)}
+                className="h-8 px-3 rounded-lg text-xs font-medium border border-gray-200 text-gray-700 hover:border-gray-300"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleReplicate}
+                disabled={replicating || replicateTargets.length === 0 || replicateGroups.length === 0}
+                className="h-8 px-3.5 rounded-lg text-xs font-semibold bg-gray-900 text-white hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+              >
+                {replicating ? 'Replicando…' : `Aplicar a ${replicateTargets.length} ${replicateTargets.length === 1 ? unitLabelLower : pluralize(unitLabelLower)}`}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row gap-4 md:items-start">
           <Card className="w-full md:w-56 shrink-0">
             <nav className="flex flex-col p-2">
-              {applicableGroups.map(g => {
+              {applicableGroups.filter(g => !g.secondary).map(g => {
                 const status = g.status(unit, typeConfig);
                 const href = `/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}/${g.slug}`;
                 const active = pathname === href;
@@ -282,6 +446,28 @@ export default function UnitShellLayout({
                   </Link>
                 );
               })}
+              {applicableGroups.some(g => g.secondary) && (
+                <>
+                  <div className="my-2 border-t border-gray-100" />
+                  <span className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">
+                    Opcional / Avanzado
+                  </span>
+                  {applicableGroups.filter(g => g.secondary).map(g => {
+                    const status = g.status(unit, typeConfig);
+                    const href = `/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}/${g.slug}`;
+                    const active = pathname === href;
+                    return (
+                      <Link
+                        key={g.key} href={href}
+                        className={`flex items-center gap-2.5 min-h-[36px] px-3 rounded-lg text-[12.5px] transition-colors ${active ? 'bg-[#EAE7E0] text-gray-900 font-semibold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
+                        {g.label}
+                      </Link>
+                    );
+                  })}
+                </>
+              )}
             </nav>
           </Card>
 

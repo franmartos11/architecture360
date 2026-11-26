@@ -319,7 +319,7 @@ export default function AdminBuildingsPage() {
           <div className="px-5 sm:px-6 pt-5 flex items-center justify-between gap-3 flex-wrap">
             <h2 className="m-0 font-display text-xl font-semibold tracking-[-0.02em] text-gray-900">Nuevo {buildingLabelLower}</h2>
             <div className="flex items-center gap-1">
-              <Link href="/admin/wizard" className="min-h-[40px] flex items-center px-2 text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap">
+              <Link href="/admin/carga" className="min-h-[40px] flex items-center px-2 text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap">
                 Usar el asistente →
               </Link>
               <button type="button" onClick={() => setNewOpen(false)} aria-label="Cerrar" className="w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900">✕</button>

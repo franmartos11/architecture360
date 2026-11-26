@@ -135,10 +135,10 @@ export function PublishReadinessCard() {
         <div className="pt-2.5">
         <Link
           href="/admin/sitio"
-          title={`Secciones habilitadas sin contenido: ${missingSections.map(s => s.label).join(', ')}`}
-          className="text-xs leading-snug text-gray-600 hover:text-gray-900"
+          title={`Secciones opcionales sin contenido: ${missingSections.map(s => s.label).join(', ')}`}
+          className="text-xs leading-snug text-gray-500 hover:text-gray-900"
         >
-          Recomendado: <span className="underline underline-offset-2">{missingSections.length === 1 ? '1 sección vacía' : `${missingSections.length} secciones vacías`}</span>
+          Opcionales: <span className="underline underline-offset-2">{missingSections.length === 1 ? '1 sección sin usar' : `${missingSections.length} secciones sin usar`}</span>
         </Link>
         </div>
       </Collapse>

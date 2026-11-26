@@ -60,7 +60,7 @@ const DND_INSTRUCTIONS = {
 };
 
 export default function MultiImageUploader({
-  values, onChange, folder, label, compress = false, max, onUploadingChange, variant = 'list', cameraButtons = false,
+  values, onChange, folder, label, compress = folder !== 'tours' && folder !== 'floorplans', max, onUploadingChange, variant = 'list', cameraButtons = false,
 }: MultiImageUploaderProps) {
   const [pending, setPending] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
