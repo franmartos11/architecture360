@@ -9,6 +9,8 @@ import type { UnitType, UnitCategory, UnitStatus, PoiCategory, TourData, Room, U
 export interface ProjectRow {
   id: string;
   slug: string;
+  /** Idiomas del sitio público ('es' siempre); sin migrar, undefined. */
+  locales?: string[] | null;
   name: string;
   description: string | null;
   tagline: string | null;

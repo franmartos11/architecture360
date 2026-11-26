@@ -6,6 +6,7 @@ import { TransitionLink as Link, useTransitionRouter } from '@/components/ui/Tra
 import ExploreSwitcher, { navItemClass } from '@/components/ui/ExploreSwitcher';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { ProjectMenuButton } from '@/components/ui/ProjectMenu';
+import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
@@ -195,6 +196,8 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 justify-self-end">
+            {/* En el celular el idioma va en el menú. */}
+            <LanguageSwitcher className="hidden min-[1200px]:inline-flex" />
             {info.showLeads && (
               <button
                 type="button"

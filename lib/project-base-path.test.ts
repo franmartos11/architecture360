@@ -46,4 +46,15 @@ describe('getProjectBasePath', () => {
     expect(await getProjectBasePath('torre-del-mar')).toBe('/proyecto/torre-del-mar');
     expect(resolveProjectSlugForHost).not.toHaveBeenCalled();
   });
+
+  it('en inglés (lo marca el proxy), los links internos llevan /en', async () => {
+    const enIngles = (host: string) =>
+      vi.mocked(headers).mockResolvedValue({ get: (k: string) => (k === 'x-atrium-lang' ? 'en' : host) } as never);
+    enIngles('panel.midominio.com');
+    vi.mocked(resolveProjectSlugForHost).mockResolvedValue(null);
+    expect(await getProjectBasePath('torre-del-mar')).toBe('/proyecto/torre-del-mar/en');
+    enIngles('torre-del-mar.midominio.com');
+    vi.mocked(resolveProjectSlugForHost).mockResolvedValue('torre-del-mar');
+    expect(await getProjectBasePath('torre-del-mar')).toBe('/en');
+  });
 });

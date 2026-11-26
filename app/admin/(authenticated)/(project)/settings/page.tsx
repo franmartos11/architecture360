@@ -10,6 +10,7 @@ import DeleteProjectModal from '@/components/admin/DeleteProjectModal';
 import TeamMembersCard from '@/components/admin/TeamMembersCard';
 import TransferOwnershipCard from '@/components/admin/TransferOwnershipCard';
 import CustomDomainsSection from '@/components/admin/CustomDomainsSection';
+import SitioEnIngles from '@/components/admin/SitioEnIngles';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
@@ -34,7 +35,7 @@ export default function SettingsPage() {
   const confirmDialog = useConfirm();
   const activeProjectId = useActiveProjectId();
   const publishState = usePublishState();
-  const [project, setProject] = useState<{ id: string; slug: string; name: string; project_type: string; sale_mode: string; published: boolean } | null>(null);
+  const [project, setProject] = useState<{ id: string; slug: string; name: string; project_type: string; sale_mode: string; published: boolean; locales?: string[] | null } | null>(null);
   const [savingMode, setSavingMode] = useState(false);
   const [savingPublished, setSavingPublished] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function SettingsPage() {
     fetch(withActiveProject('/api/admin/project', activeProjectId))
       .then(res => res.json())
       .then(data => setProject(data.project
-        ? { id: data.project.id, slug: data.project.slug, name: data.project.name, project_type: data.project.project_type, sale_mode: data.project.sale_mode, published: data.project.published }
+        ? { id: data.project.id, slug: data.project.slug, name: data.project.name, project_type: data.project.project_type, sale_mode: data.project.sale_mode, published: data.project.published, locales: data.project.locales }
         : null))
       .catch(() => {});
   }, [activeProjectId]);
@@ -197,6 +198,7 @@ export default function SettingsPage() {
                 <span className="text-xs text-amber-800">Va a quedar <span className="font-mono">{slugify(slugValue) || '—'}</span>. El link anterior deja de funcionar para quien ya lo tenga.</span>
               )}
             </div>
+            <SitioEnIngles key={project.id} projectId={project.id} activo={!!project.locales?.includes('en')} puede={canPublish} />
             {!canPublish && (
               <p className="m-0 text-xs text-gray-600">Solo un administrador o el dueño puede publicar o cambiar la dirección.</p>
             )}

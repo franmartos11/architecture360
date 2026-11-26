@@ -1,3 +1,5 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSiteProjectBySlug } from '@/data/project-repository';
@@ -5,7 +7,6 @@ import UnitsListView from '@/components/units/UnitsListView';
 import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
-import { projectCanonical } from '@/lib/project-canonical';
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -13,12 +14,13 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   return {
-    alternates: { canonical: await projectCanonical(slug, '/unidades') },
+    alternates: await alternatesFor(slug, '/unidades', project.locales, locale),
     title: `${project.name} | ${pluralize(typeConfig.unitLabel)}`,
     description: `Buscá y filtrá todas las ${pluralize(unitLabelLower)} disponibles de ${project.name}.`,
   };

@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import type { ConstructionProgress, ConstructionUpdate } from '@/types';
 import { constructionMonth, currentStageIndex, formatUpdateDate, hasConstructionProgress, visibleUpdates } from '@/lib/construction-progress';
 
@@ -108,19 +109,36 @@ const MONTH_NAMES = /^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiem
  * ya se explica sola. Sin ninguna de las tres, la fecha de la última
  * entrada. null si no hay nada.
  */
-export function progressHeadline(progress: ConstructionProgress): string | null {
+const MESES_EN: Record<string, string> = {
+  enero: 'January', febrero: 'February', marzo: 'March', abril: 'April', mayo: 'May', junio: 'June', julio: 'July',
+  agosto: 'August', septiembre: 'September', setiembre: 'September', octubre: 'October', noviembre: 'November', diciembre: 'December',
+};
+
+export function progressHeadline(progress: ConstructionProgress, locale: Locale = 'es'): string | null {
+  const en = locale === 'en';
   const current = currentStageIndex(progress);
   const stage = current >= 0 ? progress.stages[current]?.label : undefined;
   const estimate = progress.deliveryEstimate?.trim();
+  const conMes = estimate ? MONTH_NAMES.exec(estimate) : null;
+  const entrega = !estimate
+    ? null
+    : !conMes
+      ? estimate
+      : en
+        ? `Estimated delivery ${MESES_EN[conMes[1].toLowerCase()]}${estimate.slice(conMes[1].length)}`
+        : `Entrega estimada ${estimate.charAt(0).toLowerCase()}${estimate.slice(1)}`;
   const parts = [
-    progress.percent != null ? `${progress.percent}% de avance` : null,
+    progress.percent != null ? (en ? `${progress.percent}% complete` : `${progress.percent}% de avance`) : null,
     stage,
-    estimate ? (MONTH_NAMES.test(estimate) ? `Entrega estimada ${estimate.charAt(0).toLowerCase()}${estimate.slice(1)}` : estimate) : null,
+    entrega,
   ].filter(Boolean);
   if (parts.length > 0) return parts.join(' · ');
   // Solo fotos, sin número ni entrega: igual vale avisar que hay obra que ver.
   const last = visibleUpdates(progress).at(-1);
-  return last ? `Avance de obra · actualizado ${formatUpdateDate(last.date)}` : null;
+  if (!last) return null;
+  return en
+    ? `Construction progress · updated ${formatUpdateDate(last.date, 'en')}`
+    : `Avance de obra · actualizado ${formatUpdateDate(last.date)}`;
 }
 
 /**

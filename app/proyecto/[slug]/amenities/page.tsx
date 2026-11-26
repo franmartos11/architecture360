@@ -1,9 +1,10 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSiteProject, getSiteProjectBySlug } from '@/data/project-repository';
 import AmenitiesView from '@/components/amenities/AmenitiesView';
 import { getProjectTypeConfig } from '@/lib/project-types';
-import { projectCanonical } from '@/lib/project-canonical';
 import { projectHasContent } from '@/lib/project-content';
 
 interface PageProps {
@@ -13,10 +14,11 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
-    alternates: { canonical: await projectCanonical(slug, '/amenities') },
+    alternates: await alternatesFor(slug, '/amenities', project.locales, locale),
     title: `${project.name} | Amenities`,
     description: `Conocé y recorré en 360° las amenities de ${project.name}.`,
   };

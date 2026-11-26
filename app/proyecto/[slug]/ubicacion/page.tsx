@@ -1,9 +1,10 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSiteProject, getSiteProjectBySlug } from '@/data/project-repository';
 import LocationView from '@/components/location/LocationView';
 import { getProjectTypeConfig } from '@/lib/project-types';
-import { projectCanonical } from '@/lib/project-canonical';
 import { projectHasContent } from '@/lib/project-content';
 
 interface PageProps {
@@ -12,10 +13,11 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
-    alternates: { canonical: await projectCanonical(slug, '/ubicacion') },
+    alternates: await alternatesFor(slug, '/ubicacion', project.locales, locale),
     title: `${project.name} | Ubicación`,
     description: `Ubicación y puntos de interés cercanos a ${project.name}.`,
   };

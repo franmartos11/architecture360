@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import type { PoiCategory } from '@/types';
 
 export const POI_CATEGORY_LABELS: Record<PoiCategory, string> = {
@@ -8,6 +9,14 @@ export const POI_CATEGORY_LABELS: Record<PoiCategory, string> = {
   entretenimiento: 'Entretenimiento',
   otro: 'Otros',
 };
+
+const POI_CATEGORY_LABELS_EN: Record<PoiCategory, string> = {
+  colegio: 'Schools', salud: 'Health', comercio: 'Shopping', transporte: 'Transportation', entretenimiento: 'Entertainment', otro: 'Other',
+};
+
+export function poiCategoryLabel(c: PoiCategory, locale: Locale = 'es'): string {
+  return (locale === 'en' ? POI_CATEGORY_LABELS_EN : POI_CATEGORY_LABELS)[c];
+}
 
 export const POI_CATEGORY_ICON_PATHS: Record<PoiCategory, string> = {
   colegio: 'M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443',

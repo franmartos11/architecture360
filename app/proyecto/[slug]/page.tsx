@@ -1,3 +1,5 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { Project } from '@/types';
@@ -10,7 +12,6 @@ import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { progressHeadline, showsConstructionProgress } from '@/lib/construction-progress-view';
-import { projectCanonical } from '@/lib/project-canonical';
 import { projectHasContent } from '@/lib/project-content';
 
 interface PageProps {
@@ -19,10 +20,11 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   return {
-    alternates: { canonical: await projectCanonical(slug, '') },
+    alternates: await alternatesFor(slug, '', project.locales, locale),
     title: project.name,
     // La descripción es opcional y muchos proyectos no la cargan; sin
     // fallback la página sale sin meta description y los buscadores se

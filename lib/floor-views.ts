@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import { z } from 'zod';
 import type { Floor, FloorViewPhoto, Unit, ViewDirection } from '@/types';
 import { safeUrl } from '@/lib/schema-parts';
@@ -8,6 +9,20 @@ import { safeUrl } from '@/lib/schema-parts';
 // Spec: docs/superpowers/specs/2026-11-24-vista-por-piso-design.md
 
 export const VIEW_DIRECTIONS: ViewDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+
+const DIRECTION_LABEL_EN: Record<ViewDirection, string> = {
+  N: 'North', NE: 'Northeast', E: 'East', SE: 'Southeast', S: 'South', SO: 'Southwest', O: 'West', NO: 'Northwest',
+};
+/** Código corto en el idioma (en inglés, W en vez de O). */
+const DIRECTION_CODE_EN: Record<ViewDirection, string> = { N: 'N', NE: 'NE', E: 'E', SE: 'SE', S: 'S', SO: 'SW', O: 'W', NO: 'NW' };
+
+export function directionLabel(d: ViewDirection, locale: Locale = 'es'): string {
+  return (locale === 'en' ? DIRECTION_LABEL_EN : DIRECTION_LABEL)[d];
+}
+
+export function directionCode(d: ViewDirection, locale: Locale = 'es'): string {
+  return locale === 'en' ? DIRECTION_CODE_EN[d] : d;
+}
 
 export const DIRECTION_LABEL: Record<ViewDirection, string> = {
   N: 'Norte', NE: 'Noreste', E: 'Este', SE: 'Sureste', S: 'Sur', SO: 'Suroeste', O: 'Oeste', NO: 'Noroeste',

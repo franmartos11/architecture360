@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 // ─── Unit availability status ──────────────────────────────────────
 export type UnitStatus = 'available' | 'reserved' | 'sold';
 
@@ -559,6 +560,8 @@ export interface Project {
   whatsappNumber?: string;
   /** Chat del sitio (asistente del bot) encendido; ausente si no hay. */
   chat?: { nombreBot: string | null };
+  /** Idiomas activos del sitio público: castellano siempre, primero. */
+  locales: Locale[];
   slug: string;
   name: string;
   description: string;

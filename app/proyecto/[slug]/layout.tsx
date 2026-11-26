@@ -12,6 +12,9 @@ import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { projectHasContent } from '@/lib/project-content';
 import SiteTracker from '@/components/analytics/SiteTracker';
 import ChatWidgetLoader from '@/components/chat/ChatWidgetLoader';
+import HtmlLang from '@/components/i18n/HtmlLang';
+import { LocaleProvider } from '@/lib/i18n/client';
+import { getLocale } from '@/lib/i18n/server';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -50,12 +53,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   const { slug } = await params;
-  const [basePath, view] = await Promise.all([
+  const [basePath, view, locale] = await Promise.all([
     getProjectBasePath(slug),
     getSiteProject(slug),
+    getLocale(),
   ]);
   if (!view) notFound();
   const { project, isDraftPreview, canPublish } = view;
+  // /en de un proyecto sin inglés activado: no existe.
+  if (!project.locales.includes(locale)) notFound();
 
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
   const theme = resolveTheme(project.themeConfig);
@@ -72,6 +78,8 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
     : undefined;
 
   return (
+    <LocaleProvider locale={locale} disponibles={project.locales}>
+    {locale !== 'es' && <HtmlLang locale={locale} />}
     <ProjectBasePathProvider basePath={basePath}>
       <ProjectWhatsappProvider numero={project.whatsappNumber}>
       <SiteTracker projectSlug={project.slug} isDraftPreview={isDraftPreview} briefUrl={project.briefPdfUrl ?? undefined}>
@@ -128,5 +136,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       </SiteTracker>
       </ProjectWhatsappProvider>
     </ProjectBasePathProvider>
+    </LocaleProvider>
   );
 }

@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import type { ConstructionProgress, ConstructionStage, ConstructionUpdate, ProjectType } from '@/types';
 
 // Avance de obra — helpers compartidos por la landing, el admin y el
@@ -34,12 +35,13 @@ export function emptyProgress(): ConstructionProgress {
 }
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "2026-03-14" → "mar 2026". Sin Date para no depender de la zona horaria. */
-export function formatUpdateDate(iso: string): string {
+/** "2026-03-14" → "mar 2026" ("Mar 2026" en inglés). Sin Date para no depender de la zona horaria. */
+export function formatUpdateDate(iso: string, locale: Locale = 'es'): string {
   const [y, m] = iso.split('-').map(Number);
   if (!y) return '';
-  return `${MONTHS[(m || 1) - 1]} ${y}`;
+  return `${(locale === 'en' ? MONTHS_EN : MONTHS)[(m || 1) - 1]} ${y}`;
 }
 
 export function stageLabelOf(progress: ConstructionProgress, id: string | undefined): string | undefined {

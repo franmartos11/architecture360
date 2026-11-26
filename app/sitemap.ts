@@ -45,6 +45,13 @@ const protocoloDe = (host: string) => (host.startsWith('localhost') || host.star
  * subdominio propio, o el dominio raíz con el prefijo /proyecto/[slug].
  */
 function rutasDelProyecto(project: Project, base: string): MetadataRoute.Sitemap {
+  // Con otros idiomas activados, las mismas páginas con su prefijo (/en).
+  const otros = (project.locales ?? ['es']).filter((l) => l !== 'es');
+  const enCastellano = rutasEnUnIdioma(project, base);
+  return [...enCastellano, ...otros.flatMap((l) => rutasEnUnIdioma(project, `${base}/${l}`))];
+}
+
+function rutasEnUnIdioma(project: Project, base: string): MetadataRoute.Sitemap {
   // Solo las secciones con contenido: las vacías dan 404 (ver
   // lib/project-content.ts, la misma regla que usa la barra).
   const content = projectHasContent(project);

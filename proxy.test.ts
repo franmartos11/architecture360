@@ -152,3 +152,58 @@ describe('proxy: el panel no se sirve en el dominio de un cliente', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('proxy: idioma en la dirección', () => {
+  const idioma = (res: Response) => res.headers.get('x-middleware-request-x-atrium-lang');
+
+  it('subdominio con /en: reescribe a la ruta de siempre en inglés, con la query', async () => {
+    vi.mocked(resolveHostProject).mockResolvedValue({ slug: 'torre', kind: 'subdomain' });
+    const res = await proxy(get('https://torre.plataforma.com/en/unidades?ref=perez', { headers: { host: 'torre.plataforma.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('https://torre.plataforma.com/proyecto/torre/unidades?ref=perez');
+    expect(idioma(res)).toBe('en');
+  });
+
+  it('subdominio con /en solo: la portada en inglés', async () => {
+    vi.mocked(resolveHostProject).mockResolvedValue({ slug: 'torre', kind: 'subdomain' });
+    const res = await proxy(get('https://torre.plataforma.com/en', { headers: { host: 'torre.plataforma.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('https://torre.plataforma.com/proyecto/torre');
+    expect(idioma(res)).toBe('en');
+  });
+
+  it('dominio de la plataforma: /proyecto/torre/en/unidades se reescribe en inglés', async () => {
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre/en/unidades', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('https://app.plataforma.com/proyecto/torre/unidades');
+    expect(idioma(res)).toBe('en');
+  });
+
+  it('sin /en todo sigue igual, en castellano (y un header de afuera se pisa)', async () => {
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre/unidades?ref=perez', { headers: { host: 'app.plataforma.com', 'x-atrium-lang': 'en' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull();
+    expect(res.headers.get('location')).toBeNull();
+    expect(idioma(res)).toBe('es');
+  });
+
+  it('/es/... redirige a la dirección sin prefijo', async () => {
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre/es/unidades?ref=x', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.status).toBe(308);
+    expect(res.headers.get('location')).toBe('https://app.plataforma.com/proyecto/torre/unidades?ref=x');
+    vi.mocked(resolveHostProject).mockResolvedValue({ slug: 'torre', kind: 'subdomain' });
+    const r2 = await proxy(get('https://torre.plataforma.com/es', { headers: { host: 'torre.plataforma.com' } }));
+    expect(r2.status).toBe(308);
+    expect(r2.headers.get('location')).toBe('https://torre.plataforma.com/');
+  });
+
+  it('la redirección al dominio propio conserva /en y la query', async () => {
+    vi.mocked(canonicalDomainForSlug).mockResolvedValue('www.torre.com');
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre/en/unidades?ref=x', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.status).toBe(308);
+    expect(res.headers.get('location')).toBe('https://www.torre.com/en/unidades?ref=x');
+  });
+
+  it('en el dominio propio, /en se reescribe en inglés', async () => {
+    vi.mocked(resolveHostProject).mockResolvedValue({ slug: 'torre', kind: 'custom' });
+    const res = await proxy(get('https://www.torre.com/en/amenities', { headers: { host: 'www.torre.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('https://www.torre.com/proyecto/torre/amenities');
+    expect(idioma(res)).toBe('en');
+  });
+});

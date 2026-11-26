@@ -1,3 +1,5 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
@@ -6,7 +8,6 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 
 import { pluralize } from '@/lib/units';
-import { projectCanonical } from '@/lib/project-canonical';
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
   searchParams: Promise<{ piso?: string }>;
@@ -14,6 +15,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
 
@@ -33,10 +35,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = project.masterplanImage || undefined;
 
   return {
-    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}`) },
+    alternates: await alternatesFor(slug, `/edificio/${buildingId}`, project.locales, locale),
     title,
     description,
-    openGraph: { title, description, images: image ? [image] : undefined },
+    openGraph: { title, description, images: image ? [image] : undefined, locale: locale === 'en' ? 'en_US' : 'es_AR' },
     twitter: { card: 'summary_large_image', title, description, images: image ? [image] : undefined },
   };
 }

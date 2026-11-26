@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactElement } from 'react';
 import type { BimModel, Building, Project, Unit } from '@/types';
 
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => 'es' }));
 vi.mock('@/components/unit/UnitViewerWrapper', () => ({ default: () => null }));
 vi.mock('@/data/project-repository', () => ({ getSiteProjectBySlug: vi.fn() }));
 vi.mock('@/lib/project-canonical', () => ({ projectCanonical: vi.fn(async (_slug: string, path: string) => `https://x.test${path}`) }));

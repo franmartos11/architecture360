@@ -1,3 +1,5 @@
+import { alternatesFor } from '@/lib/i18n/alternates';
+import { getLocale } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
@@ -5,7 +7,6 @@ import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getSunAzimuths } from '@/lib/sun-position';
 import { getProjectBasePath } from '@/lib/project-base-path';
-import { projectCanonical } from '@/lib/project-canonical';
 
 interface PageProps {
   params: Promise<{ slug: string; buildingId: string }>;
@@ -14,6 +15,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, buildingId } = await params;
+  const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
   if (!project) return { title: 'Proyecto no encontrado' };
   const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
@@ -22,7 +24,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
   }
   return {
-    alternates: { canonical: await projectCanonical(slug, `/edificio/${buildingId}/recorrido`) },
+    alternates: await alternatesFor(slug, `/edificio/${buildingId}/recorrido`, project.locales, locale),
     title: `${building.name} | Amenities en 360°`,
     description: `Recorré en 360° las amenities exclusivas de ${building.name}.`,
   };

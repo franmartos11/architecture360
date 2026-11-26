@@ -1,5 +1,6 @@
 'use client';
 
+import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import { useCallback, useId, useState } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -225,6 +226,8 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
               Descargar brief
             </a>
           )}
+
+          <LanguageSwitcher className="mt-3 md:mt-4 text-[var(--theme-text-on-dark)]" />
 
           {info.showLeads && (
             <div className="mt-2 md:mt-6 flex gap-2.5">

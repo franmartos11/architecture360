@@ -1,3 +1,5 @@
+import { crearT } from '@/lib/i18n/t';
+import type { Locale } from '@/lib/i18n/locales';
 // Navegación del sitio público de un proyecto — una sola fuente para los
 // links de la barra global (components/ui/Navbar.tsx) y del menú único
 // (components/ui/ProjectMenu.tsx).
@@ -71,35 +73,42 @@ export function projectNavHrefs(
 /** Grupo de las vistas de Explorar 3D en las migas. */
 export const EXPLORE_GROUP = 'Explorar 3D';
 
+export function exploreGroup(locale: Locale = 'es'): string {
+  return crearT(locale)('nav.explorar3d');
+}
+
 export function projectSectionFor(
   pathname: string,
   basePath: string,
   info: ProjectNavInfo,
+  locale: Locale = 'es',
 ): { group?: string; label: string; detail?: string } | null {
+  const t = crearT(locale);
+  const group = exploreGroup(locale);
   const rel = (basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname).replace(/\/+$/, '');
-  if (rel === '') return { label: 'Proyecto' };
+  if (rel === '') return { label: t('nav.proyecto') };
   if (rel === '/unidades') {
     return {
       label: info.unitsLabel,
-      detail: info.unitsAvailable != null ? `${info.unitsAvailable} disponibles` : undefined,
+      detail: info.unitsAvailable != null ? t('unidades.disponibles', { count: info.unitsAvailable }) : undefined,
     };
   }
   if (rel === '/amenities') {
     return {
-      label: 'Amenities',
-      detail: info.amenitiesCount ? `${info.amenitiesCount} espacios comunes` : undefined,
+      label: t('nav.amenities'),
+      detail: info.amenitiesCount ? t('nav.espaciosComunes', { count: info.amenitiesCount }) : undefined,
     };
   }
-  if (rel === '/ubicacion') return { label: 'Ubicación' };
-  if (rel === '/masterplan') return { group: EXPLORE_GROUP, label: 'Fachada' };
-  if (rel === '/recorrido') return { group: EXPLORE_GROUP, label: 'Recorrido 360' };
+  if (rel === '/ubicacion') return { label: t('nav.ubicacion') };
+  if (rel === '/masterplan') return { group, label: t('nav.fachada') };
+  if (rel === '/recorrido') return { group, label: t('nav.recorrido360') };
   const buildingTour = rel.match(/^\/edificio\/([^/]+)\/recorrido$/);
   if (buildingTour) {
-    return { group: EXPLORE_GROUP, label: 'Recorrido 360', detail: buildingDetail(info, buildingTour[1]) };
+    return { group, label: t('nav.recorrido360'), detail: buildingDetail(info, buildingTour[1]) };
   }
   const building = rel.match(/^\/edificio\/([^/]+)$/);
   if (building) {
-    return { group: EXPLORE_GROUP, label: info.explore.plans?.label ?? 'Plantas', detail: buildingDetail(info, building[1]) };
+    return { group, label: info.explore.plans?.label ?? t('nav.plantas'), detail: buildingDetail(info, building[1]) };
   }
   // Ficha de una unidad: "Unidades / 101". En una casa (una sola unidad)
   // la unidad ES la sección.

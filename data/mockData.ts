@@ -229,6 +229,7 @@ const buildings: Building[] = [
 export const demoProject: Project = {
   id: 'trevo-1',
   slug: 'demo',
+  locales: ['es'],
   name: 'TREVO Desarrollo',
   description: 'Un concepto innovador de residencias con vistas panorámicas y amenities de primer nivel.',
   location: 'Punta del Este, Uruguay',

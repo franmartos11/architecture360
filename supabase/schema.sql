@@ -3263,3 +3263,12 @@ as $$
     and p.published
 $$;
 grant execute on function public_project_chat(uuid) to anon, authenticated;
+
+-- ═══ Sitio en varios idiomas (2026-11-25) ═══════════════════════════════
+-- Spec: docs/superpowers/specs/2026-11-25-multi-idioma-design.md
+-- Idiomas activos del sitio público: castellano siempre; 'en' lo activa un
+-- administrador ("Sitio en inglés"). Sin 'en', /en da 404.
+alter table projects add column if not exists locales text[] not null default '{es}';
+alter table projects drop constraint if exists projects_locales_check;
+alter table projects add constraint projects_locales_check
+  check (locales <@ array['es','en']::text[] and 'es' = any(locales));

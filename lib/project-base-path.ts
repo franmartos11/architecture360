@@ -1,5 +1,7 @@
 import { headers } from 'next/headers';
 import { resolveProjectSlugForHost } from './project-host';
+import { DEFAULT_LOCALE, isLocale, LOCALE_HEADER } from './i18n/locales';
+import { conIdioma } from './i18n/path';
 
 // Prefijo a anteponer a cualquier link INTERNO del sitio público de este
 // proyecto (masterplan, ubicación, un edificio, una unidad...). Server-only
@@ -19,8 +21,13 @@ import { resolveProjectSlugForHost } from './project-host';
 // pegarle a next/headers vía useProjectBasePath() (ver
 // lib/project-base-path-context.tsx), que un layout.tsx ya carga una sola
 // vez por request y distribuye por contexto de React.
+//
+// En inglés (el proxy lo marca en x-atrium-lang) el prefijo incluye /en: así
+// todos los links internos armados con él quedan en el mismo idioma.
 export async function getProjectBasePath(slug: string): Promise<string> {
-  const host = (await headers()).get('host');
+  const h = await headers();
+  const host = h.get('host');
   const onSubdomain = host ? (await resolveProjectSlugForHost(host)) === slug : false;
-  return onSubdomain ? '' : `/proyecto/${slug}`;
+  const idioma = h.get(LOCALE_HEADER);
+  return conIdioma(onSubdomain ? '' : `/proyecto/${slug}`, isLocale(idioma) ? idioma : DEFAULT_LOCALE);
 }

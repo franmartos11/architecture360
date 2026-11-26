@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import type { ProjectType, ProjectSaleMode } from '@/types';
 
 // Forma final que consume el resto de la app (páginas públicas y admin) —
@@ -261,7 +262,17 @@ export function isValidTypeCombo(type: string, saleMode: string): boolean {
 // base como texto libre (ver supabase/schema.sql), y si algún día se saca
 // un valor del catálogo, un proyecto viejo con ese valor no debe romper
 // la página — cae al default en vez de explotar.
-export function getProjectTypeConfig(type: string, saleMode: string): ProjectTypeConfig {
+// Etiquetas del sitio público en inglés (unitLabel, buildingLabel). Lo de
+// admin (label, description) sigue en castellano: el panel no se traduce.
+const LABELS_EN: Record<ProjectType, { unit: string; building: string }> = {
+  edificio: { unit: 'Unit', building: 'Building' },
+  loteo: { unit: 'Lot', building: 'Phase' },
+  duplex: { unit: 'Unit', building: 'Duplex' },
+  casa: { unit: 'House', building: 'House' },
+  unico: { unit: 'Space', building: 'Building' },
+};
+
+export function getProjectTypeConfig(type: string, saleMode: string, locale: Locale = 'es'): ProjectTypeConfig {
   const canonicalType = canonicalProjectType(type);
   const typeIsKnown = canonicalType in PROJECT_STRUCTURES;
   const saleModeIsKnown = saleMode in PROJECT_SALE_MODES;
@@ -295,6 +306,17 @@ export function getProjectTypeConfig(type: string, saleMode: string): ProjectTyp
     singleBuilding: structure.singleBuilding,
     aerialLabel: structure.hasUnitStep ? 'Vista aérea' : 'Vista frontal',
     aerialLabelPlural: structure.hasUnitStep ? 'Vistas aéreas' : 'Vistas frontales',
+    ...(locale === 'en' ? enIngles(typeIsKnown ? (canonicalType as ProjectType) : DEFAULT_PROJECT_TYPE, structure.hasUnitStep) : {}),
+  };
+}
+
+function enIngles(type: ProjectType, hasUnitStep: boolean): Pick<ProjectTypeConfig, 'unitLabel' | 'buildingLabel' | 'aerialLabel' | 'aerialLabelPlural'> {
+  const l = LABELS_EN[type] ?? LABELS_EN.edificio;
+  return {
+    unitLabel: l.unit,
+    buildingLabel: l.building,
+    aerialLabel: hasUnitStep ? 'Aerial view' : 'Front view',
+    aerialLabelPlural: hasUnitStep ? 'Aerial views' : 'Front views',
   };
 }
 

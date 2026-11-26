@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAllowedOrigin, corsHeaders } from '@/lib/cors';
 import { rateLimitOrRespond } from '@/lib/rate-limit';
+import { separarIdioma } from '@/lib/i18n/path';
+import { LOCALE_HEADER, type Locale } from '@/lib/i18n/locales';
 import { resolveHostProject, canonicalDomainForSlug, isActiveCustomDomainOrigin, isCustomDomainWithoutSite, isPlatformHost, normalizeHost } from '@/lib/project-host';
 
 // Nota: mientras no exista un proyecto Supabase configurado (ver
@@ -85,6 +87,23 @@ export async function proxy(request: NextRequest) {
       const resolved = host ? await resolveHostProject(host) : null;
       const projectSlug = resolved?.slug ?? null;
 
+      // Idioma del sitio público: primer segmento después del proyecto (/en/...).
+      // Castellano no lleva prefijo; /es/... redirige a la dirección sin él.
+      const viaProyecto = projectSlug ? null : pathname.match(/^\/proyecto\/([^/]+)(\/.*)?$/);
+      const idioma = projectSlug ? separarIdioma(pathname) : viaProyecto ? separarIdioma(viaProyecto[2] ?? '/') : null;
+      if (idioma?.prefijoEs && (request.method === 'GET' || request.method === 'HEAD')) {
+        const sinEs = request.nextUrl.clone();
+        const resto = idioma.resto === '/' ? '' : idioma.resto;
+        sinEs.pathname = projectSlug ? idioma.resto : `/proyecto/${viaProyecto![1]}${resto}`;
+        return withCors(NextResponse.redirect(sinEs, 308));
+      }
+      // El header siempre lo pone el proxy: uno que venga de afuera se pisa.
+      const conIdioma = (locale: Locale) => {
+        const h = new Headers(request.headers);
+        h.set(LOCALE_HEADER, locale);
+        return { request: { headers: h } };
+      };
+
       // Un proyecto con dominio propio activo tiene UNA dirección: el link de la
       // plataforma (/proyecto/slug o su subdominio) redirige ahí, así Google no ve
       // el mismo sitio en tres URLs. Solo GET/HEAD, y nunca si ya estamos en el
@@ -109,10 +128,17 @@ export async function proxy(request: NextRequest) {
         }
       }
 
-      if (projectSlug) {
+      if (projectSlug && idioma) {
         const url = request.nextUrl.clone();
-        url.pathname = `/proyecto/${projectSlug}${pathname === '/' ? '' : pathname}`;
-        return withCors(NextResponse.rewrite(url));
+        url.pathname = `/proyecto/${projectSlug}${idioma.resto === '/' ? '' : idioma.resto}`;
+        return withCors(NextResponse.rewrite(url, conIdioma(idioma.locale)));
+      }
+
+      if (viaProyecto && idioma) {
+        if (idioma.locale === 'es') return withCors(NextResponse.next(conIdioma('es')));
+        const url = request.nextUrl.clone();
+        url.pathname = `/proyecto/${viaProyecto[1]}${idioma.resto === '/' ? '' : idioma.resto}`;
+        return withCors(NextResponse.rewrite(url, conIdioma(idioma.locale)));
       }
 
       // Dominio propio de un proyecto despublicado: "sitio no disponible" (404),

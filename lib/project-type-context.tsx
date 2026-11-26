@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from 'react';
 import { getProjectTypeConfig, DEFAULT_PROJECT_TYPE, DEFAULT_SALE_MODE, type ProjectTypeConfig } from '@/lib/project-types';
+import { useLocale } from '@/lib/i18n/client';
 
 // Provisto una sola vez en ProjectAdminShell (que envuelve TODAS las
 // páginas de un proyecto en el admin) para que cualquier componente
@@ -19,8 +20,10 @@ export function ProjectTypeProvider({
   saleMode: string;
   children: React.ReactNode;
 }) {
+  // En el sitio público, las etiquetas en el idioma de la página; en el panel (sin idioma), castellano.
+  const { locale } = useLocale();
   return (
-    <ProjectTypeContext.Provider value={getProjectTypeConfig(projectType, saleMode)}>
+    <ProjectTypeContext.Provider value={getProjectTypeConfig(projectType, saleMode, locale)}>
       {children}
     </ProjectTypeContext.Provider>
   );

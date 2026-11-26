@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/i18n/locales';
 import { z } from 'zod';
 import { formatPrice } from '@/lib/units';
 import { newId } from '@/lib/analytics/client-state';
@@ -16,6 +17,12 @@ export const INDEX_LABEL: Record<FinancingIndex, string> = {
   UVA: 'UVA',
   dolar: 'dólar',
 };
+
+const INDEX_LABEL_EN: Record<FinancingIndex, string> = { ninguno: 'No adjustment', CAC: 'CAC', UVA: 'UVA', dolar: 'USD' };
+
+export function indexLabel(i: FinancingIndex, locale: Locale = 'es'): string {
+  return (locale === 'en' ? INDEX_LABEL_EN : INDEX_LABEL)[i];
+}
 
 export const MAX_PLANS = 6;
 
