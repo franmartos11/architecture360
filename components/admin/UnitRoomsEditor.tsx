@@ -47,13 +47,32 @@ type EditableLevel = { key: 'base' | string; label: string; planImage: string; p
 // Cuando la unidad tiene más de una planta (floorsCount > 1, hoy solo
 // posible en casa), arriba del plano aparece un selector de planta — cada
 // una con su propio plano y sus propios ambientes delimitados encima.
-export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { buildingId: string; floorId: string; unitId: string }) {
+interface UnitRoomsEditorProps {
+  buildingId: string;
+  floorId: string;
+  unitId: string;
+  onOpenTourEditor?: () => void;
+  onTourDataUpdated?: (tourData: TourData | null) => void;
+}
+
+export default function UnitRoomsEditor({
+  buildingId,
+  floorId,
+  unitId,
+  onOpenTourEditor,
+  onTourDataUpdated,
+}: UnitRoomsEditorProps) {
   const contentIn = useContentIn();
   const typeConfig = useProjectTypeConfig();
   const { unitLabel } = typeConfig;
   const unitLabelLower = unitLabel.toLowerCase();
   const uAgree = unitAgreement(typeConfig);
   const [unitCode, setUnitCode] = useState('');
+  const [unitCounts, setUnitCounts] = useState<{ bedrooms: number; bathrooms: number; livingRooms: number }>({
+    bedrooms: 1,
+    bathrooms: 1,
+    livingRooms: 1,
+  });
   const [unitTourData, setUnitTourData] = useState<TourData | null>(null);
   const [floorsCount, setFloorsCount] = useState(1);
   const [baseImage, setBaseImage] = useState('');
@@ -88,7 +107,13 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
       .then(res => res.json())
       .then(unit => {
         setUnitCode(unit.code ?? '');
+        setUnitCounts({
+          bedrooms: Number(unit.bedrooms ?? 1),
+          bathrooms: Number(unit.bathrooms ?? 1),
+          livingRooms: Number(unit.living_rooms ?? 1),
+        });
         setUnitTourData(unit.tour_data ?? null);
+        onTourDataUpdated?.(unit.tour_data ?? null);
         setFloorsCount(unit.floors_count ?? 1);
         setBaseImage(unit.room_plan_image ?? '');
         setBaseRooms(unit.rooms ?? []);
@@ -228,8 +253,38 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
         rooms: idx === i ? (updates.rooms ?? l.rooms) : l.rooms,
       })));
     }
-    if (extra?.tourData !== undefined) setUnitTourData(extra.tourData as TourData);
+    if (extra?.tourData !== undefined) {
+      const nextTour = (extra.tourData as TourData | null) ?? null;
+      setUnitTourData(nextTour);
+      onTourDataUpdated?.(nextTour);
+    }
     return true;
+  };
+
+  const handleSuggestRooms = async () => {
+    const suggested: Room[] = [];
+    const seen = new Set<string>();
+    const pushRoom = (name: string, kind: NonNullable<Room['kind']>) => {
+      const id = slugify(name) || `amb-${suggested.length + 1}`;
+      if (seen.has(id)) return;
+      seen.add(id);
+      suggested.push({ id, name, kind, polygon: [] });
+    };
+    const livings = Math.max(1, unitCounts.livingRooms || 1);
+    for (let i = 1; i <= livings; i++) pushRoom(livings > 1 ? `Living ${i}` : 'Living', 'living');
+    pushRoom('Cocina', 'kitchen');
+    const beds = Math.max(0, unitCounts.bedrooms);
+    for (let i = 1; i <= beds; i++) pushRoom(beds > 1 ? `Dormitorio ${i}` : 'Dormitorio', 'bedroom');
+    const baths = Math.max(1, Math.round(unitCounts.bathrooms || 1));
+    for (let i = 1; i <= baths; i++) pushRoom(baths > 1 ? `Baño ${i}` : 'Baño', 'bathroom');
+    pushRoom('Balcón / Exterior', 'other');
+
+    const ok = await persistLevel({ rooms: suggested });
+    if (ok) {
+      setPoints(Object.fromEntries(suggested.map(r => [r.id, []])));
+      setActiveId(suggested[0]?.id ?? null);
+      toast(`${suggested.length} ambientes creados.`);
+    }
   };
 
   const handleSaveImage = async (url: string) => {
@@ -445,12 +500,22 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
             Delimitá cada ambiente sobre el plano {uAgree.del} {unitLabelLower} — arrastrá cualquier punto para ajustarlo, doble click para borrarlo, &quot;Deshacer&quot; (o Ctrl/Cmd+Z) vuelve un paso atrás. Abajo, en cada ambiente, subí sus fotos (se ven en la ficha pública) y su panorámica, que crea el nodo del recorrido 360° automáticamente.
           </p>
         </div>
-        <Link
-          href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}/tour`}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
-        >
-          Recorrido 360° →
-        </Link>
+        {onOpenTourEditor ? (
+          <button
+            type="button"
+            onClick={onOpenTourEditor}
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+          >
+            Hotspots 360° →
+          </button>
+        ) : (
+          <Link
+            href={`/admin/edificios/${buildingId}/pisos/${floorId}/unidades/${unitId}/tour`}
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+          >
+            Recorrido 360° →
+          </Link>
+        )}
       </div>
 
       {levels.length > 1 && (
@@ -589,72 +654,110 @@ export default function UnitRoomsEditor({ buildingId, floorId, unitId }: { build
               </div>
             )}
 
-            <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+            <div className="divide-y divide-gray-100">
               {rooms.map((r, i) => {
                 const isActive = r.id === activeId;
                 const pointCount = points[r.id]?.length ?? 0;
+                const photoCount = (r.imageUrl ? 1 : 0) + (r.images?.length ?? 0);
                 const linkedNode = unitTourData?.nodes.find(n => n.id === r.tourNodeId);
                 return (
-                  <div key={r.id} className={`p-4 ${isActive ? 'bg-brand-50/50' : ''}`}>
-                    <div className="flex items-center gap-2 mb-2">
+                  <div key={r.id} className={`transition-colors ${isActive ? 'bg-brand-50/40' : ''}`}>
+                    <div className="px-4 py-3 flex items-center gap-2.5">
                       <span className="w-3 h-3 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                      <button onClick={() => setActiveId(r.id)} className="font-medium text-gray-900 text-sm text-left flex-1">
-                        {r.name}
+                      <button
+                        type="button"
+                        onClick={() => setActiveId(isActive ? null : r.id)}
+                        className="font-medium text-gray-900 text-sm text-left flex-1 min-w-0 flex items-center gap-2 flex-wrap"
+                      >
+                        <span className="truncate">{r.name}</span>
+                        <span className="flex items-center gap-1 text-[10.5px] font-normal">
+                          {photoCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">
+                              {photoCount} {photoCount === 1 ? 'foto' : 'fotos'}
+                            </span>
+                          )}
+                          {linkedNode?.imageUrl && (
+                            <span className="px-1.5 py-0.5 rounded bg-brand-100 text-brand-800">360°</span>
+                          )}
+                          {roomPlanImage && pointCount >= 3 && (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">Plano</span>
+                          )}
+                        </span>
                       </button>
-                      <button onClick={() => handleDeleteRoom(r.id)} className="text-xs text-red-700 hover:text-red-800">Borrar</button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveId(isActive ? null : r.id)}
+                        className="text-xs text-gray-500 hover:text-gray-800 px-1.5 py-0.5"
+                      >
+                        {isActive ? 'Cerrar' : 'Editar'}
+                      </button>
+                      <button type="button" onClick={() => handleDeleteRoom(r.id)} className="text-xs text-red-700 hover:text-red-800">
+                        Borrar
+                      </button>
                     </div>
 
-                    <div className="pl-5 space-y-2">
-                      <input
-                        defaultValue={r.name}
-                        onBlur={e => e.target.value !== r.name && e.target.value.trim() && handleRenameRoom(r.id, { name: e.target.value.trim() })}
-                        className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                        placeholder="Nombre"
-                      />
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-medium text-gray-500">Foto del ambiente</p>
-                        <ImageUploader value={r.imageUrl ?? ''} onChange={url => handleRoomPhotos(r.id, { imageUrl: url || undefined })} folder="units" />
-                      </div>
-                      <MultiImageUploader
-                        label="Más fotos de este ambiente"
-                        values={r.images ?? []}
-                        onChange={urls => handleRoomPhotos(r.id, { images: urls.length ? urls : undefined })}
-                        folder="units"
-                      />
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-medium text-gray-500">Panorámica 360°</p>
-                        <ImageUploader value={linkedNode?.imageUrl ?? ''} onChange={url => handleRoomPanoramaUpload(r, url)} folder="tours" />
-                      </div>
-                      {(unitTourData?.nodes.length ?? 0) > 0 && (
-                        <select
-                          value={r.tourNodeId ?? ''}
-                          onChange={e => handleRenameRoom(r.id, { tourNodeId: e.target.value || undefined })}
-                          className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none"
-                        >
-                          <option value="">— o vincular a un nodo ya cargado —</option>
-                          {(unitTourData?.nodes ?? []).map(n => (
-                            <option key={n.id} value={n.id}>{n.name}</option>
-                          ))}
-                        </select>
-                      )}
-                      {roomPlanImage && <p className="text-xs text-gray-400">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'}</p>}
-
-                      {isActive && roomPlanImage && (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => handleClear(r.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
-                            Vaciar
-                          </button>
-                          <button onClick={() => handleSaveShape(r.id)} disabled={savingShape || pointCount < 3} className="text-xs px-2.5 py-1 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white rounded-lg transition-colors ml-auto">
-                            {savingShape ? 'Guardando...' : 'Guardar forma'}
-                          </button>
+                    {isActive && (
+                      <div className="px-4 pb-4 pt-1 pl-9 space-y-2.5">
+                        <input
+                          defaultValue={r.name}
+                          onBlur={e => e.target.value !== r.name && e.target.value.trim() && handleRenameRoom(r.id, { name: e.target.value.trim() })}
+                          className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-brand-500 outline-none"
+                          placeholder="Nombre"
+                        />
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium text-gray-500">Foto del ambiente</p>
+                          <ImageUploader value={r.imageUrl ?? ''} onChange={url => handleRoomPhotos(r.id, { imageUrl: url || undefined })} folder="units" />
                         </div>
-                      )}
-                    </div>
+                        <MultiImageUploader
+                          label="Más fotos de este ambiente"
+                          values={r.images ?? []}
+                          onChange={urls => handleRoomPhotos(r.id, { images: urls.length ? urls : undefined })}
+                          folder="units"
+                        />
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium text-gray-500">Panorámica 360°</p>
+                          <ImageUploader value={linkedNode?.imageUrl ?? ''} onChange={url => handleRoomPanoramaUpload(r, url)} folder="tours" />
+                        </div>
+                        {(unitTourData?.nodes.length ?? 0) > 0 && (
+                          <select
+                            value={r.tourNodeId ?? ''}
+                            onChange={e => handleRenameRoom(r.id, { tourNodeId: e.target.value || undefined })}
+                            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-brand-500 outline-none"
+                          >
+                            <option value="">— o vincular a un nodo ya cargado —</option>
+                            {(unitTourData?.nodes ?? []).map(n => (
+                              <option key={n.id} value={n.id}>{n.name}</option>
+                            ))}
+                          </select>
+                        )}
+                        {roomPlanImage && <p className="text-xs text-gray-400">{pointCount} {pointCount === 1 ? 'punto' : 'puntos'} en el plano</p>}
+
+                        {roomPlanImage && (
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => handleClear(r.id)} disabled={pointCount === 0} className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-lg transition-colors">
+                              Vaciar
+                            </button>
+                            <button type="button" onClick={() => handleSaveShape(r.id)} disabled={savingShape || pointCount < 3} className="text-xs px-2.5 py-1 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white rounded-lg transition-colors ml-auto">
+                              {savingShape ? 'Guardando...' : 'Guardar forma'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
               {rooms.length === 0 && (
-                <div className="p-6 text-center text-gray-400 text-sm">Todavía no hay ambientes.</div>
+                <div className="p-6 text-center space-y-2.5">
+                  <p className="m-0 text-gray-500 text-sm">Todavía no hay ambientes cargados.</p>
+                  <button
+                    type="button"
+                    onClick={handleSuggestRooms}
+                    className="inline-flex items-center h-8 px-3.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors"
+                  >
+                    Sugerir ambientes desde ficha
+                  </button>
+                </div>
               )}
             </div>
 
