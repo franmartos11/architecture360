@@ -20,6 +20,11 @@ export type SectionKey =
   | 'typologies'
   | 'progress'
   | 'location'
+  | 'highlights'
+  | 'qualities'
+  | 'video'
+  | 'payment_plan'
+  | 'faq'
   | 'calculator'
   | 'contact'
   | 'comments';
@@ -43,6 +48,11 @@ export const SECTION_REGISTRY: SectionMeta[] = [
   { key: 'bim', label: 'Modelo BIM' },
   { key: 'typologies', label: 'Tipologías / unidades' },
   { key: 'progress', label: 'Avance de obra' },
+  { key: 'highlights', label: 'Diferenciales clave' },
+  { key: 'qualities', label: 'Calidades y terminaciones' },
+  { key: 'video', label: 'Video / Reel' },
+  { key: 'payment_plan', label: 'Plan de pagos' },
+  { key: 'faq', label: 'Preguntas frecuentes' },
   { key: 'calculator', label: 'Calculadora' },
   { key: 'location', label: 'Ubicación' },
   { key: 'contact', label: 'Contacto' },
@@ -63,6 +73,7 @@ const DEFAULT_ORDER: SectionKey[] = SECTION_REGISTRY.map(s => s.key);
 const AVAILABILITY: Partial<Record<SectionKey, (typeConfig: ProjectTypeConfig) => boolean>> = {
   before_after: t => t.saleMode === 'showcase',
   process: t => t.saleMode === 'showcase',
+  payment_plan: t => t.saleMode !== 'showcase',
   calculator: t => t.showCalculator,
   contact: t => t.showLeads,
 };
@@ -72,6 +83,7 @@ const AVAILABILITY: Partial<Record<SectionKey, (typeConfig: ProjectTypeConfig) =
 const UNAVAILABLE_REASON: Partial<Record<SectionKey, string>> = {
   before_after: 'no disponible — solo para proyectos "Solo para mostrar"',
   process: 'no disponible — solo para proyectos "Solo para mostrar"',
+  payment_plan: 'no disponible — solo para proyectos "Para vender"',
   calculator: 'no disponible para este tipo/modo de proyecto',
   contact: 'no disponible — solo para proyectos "Para vender"',
 };
@@ -109,6 +121,11 @@ export function sectionEditHref(key: SectionKey, hasFloorStep: boolean): string 
     case 'contact':
     case 'stats':
     case 'comments':
+    case 'qualities':
+    case 'video':
+    case 'faq':
+    case 'highlights':
+    case 'payment_plan':
       return null;
   }
 }
@@ -131,6 +148,11 @@ export function sectionHint(key: SectionKey, typeConfig: ProjectTypeConfig): str
     bim: 'Modelo BIM del proyecto — imágenes y, más adelante, un modelo 3D navegable.',
     typologies: `${pluralize(typeConfig.unitLabel)} disponibles, con fotos${typeConfig.showPrice ? ' y precios' : ''}.`,
     location: 'Puntos de interés con foto (colegios, comercios, transporte, etc).',
+    qualities: 'Especificaciones de construcción, aberturas, pisos, cocina y seguridad.',
+    video: 'Video de obra, drone o recorrido en YouTube, Vimeo o MP4.',
+    highlights: '3 o 4 argumentos fuertes del proyecto con un dato clave cada uno.',
+    payment_plan: 'Esquema visual de compra (reserva, boleto, cuotas y posesión).',
+    faq: 'Preguntas y respuestas frecuentes sobre pagos, entrega o funcionamiento.',
     progress: 'Etapas, porcentaje, entrega estimada y actualizaciones con fotos — con time-lapse.',
     calculator: 'Calculadora de financiación — parámetros en "Configuración".',
     contact: 'Formulario de contacto — se activa según el modo de venta.',

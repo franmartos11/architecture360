@@ -392,6 +392,36 @@ export interface ThemeColorOverrides {
 // customColors pisa colores puntuales del preset; backgroundImageUrl es
 // el fondo de pantalla general del sitio (no confundir con la foto de
 // fondo del hero, que es aparte — ver PortadaEditor).
+export type WebTemplateKey = 'inmersiva' | 'comercial' | 'editorial';
+
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface QualityItem {
+  category: string;
+  detail: string;
+}
+
+export interface VideoBlock {
+  title?: string;
+  url: string;
+  caption?: string;
+}
+
+export interface PaymentPlanStep {
+  label: string;
+  value: string;
+  note?: string;
+}
+
+export interface HighlightItem {
+  kicker: string;
+  title: string;
+  detail?: string;
+}
+
 export interface ThemeConfig {
   presetKey?: string;
   headingFont?: string;
@@ -400,6 +430,15 @@ export interface ThemeConfig {
   backgroundImageUrl?: string;
   /** Pisa el radio de esquinas del preset — mismo formato que ThemePreset.tokens.radius (valor CSS, ej. '0px'). */
   radius?: string;
+  /** Variante predefinida de portada + disposición de componentes en la landing pública. */
+  webTemplate?: WebTemplateKey;
+  /** Bloques configurables desde /admin/sitio. */
+  faqItems?: FaqItem[];
+  qualitiesItems?: QualityItem[];
+  videoBlock?: VideoBlock;
+  paymentPlanItems?: PaymentPlanStep[];
+  paymentPlanNote?: string;
+  highlightsItems?: HighlightItem[];
 }
 
 export interface CustomFont {

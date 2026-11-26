@@ -9,6 +9,11 @@ import MasterplanEditor from './MasterplanEditor';
 import LocationEditor from './LocationEditor';
 import CalculatorEditor from './CalculatorEditor';
 import ConstructionProgressEditor from './ConstructionProgressEditor';
+import QualitiesEditor from './QualitiesEditor';
+import VideoEditor from './VideoEditor';
+import FaqEditor from './FaqEditor';
+import PaymentPlanEditor from './PaymentPlanEditor';
+import HighlightsEditor from './HighlightsEditor';
 
 export interface SectionEditorProps {
   onSaved: () => void;
@@ -28,4 +33,9 @@ export const SECTION_EDITORS: Partial<Record<SectionKey, ComponentType<SectionEd
   location: LocationEditor,
   calculator: CalculatorEditor,
   progress: ConstructionProgressEditor,
+  qualities: QualitiesEditor,
+  video: VideoEditor,
+  faq: FaqEditor,
+  payment_plan: PaymentPlanEditor,
+  highlights: HighlightsEditor,
 };

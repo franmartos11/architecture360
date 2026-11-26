@@ -1,5 +1,6 @@
 import Reveal from '@/components/ui/Reveal';
 import { formatPrice, pluralize } from '@/lib/units';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { Project } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import type { SectionProps } from './types';
@@ -48,6 +49,54 @@ export default function StatsSection({ project, typeConfig }: SectionProps) {
   const stats = projectStats(project, typeConfig);
   // Una sola cifra no es una "fila de cifras".
   if (stats.length < 2) return null;
+  const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+
+  if (template === 'comercial') {
+    return (
+      <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
+        <Container>
+          <Reveal>
+            <dl className="m-0 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {stats.map(s => (
+                <div
+                  key={s.label}
+                  className="tpl-card p-6 rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-sm flex flex-col gap-2"
+                >
+                  <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--theme-accent)]">{s.label}</dt>
+                  <dd className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(32px,4.5vw,52px)] leading-none font-bold tracking-[-0.03em] text-[var(--theme-text)] tabular-nums">
+                    {s.prefix && <span className="text-[0.45em] font-semibold text-[var(--theme-text-muted)]">{s.prefix} </span>}
+                    {s.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Reveal>
+        </Container>
+      </section>
+    );
+  }
+
+  if (template === 'editorial') {
+    return (
+      <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)]">
+        <Container>
+          <Reveal>
+            <dl className="m-0 grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[var(--theme-border-on-dark)]">
+              {stats.map(s => (
+                <div key={s.label} className="py-5 lg:py-2 lg:px-6 first:lg:pl-0 flex flex-col gap-1.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-on-dark-muted)]">{s.label}</dt>
+                  <dd className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(34px,4.8vw,58px)] leading-none font-medium tracking-[-0.03em] text-[var(--theme-text-on-dark)] tabular-nums">
+                    {s.prefix && <span className="text-[0.4em] text-[var(--theme-text-on-dark-muted)]">{s.prefix} </span>}
+                    {s.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Reveal>
+        </Container>
+      </section>
+    );
+  }
 
   return (
     <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">

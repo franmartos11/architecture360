@@ -31,6 +31,25 @@ const radius = z.string().regex(/^(0|\d+(\.\d+)?(px|rem|em))?$/, 'Radio inválid
 // CSS como texto, pero se acotan igual.
 const themeKey = z.string().regex(/^[A-Za-z0-9:_-]{1,100}$/, 'Valor inválido');
 
+const webTemplate = z.enum(['inmersiva', 'comercial', 'editorial']);
+const faqItem = z.object({ question: z.string().max(300), answer: z.string().max(2000) });
+const qualityItem = z.object({ category: z.string().max(150), detail: z.string().max(500) });
+const videoBlock = z.object({
+  title: z.string().max(200).optional(),
+  url: safeUrl,
+  caption: z.string().max(500).optional(),
+});
+const paymentPlanStep = z.object({
+  label: z.string().max(120),
+  value: z.string().max(120),
+  note: z.string().max(300).optional(),
+});
+const highlightItem = z.object({
+  kicker: z.string().max(80),
+  title: z.string().max(160),
+  detail: z.string().max(400).optional(),
+});
+
 /** project.theme_config. Las claves que no están acá pasan (el panel puede sumar nuevas), con tope de tamaño. */
 export const themeConfigSchema = bounded(
   z.looseObject({
@@ -40,6 +59,13 @@ export const themeConfigSchema = bounded(
     customColors: customColors.optional(),
     backgroundImageUrl: cssUrl.optional(),
     radius: radius.optional(),
+    webTemplate: webTemplate.optional(),
+    faqItems: z.array(faqItem).max(20).optional(),
+    qualitiesItems: z.array(qualityItem).max(20).optional(),
+    videoBlock: videoBlock.optional(),
+    paymentPlanItems: z.array(paymentPlanStep).max(12).optional(),
+    paymentPlanNote: z.string().max(500).optional(),
+    highlightsItems: z.array(highlightItem).max(12).optional(),
   }),
   20_000
 );

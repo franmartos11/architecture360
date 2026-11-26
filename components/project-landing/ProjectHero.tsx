@@ -4,11 +4,18 @@ import { useLayoutEffect, useRef, useState, useId } from 'react';
 import Image from 'next/image';
 import { m, useScroll, useTransform, useReducedMotion, transform, type MotionValue } from 'framer-motion';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { EASE_OUT } from '@/lib/motion';
 import { Container, Pill } from './ui';
+
+import type { WebTemplateKey } from '@/types';
 
 interface ProjectHeroProps {
   name: string;
   image: string;
+  /** Variante de diseño (de lib/web-templates.ts). Por defecto "inmersiva". */
+  variant?: WebTemplateKey;
+  /** Chip corto arriba del título en las variantes Comercial y Editorial. */
+  badge?: string;
   /** Frase principal del estado final (la bajada del proyecto). */
   tagline?: string;
   /** Datos atenuados al lado de la frase: ubicación · cantidad · precio desde. */
@@ -23,6 +30,8 @@ interface ProjectHeroProps {
   progress?: { href: string; text: string };
   /** PDF del brief: link discreto al lado de los botones (abre en otra pestaña). */
   briefUrl?: string;
+  /** En el modal de vista previa del admin evita los 230svh de scroll. */
+  previewCompact?: boolean;
 }
 
 // Coordenadas del SVG de la máscara — el texto se dibuja sobre este lienzo
@@ -73,7 +82,187 @@ function useRamp(v: MotionValue<number>, input: number[], output: number[]) {
  *
  * Sin movimiento (prefers-reduced-motion) queda fijo el nombre con la frase.
  */
-export default function ProjectHero({ name, image, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
+export default function ProjectHero(props: ProjectHeroProps) {
+  if (props.variant === 'comercial') return <ComercialHero {...props} />;
+  if (props.variant === 'editorial') return <EditorialHero {...props} />;
+  return <InmersivaHero {...props} />;
+}
+
+function HeroBriefLink({ briefUrl }: { briefUrl: string }) {
+  return (
+    <a
+      href={briefUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 h-[52px] px-2 text-sm sm:text-[15px] font-semibold text-[var(--theme-text)] underline-offset-4 decoration-1 hover:underline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--theme-accent)] rounded-full"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
+      </svg>
+      Descargar brief
+    </a>
+  );
+}
+
+function ComercialHero({ name, image, badge, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
+  const reduce = useReducedMotion();
+  const enter = (delay = 0) =>
+    reduce
+      ? {}
+      : {
+          initial: { opacity: 0, y: 14 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.36, delay, ease: EASE_OUT },
+        };
+
+  return (
+    <header className="pt-28 pb-14 sm:pt-32 sm:pb-20 bg-[var(--theme-bg)] border-b border-[var(--theme-border)]">
+      <Container className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] lg:items-center">
+        <div className="flex flex-col gap-5">
+          {badge && (
+            <m.span {...enter(0)} className="self-start inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--theme-surface)] border border-[var(--theme-border)] text-[var(--theme-text)]">
+              <span aria-hidden="true" className="w-2 h-2 rounded-full bg-[var(--theme-accent)] motion-safe:animate-pulse" />
+              {badge}
+            </m.span>
+          )}
+          <m.h1 {...enter(0.05)} className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(38px,5.2vw,68px)] leading-[0.98] font-bold tracking-[-0.035em] text-[var(--theme-text)] text-balance">
+            {name}
+          </m.h1>
+          {(tagline || meta) && (
+            <m.div {...enter(0.1)} className="flex flex-col gap-2 max-w-[560px]">
+              {tagline && (
+                <p className="m-0 text-lg sm:text-[21px] leading-[1.35] font-medium text-[var(--theme-text)]">
+                  {tagline}
+                </p>
+              )}
+              {meta && (
+                <p className="m-0 text-sm sm:text-base text-[var(--theme-text-muted)]">
+                  {meta}
+                </p>
+              )}
+            </m.div>
+          )}
+          {progress && (
+            <m.div {...enter(0.14)}>
+              <HeroProgressLink {...progress} />
+            </m.div>
+          )}
+          {(primary || secondary || briefUrl) && (
+            <m.div {...enter(0.18)} className="flex gap-2.5 flex-wrap items-center pt-1">
+              {primary && <Pill href={primary.href} arrow size="lg">{primary.label}</Pill>}
+              {secondary && <Pill href={secondary.href} variant="ghost" size="lg">{secondary.label}</Pill>}
+              {briefUrl && <HeroBriefLink briefUrl={briefUrl} />}
+            </m.div>
+          )}
+        </div>
+
+        <m.div
+          initial={reduce ? false : { opacity: 0, scale: 0.965 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={reduce ? { duration: 0 } : { duration: 0.5, delay: 0.08, ease: EASE_OUT }}
+          className="group relative aspect-[16/11] w-full overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-sm"
+        >
+          <Image
+            src={image}
+            alt={`Render de ${name}`}
+            fill
+            sizes="(min-width: 1024px) 52vw, 100vw"
+            placeholder="blur"
+            blurDataURL={shimmerDataUrl(1920, 1080)}
+            className="object-cover transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.03]"
+            priority
+          />
+        </m.div>
+      </Container>
+    </header>
+  );
+}
+
+function EditorialHero({ name, image, badge, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
+  const reduce = useReducedMotion();
+
+  return (
+    <header className="pt-28 pb-12 sm:pt-36 sm:pb-16 bg-[var(--theme-bg)]">
+      <Container className="flex flex-col gap-8">
+        <div className="flex flex-col gap-4 pb-8 relative">
+          <m.div
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.6, ease: EASE_OUT }}
+            className="flex items-center justify-between gap-4 flex-wrap text-xs font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-muted)]"
+          >
+            <span>{meta || name}</span>
+            {badge && <span className="text-[var(--theme-accent)]">{badge}</span>}
+          </m.div>
+          <m.h1
+            initial={reduce ? false : { opacity: 0, y: 26 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.72, delay: 0.08, ease: EASE_OUT }}
+            className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(44px,7vw,104px)] leading-[0.94] font-medium tracking-[-0.04em] text-[var(--theme-text)] text-balance"
+          >
+            {name}
+          </m.h1>
+          <m.div
+            initial={reduce ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.68, delay: 0.18, ease: EASE_OUT }}
+            className="flex flex-wrap items-end justify-between gap-6 pt-2"
+          >
+            <div className="flex flex-col gap-2 max-w-[600px]">
+              {tagline && (
+                <p className="m-0 text-lg sm:text-[22px] leading-[1.35] text-[var(--theme-text-muted)]">
+                  {tagline}
+                </p>
+              )}
+              {progress && <HeroProgressLink {...progress} />}
+            </div>
+            {(primary || secondary || briefUrl) && (
+              <div className="flex gap-2.5 flex-wrap items-center">
+                {primary && <Pill href={primary.href} variant="ghost" arrow size="md">{primary.label}</Pill>}
+                {secondary && <Pill href={secondary.href} variant="ghost" size="md">{secondary.label}</Pill>}
+                {briefUrl && <HeroBriefLink briefUrl={briefUrl} />}
+              </div>
+            )}
+          </m.div>
+          <m.div
+            aria-hidden="true"
+            initial={reduce ? false : { scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.8, delay: 0.2, ease: EASE_OUT }}
+            className="absolute inset-x-0 bottom-0 h-px bg-[var(--theme-border)] origin-left"
+          />
+        </div>
+
+        <m.div
+          initial={reduce ? false : { clipPath: 'inset(0 0 18% 0)', opacity: 0.4 }}
+          animate={{ clipPath: 'inset(0 0 0% 0)', opacity: 1 }}
+          transition={reduce ? { duration: 0 } : { duration: 0.95, delay: 0.16, ease: EASE_OUT }}
+          className="relative aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-border)] bg-[var(--theme-surface)]"
+        >
+          <m.div
+            initial={reduce ? false : { scale: 1.07 }}
+            animate={{ scale: 1 }}
+            transition={reduce ? { duration: 0 } : { duration: 1.15, delay: 0.16, ease: EASE_OUT }}
+            className="w-full h-full relative"
+          >
+            <Image
+              src={image}
+              alt={`Render de ${name}`}
+              fill
+              sizes="100vw"
+              placeholder="blur"
+              blurDataURL={shimmerDataUrl(1920, 1080)}
+              className="object-cover"
+              priority
+            />
+          </m.div>
+        </m.div>
+      </Container>
+    </header>
+  );
+}
+
+function InmersivaHero({ name, image, tagline, meta, primary, secondary, progress, briefUrl, previewCompact = false }: ProjectHeroProps) {
   const ref = useRef<HTMLElement>(null);
   const textRef = useRef<SVGTextElement>(null);
   const maskId = `hero-mask-${useId().replace(/:/g, '')}`;
@@ -124,8 +313,8 @@ export default function ProjectHero({ name, image, tagline, meta, primary, secon
   const firstBaseline = VB_H * 0.52 - ((lines.length - 1) * lineHeight) / 2 + fontSize * 0.34;
 
   return (
-    <header ref={ref} className={`relative ${reduce ? 'h-[100svh]' : 'h-[230svh]'}`}>
-      <div className="sticky top-0 h-[100svh] overflow-hidden bg-[var(--theme-bg)]">
+    <header ref={ref} className={`relative ${previewCompact ? 'h-[660px]' : reduce ? 'h-[100svh]' : 'h-[230svh]'}`}>
+      <div className={`${previewCompact ? 'relative h-full' : 'sticky top-0 h-[100svh]'} overflow-hidden bg-[var(--theme-bg)]`}>
         <m.div className="absolute inset-0" style={reduce ? undefined : { scale: photoScale }}>
           <Image
             src={image}

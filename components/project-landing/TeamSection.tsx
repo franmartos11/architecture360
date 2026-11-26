@@ -1,11 +1,42 @@
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
-import { SectionHeading } from './ui';
+import { Container, SectionHeading } from './ui';
 
 // Equipo — créditos confirmados, más allá del dueño del proyecto.
 export default function TeamSection({ project }: SectionProps) {
   if (project.collaborators.length === 0) return null;
+  const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+
+  if (template === 'editorial') {
+    return (
+      <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <Container>
+          <SectionHeading eyebrow="Créditos" title="Equipo y autores" className="mb-10" />
+          <div className="divide-y divide-[var(--theme-border)] border-y border-[var(--theme-border)]">
+            {project.collaborators.map((c, i) => (
+              <a
+                key={c.handle}
+                href={`/portfolio/${c.handle}`}
+                className="ed-row group py-4 flex items-center justify-between gap-4 no-underline text-[var(--theme-text)]"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="text-xs font-mono text-[var(--theme-text-muted)]">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="font-[family-name:var(--theme-font-heading)] text-xl font-medium truncate group-hover:text-[var(--theme-accent)]">
+                    {c.displayName}
+                  </span>
+                </div>
+                {c.contribution && (
+                  <span className="text-sm text-[var(--theme-text-muted)] truncate">{c.contribution}</span>
+                )}
+              </a>
+            ))}
+          </div>
+        </Container>
+      </section>
+    );
+  }
 
   return (
     <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">

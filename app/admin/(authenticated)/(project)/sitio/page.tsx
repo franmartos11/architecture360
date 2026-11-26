@@ -12,15 +12,17 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { fetchProjectPreview } from '@/lib/preview-fetch';
 import SectionPreviewFrame from '@/components/admin/SectionPreviewFrame';
+import WebTemplatePreviewModal from '@/components/admin/WebTemplatePreviewModal';
 import { useProjectTypeConfig } from '@/lib/project-type-context';
 import { usePublishState } from '@/lib/publish-state-context';
 import { resolveSectionList, sectionEditHref, sectionHint, computeEmptySectionKeys, type SectionKey } from '@/lib/project-sections';
+import { WEB_TEMPLATES, buildTemplateSectionConfig, resolveWebTemplateKey } from '@/lib/web-templates';
+import type { Project, CustomFont, WebTemplateKey } from '@/types';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
 import { SECTION_EDITORS } from '@/components/admin/section-editors/registry';
 import PortadaEditor from '@/components/admin/section-editors/PortadaEditor';
 import { resolveTheme } from '@/lib/resolve-theme';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
-import type { Project, CustomFont } from '@/types';
 
 interface SectionRow {
   key: SectionKey;
@@ -50,6 +52,11 @@ const SECTION_ORIGIN: Record<SectionKey, { label: string; href: string | null }>
   progress: { label: 'Ficha › Obra', href: '/admin/proyecto/avance' },
   calculator: { label: 'Configuración', href: '/admin/settings' },
   location: { label: 'Ficha › Entorno', href: '/admin/proyecto/entorno' },
+  qualities: { label: 'Sitio › Calidades', href: null },
+  video: { label: 'Sitio › Video', href: null },
+  faq: { label: 'Sitio › FAQ', href: null },
+  payment_plan: { label: 'Sitio › Plan de pagos', href: null },
+  highlights: { label: 'Sitio › Diferenciales', href: null },
   contact: { label: 'Automático · formulario de leads', href: '/admin/leads' },
   comments: { label: 'Automático · visitantes', href: null },
 };
@@ -85,6 +92,7 @@ export default function AdminSitioPage() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<Selected>('portada');
+  const [templatePreview, setTemplatePreview] = useState<WebTemplateKey | null>(null);
   const toast = useToast();
   const activeProjectId = useActiveProjectId();
   const sectionsRef = useRef<SectionRow[] | null>(null);
@@ -134,6 +142,33 @@ export default function AdminSitioPage() {
   const toggleSection = (key: SectionKey) => {
     if (!sections) return;
     persist(sections.map(s => (s.key === key ? { ...s, enabled: !s.enabled } : s)));
+  };
+
+  const activeWebTemplate = resolveWebTemplateKey(project?.themeConfig?.webTemplate);
+
+  const applyWebTemplate = async (key: WebTemplateKey) => {
+    if (!project || saving) return;
+    const nextConfig = buildTemplateSectionConfig(key);
+    const nextSections = resolveSectionList(nextConfig, typeConfig);
+    const nextTheme = { ...(project.themeConfig ?? {}), webTemplate: key };
+    setSections(nextSections);
+    setProject(prev => (prev ? { ...prev, sectionConfig: nextConfig, themeConfig: nextTheme } : prev));
+    setSaving(true);
+    const res = await fetch(withActiveProject('/api/admin/project', activeProjectId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sectionConfig: nextConfig,
+        themeConfig: nextTheme,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      const label = WEB_TEMPLATES.find(t => t.key === key)?.label ?? key;
+      toast(`Web "${label}" aplicada. Podés ajustar secciones abajo.`);
+    } else {
+      toast('No se pudo aplicar la plantilla.', 'error');
+    }
   };
 
   // Las secciones que no aplican al tipo de proyecto no se listan (como en
@@ -241,6 +276,47 @@ export default function AdminSitioPage() {
           )}
         </div>
 
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Web predefinida</span>
+            <button
+              type="button"
+              onClick={() => setTemplatePreview(activeWebTemplate)}
+              className="text-[11px] font-semibold text-gray-900 underline underline-offset-2 hover:text-brand-700"
+            >
+              Ver y comparar →
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {WEB_TEMPLATES.map(tpl => {
+              const on = activeWebTemplate === tpl.key;
+              return (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setTemplatePreview(tpl.key)}
+                  aria-pressed={on}
+                  title={`Previsualizar web ${tpl.label}: ${tpl.description}`}
+                  className={`p-2 rounded-xl border text-left transition-colors flex flex-col gap-1.5 ${
+                    on
+                      ? 'border-gray-900 bg-gray-900 text-white'
+                      : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  <TemplateThumb template={tpl.key} active={on} />
+                  <div>
+                    <span className="block text-[11.5px] font-semibold leading-tight">{tpl.label}</span>
+                    <span className={`block text-[9.5px] leading-tight mt-0.5 truncate ${on ? 'text-white/75' : 'text-gray-500'}`}>
+                      {on ? 'Activa' : 'Ver vista'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex items-center gap-1 flex-wrap">
           {([
             ['all', `Todas ${counts.all}`],
@@ -330,19 +406,58 @@ export default function AdminSitioPage() {
         </div>
         <div className="rounded-2xl overflow-hidden bg-white shadow-[0_1px_2px_rgba(23,25,26,0.06),0_16px_40px_-16px_rgba(23,25,26,0.22)]">
           {selected === 'portada' ? (
-            <div className="relative aspect-[16/10] flex items-end p-6"
-              style={project.masterplanImage ? undefined : { background: 'repeating-linear-gradient(135deg, #3D4741 0 14px, #39433D 14px 28px)' }}>
-              {project.masterplanImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={project.masterplanImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" aria-hidden="true" />
-              <div className="relative flex flex-col gap-1 text-white">
-                {project.location && <span className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-90">{project.location}</span>}
-                <span className="font-display text-[28px] leading-tight font-semibold tracking-[-0.02em]">{project.name}</span>
-                {project.tagline && <span className="text-[13px] opacity-90">{project.tagline}</span>}
+            activeWebTemplate === 'comercial' ? (
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5 items-center bg-[#F7F5F0]">
+                <div className="flex flex-col gap-2">
+                  <span className="self-start text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-800">
+                    Disponible
+                  </span>
+                  <span className="font-display text-2xl leading-tight font-bold text-gray-900">{project.name}</span>
+                  {project.tagline && <span className="text-xs text-gray-700">{project.tagline}</span>}
+                  {project.location && <span className="text-[11px] text-gray-500">{project.location}</span>}
+                  <div className="flex gap-1.5 pt-1">
+                    <span className="px-3 py-1 rounded-full bg-gray-900 text-white text-[10px] font-semibold">Ver disponibilidad</span>
+                    <span className="px-3 py-1 rounded-full border border-gray-300 text-gray-800 text-[10px] font-semibold">Tour 360°</span>
+                  </div>
+                </div>
+                <div className="relative aspect-[16/11] rounded-xl overflow-hidden bg-gray-200 border border-gray-200">
+                  {project.masterplanImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={project.masterplanImage} alt="" className="w-full h-full object-cover" />
+                  )}
+                </div>
               </div>
-            </div>
+            ) : activeWebTemplate === 'editorial' ? (
+              <div className="p-6 flex flex-col gap-4 bg-[#F6F3EC]">
+                <div className="border-b border-gray-300/70 pb-3 flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+                    {project.location || 'Arquitectura'}
+                  </span>
+                  <span className="font-display text-3xl leading-none font-medium tracking-[-0.03em] text-gray-900">{project.name}</span>
+                  {project.tagline && <span className="text-xs text-gray-600 mt-1">{project.tagline}</span>}
+                </div>
+                <div className="relative aspect-[21/9] rounded-lg overflow-hidden bg-gray-200">
+                  {project.masterplanImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={project.masterplanImage} alt="" className="w-full h-full object-cover" />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="relative aspect-[16/10] flex items-end p-6"
+                style={project.masterplanImage ? undefined : { background: 'repeating-linear-gradient(135deg, #3D4741 0 14px, #39433D 14px 28px)' }}>
+                {project.masterplanImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={project.masterplanImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" aria-hidden="true" />
+                <div className="relative flex flex-col gap-1 text-white">
+                  {project.location && <span className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-90">{project.location}</span>}
+                  <span className="font-display text-[28px] leading-tight font-semibold tracking-[-0.02em]">{project.name}</span>
+                  {project.tagline && <span className="text-[13px] opacity-90">{project.tagline}</span>}
+                </div>
+              </div>
+            )
           ) : selectedSectionComponent ? (
             <SectionPreviewFrame height={520} scale={0.45}>
               <div className={ALL_FONT_CLASSNAMES} style={theme.cssVars as React.CSSProperties}>
@@ -407,7 +522,71 @@ export default function AdminSitioPage() {
           </button>
         </div>
       </aside>
+
+      <WebTemplatePreviewModal
+        open={templatePreview !== null}
+        initialTemplate={templatePreview ?? activeWebTemplate}
+        activeTemplate={activeWebTemplate}
+        project={project}
+        typeConfig={typeConfig}
+        themeCssVars={theme.cssVars as React.CSSProperties}
+        emptyKeys={emptyKeys}
+        saving={saving}
+        onClose={() => setTemplatePreview(null)}
+        onApply={async key => {
+          await applyWebTemplate(key);
+          setTemplatePreview(null);
+        }}
+      />
     </m.div>
+  );
+}
+
+function TemplateThumb({ template, active }: { template: WebTemplateKey; active: boolean }) {
+  const frame = active ? 'bg-white/15 border-white/25' : 'bg-[#F5F3EE] border-gray-200';
+  const block = active ? 'bg-white/80' : 'bg-gray-900/75';
+  const soft = active ? 'bg-white/30' : 'bg-gray-300';
+  return (
+    <span aria-hidden="true" className={`w-full h-11 rounded-lg border p-1.5 flex flex-col gap-1 ${frame}`}>
+      {template === 'comercial' ? (
+        <>
+          <span className="grid grid-cols-2 gap-1 flex-1">
+            <span className="flex flex-col justify-center gap-0.5">
+              <span className={`h-1.5 w-4/5 rounded-sm ${block}`} />
+              <span className={`h-1 w-full rounded-sm ${soft}`} />
+              <span className={`h-1.5 w-3/5 rounded-full ${block}`} />
+            </span>
+            <span className={`rounded-sm ${soft}`} />
+          </span>
+          <span className="grid grid-cols-3 gap-0.5 h-1.5">
+            <span className={`rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+          </span>
+        </>
+      ) : template === 'editorial' ? (
+        <>
+          <span className={`h-1.5 w-2/3 rounded-sm ${block}`} />
+          <span className={`h-4 w-full rounded-sm ${soft}`} />
+          <span className="grid grid-cols-3 gap-0.5 flex-1">
+            <span className={`col-span-2 rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+          </span>
+        </>
+      ) : (
+        <>
+          <span className={`flex-1 rounded-sm ${soft} flex items-center justify-center`}>
+            <span className={`h-2 w-3/5 rounded-sm ${block}`} />
+          </span>
+          <span className="grid grid-cols-4 gap-0.5 h-2">
+            <span className={`rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+            <span className={`rounded-sm ${soft}`} />
+          </span>
+        </>
+      )}
+    </span>
   );
 }
 
@@ -443,8 +622,10 @@ function PageSchematic({ projectName, sections, statuses, selected, onSelect }: 
   const body = (key: SectionKey) => {
     switch (key) {
       case 'gallery': case 'process': return tiles(4, 'h-16');
-      case 'typologies': case 'amenities': case 'team': return tiles(3);
-      case 'stats': return tiles(4, 'h-9');
+      case 'typologies': case 'amenities': case 'team': case 'qualities': case 'highlights': return tiles(3);
+      case 'stats': case 'payment_plan': return tiles(4, 'h-9');
+      case 'video': return <span className="block h-20 rounded-md bg-[#EAE7E0] flex items-center justify-center"><span className="w-6 h-6 rounded-full bg-gray-900/20" /></span>;
+      case 'faq': return <span className="flex flex-col gap-1.5">{bar('75%', true)}{bar('65%')}{bar('70%')}</span>;
       case 'location': case 'masterplan': case 'bim': return <span className="block h-24 rounded-md bg-[#EAE7E0] bg-[linear-gradient(#E4E0D8_1px,transparent_1px),linear-gradient(90deg,#E4E0D8_1px,transparent_1px)] bg-[size:16px_16px]" />;
       default: return <span className="flex gap-3 items-start"><span className="flex-1 flex flex-col gap-1.5">{bar('70%', true)}{bar('90%')}{bar('60%')}</span><span className="w-1/3 h-12 rounded-md bg-[#EAE7E0]" /></span>;
     }

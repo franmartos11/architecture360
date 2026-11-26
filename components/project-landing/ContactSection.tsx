@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Reveal from '@/components/ui/Reveal';
 import HomeContactForm from '@/components/HomeContactForm';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 
 // ['planos', 'precios', 'financiación'] → "planos, precios y financiación".
@@ -14,6 +15,61 @@ export default function ContactSection({ project, typeConfig }: SectionProps) {
 
   // De fondo, la última vista aérea (distinta de la del hero cuando hay varias).
   const bg = project.aerialSlides.at(-1)?.imageUrl || project.masterplanImage;
+  const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+
+  if (template === 'comercial') {
+    return (
+      <section id="contacto" className="px-4 sm:px-6 py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <div className="max-w-[1360px] mx-auto grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center p-6 sm:p-10 rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-sm">
+          <Reveal className="flex flex-col gap-4">
+            <span className="self-start text-xs font-semibold uppercase tracking-[0.08em] text-[var(--theme-accent)]">
+              Asesoramiento directo
+            </span>
+            <h2 className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(30px,4vw,52px)] leading-[1.05] font-bold tracking-[-0.03em] text-[var(--theme-text)]">
+              Solicitá planos, precios y disponibilidad
+            </h2>
+            <p className="m-0 text-sm sm:text-base text-[var(--theme-text-muted)] leading-relaxed">
+              Dejanos tus datos y te respondemos a la brevedad con {joinEs(['planos', typeConfig.showPrice && 'precios actualizados', typeConfig.showCalculator && 'opciones de financiación'])}.
+            </p>
+            {project.briefPdfUrl && (
+              <a
+                href={project.briefPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start inline-flex items-center gap-2 h-11 px-5 rounded-full border border-[var(--theme-border)] text-sm font-semibold text-[var(--theme-text)] no-underline hover:bg-[var(--theme-text)]/5 transition-colors"
+              >
+                Descargar brief PDF
+              </a>
+            )}
+          </Reveal>
+          <Reveal delay={0.1}>
+            <HomeContactForm projectSlug={project.slug} projectName={project.name} briefUrl={project.briefPdfUrl} />
+          </Reveal>
+        </div>
+      </section>
+    );
+  }
+
+  if (template === 'editorial') {
+    return (
+      <section id="contacto" className="px-4 sm:px-6 py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <div className="max-w-[1360px] mx-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
+          <Reveal className="flex flex-col gap-4">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-muted)]">Contacto</span>
+            <h2 className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(34px,4.5vw,60px)] leading-[1.02] font-medium tracking-[-0.03em] text-[var(--theme-text)]">
+              Conversemos sobre el proyecto
+            </h2>
+            <p className="m-0 text-base text-[var(--theme-text-muted)] max-w-md">
+              Consultá por {joinEs(['planos', typeConfig.showPrice && 'precios', typeConfig.showCalculator && 'financiación'])} o coordiná una reunión con el equipo.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1} className="lg:pl-8 lg:border-l lg:border-[var(--theme-border)]">
+            <HomeContactForm projectSlug={project.slug} projectName={project.name} briefUrl={project.briefPdfUrl} />
+          </Reveal>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="contacto" className="px-4 sm:px-6 py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">

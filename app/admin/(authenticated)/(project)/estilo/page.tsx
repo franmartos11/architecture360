@@ -12,6 +12,8 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useActiveProjectId, withActiveProject } from '@/lib/active-project-context';
 import { fetchProjectPreview } from '@/lib/preview-fetch';
 import { THEME_PRESETS, RADIUS_OPTIONS } from '@/lib/theme-presets';
+import { getWebTemplate } from '@/lib/web-templates';
+import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { CURATED_FONTS, ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { resolveTheme, getContrastWarnings } from '@/lib/resolve-theme';
 import { getProjectDisplayUrl } from '@/lib/project-url';
@@ -254,6 +256,15 @@ export default function AdminEstiloPage() {
           </div>
           <h1 className="m-0 text-[36px] leading-[1.05] font-semibold text-gray-900">Estilo</h1>
           <p className="m-0 text-[13px] leading-relaxed text-gray-600">Empezá por un tema y ajustá. Los cambios se guardan solos y los contrastes se verifican solos.</p>
+          <Link
+            href="/admin/sitio"
+            className="mt-1 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:border-gray-300 text-xs"
+          >
+            <span className="text-gray-600">
+              Web predefinida: <strong className="font-semibold text-gray-900">{getWebTemplate(themeConfig.webTemplate).label}</strong>
+            </span>
+            <span className="font-semibold text-gray-900 underline underline-offset-2 shrink-0">Comparar →</span>
+          </Link>
         </div>
 
         {/* Temas */}

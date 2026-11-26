@@ -3,6 +3,7 @@ import Reveal from '@/components/ui/Reveal';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { Project } from '@/types';
 import type { SectionProps } from './types';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import { Container } from './ui';
 
 // No hay una galería propia que cargar: se arma con las fotos que el
@@ -34,6 +35,7 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
 
   const article = typeConfig.unitLabelGender === 'f' ? 'una' : 'un';
   const isSale = typeConfig.saleMode !== 'showcase';
+  const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
 
   return (
     <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
@@ -45,25 +47,67 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
               : <>Cada decisión, <span className="text-[var(--theme-text-muted)]">a la vista.</span></>}
           </h2>
         </Reveal>
-        <Reveal delay={0.1} className="flex justify-center">
-          {images.map((img, i) => (
-            <div
-              key={img.src}
-              className="lp-chev relative flex-1 min-w-0 h-[clamp(160px,26vw,380px)] overflow-hidden"
-              style={i > 0 ? { marginLeft: '-6%' } : undefined}
-            >
-              <Image
-                src={img.src}
-                alt={img.alt}
-                fill
-                sizes="(min-width: 1360px) 400px, 30vw"
-                placeholder="blur"
-                blurDataURL={shimmerDataUrl()}
-                className="object-cover"
-              />
-            </div>
-          ))}
-        </Reveal>
+        {template === 'editorial' ? (
+          <Reveal delay={0.1} className="grid gap-4 md:grid-cols-12">
+            {images.map((img, i) => (
+              <div
+                key={img.src}
+                className={`ed-curtain group relative overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-border)] bg-[var(--theme-surface)] ${
+                  i === 0 ? 'md:col-span-7 h-[280px] sm:h-[420px]' : i === 1 ? 'md:col-span-5 h-[280px] sm:h-[420px]' : 'md:col-span-6 h-[220px] sm:h-[300px]'
+                }`}
+              >
+                <Image
+                  src={img.src}
+                  alt={img.alt}
+                  fill
+                  sizes={i === 0 ? '(min-width: 768px) 60vw, 100vw' : '(min-width: 768px) 45vw, 100vw'}
+                  placeholder="blur"
+                  blurDataURL={shimmerDataUrl()}
+                  className="object-cover transition-transform duration-1000 ease-out motion-safe:group-hover:scale-[1.03]"
+                />
+              </div>
+            ))}
+          </Reveal>
+        ) : template === 'comercial' ? (
+          <Reveal delay={0.08} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {images.map(img => (
+              <div
+                key={img.src}
+                className="tpl-card group relative aspect-[4/3] overflow-hidden rounded-[var(--theme-radius)] border border-[var(--theme-border)] bg-[var(--theme-surface)]"
+              >
+                <Image
+                  src={img.src}
+                  alt={img.alt}
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                  placeholder="blur"
+                  blurDataURL={shimmerDataUrl()}
+                  className="object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-105"
+                />
+              </div>
+            ))}
+          </Reveal>
+        ) : (
+          <Reveal delay={0.1} className="flex justify-center">
+            {images.map((img, i) => (
+              <div
+                key={img.src}
+                className="lp-chev relative flex-1 min-w-0 h-[clamp(160px,26vw,380px)] overflow-hidden"
+                style={i > 0 ? { marginLeft: '-6%' } : undefined}
+              >
+                <Image
+                  src={img.src}
+                  alt={img.alt}
+                  fill
+                  sizes="(min-width: 1360px) 400px, 30vw"
+                  placeholder="blur"
+                  blurDataURL={shimmerDataUrl()}
+                  className="object-cover"
+                />
+              </div>
+            ))}
+          </Reveal>
+        )}
         {isSale && (
           <p className="mt-10 mx-auto max-w-[520px] text-center text-[17px] leading-normal font-medium text-[var(--theme-text)]">
             Cada {typeConfig.unitLabel.toLowerCase()} tiene {typeConfig.showPrice ? 'su ficha, su plano y su precio' : 'su ficha y su plano'}. <span className="text-[var(--theme-text-muted)]">Elegí, compará y consultá sin vueltas.</span>

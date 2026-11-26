@@ -714,9 +714,61 @@ html[data-nav-pending] [data-site-nav]::after {
 .lp-chev img { transition: transform 1.2s cubic-bezier(.2, .7, .2, 1); }
 .lp-chev:hover img { transform: scale(1.08); }
 
+/* ─── Personalidad de movimiento por web predefinida ──────────────
+   Inmersiva conserva la base fluida de [data-reveal] + .lp-fill + .lp-chev.
+   Comercial: entradas ágiles y cortas + elevación táctil en tarjetas.
+   Editorial: ritmo contemplativo (850 ms), cortinas clip-path y filetes. */
+html.js [data-web-template='comercial'] [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  transform: translateY(var(--reveal-y, 14px)) scale(0.988);
+}
+html.js [data-web-template='comercial'] [data-reveal][data-revealed='anim'] {
+  transition:
+    opacity 0.36s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0s),
+    transform 0.36s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0s);
+}
+.tpl-card {
+  transition:
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.24s ease,
+    border-color 0.24s ease;
+}
+.tpl-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -12px rgba(23, 25, 26, 0.16);
+}
+
+html.js [data-web-template='editorial'] [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  transform: translateY(var(--reveal-y, 32px));
+}
+html.js [data-web-template='editorial'] [data-reveal][data-revealed='anim'] {
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0s),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0s);
+}
+html.js [data-web-template='editorial'] [data-reveal]:not([data-revealed]) .ed-curtain,
+html.js [data-web-template='editorial'] [data-reveal].ed-curtain:not([data-revealed]) {
+  clip-path: inset(10% 0 0 0);
+}
+[data-web-template='editorial'] .ed-curtain {
+  transition: clip-path 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  clip-path: inset(0 0 0 0);
+}
+.ed-row {
+  transition: padding-left 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.35s ease;
+}
+.ed-row:hover {
+  padding-left: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lp-fill .w { animation: none; color: var(--theme-text); }
   .lp-chev img { transition: none; }
+  .tpl-card, .tpl-card:hover { transition: none; transform: none; }
+  [data-web-template='editorial'] .ed-curtain,
+  html.js [data-web-template='editorial'] [data-reveal]:not([data-revealed]) .ed-curtain { transition: none; clip-path: none; }
+  .ed-row, .ed-row:hover { transition: none; padding-left: 0; }
 }
 
 /* ─── Vidrio líquido (desplegable de Explorar 3D en la barra) ─────

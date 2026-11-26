@@ -13,6 +13,7 @@ import { formatPrice, pluralize } from '@/lib/units';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import { progressHeadline, showsConstructionProgress } from '@/lib/construction-progress-view';
 import { projectHasContent } from '@/lib/project-content';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -81,12 +82,22 @@ export default async function ProjectLandingPage({ params }: PageProps) {
     || project.aerialSlides[0]?.imageUrl
     || 'https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
 
+  const webTemplate = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+  const availableCount = project.units.filter(u => u.status === 'available').length;
+  const heroBadge = typeConfig.saleMode === 'showcase'
+    ? (academicLine || undefined)
+    : availableCount > 0
+      ? `${availableCount} ${availableCount === 1 ? typeConfig.unitLabel.toLowerCase() + ' disponible' : pluralize(typeConfig.unitLabel).toLowerCase() + ' disponibles'}`
+      : undefined;
+
   return (
     // -mt-16 anula el pt-16 que el layout aplica para despejar el Navbar
     // fixed: acá el hero es a pantalla completa y tiene que pasar POR DEBAJO
     // del nav, que es translúcido a propósito.
     <div className="-mt-16 text-[var(--theme-text)]">
       <ProjectHero
+        variant={webTemplate}
+        badge={heroBadge}
         name={project.name}
         image={heroImage}
         tagline={project.tagline || (typeConfig.saleMode === 'venta' ? 'Encontrá tu lugar' : undefined)}
@@ -119,6 +130,12 @@ export default async function ProjectLandingPage({ params }: PageProps) {
             {project.description && <a href="#next" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Sobre el proyecto</a>}
             {project.units.length > 0 && <a href="#modelos" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">{pluralize(typeConfig.unitLabel)}</a>}
             {project.amenities.some(a => a.images.length > 0) && <a href="#amenities" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Amenities</a>}
+            {(project.themeConfig?.qualitiesItems?.length ?? 0) > 0 && sectionOrder.includes('qualities') && (
+              <a href="#calidades" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Calidades</a>
+            )}
+            {(project.themeConfig?.faqItems?.length ?? 0) > 0 && sectionOrder.includes('faq') && (
+              <a href="#faq" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">FAQ</a>
+            )}
             {progressText && <a href="#avance" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Avance de obra</a>}
             {typeConfig.showCalculator && <a href="#cotizador" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Cotizador</a>}
             {typeConfig.showLeads && <a href="#contacto" className="text-[var(--theme-text)] no-underline hover:text-[var(--theme-accent)] transition-colors">Contacto</a>}

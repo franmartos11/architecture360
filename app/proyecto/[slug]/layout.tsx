@@ -8,6 +8,7 @@ import { getSiteProject } from '@/data/project-repository';
 import DraftPreviewBar from '@/components/project-landing/DraftPreviewBar';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { resolveTheme } from '@/lib/resolve-theme';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import { ALL_FONT_CLASSNAMES } from '@/lib/fonts';
 import { projectHasContent } from '@/lib/project-content';
 import SiteTracker from '@/components/analytics/SiteTracker';
@@ -85,6 +86,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
       <SiteTracker projectSlug={project.slug} isDraftPreview={isDraftPreview} briefUrl={project.briefPdfUrl ?? undefined}>
       <div
         data-project-theme
+        data-web-template={resolveWebTemplateKey(project.themeConfig?.webTemplate)}
         className={`${ALL_FONT_CLASSNAMES} theme-bg-image theme-bg-image--fixed bg-[var(--theme-bg)] min-h-screen`}
         style={{ ...theme.cssVars, fontFamily: 'var(--theme-font-body)' } as React.CSSProperties}
       >

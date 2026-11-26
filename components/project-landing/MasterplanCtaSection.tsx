@@ -1,9 +1,10 @@
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { bimModelHref } from '@/lib/bim';
 import { pluralize } from '@/lib/units';
+import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { projectHasContent } from '@/lib/project-content';
-import { Container, SectionHeading } from './ui';
+import { ArrowIcon, Container, SectionHeading } from './ui';
 
 interface ExploreRow {
   title: string;
@@ -40,6 +41,78 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
     rows.push({ title: 'Modelo BIM', desc: 'Recorré el edificio en detalle, pieza por pieza.', href: bimModelHref(project.bimModels[0].id), wideOnly: true });
   }
   if (rows.length === 0) return null;
+  const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+
+  if (template === 'comercial') {
+    return (
+      <section id="explorar" className="py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <Container>
+          <SectionHeading
+            eyebrow="Accesos interactivos"
+            title="Explorá el proyecto"
+            muted="a tu ritmo"
+            className="mb-10"
+          />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {rows.map((r, i) => (
+              <Link
+                key={r.title}
+                href={r.href}
+                className={`tpl-card group ${r.wideOnly ? 'hidden wide:flex' : 'flex'} flex-col justify-between gap-4 p-6 rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] hover:border-[var(--theme-accent)] no-underline text-[var(--theme-text)] shadow-sm`}
+              >
+                <div className="space-y-2">
+                  <span className="inline-block text-[11px] font-semibold text-[var(--theme-accent)] tabular-nums">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <h3 className="m-0 font-[family-name:var(--theme-font-heading)] text-2xl font-bold tracking-[-0.02em]">
+                    {r.title}
+                  </h3>
+                  <p className="m-0 text-sm text-[var(--theme-text-muted)] leading-relaxed">{r.desc}</p>
+                </div>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--theme-text)] group-hover:text-[var(--theme-accent)] transition-colors">
+                  Abrir <ArrowIcon />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </Container>
+      </section>
+    );
+  }
+
+  if (template === 'editorial') {
+    return (
+      <section id="explorar" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
+        <Container>
+          <SectionHeading
+            eyebrow="Recorridos"
+            title="Exploración digital"
+            className="mb-10"
+          />
+          <div className="divide-y divide-[var(--theme-border)] border-y border-[var(--theme-border)]">
+            {rows.map((r, i) => (
+              <Link
+                key={r.title}
+                href={r.href}
+                className={`ed-row group ${r.wideOnly ? 'hidden wide:flex' : 'flex'} items-center justify-between gap-4 py-5 no-underline text-[var(--theme-text)]`}
+              >
+                <div className="flex items-baseline gap-4 min-w-0">
+                  <span className="text-xs font-mono text-[var(--theme-text-muted)]">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="font-[family-name:var(--theme-font-heading)] text-2xl sm:text-3xl font-medium tracking-[-0.02em] group-hover:text-[var(--theme-accent)] transition-colors">
+                    {r.title}
+                  </span>
+                  <span className="hidden md:inline text-sm text-[var(--theme-text-muted)] truncate">{r.desc}</span>
+                </div>
+                <span className="shrink-0 w-9 h-9 rounded-full border border-[var(--theme-border)] flex items-center justify-center group-hover:bg-[var(--theme-text)] group-hover:text-[var(--theme-bg)] transition-colors">
+                  <ArrowIcon />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </Container>
+      </section>
+    );
+  }
 
   return (
     <section id="explorar" className="py-[var(--theme-spacing)] bg-[var(--theme-bg-alt)] text-[var(--theme-text-on-dark)]">

@@ -13,6 +13,11 @@ import BimSection from './BimSection';
 import TypologiesSection from './TypologiesSection';
 import ConstructionProgressSection from './ConstructionProgressSection';
 import LocationSection from './LocationSection';
+import QualitiesSection from './QualitiesSection';
+import VideoSection from './VideoSection';
+import FaqSection from './FaqSection';
+import PaymentPlanSection from './PaymentPlanSection';
+import HighlightsSection from './HighlightsSection';
 import CalculatorSection from './CalculatorSection';
 import ContactSection from './ContactSection';
 import CommentsSection from './CommentsSection';
@@ -34,6 +39,11 @@ export const SECTION_COMPONENTS: Record<SectionKey, ComponentType<SectionProps>>
   bim: BimSection,
   typologies: TypologiesSection,
   progress: ConstructionProgressSection,
+  qualities: QualitiesSection,
+  video: VideoSection,
+  faq: FaqSection,
+  payment_plan: PaymentPlanSection,
+  highlights: HighlightsSection,
   location: LocationSection,
   calculator: CalculatorSection,
   contact: ContactSection,
