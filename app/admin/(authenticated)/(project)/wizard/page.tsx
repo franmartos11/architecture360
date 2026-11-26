@@ -605,6 +605,12 @@ function AdminWizardPageInner() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="px-4 py-2.5 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-between gap-3 flex-wrap text-xs text-gray-700">
+        <span>Estás viendo el asistente clásico. El flujo recomendado por tipo de proyecto está en <strong>Carga guiada</strong>.</span>
+        <Link href="/admin/carga" className="font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap">
+          Ir a Carga guiada →
+        </Link>
+      </div>
       <div>
         <Link href="/admin/edificios" className="text-sm text-gray-500 hover:text-gray-700">← {pluralize(buildingLabel)}</Link>
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">Carga guiada</h2>

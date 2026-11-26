@@ -33,13 +33,12 @@ export default function PublishCallout({ className = '' }: { className?: string 
   // de sacarlo de golpe. Al cargar no anima: el Collapse nace en su estado.
   const show = !published || missingSections.length > 0;
   return <Collapse open={show}>{published ? (
-      <div className={`px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2 justify-between ${className}`}>
-        <p className="text-sm text-amber-800">
-          <span className="font-medium">Tu sitio está en línea</span>, pero {missingSections.length === 1 ? 'esta sección está vacía' : 'estas secciones están vacías'}:{' '}
-          {missingSections.map(s => s.label).join(', ')}.
+      <div className={`px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2 justify-between ${className}`}>
+        <p className="text-xs sm:text-sm text-gray-600">
+          <span className="font-medium text-gray-900">Sitio en línea</span> · {missingSections.length === 1 ? '1 sección opcional sin usar' : `${missingSections.length} secciones opcionales sin usar`} ({missingSections.map(s => s.label).join(', ')}).
         </p>
-        <Link href="/admin/sitio" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap">
-          Completar →
+        <Link href="/admin/sitio" className="text-xs sm:text-sm font-medium text-gray-700 hover:text-gray-900 underline underline-offset-2 whitespace-nowrap">
+          Gestionar en Sitio →
         </Link>
       </div>
   ) : (
@@ -81,8 +80,8 @@ export default function PublishCallout({ className = '' }: { className?: string 
       </ul>
       {missingSections.length > 0 && (
         <p className="mt-3 text-xs text-gray-500">
-          Recomendado, no obligatorio: {missingSections.map(s => s.label).join(', ')}.{' '}
-          <Link href="/admin/sitio" className="underline underline-offset-2 hover:text-gray-900">Completar →</Link>
+          Opcional (no bloquea): {missingSections.map(s => s.label).join(', ')}.{' '}
+          <Link href="/admin/sitio" className="underline underline-offset-2 hover:text-gray-900">Completar o apagar →</Link>
         </p>
       )}
     </div>

@@ -44,11 +44,14 @@ export function ChapterTabs({ current }: { current: string }) {
   );
 }
 
-/** "Capítulo 2 de 4 · Ficha" para el eyebrow del PageHeader. */
+/** "Capítulo 1 de 7 · Mínimo · Ficha" o "Capítulo 2 de 7 · Opcional · Ficha" */
 export function useChapterEyebrow(): string {
   const pathname = usePathname();
   const i = chapterIndexOf(pathname);
-  return i < 0 ? 'Ficha' : `Capítulo ${i + 1} de ${CHAPTERS.length} · Ficha`;
+  if (i < 0) return 'Ficha';
+  return i === 0
+    ? `Capítulo 1 de ${CHAPTERS.length} · Mínimo para publicar · Ficha`
+    : `Capítulo ${i + 1} de ${CHAPTERS.length} · Opcional · Ficha`;
 }
 
 /** Pie: volver al capítulo anterior y botón oscuro "Siguiente · <capítulo>". */
@@ -76,21 +79,28 @@ export function ChapterFooter() {
   );
 }
 
-/** Tira con los 7 capítulos (el actual resaltado) — para moverse entre ellos sin volver al menú. */
+/** Tira con los 7 capítulos, diferenciando Esencial (mínimo) de los opcionales. */
 export function ChapterStrip() {
   const pathname = usePathname();
   const current = chapterIndexOf(pathname);
   return (
-    <nav aria-label="Capítulos de la ficha" className="flex gap-1.5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 sm:pb-0">
+    <nav aria-label="Capítulos de la ficha" className="flex items-center gap-1.5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 sm:pb-0">
       {CHAPTERS.map((c, i) => {
         const on = i === current;
         return (
-          <Link key={c.title} href={c.pages[0].href} aria-current={on ? 'page' : undefined}
-            className={`shrink-0 min-h-[36px] px-3 flex items-center gap-2 rounded-full text-[13px] border transition-colors ${
-              on ? 'bg-gray-900 border-gray-900 text-white font-semibold' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
-            }`}>
-            <span className={`text-[11px] ${on ? 'text-white/70' : 'text-gray-400'}`}>{i + 1}</span>{c.title}
-          </Link>
+          <span key={c.title} className="contents">
+            {i === 1 && (
+              <span className="shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">
+                Opcionales
+              </span>
+            )}
+            <Link href={c.pages[0].href} aria-current={on ? 'page' : undefined}
+              className={`shrink-0 min-h-[36px] px-3 flex items-center gap-2 rounded-full text-[13px] border transition-colors ${
+                on ? 'bg-gray-900 border-gray-900 text-white font-semibold' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+              }`}>
+              <span className={`text-[11px] ${on ? 'text-white/70' : 'text-gray-400'}`}>{i + 1}</span>{c.title}
+            </Link>
+          </span>
         );
       })}
     </nav>

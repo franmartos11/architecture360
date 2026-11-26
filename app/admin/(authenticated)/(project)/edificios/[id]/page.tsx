@@ -267,10 +267,10 @@ export default function AdminBuildingDetailPage({ params }: { params: Promise<{ 
               <h2 className="m-0 text-[15px] font-semibold text-gray-900">Pisos <span className="font-normal text-gray-600">— cada piso necesita su plano para que el sitio pueda mostrar los deptos</span></h2>
             </div>
             <Link
-              href={`/admin/wizard?buildingId=${id}&step=piso`}
+              href="/admin/carga"
               className="min-h-[36px] flex items-center text-[13px] font-semibold text-gray-900 underline underline-offset-2 whitespace-nowrap shrink-0"
             >
-              Usar el asistente →
+              Usar la carga guiada →
             </Link>
           </div>
 

@@ -105,9 +105,10 @@ export default function ProjectAdminShell({
     ? [
         { label: hasFloorStep ? 'Inventario' : `Precios y estados`, href: '/admin/inventory' },
         { label: structureItemLabel, href: singleBuildingHref ?? '/admin/edificios' },
+        { label: 'Carga guiada', href: '/admin/carga' },
       ]
     : [];
-  const isUnidadesSection = pathname.startsWith('/admin/inventory') || pathname.startsWith('/admin/edificios');
+  const isUnidadesSection = pathname.startsWith('/admin/inventory') || pathname.startsWith('/admin/edificios') || pathname.startsWith('/admin/carga');
 
   // "Sitio web": orden y diseño de las secciones + estilo.
   const sitioSubItems = [
