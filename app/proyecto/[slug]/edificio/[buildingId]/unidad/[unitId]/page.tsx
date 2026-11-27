@@ -1,5 +1,6 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
 import { getLocale } from '@/lib/i18n/server';
+import { crearT } from '@/lib/i18n/t';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import UnitViewerWrapper from '@/components/unit/UnitViewerWrapper';
@@ -7,7 +8,8 @@ import { getSiteProjectBySlug } from '@/data/project-repository';
 import { getProjectTypeConfig } from '@/lib/project-types';
 import { getProjectBasePath } from '@/lib/project-base-path';
 import type { UnitViewTab } from '@/types';
-import { unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
+import { unitIsDwelling, unitCategory, unitCategoryLabel } from '@/lib/units';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
 import { pickUnitView } from '@/lib/floor-views';
 import { findSiteUnit, unitBimModel } from '@/lib/site-unit';
 
@@ -25,14 +27,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const project = await getSiteProjectBySlug(slug);
   // El código solo es único por piso: se busca dentro del edificio de la URL.
   const found = findSiteUnit(project, buildingId, unitId);
-  if (!found) return { title: 'Unidad no encontrada' };
+  const t = crearT(locale);
+  if (!found) return { title: t('sitio.paginas.unidadNoEncontrada') };
   const { building, unit } = found;
 
-  const title = `Unidad ${unit.name} | Interior`;
+  const title = t('sitio.paginas.unidadTitulo', { nombre: unit.name });
   // Un local / cochera no tiene dormitorios: se describe por su categoría.
   const description = unitIsDwelling(unit)
-    ? `${unit.modelName || unit.type} · ${unit.bedrooms} dormitorio${unit.bedrooms === 1 ? '' : 's'} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`
-    : `${UNIT_CATEGORY_LABEL[unitCategory(unit)]} · ${unit.totalArea}m² — recorré el interior en 3D y 360°.`;
+    ? t('sitio.paginas.unidadDescripcion', { modelo: unit.modelName || etiquetaCatalogo(unit.type, locale), count: unit.bedrooms, area: unit.totalArea })
+    : t('sitio.paginas.unidadDescripcionCategoria', { categoria: unitCategoryLabel(unitCategory(unit), locale), area: unit.totalArea });
   const image = unit.interiorImageUrl || unit.galleryImages?.[0] || undefined;
 
   return {
@@ -55,7 +58,7 @@ export default async function UnitPage({ params, searchParams }: PageProps) {
   const { building, unit } = found;
 
   const initialTab = VALID_TABS.includes(tab as UnitViewTab) ? (tab as UnitViewTab) : undefined;
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, await getLocale());
   const basePath = await getProjectBasePath(slug);
 
   const slimUnits = project.units.map(u => ({

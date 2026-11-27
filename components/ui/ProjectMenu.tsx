@@ -9,7 +9,10 @@ import Dialog from '@/components/ui/Dialog';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { exploreGroup, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { crearT } from '@/lib/i18n/t';
+import type { Locale } from '@/lib/i18n/locales';
 
 // Menú único del sitio público de un proyecto (rediseño C/D), para pantallas
 // de menos de 1200px — desde ahí la barra lista las secciones. Mismo
@@ -28,6 +31,7 @@ const TRIGGER_CLASS: Record<Variant, string> = {
 export function ProjectMenuButton({ info, variant = 'bar' }: { info: ProjectNavInfo; variant?: Variant }) {
   const [open, setOpen] = useState(false);
   const contactModal = useContactModal();
+  const t = useT();
   const close = useCallback(() => setOpen(false), []);
   const [leadMessage, setLeadMessage] = useState<string | undefined>();
   const contact = useCallback((message?: string) => {
@@ -41,14 +45,14 @@ export function ProjectMenuButton({ info, variant = 'bar' }: { info: ProjectNavI
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Abrir menú"
+        aria-label={t('sitio.menu.abrir')}
         aria-expanded={open}
         className={`pointer-events-auto flex items-center gap-2 text-sm font-medium whitespace-nowrap transition-colors ${TRIGGER_CLASS[variant]}`}
       >
         <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
-        <span className="hidden sm:inline">Menú</span>
+        <span className="hidden sm:inline">{t('sitio.menu.menu')}</span>
       </button>
 
       <ProjectMenuOverlay
@@ -76,18 +80,19 @@ export interface ExploreCard { href: string; label: string; image?: string; deta
 
 // Destinos de "Explorar 3D" — los comparten el menú y el selector de las
 // migas de pan (ExploreSwitcher), así los dos listan lo mismo.
-export function exploreCardsFor(info: ProjectNavInfo, basePath: string): ExploreCard[] {
+export function exploreCardsFor(info: ProjectNavInfo, basePath: string, locale: Locale = 'es'): ExploreCard[] {
+  const t = crearT(locale);
   const hrefs = projectNavHrefs(basePath, info.singleUnit, info.explore.plans?.buildingId);
   // Solo las vistas con contenido: una tarjeta que lleva a una pantalla
   // vacía ("Todavía no hay vista aérea…") no le sirve a nadie.
   const cards: (ExploreCard | null)[] = [
     info.explore.hasFacade
-      ? { href: hrefs.masterplan, label: 'Fachada', image: info.explore.facadeImage, detail: info.explore.facadeDetail }
+      ? { href: hrefs.masterplan, label: t('nav.fachada'), image: info.explore.facadeImage, detail: info.explore.facadeDetail }
       : null,
     hrefs.plans && info.explore.plans
       ? { href: hrefs.plans, label: info.explore.plans.label, image: info.explore.plans.image, detail: info.explore.plans.detail }
       : null,
-    info.hasTour ? { href: hrefs.tour, label: 'Recorrido 360', image: info.explore.tourImage, detail: info.explore.tourDetail } : null,
+    info.hasTour ? { href: hrefs.tour, label: t('nav.recorrido360'), image: info.explore.tourImage, detail: info.explore.tourDetail } : null,
   ];
   return cards.filter((c): c is ExploreCard => !!c);
 }
@@ -113,10 +118,13 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
   const unitsLabel = info.singleUnit?.label ?? info.unitsLabel;
 
   const titleId = useId();
+  const t = useT();
+  const { locale } = useLocale();
+  const group = exploreGroup(locale);
 
   const isActive = (href: string) => pathname.replace(/\/+$/, '') === href.replace(/\/+$/, '');
-  const section = projectSectionFor(pathname, basePath, info);
-  const exploreCards = exploreCardsFor(info, basePath);
+  const section = projectSectionFor(pathname, basePath, info, locale);
+  const exploreCards = exploreCardsFor(info, basePath, locale);
 
   // Mismo orden que la barra completa (ver Navbar): Proyecto, Explorar 3D,
   // Unidades, Amenities, Ubicación → Contactar (el brief va como botón abajo).
@@ -125,10 +133,10 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
     info.hasUnits && {
       href: hrefs.units,
       label: unitsLabel,
-      detail: !info.singleUnit && info.unitsAvailable != null ? `${info.unitsAvailable} disponibles` : undefined,
+      detail: !info.singleUnit && info.unitsAvailable != null ? t('sitio.menu.disponibles', { count: info.unitsAvailable }) : undefined,
     },
-    info.hasAmenities && { href: hrefs.amenities, label: 'Amenities' },
-    info.hasLocation && { href: hrefs.location, label: 'Ubicación' },
+    info.hasAmenities && { href: hrefs.amenities, label: t('nav.amenities') },
+    info.hasLocation && { href: hrefs.location, label: t('nav.ubicacion') },
   ].filter((l): l is { href: string; label: string; detail?: string } => !!l);
 
   // Dialog: portal con las variables del tema, scroll lock, foco, Escape y
@@ -145,7 +153,7 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
       className="!bg-[var(--theme-bg-alt)] !text-[var(--theme-text-on-dark)]"
     >
       <div style={{ fontFamily: 'var(--theme-font-body)' }}>
-        <h2 id={titleId} className="sr-only">Menú</h2>
+        <h2 id={titleId} className="sr-only">{t('sitio.menu.menu')}</h2>
         <div className="max-w-3xl mx-auto px-[18px] pb-[22px] md:px-8 md:pb-8 flex flex-col">
           {/* Cabecera — tablet: marca + Cerrar; mobile: tirador de la hoja. */}
           <div className="md:hidden flex justify-center pt-2.5 pb-2">
@@ -158,18 +166,18 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
                 <span className="mt-0.5 text-[9px] tracking-[0.24em] uppercase text-[var(--theme-text-on-dark-muted)]">{info.projectLocation}</span>
               )}
             </span>
-            <CloseButton onClick={onClose} />
+            <CloseButton onClick={onClose} label={t('sitio.menu.cerrar')} />
           </div>
 
-          <nav aria-label="Menú principal" className="flex flex-col md:flex-1 md:pt-2">
-            <MenuLink href={hrefs.home} label="Proyecto" active={isActive(hrefs.home)} onClose={onClose} first />
+          <nav aria-label={t('sitio.menu.principal')} className="flex flex-col md:flex-1 md:pt-2">
+            <MenuLink href={hrefs.home} label={t('nav.proyecto')} active={isActive(hrefs.home)} onClose={onClose} first />
 
             {exploreCards.length > 0 && (
               <div className="flex flex-col md:flex-row md:items-center gap-2.5 md:gap-3.5 py-2.5 md:py-1.5 border-t border-[var(--theme-text-on-dark)]/[.08] md:border-0">
-                <ActiveLabel active={section?.group === EXPLORE_GROUP} className="md:min-w-[150px]">Explorar 3D</ActiveLabel>
+                <ActiveLabel active={section?.group === group} className="md:min-w-[150px]">{group}</ActiveLabel>
                 <div className="grid grid-cols-3 gap-2 md:flex md:gap-2">
                   {exploreCards.map(card => {
-                    const active = card.label === section?.label && section?.group === EXPLORE_GROUP;
+                    const active = card.label === section?.label && section?.group === group;
                     return (
                       <Link
                         key={card.href}
@@ -223,7 +231,7 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
               </svg>
-              Descargar brief
+              {t('sitio.menu.descargarBrief')}
             </a>
           )}
 
@@ -236,15 +244,15 @@ function ProjectMenuOverlay({ open, info, onClose, onContact }: {
                 onClick={() => onContact()}
                 className="flex-1 h-[52px] md:h-[46px] flex items-center justify-center gap-2 rounded-xl md:rounded-[10px] bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-accent)] text-base md:text-sm font-semibold transition-opacity"
               >
-                <span className="md:hidden">Contactar · Agendar visita</span>
-                <span className="hidden md:inline">Contactar</span>
+                <span className="md:hidden">{t('sitio.menu.contactarYVisita')}</span>
+                <span className="hidden md:inline">{t('sitio.nav.contactar')}</span>
               </button>
               <button
                 type="button"
-                onClick={() => onContact('Hola, quiero agendar una visita.')}
+                onClick={() => onContact(t('sitio.lead.msgAgendarVisita'))}
                 className="hidden md:flex flex-1 h-[46px] items-center justify-center rounded-[10px] border border-[var(--theme-text-on-dark)]/20 text-sm font-medium hover:bg-[var(--theme-text-on-dark)]/5 transition-colors"
               >
-                Agendar visita
+                {t('sitio.menu.agendarVisita')}
               </button>
             </div>
           )}
@@ -287,7 +295,7 @@ function MenuLink({ href, label, detail, active, onClose, first = false }: {
   );
 }
 
-function CloseButton({ onClick }: { onClick: () => void }) {
+function CloseButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -297,7 +305,7 @@ function CloseButton({ onClick }: { onClick: () => void }) {
       <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
         <path d="M6 6l12 12M18 6 6 18" />
       </svg>
-      Cerrar
+      {label}
     </button>
   );
 }

@@ -7,11 +7,15 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { PointOfInterest } from '@/types';
+import { useT } from '@/lib/i18n/client';
 
 // Import Swiper styles
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 interface PointsOfInterestCarouselProps {
   pointsOfInterest: PointOfInterest[];
@@ -19,6 +23,7 @@ interface PointsOfInterestCarouselProps {
 
 export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestCarouselProps) {
   const basePath = useProjectBasePath();
+  const t = useT();
   const slides = pointsOfInterest.filter(p => p.image);
   if (slides.length === 0) return null;
 
@@ -45,7 +50,7 @@ export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestC
                 alt={item.name}
                 fill
                 sizes="(min-width: 1152px) 1152px, 100vw"
-                placeholder="blur"
+                placeholder={BLUR}
                 blurDataURL={shimmerDataUrl()}
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
@@ -59,11 +64,11 @@ export function PointsOfInterestCarousel({ pointsOfInterest }: PointsOfInterestC
       </Swiper>
       {/* Botones propios — la sección Ubicación es de fondo claro (--theme-bg). */}
       <div className="flex justify-end gap-4 mt-4">
-        <button type="button" aria-label="Anterior" className="swiper-btn-prev-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
-          &larr;
+        <button type="button" aria-label={t('sitio.carrusel.anterior')} className="swiper-btn-prev-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
+          ←
         </button>
-        <button type="button" aria-label="Siguiente" className="swiper-btn-next-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
-          &rarr;
+        <button type="button" aria-label={t('sitio.carrusel.siguiente')} className="swiper-btn-next-zone w-12 h-12 flex items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-text)] hover:text-[var(--theme-bg)] transition-colors">
+          →
         </button>
       </div>
     </div>

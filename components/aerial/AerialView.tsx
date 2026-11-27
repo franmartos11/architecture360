@@ -12,7 +12,19 @@ import { getProjectTypeConfig } from '@/lib/project-types';
 
 import { pluralize } from '@/lib/units';
 import { useProjectNav } from '@/lib/project-nav-context';
-import { placePopover } from '@/lib/popover-placement';
+import { placePopover, type PopoverSide } from '@/lib/popover-placement';
+import { useLocale, useT } from '@/lib/i18n/client';
+
+/** next/image: shimmer mientras carga la foto. */
+const BLUR = 'blur' as const;
+
+/** Flecha de la tarjeta hacia el pin, según de qué lado quedó. */
+const CARET: Partial<Record<PopoverSide, { className: string; eje: 'left' | 'top' }>> = {
+  above: { className: '-translate-x-1/2 top-full border-x-8 border-x-transparent border-t-8 border-t-white', eje: 'left' },
+  below: { className: '-translate-x-1/2 bottom-full border-x-8 border-x-transparent border-b-8 border-b-white', eje: 'left' },
+  right: { className: '-translate-y-1/2 right-full border-y-8 border-y-transparent border-r-8 border-r-white', eje: 'top' },
+  left: { className: '-translate-y-1/2 left-full border-y-8 border-y-transparent border-l-8 border-l-white', eje: 'top' },
+};
 interface AerialViewProps {
   project: Project;
 }
@@ -23,7 +35,9 @@ export default function AerialView({ project }: AerialViewProps) {
   // propia de la vista, que solo queda fuera de él.
   const inSite = !!useProjectNav();
   const router = useRouter();
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const t = useT();
+  const { locale } = useLocale();
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, locale);
   // "casa": es UNA sola, así que el chip de arriba lleva directo a ella y
   // se llama como la casa, no "Unidades" (una lista de 1).
   const singleUnit = !typeConfig.hasUnitStep && project.units[0]
@@ -119,12 +133,12 @@ export default function AerialView({ project }: AerialViewProps) {
   }, [markVideoLoaded]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const video = videoRef.current;
       if (video && video.readyState >= 1) markVideoLoaded(video);
       setAnimationDone(true);
     }, 1000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [currentSlide, markVideoLoaded]);
 
   const mapPoint = useCallback((px: number, py: number) => {
@@ -209,17 +223,17 @@ export default function AerialView({ project }: AerialViewProps) {
   // Swipe navigation (mobile) — umbral horizontal para no interferir con
   // el tap sobre un hotspot ni con el scroll vertical de la página.
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const t = e.touches[0];
-    touchStartRef.current = { x: t.clientX, y: t.clientY };
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const start = touchStartRef.current;
     touchStartRef.current = null;
     if (!start) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       if (dx < 0) goNext(); else goPrev();
     }
@@ -232,12 +246,12 @@ export default function AerialView({ project }: AerialViewProps) {
   // donde se calcula `slide`) porque los hooks de React no pueden quedar
   // atrás de un return condicional.
   if (!slide) {
-    const aerialLower = getProjectTypeConfig(project.projectType, project.saleMode).aerialLabel.toLowerCase();
+    const aerialLower = typeConfig.aerialLabel.toLowerCase();
     return (
       <div className="w-full min-h-screen flex flex-col items-center justify-center gap-4 bg-white px-4 text-center">
-        <p className="text-gray-400 text-sm">Todavía no hay {aerialLower} cargada para este proyecto.</p>
+        <p className="text-gray-400 text-sm">{t('resto.aerial.vacio', { vista: aerialLower })}</p>
         <Link href={basePath || '/'} className="text-sm font-medium text-brand-600 hover:text-brand-700">
-          ← Volver a {project.name}
+          {t('resto.aerial.volverA', { nombre: project.name })}
         </Link>
       </div>
     );
@@ -287,7 +301,7 @@ export default function AerialView({ project }: AerialViewProps) {
               fill
               sizes="100vw"
               priority
-              placeholder="blur"
+              placeholder={BLUR}
               blurDataURL={shimmerDataUrl(1920, 1080)}
               className="object-cover"
               draggable={false}
@@ -331,7 +345,7 @@ export default function AerialView({ project }: AerialViewProps) {
                   setActiveHotspot(isActive ? null : hotspot);
                 }}
                 role="button"
-                aria-label={`Seleccionar ${project.buildings.find(b => b.id === hotspot.buildingId)?.name}`}
+                aria-label={t('resto.aerial.seleccionar', { nombre: project.buildings.find(b => b.id === hotspot.buildingId)?.name ?? '' })}
               />
             );
           })}
@@ -359,7 +373,7 @@ export default function AerialView({ project }: AerialViewProps) {
               e.stopPropagation();
               setActiveHotspot(isActive ? null : hotspot);
             }}
-            aria-label={`Seleccionar ${b?.name}`}
+            aria-label={t('resto.aerial.seleccionar', { nombre: b?.name ?? '' })}
           >
             {/* Outer pulse ring — sized to match the dot, not the larger touch target */}
             <span className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full animate-ping opacity-40 ${isActive ? 'bg-white scale-150' : 'bg-white/70'}`} />
@@ -419,7 +433,7 @@ export default function AerialView({ project }: AerialViewProps) {
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
                   {[
-                    typeConfig.hasFloorStep ? `${building.totalFloors} pisos` : null,
+                    typeConfig.hasFloorStep ? t('resto.aerial.pisos', { count: building.totalFloors }) : null,
                     project.amenities.length > 0
                       ? project.amenities
                           .filter(a => !a.buildingId || a.buildingId === building.id)
@@ -436,21 +450,12 @@ export default function AerialView({ project }: AerialViewProps) {
                   onClick={handleEnterBuilding}
                   className="w-full h-11 rounded-xl bg-[var(--theme-accent)] hover:opacity-85 text-[var(--theme-text-on-accent)] font-semibold text-sm transition-opacity duration-200"
                 >
-                  {typeConfig.hasFloorStep ? 'Ver plantas' : 'Ver el plano'}
+                  {t(typeConfig.hasFloorStep ? 'resto.aerial.verPlantas' : 'resto.aerial.verPlano')}
                 </button>
               </div>
               {/* Flecha hacia el pin, del lado donde quedó la tarjeta. */}
-              {place.caretOffset != null && place.side === 'above' && (
-                <div className="absolute -translate-x-1/2 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white" style={{ left: place.caretOffset }} />
-              )}
-              {place.caretOffset != null && place.side === 'below' && (
-                <div className="absolute -translate-x-1/2 bottom-full w-0 h-0 border-x-8 border-x-transparent border-b-8 border-b-white" style={{ left: place.caretOffset }} />
-              )}
-              {place.caretOffset != null && place.side === 'right' && (
-                <div className="absolute -translate-y-1/2 right-full w-0 h-0 border-y-8 border-y-transparent border-r-8 border-r-white" style={{ top: place.caretOffset }} />
-              )}
-              {place.caretOffset != null && place.side === 'left' && (
-                <div className="absolute -translate-y-1/2 left-full w-0 h-0 border-y-8 border-y-transparent border-l-8 border-l-white" style={{ top: place.caretOffset }} />
+              {place.caretOffset != null && CARET[place.side] && (
+                <div className={`absolute w-0 h-0 ${CARET[place.side]!.className}`} style={{ [CARET[place.side]!.eje]: place.caretOffset }} />
               )}
             </div>
             </motion.div>
@@ -477,7 +482,7 @@ export default function AerialView({ project }: AerialViewProps) {
         <motion.div variants={{ hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } }} className="min-w-0 flex-1 flex items-center gap-6">
           {/* Nombre del proyecto → inicio del sitio (sin la nav global, es el
               camino de vuelta más obvio). */}
-          <Link href={basePath || '/'} className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-white" title={`Ir al inicio de ${project.name}`}>
+          <Link href={basePath || '/'} className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-white" title={t('resto.aerial.irAlInicio', { nombre: project.name })}>
             <h1 className="text-white font-bold text-sm sm:text-lg leading-tight tracking-wide drop-shadow-md truncate">{project.name}</h1>
             <p className="text-white/80 text-[10px] sm:text-xs font-medium tracking-widest uppercase drop-shadow-md truncate">{project.location}</p>
           </Link>
@@ -492,38 +497,38 @@ export default function AerialView({ project }: AerialViewProps) {
           {(singleUnit || project.units.length > 0) && (
             <Link
               href={singleUnit ? singleUnit.href : `${basePath}/unidades`}
-              aria-label={singleUnit ? singleUnit.label : `${pluralize(typeConfig.unitLabel)}`}
+              aria-label={singleUnit ? singleUnit.label : pluralize(typeConfig.unitLabel, locale)}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
               </svg>
-              <span className="hidden sm:inline">{singleUnit ? singleUnit.label : `${pluralize(typeConfig.unitLabel)}`}</span>
+              <span className="hidden sm:inline">{singleUnit ? singleUnit.label : pluralize(typeConfig.unitLabel, locale)}</span>
             </Link>
           )}
           {project.amenities.length > 0 && (
             <Link
               href={`${basePath}/amenities`}
-              aria-label="Amenities"
+              aria-label={t('nav.amenities')}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5" />
               </svg>
-              <span className="hidden sm:inline">Amenities</span>
+              <span className="hidden sm:inline">{t('nav.amenities')}</span>
             </Link>
           )}
           {project.pointsOfInterest.length > 0 && (
             <Link
               href={`${basePath}/ubicacion`}
-              aria-label="Ubicación"
+              aria-label={t('nav.ubicacion')}
               className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white text-sm font-medium p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-colors shadow-lg"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
               </svg>
-              <span className="hidden sm:inline">Ubicación</span>
+              <span className="hidden sm:inline">{t('nav.ubicacion')}</span>
             </Link>
           )}
         </motion.div>
@@ -541,7 +546,7 @@ export default function AerialView({ project }: AerialViewProps) {
         <button
           onClick={goPrev}
           className="w-11 h-11 rounded-[10px] flex items-center justify-center text-white bg-white/[.08] hover:bg-white/15 transition-colors"
-          aria-label="Ángulo anterior"
+          aria-label={t('resto.aerial.anguloAnterior')}
         >
           <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m15 6-6 6 6 6" />
@@ -556,7 +561,7 @@ export default function AerialView({ project }: AerialViewProps) {
                   key={s.id}
                   onClick={() => { setCurrentSlide(i); setActiveHotspot(null); }}
                   className={`h-1 rounded-sm transition-all duration-200 ${i === currentSlide ? 'w-4 bg-white' : 'w-1 bg-white/40 hover:bg-white/70'}`}
-                  aria-label={`${s.label} (${i + 1} de ${slides.length})`}
+                  aria-label={t('resto.aerial.anguloDe', { nombre: s.label, n: i + 1, total: slides.length })}
                   aria-current={i === currentSlide ? 'true' : undefined}
                 />
               ))}
@@ -566,7 +571,7 @@ export default function AerialView({ project }: AerialViewProps) {
         <button
           onClick={goNext}
           className="w-11 h-11 rounded-[10px] flex items-center justify-center text-white bg-white/[.08] hover:bg-white/15 transition-colors"
-          aria-label="Ángulo siguiente"
+          aria-label={t('resto.aerial.anguloSiguiente')}
         >
           <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m9 6 6 6-6 6" />

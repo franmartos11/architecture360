@@ -4,10 +4,12 @@ import { useSyncExternalStore } from 'react';
 import { useTrack } from '@/components/analytics/SiteTracker';
 import { currentRef, safeStorage } from '@/lib/analytics/client-state';
 import { fichaHref } from '@/lib/ficha/href';
+import { useT } from '@/lib/i18n/client';
 
 // "Descargar ficha": PDF de la unidad armado en el servidor. El link suma el
 // ref de la inmobiliaria por la que llegó el visitante (se lee del navegador
 // después de montar), así el QR de la ficha impresa sigue siendo suyo.
+// El texto del botón sigue el idioma de la página; el PDF todavía no (Etapa 3).
 // Spec: docs/superpowers/specs/2026-11-24-ficha-pdf-unidad-design.md
 
 const noSubscribe = () => () => {};
@@ -27,6 +29,7 @@ export default function DownloadFichaButton({ projectSlug, unitDbId, unitName, v
   variant: 'desktop' | 'mobile';
 }) {
   const track = useTrack();
+  const t = useT();
   // En el servidor no hay ref; en el navegador se lee de localStorage.
   const ref = useSyncExternalStore(noSubscribe, () => currentRef(safeStorage(), Date.now()), () => null);
 
@@ -45,10 +48,10 @@ export default function DownloadFichaButton({ projectSlug, unitDbId, unitName, v
         track('ficha', { unitId: unitDbId });
       }}
       className={className}
-      aria-label={`Descargar ficha de la unidad ${unitName} (PDF)`}
+      aria-label={t('unidad.ficha.descargarAria', { nombre: unitName })}
     >
       <DownloadIcon className={variant === 'mobile' ? 'w-5 h-5' : 'w-4 h-4'} />
-      Descargar ficha
+      {t('unidad.ficha.descargar')}
     </a>
   );
 }

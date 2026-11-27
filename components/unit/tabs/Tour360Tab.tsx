@@ -6,6 +6,7 @@ import { useTrack } from '@/components/analytics/SiteTracker';
 import { m as motion } from 'framer-motion';
 import type { Unit } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
+import { useT } from '@/lib/i18n/client';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 
@@ -23,6 +24,7 @@ export default function Tour360Tab({
   sunAzimuths?: SunAzimuths | null;
 }) {
   const track = useTrack();
+  const t = useT();
   useEffect(() => { track('tour', { unitId: unit.dbId || undefined }); }, [track, unit.dbId]);
   // orientationDegrees del visor = grados al norte desde yaw=0 del tour.
   // Asumimos que la primera panorámica mira al frente de la casa (lo
@@ -48,8 +50,8 @@ export default function Tour360Tab({
           <button
             onClick={() => onFullscreenChange(false)}
             className="absolute top-6 left-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur z-[110] transition-colors shadow-2xl"
-            title="Salir de pantalla completa"
-            aria-label="Salir de pantalla completa"
+            title={t('unidad.tour.salirPantallaCompleta')}
+            aria-label={t('unidad.tour.salirPantallaCompleta')}
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -61,8 +63,8 @@ export default function Tour360Tab({
           <button
             onClick={() => onFullscreenChange(true)}
             className="group absolute top-1.5 left-1.5 md:top-6 md:left-6 w-11 h-11 md:w-12 md:h-12 flex items-center justify-center z-30"
-            title="Pantalla completa"
-            aria-label="Pantalla completa"
+            title={t('unidad.tour.pantallaCompleta')}
+            aria-label={t('unidad.tour.pantallaCompleta')}
           >
             <span className="w-[34px] h-[34px] md:w-12 md:h-12 rounded-full bg-gray-900/70 group-hover:bg-gray-900 border border-white/10 flex items-center justify-center text-white backdrop-blur transition-colors shadow-lg">
               <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">

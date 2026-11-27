@@ -4,6 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import Image from 'next/image';
 import { m, useReducedMotion } from 'framer-motion';
 import { formatUpdateDate, stageLabelOf } from '@/lib/construction-progress';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { frameHasAngle, lapseAngles, type LapseFrame } from '@/lib/construction-progress-view';
 import { focusQuiet, getFocusables } from '@/lib/focus';
 import type { ConstructionProgress } from '@/types';
@@ -37,6 +38,8 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
   onClose: () => void;
 }) {
   const angles = useMemo(() => lapseAngles(allFrames), [allFrames]);
+  const t = useT();
+  const { locale } = useLocale();
   const [angle, setAngle] = useState<string | null>(null);
   const frames = useMemo(() => (angle ? allFrames.filter(f => frameHasAngle(f, angle)) : allFrames), [allFrames, angle]);
   const [i, setI] = useState(start);
@@ -57,8 +60,8 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
   const running = playing && !atEnd;
   useEffect(() => {
     if (!running) return;
-    const t = setTimeout(() => setI(x => x + 1), playsClip ? CLIP_MAX_MS : FRAME_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setI(x => x + 1), playsClip ? CLIP_MAX_MS : FRAME_MS);
+    return () => clearTimeout(timer);
   }, [running, i, playsClip]);
 
   // El clip sigue a la pausa: pausar el time-lapse pausa el video.
@@ -129,7 +132,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Time-lapse de la obra"
+      aria-label={t('sitio.avance.timeLapse')}
       className="fixed inset-0 z-[70] bg-black text-white"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -148,7 +151,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
             style={{ opacity: k === i ? 1 : 0, transitionDuration: reduce ? '0ms' : '700ms' }}
             aria-hidden={k !== i}
           >
-            <FrameMedia frame={fr} current={k === i} playsClip={k === i && playsClip} priority={k === start} videoRef={videoRef} onClipEnd={() => { if (running) setI(x => x + 1); }} />
+            <FrameMedia fallbackAlt={t('sitio.avance.eyebrow')} frame={fr} current={k === i} playsClip={k === i && playsClip} priority={k === start} videoRef={videoRef} onClipEnd={() => { if (running) setI(x => x + 1); }} />
           </div>
         )
       ))}
@@ -156,7 +159,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
 
       <div className="absolute top-4 inset-x-4 sm:top-6 sm:inset-x-6 flex items-start justify-between gap-4">
         {angles.length > 0 ? (
-          <div role="group" aria-label="Ángulo" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label={t('sitio.avance.angulo')} className="flex flex-wrap gap-1.5">
             {[null, ...angles].map(a => {
               const on = a === angle;
               return (
@@ -167,7 +170,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
                   aria-pressed={on}
                   className={`h-9 px-3.5 rounded-full text-[13px] font-semibold transition-colors ${on ? 'bg-white text-black' : 'bg-black/35 backdrop-blur-md border border-white/25 text-white hover:bg-black/55'}`}
                 >
-                  {a ?? 'Todos'}
+                  {a ?? t('sitio.avance.todos')}
                 </button>
               );
             })}
@@ -177,7 +180,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
           ref={closeRef}
           type="button"
           onClick={onClose}
-          aria-label="Cerrar time-lapse"
+          aria-label={t('sitio.avance.cerrarTimeLapse')}
           className="shrink-0 w-11 h-11 rounded-full bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center hover:bg-white/25 transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -189,7 +192,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
           {(stage || f.update.view) && (
             <span className="text-xs tracking-[0.2em] uppercase text-white/70">{[stage, f.update.view].filter(Boolean).join(' · ')}</span>
           )}
-          <span className="font-[family-name:var(--theme-font-heading)] text-[clamp(36px,6vw,80px)] leading-none font-medium tracking-[-0.04em]">{formatUpdateDate(f.update.date)}</span>
+          <span className="font-[family-name:var(--theme-font-heading)] text-[clamp(36px,6vw,80px)] leading-none font-medium tracking-[-0.04em]">{formatUpdateDate(f.update.date, locale)}</span>
           {f.update.title && <span className="text-base sm:text-lg text-white/85">{f.update.title}</span>}
         </div>
 
@@ -197,7 +200,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
           <button
             type="button"
             onClick={toggle}
-            aria-label={running ? 'Pausar' : 'Reproducir'}
+            aria-label={running ? t('sitio.avance.pausar') : t('sitio.avance.reproducir')}
             className="shrink-0 w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform"
           >
             {running
@@ -217,7 +220,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
                   key={mk.id}
                   type="button"
                   onClick={() => { setPlaying(false); setI(mk.first); }}
-                  aria-label={`${formatUpdateDate(mk.date)}${mk.title ? `: ${mk.title}` : ''}`}
+                  aria-label={`${formatUpdateDate(mk.date, locale)}${mk.title ? `: ${mk.title}` : ''}`}
                   aria-current={isCurrent ? 'step' : undefined}
                   className="flex-1 min-w-0 py-3 group"
                 >
@@ -230,7 +233,7 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
                         : { transform: `scaleX(${isCurrent ? before + 1 / count : before})` }}
                     />
                   </span>
-                  <span className="hidden sm:block mt-2 text-[11px] text-white/60 group-hover:text-white text-left tabular-nums truncate">{formatUpdateDate(mk.date)}</span>
+                  <span className="hidden sm:block mt-2 text-[11px] text-white/60 group-hover:text-white text-left tabular-nums truncate">{formatUpdateDate(mk.date, locale)}</span>
                 </button>
               );
             })}
@@ -247,7 +250,9 @@ export default function TimeLapse({ progress, frames: allFrames, start, onClose 
  * movimiento reducido, queda su poster — o el clip quieto en el primer
  * fotograma si la entrada no tiene fotos.
  */
-function FrameMedia({ frame, current, playsClip, priority, videoRef, onClipEnd }: {
+function FrameMedia({ fallbackAlt, frame, current, playsClip, priority, videoRef, onClipEnd }: {
+  /** "Avance de obra" en el idioma de la página, para un cuadro sin título. */
+  fallbackAlt: string;
   frame: LapseFrame;
   current: boolean;
   playsClip: boolean;
@@ -255,7 +260,7 @@ function FrameMedia({ frame, current, playsClip, priority, videoRef, onClipEnd }
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onClipEnd: () => void;
 }) {
-  const alt = current ? (frame.update.title || 'Avance de obra') : '';
+  const alt = current ? (frame.update.title || fallbackAlt) : '';
   if (frame.video && playsClip) {
     return (
       <video

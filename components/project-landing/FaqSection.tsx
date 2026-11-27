@@ -2,8 +2,10 @@ import Reveal from '@/components/ui/Reveal';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function FaqSection({ project }: SectionProps) {
+export default function FaqSection({ project, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   const items = (project.themeConfig?.faqItems ?? []).filter(
     f => f.question.trim() && f.answer.trim()
   );
@@ -16,9 +18,9 @@ export default function FaqSection({ project }: SectionProps) {
       <section id="faq" className="py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <SectionHeading
-            eyebrow="Respuestas rápidas"
-            title="Preguntas"
-            muted="frecuentes"
+            eyebrow={t('sitio.faq.respuestasRapidas')}
+            title={t('sitio.faq.titulo')}
+            muted={t('sitio.faq.tituloAtenuado')}
             className="mb-10"
           />
           <Reveal delay={0.06} className="grid gap-4 md:grid-cols-2">
@@ -28,7 +30,7 @@ export default function FaqSection({ project }: SectionProps) {
                 className="p-6 rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-sm flex flex-col gap-2"
               >
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--theme-accent)]">
-                  Consulta {String(i + 1).padStart(2, '0')}
+                  {t('sitio.faq.consulta', { n: String(i + 1).padStart(2, '0') })}
                 </span>
                 <h3 className="m-0 font-[family-name:var(--theme-font-heading)] text-lg font-bold text-[var(--theme-text)]">
                   {item.question}
@@ -49,8 +51,8 @@ export default function FaqSection({ project }: SectionProps) {
       <section id="faq" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <SectionHeading
-            eyebrow="Información"
-            title="Consultas habituales"
+            eyebrow={t('sitio.faq.informacion')}
+            title={t('sitio.faq.tituloEditorial')}
             className="mb-10"
           />
           <Reveal delay={0.06} className="divide-y divide-[var(--theme-border)] border-y border-[var(--theme-border)]">
@@ -77,9 +79,9 @@ export default function FaqSection({ project }: SectionProps) {
     <section id="faq" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
       <Container>
         <SectionHeading
-          eyebrow="Dudas frecuentes"
-          title="Preguntas"
-          muted="frecuentes"
+          eyebrow={t('sitio.faq.dudasFrecuentes')}
+          title={t('sitio.faq.titulo')}
+          muted={t('sitio.faq.tituloAtenuado')}
         >
           <Reveal delay={0.08} className="mt-8 flex flex-col gap-3">
             {items.map((item, i) => (

@@ -2,8 +2,10 @@ import Reveal from '@/components/ui/Reveal';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function QualitiesSection({ project }: SectionProps) {
+export default function QualitiesSection({ project, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   const items = (project.themeConfig?.qualitiesItems ?? []).filter(
     q => q.category.trim() && q.detail.trim()
   );
@@ -16,8 +18,8 @@ export default function QualitiesSection({ project }: SectionProps) {
       <section id="calidades" className="py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <SectionHeading
-            eyebrow="Memoria técnica"
-            title="Calidades y terminaciones"
+            eyebrow={t('sitio.calidades.memoriaTecnica')}
+            title={t('sitio.calidades.tituloComercial')}
             className="mb-10"
           />
           <Reveal delay={0.06} className="rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] divide-y md:divide-y-0 md:grid md:grid-cols-2 md:gap-x-8 p-6 sm:p-8 shadow-sm">
@@ -47,9 +49,9 @@ export default function QualitiesSection({ project }: SectionProps) {
         <Container>
           <SectionHeading
             onDark
-            eyebrow="Materialidad"
-            title="Especificaciones"
-            muted="constructivas"
+            eyebrow={t('sitio.calidades.materialidad')}
+            title={t('sitio.calidades.tituloEditorial')}
+            muted={t('sitio.calidades.tituloEditorialAtenuado')}
             className="mb-12"
           />
           <Reveal delay={0.06} className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 border-t border-[var(--theme-border-on-dark)] pt-8">
@@ -73,9 +75,9 @@ export default function QualitiesSection({ project }: SectionProps) {
     <section id="calidades" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
       <Container>
         <SectionHeading
-          eyebrow="Especificaciones"
-          title="Calidades y"
-          muted="terminaciones"
+          eyebrow={t('sitio.calidades.especificaciones')}
+          title={t('sitio.calidades.titulo')}
+          muted={t('sitio.calidades.tituloAtenuado')}
         />
         <Reveal delay={0.08} className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item, i) => (

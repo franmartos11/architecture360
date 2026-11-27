@@ -5,6 +5,8 @@ import type { Project } from '@/types';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import type { SectionProps } from './types';
 import { Container } from './ui';
+import { crearT } from '@/lib/i18n/t';
+import type { Locale } from '@/lib/i18n/locales';
 
 interface Stat {
   label: string;
@@ -15,21 +17,22 @@ interface Stat {
 
 // Todo derivado de los datos cargados — no hay cifras "de marketing" que
 // el admin tenga que mantener a mano (y que queden desactualizadas).
-export function projectStats(project: Project, typeConfig: ProjectTypeConfig): Stat[] {
+export function projectStats(project: Project, typeConfig: ProjectTypeConfig, locale: Locale = 'es'): Stat[] {
+  const t = crearT(locale);
   const stats: Stat[] = [];
   const units = project.units;
   if (units.length > 0) {
-    stats.push({ label: pluralize(typeConfig.unitLabel), value: String(units.length) });
+    stats.push({ label: pluralize(typeConfig.unitLabel, locale), value: String(units.length) });
   }
   if (typeConfig.showStatus && units.length > 0) {
-    stats.push({ label: 'Disponibles', value: String(units.filter(u => u.status === 'available').length) });
+    stats.push({ label: t('sitio.stats.disponibles'), value: String(units.filter(u => u.status === 'available').length) });
   }
   if (typeConfig.hasFloorStep) {
     const floors = Math.max(0, ...project.buildings.map(b => b.floors.length));
-    if (floors > 1) stats.push({ label: 'Niveles', value: String(floors) });
+    if (floors > 1) stats.push({ label: t('sitio.stats.niveles'), value: String(floors) });
   }
   if (project.buildings.length > 1) {
-    stats.push({ label: pluralize(typeConfig.buildingLabel), value: String(project.buildings.length) });
+    stats.push({ label: pluralize(typeConfig.buildingLabel, locale), value: String(project.buildings.length) });
   }
   if (typeConfig.showPrice) {
     const cheapest = units
@@ -38,15 +41,15 @@ export function projectStats(project: Project, typeConfig: ProjectTypeConfig): S
     if (cheapest) {
       const currency = cheapest.currency ?? 'USD';
       // "USD 15.000": la moneda va chica al lado, la cifra sola grande.
-      const amount = formatPrice(cheapest.price!, currency).replace(/[^\d.,]/g, '').trim();
-      stats.push({ label: 'Desde', value: amount, prefix: currency });
+      const amount = formatPrice(cheapest.price!, currency, locale).replace(/[^\d.,]/g, '').trim();
+      stats.push({ label: t('sitio.tipologias.desde'), value: amount, prefix: currency });
     }
   }
   return stats.slice(0, 4);
 }
 
-export default function StatsSection({ project, typeConfig }: SectionProps) {
-  const stats = projectStats(project, typeConfig);
+export default function StatsSection({ project, typeConfig, locale = 'es' }: SectionProps) {
+  const stats = projectStats(project, typeConfig, locale);
   // Una sola cifra no es una "fila de cifras".
   if (stats.length < 2) return null;
   const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);

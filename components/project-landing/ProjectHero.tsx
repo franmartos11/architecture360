@@ -6,8 +6,12 @@ import { m, useScroll, useTransform, useReducedMotion, transform, type MotionVal
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { EASE_OUT } from '@/lib/motion';
 import { Container, Pill } from './ui';
+import { useT } from '@/lib/i18n/client';
 
 import type { WebTemplateKey } from '@/types';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 interface ProjectHeroProps {
   name: string;
@@ -89,6 +93,7 @@ export default function ProjectHero(props: ProjectHeroProps) {
 }
 
 function HeroBriefLink({ briefUrl }: { briefUrl: string }) {
+  const t = useT();
   return (
     <a
       href={briefUrl}
@@ -99,13 +104,14 @@ function HeroBriefLink({ briefUrl }: { briefUrl: string }) {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
       </svg>
-      Descargar brief
+      {t('sitio.menu.descargarBrief')}
     </a>
   );
 }
 
 function ComercialHero({ name, image, badge, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
   const reduce = useReducedMotion();
+  const t = useT();
   const enter = (delay = 0) =>
     reduce
       ? {}
@@ -164,10 +170,10 @@ function ComercialHero({ name, image, badge, tagline, meta, primary, secondary, 
         >
           <Image
             src={image}
-            alt={`Render de ${name}`}
+            alt={t('sitio.hero.render', { nombre: name })}
             fill
             sizes="(min-width: 1024px) 52vw, 100vw"
-            placeholder="blur"
+            placeholder={BLUR}
             blurDataURL={shimmerDataUrl(1920, 1080)}
             className="object-cover transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.03]"
             priority
@@ -180,6 +186,7 @@ function ComercialHero({ name, image, badge, tagline, meta, primary, secondary, 
 
 function EditorialHero({ name, image, badge, tagline, meta, primary, secondary, progress, briefUrl }: ProjectHeroProps) {
   const reduce = useReducedMotion();
+  const t = useT();
 
   return (
     <header className="pt-28 pb-12 sm:pt-36 sm:pb-16 bg-[var(--theme-bg)]">
@@ -247,10 +254,10 @@ function EditorialHero({ name, image, badge, tagline, meta, primary, secondary, 
           >
             <Image
               src={image}
-              alt={`Render de ${name}`}
+              alt={t('sitio.hero.render', { nombre: name })}
               fill
               sizes="100vw"
-              placeholder="blur"
+              placeholder={BLUR}
               blurDataURL={shimmerDataUrl(1920, 1080)}
               className="object-cover"
               priority
@@ -267,6 +274,7 @@ function InmersivaHero({ name, image, tagline, meta, primary, secondary, progres
   const textRef = useRef<SVGTextElement>(null);
   const maskId = `hero-mask-${useId().replace(/:/g, '')}`;
   const reduce = useReducedMotion();
+  const t = useT();
 
   const lines = splitName(name);
   const [fontSize, setFontSize] = useState(() => estimateFontSize(lines));
@@ -318,10 +326,10 @@ function InmersivaHero({ name, image, tagline, meta, primary, secondary, progres
         <m.div className="absolute inset-0" style={reduce ? undefined : { scale: photoScale }}>
           <Image
             src={image}
-            alt={`Render de ${name}`}
+            alt={t('sitio.hero.render', { nombre: name })}
             fill
             sizes="100vw"
-            placeholder="blur"
+            placeholder={BLUR}
             blurDataURL={shimmerDataUrl(1920, 1080)}
             className="object-cover object-[50%_45%]"
             priority
@@ -393,7 +401,7 @@ function InmersivaHero({ name, image, tagline, meta, primary, secondary, progres
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
                     </svg>
-                    Descargar brief
+                    {t('sitio.menu.descargarBrief')}
                   </a>
                 )}
               </div>

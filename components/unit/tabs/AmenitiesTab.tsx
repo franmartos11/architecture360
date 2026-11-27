@@ -8,8 +8,10 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
+import { useT } from '@/lib/i18n/client';
 
 type AmenityViewMode = 'fotos' | '360';
+const BLUR = 'blur' as const;
 
 export default function AmenitiesTab({
   amenities,
@@ -35,7 +37,10 @@ export default function AmenitiesTab({
   /** `rect`: dónde estaba la foto tocada, para que el lightbox abra desde ahí. */
   onOpenLightbox: (rect: DOMRect) => void;
 }) {
+  const t = useT();
   const basePath = useProjectBasePath();
+  const enFotos = viewMode === 'fotos';
+  const en360 = viewMode === '360';
   const thumbsRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -65,13 +70,13 @@ export default function AmenitiesTab({
       >
         <div className="p-6 border-b border-gray-100 bg-white shrink-0 relative z-20 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Amenities</h2>
-            <p className="text-sm text-gray-500">Espacios del proyecto y de esta torre</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">{t('nav.amenities')}</h2>
+            <p className="text-sm text-gray-500">{t('unidad.amenities.subtitulo')}</p>
           </div>
           <button
             onClick={() => onListOpenChange(false)}
-            aria-label="Ocultar lista de amenities"
-            title="Ocultar lista"
+            aria-label={t('unidad.amenities.ocultarListaAria')}
+            title={t('unidad.ocultarLista')}
             className="flex w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 items-center justify-center text-gray-500 transition-colors shrink-0"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -82,7 +87,7 @@ export default function AmenitiesTab({
 
         <div className="lg:flex-1 lg:overflow-y-auto p-4 bg-gray-50/50">
           {amenities.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Todavía no hay amenities cargadas.</p>
+            <p className="text-sm text-gray-400 text-center py-8">{t('unidad.amenities.sinAmenities')}</p>
           ) : (
             <div className="flex flex-col gap-3 pb-8">
               {amenities.map(a => {
@@ -100,9 +105,9 @@ export default function AmenitiesTab({
                   >
                     <div className="relative w-28 aspect-[4/3] shrink-0 rounded-lg overflow-hidden bg-gray-100">
                       {a.images[0] ? (
-                        <Image src={a.images[0]} alt={a.name} fill sizes="160px" placeholder="blur" blurDataURL={shimmerDataUrl()} className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <Image src={a.images[0]} alt={a.name} fill sizes="160px" placeholder={BLUR} blurDataURL={shimmerDataUrl()} className="object-cover transition-transform duration-300 group-hover:scale-105" />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[11px]">Sin foto</div>
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[11px]">{t('unidad.amenities.sinFoto')}</div>
                       )}
                       {a.tourNodeId && (
                         <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm z-10">
@@ -136,20 +141,20 @@ export default function AmenitiesTab({
         {!listOpen && (
           <button
             onClick={() => onListOpenChange(true)}
-            aria-label="Mostrar lista de amenities"
-            title="Mostrar lista"
+            aria-label={t('unidad.amenities.mostrarListaAria')}
+            title={t('unidad.mostrarLista')}
             className="flex absolute top-4 left-4 z-30 items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200 text-sm font-semibold text-gray-700 backdrop-blur-md transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
-            Amenities
+            {t('nav.amenities')}
           </button>
         )}
         {activeAmenity ? (
           <div ref={detailRef} className="min-h-full flex flex-col bg-white">
             <div className="relative w-full aspect-video lg:aspect-[21/9] bg-gray-900 flex-shrink-0">
-              {viewMode === '360' && activeAmenity.tourNodeId ? (
+              {en360 && activeAmenity.tourNodeId ? (
                 <iframe
                   key={activeAmenity.tourNodeId}
                   src={activeAmenity.buildingId
@@ -170,7 +175,7 @@ export default function AmenitiesTab({
                       src={activeAmenity.images[imageIndex]}
                       alt={`${activeAmenity.name} ${imageIndex + 1}`}
                       fill sizes="(max-width: 1024px) 100vw, 1200px"
-                      placeholder="blur" blurDataURL={shimmerDataUrl()}
+                      placeholder={BLUR} blurDataURL={shimmerDataUrl()}
                       className="object-cover"
                     />
                   </div>
@@ -182,30 +187,30 @@ export default function AmenitiesTab({
                   </div>
                   {activeAmenity.images.length > 1 && (
                     <>
-                      <button onClick={() => onImageIndexChange((imageIndex - 1 + activeAmenity.images.length) % activeAmenity.images.length)} aria-label="Anterior" className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
+                      <button onClick={() => onImageIndexChange((imageIndex - 1 + activeAmenity.images.length) % activeAmenity.images.length)} aria-label={t('unidad.amenities.anterior')} className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
                         <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                       </button>
-                      <button onClick={() => onImageIndexChange((imageIndex + 1) % activeAmenity.images.length)} aria-label="Siguiente" className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
+                      <button onClick={() => onImageIndexChange((imageIndex + 1) % activeAmenity.images.length)} aria-label={t('unidad.amenities.siguiente')} className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-xl">
                         <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                       </button>
                     </>
                   )}
                 </>
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Sin renders todavía</div>
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">{t('unidad.amenities.sinRenders')}</div>
               )}
-              {viewMode === 'fotos' && (
+              {enFotos && (
                 <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
               )}
             </div>
 
             {/* ── Thumbnails carousel (igual que en la Galería) ── */}
-            {viewMode === 'fotos' && activeAmenity.images.length > 1 && (
+            {enFotos && activeAmenity.images.length > 1 && (
               <div className="relative flex-shrink-0 bg-white/95 backdrop-blur-md border-b border-gray-100">
                 <button
                   onClick={() => scrollThumbs('left')}
                   className="absolute left-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-r from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                  aria-label="Desplazar izquierda"
+                  aria-label={t('unidad.desplazarIzquierda')}
                 >
                   <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -220,7 +225,7 @@ export default function AmenitiesTab({
                     <button
                       key={i}
                       onClick={() => onImageIndexChange(i)}
-                      aria-label={`Ver foto ${i + 1} de ${activeAmenity.name}`}
+                      aria-label={t('unidad.amenities.verFotoDe', { n: i + 1, nombre: activeAmenity.name })}
                       aria-current={i === imageIndex ? 'true' : undefined}
                       className={`relative flex-shrink-0 rounded-lg overflow-hidden transition-all duration-200 ${
                         i === imageIndex
@@ -228,14 +233,14 @@ export default function AmenitiesTab({
                           : 'w-20 h-14 opacity-55 hover:opacity-90 hover:scale-105'
                       }`}
                     >
-                      <Image src={img} alt={`Thumbnail ${i + 1}`} fill sizes="100px" className="object-cover" />
+                      <Image src={img} alt={t('unidad.miniatura', { n: i + 1 })} fill sizes="100px" className="object-cover" />
                     </button>
                   ))}
                 </div>
                 <button
                   onClick={() => scrollThumbs('right')}
                   className="absolute right-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-l from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-                  aria-label="Desplazar derecha"
+                  aria-label={t('unidad.desplazarDerecha')}
                 >
                   <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -257,7 +262,7 @@ export default function AmenitiesTab({
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                     </svg>
-                    Fotos
+                    {t('unidad.media.fotos')}
                   </button>
                   <button
                     onClick={() => onViewModeChange('360')}
@@ -270,7 +275,7 @@ export default function AmenitiesTab({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" />
                     </svg>
-                    Recorrido 360°
+                    {t('unidad.amenities.recorrido')}
                   </button>
                 </div>
               )}
@@ -290,7 +295,7 @@ export default function AmenitiesTab({
                   className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-[15px] font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <EyeIcon className="w-5 h-5" strokeWidth={2} />
-                  Ver en pantalla completa
+                  {t('unidad.amenities.pantallaCompleta')}
                 </Link>
               )}
             </div>
@@ -299,7 +304,7 @@ export default function AmenitiesTab({
           <div className="min-h-[40vh] lg:absolute lg:inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
             <div className="text-center">
               <svg className="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-              <p className="text-sm font-medium">Seleccioná un amenity para ver los detalles</p>
+              <p className="text-sm font-medium">{t('unidad.amenities.seleccionar')}</p>
             </div>
           </div>
         )}

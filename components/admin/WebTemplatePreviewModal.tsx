@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import Dialog from '@/components/ui/Dialog';
 import ProjectHero from '@/components/project-landing/ProjectHero';
 import { SECTION_COMPONENTS } from '@/components/project-landing/registry';
@@ -47,9 +47,13 @@ export default function WebTemplatePreviewModal({
   const [tab, setTab] = useState<WebTemplateKey>(initialTemplate);
   const [includeHidden, setIncludeHidden] = useState(true);
 
-  useEffect(() => {
+  // Al abrir (o si cambia la plantilla de partida), arranca en la plantilla
+  // elegida. Ajuste en el render, no en un efecto: evita un render extra.
+  const [abiertoCon, setAbiertoCon] = useState<{ open: boolean; initialTemplate: WebTemplateKey }>({ open, initialTemplate });
+  if (abiertoCon.open !== open || abiertoCon.initialTemplate !== initialTemplate) {
+    setAbiertoCon({ open, initialTemplate });
     if (open) setTab(initialTemplate);
-  }, [open, initialTemplate]);
+  }
 
   const tpl = getWebTemplate(tab);
   const sectionConfig = buildTemplateSectionConfig(tab);

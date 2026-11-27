@@ -9,6 +9,7 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import EyeIcon from '@/components/ui/icons/EyeIcon';
 import ModalPortal from '@/components/ui/ModalPortal';
 import type { Amenity, Building } from '@/types';
+import { useT } from '@/lib/i18n/client';
 
 interface AmenityDetailScreenProps {
   amenity: Amenity | null;
@@ -25,6 +26,9 @@ interface AmenityDetailScreenProps {
 const pad = (n: number) => String(n).padStart(2, '0');
 export const amenityPosition = (i: number, total: number) => `${pad(i + 1)} / ${pad(total)}`;
 
+/** next/image: shimmer mientras carga la foto. */
+const BLUR = 'blur' as const;
+
 const STRIPES = { background: 'repeating-linear-gradient(120deg, rgba(255,255,255,.035) 0 10px, rgba(255,255,255,.06) 10px 20px)' };
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {
@@ -39,6 +43,7 @@ const ROUND_BTN = 'w-[34px] h-[34px] flex-none flex items-center justify-center 
 
 export default function AmenityDetailScreen({ amenity, building, position, prev, next, onSelect, onClose, onRequestVisit }: AmenityDetailScreenProps) {
   const basePath = useProjectBasePath();
+  const t = useT();
   const [index, setIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -76,10 +81,10 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
   const i = Math.min(index, Math.max(0, images.length - 1));
   const shift = (d: number) => setIndex((i + d + images.length) % images.length);
   const specs = amenity?.specs ?? [];
-  const ficha = amenity?.location ? [{ key: 'UBICACIÓN', value: amenity.location }, ...specs] : specs;
+  const ficha = amenity?.location ? [{ key: t('resto.amenities.ubicacion'), value: amenity.location }, ...specs] : specs;
   const neighbors = [
-    prev && { label: 'ANTERIOR', a: prev },
-    next && next.id !== prev?.id && { label: 'SIGUIENTE', a: next },
+    prev && { label: t('resto.amenities.anterior'), a: prev },
+    next && next.id !== prev?.id && { label: t('resto.amenities.siguiente'), a: next },
   ].filter((n): n is { label: string; a: Amenity } => !!n);
 
   return (
@@ -106,17 +111,17 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                   className="h-[34px] pl-[11px] pr-[15px] flex items-center gap-[7px] border border-white/20 rounded-full text-[11.5px] font-medium text-white transition-colors hover:border-white/[.55]"
                 >
                   <Chevron dir="left" />
-                  Espacios comunes
+                  {t('resto.amenities.volver')}
                 </button>
                 <div className="flex-1" />
                 <div className="hidden sm:block font-medium text-[10.5px] tracking-[.16em] text-white/45 mr-[6px]">{position}</div>
                 {prev && (
-                  <button onClick={() => onSelect(prev.id)} aria-label="Amenidad anterior" className={ROUND_BTN}><Chevron dir="left" /></button>
+                  <button onClick={() => onSelect(prev.id)} aria-label={t('resto.amenities.amenidadAnterior')} className={ROUND_BTN}><Chevron dir="left" /></button>
                 )}
                 {next && (
-                  <button onClick={() => onSelect(next.id)} aria-label="Amenidad siguiente" className={ROUND_BTN}><Chevron dir="right" /></button>
+                  <button onClick={() => onSelect(next.id)} aria-label={t('resto.amenities.amenidadSiguiente')} className={ROUND_BTN}><Chevron dir="right" /></button>
                 )}
-                <button onClick={onClose} aria-label="Cerrar" className={`${ROUND_BTN} ml-[6px]`}>
+                <button onClick={onClose} aria-label={t('resto.cerrar')} className={`${ROUND_BTN} ml-[6px]`}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
               </div>
@@ -146,7 +151,7 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                         alt={images.length > 1 ? `${amenity.name} ${i + 1}` : amenity.name}
                         fill
                         sizes="(min-width: 1240px) 1184px, 100vw"
-                        placeholder="blur"
+                        placeholder={BLUR}
                         blurDataURL={shimmerDataUrl(1240, 600)}
                         className="object-cover"
                         priority
@@ -154,7 +159,7 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                     </motion.div>
                   </AnimatePresence>
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-[11px] text-white/45" style={STRIPES}>Render en camino</div>
+                  <div className="absolute inset-0 flex items-center justify-center text-[11px] text-white/45" style={STRIPES}>{t('resto.renderEnCamino')}</div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-r from-[#0f1210]/90 via-[#0f1210]/50 to-[#0f1210]/10 pointer-events-none" />
                 <div className="relative p-[24px] sm:p-[32px_34px] max-w-[600px] flex flex-col gap-[12px]">
@@ -176,7 +181,7 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                         className="h-[42px] px-[20px] flex items-center gap-[8px] bg-white rounded-full text-[12.5px] font-semibold text-trevo-dark"
                       >
                         <EyeIcon className="w-[15px] h-[15px]" strokeWidth={1.8} />
-                        Recorrer en 360°
+                        {t('resto.recorrer360')}
                       </Link>
                     )}
                     {amenity.tour3dUrl && (
@@ -186,22 +191,22 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                         rel="noopener noreferrer"
                         className="h-[42px] px-[20px] flex items-center gap-[8px] border border-white/[.28] rounded-full text-[12.5px] font-medium text-white"
                       >
-                        Ver recorrido 3D
+                        {t('resto.amenities.verRecorrido3d')}
                       </a>
                     )}
                     <button
                       onClick={() => onRequestVisit(amenity.name)}
                       className="h-[42px] px-[20px] flex items-center border border-white/[.28] rounded-full text-[12.5px] font-medium text-white"
                     >
-                      Agendar visita
+                      {t('resto.agendarVisita')}
                     </button>
                   </div>
                 </div>
                 {images.length > 1 && (
                   <div className="absolute right-[18px] bottom-[18px] flex items-center gap-[4px] p-[4px] bg-black/50 backdrop-blur-md rounded-full">
-                    <button onClick={() => shift(-1)} aria-label="Foto anterior" className="w-[32px] h-[32px] flex items-center justify-center rounded-full text-white hover:bg-white/[.14]"><Chevron dir="left" /></button>
+                    <button onClick={() => shift(-1)} aria-label={t('resto.amenities.fotoAnterior')} className="w-[32px] h-[32px] flex items-center justify-center rounded-full text-white hover:bg-white/[.14]"><Chevron dir="left" /></button>
                     <div className="font-medium text-[11px] text-white min-w-[40px] text-center">{i + 1} / {images.length}</div>
-                    <button onClick={() => shift(1)} aria-label="Foto siguiente" className="w-[32px] h-[32px] flex items-center justify-center rounded-full text-white hover:bg-white/[.14]"><Chevron dir="right" /></button>
+                    <button onClick={() => shift(1)} aria-label={t('resto.amenities.fotoSiguiente')} className="w-[32px] h-[32px] flex items-center justify-center rounded-full text-white hover:bg-white/[.14]"><Chevron dir="right" /></button>
                   </div>
                 )}
               </div>
@@ -211,13 +216,13 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-[44px] mt-[40px]">
                   {amenity.description && (
                     <div className="flex flex-col gap-[14px]">
-                      <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">EL ESPACIO</div>
+                      <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">{t('resto.amenities.elEspacio')}</div>
                       <p className="font-light text-[clamp(17px,1.6vw,20px)] leading-[1.6] text-white/[.82] text-pretty max-w-[520px] whitespace-pre-line">{amenity.description}</p>
                     </div>
                   )}
                   {ficha.length > 0 && (
                     <div className="flex flex-col">
-                      <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">FICHA</div>
+                      <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">{t('resto.amenities.ficha')}</div>
                       <div className="mt-[6px]">
                         {ficha.map(s => (
                           <div key={s.key} className="flex items-baseline justify-between gap-[16px] py-[13px] border-b border-white/[.08]">
@@ -234,13 +239,13 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
               {/* ── Fotos ────────────────────────────────────── */}
               {images.length > 1 && (
                 <div className="mt-[44px]">
-                  <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">FOTOS · {images.length}</div>
+                  <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">{t('resto.amenities.fotos')} · {images.length}</div>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-[12px] mt-[14px]">
                     {images.map((src, m) => (
                       <button
                         key={src + m}
                         onClick={() => { setIndex(m); scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        aria-label={`Ver foto ${m + 1}`}
+                        aria-label={t('resto.amenities.verFoto', { n: m + 1 })}
                         className={
                           'relative aspect-[4/3] rounded-[14px] overflow-hidden transition-all duration-200 ' +
                           (m === i ? 'outline outline-2 outline-white outline-offset-[3px]' : 'opacity-70 hover:opacity-100')
@@ -256,7 +261,7 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
               {/* ── Seguir explorando ────────────────────────── */}
               {neighbors.length > 0 && (
                 <div className="mt-[52px] pt-[28px] border-t border-white/[.08]">
-                  <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">SEGUIR EXPLORANDO</div>
+                  <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">{t('resto.amenities.seguirExplorando')}</div>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-[16px] mt-[14px]">
                     {neighbors.map(({ label, a }) => (
                       <button
@@ -275,7 +280,7 @@ export default function AmenityDetailScreen({ amenity, building, position, prev,
                             <div className="font-medium text-[9.5px] tracking-[.16em] text-white/60">{label}</div>
                             <div className="font-normal text-[18px] text-white mt-[4px]">{a.name}</div>
                           </div>
-                          <div className="font-semibold text-[11.5px] text-brand-300 whitespace-nowrap">Ver →</div>
+                          <div className="font-semibold text-[11.5px] text-brand-300 whitespace-nowrap">{t('resto.verFlecha')}</div>
                         </div>
                       </button>
                     ))}

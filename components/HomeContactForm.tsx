@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { Pill } from '@/components/project-landing/ui';
 import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
-import { briefWhatsappHref } from '@/lib/brief';
 import { readAttribution } from '@/lib/analytics/client-state';
+import { useT } from '@/lib/i18n/client';
 
 // Tarjeta clara (--theme-surface) — vive encima de la foto oscurecida de
 // la sección Contacto, así que usa los colores de texto "sobre claro".
@@ -21,6 +21,7 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
   briefUrl?: string;
 }) {
   const whatsappNumber = useProjectWhatsapp();
+  const t = useT();
   const [sentName, setSentName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,6 +32,16 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  // Pedirle el brief al bot: abre WhatsApp con el mensaje ya escrito, en el
+  // idioma de la página (como briefWhatsappHref de lib/brief, que es castellano).
+  const briefHref = (numero: string) => {
+    const quien = sentName.trim();
+    const texto = quien
+      ? t('sitio.lead.msgBriefConNombre', { nombre: quien, proyecto: projectName })
+      : t('sitio.lead.msgBrief', { proyecto: projectName });
+    return `https://wa.me/${numero.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +56,7 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
           name,
           email,
           phone,
-          message: message.trim() || 'Hola, me interesa recibir más información sobre el proyecto.',
+          message: message.trim() || t('sitio.lead.msgProyecto'),
           unitId: null,
           unitName: 'General',
           source: 'home_contact_form',
@@ -64,10 +75,10 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
         setMessage('');
         setWantsUpdates(false);
       } else {
-        setError('Hubo un error al enviar tu consulta. Por favor, intentá de nuevo.');
+        setError(t('sitio.home.errorEnvio'));
       }
     } catch {
-      setError('Hubo un error al enviar tu consulta. Por favor, intentá de nuevo.');
+      setError(t('sitio.home.errorEnvio'));
     } finally {
       setIsSubmitting(false);
     }
@@ -81,20 +92,20 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-[var(--theme-text)] font-semibold">¡Mensaje enviado!</p>
-        <p className="text-[var(--theme-text-muted)] text-sm mt-1">Un asesor se pondrá en contacto con vos a la brevedad.</p>
+        <p className="text-[var(--theme-text)] font-semibold">{t('sitio.lead.enviadoTitulo')}</p>
+        <p className="text-[var(--theme-text-muted)] text-sm mt-1">{t('sitio.lead.enviadoTexto')}</p>
         {briefUrl && (
           <div className="mt-6 flex flex-col items-center gap-2">
             {whatsappNumber ? (
               <>
-                <p className="m-0 text-sm text-[var(--theme-text)]">¿Querés el brief del proyecto ahora?</p>
-                <a href={briefWhatsappHref(whatsappNumber, sentName, projectName)} target="_blank" rel="noopener noreferrer" className={BRIEF_LINK}>
-                  Recibir el brief por WhatsApp
+                <p className="m-0 text-sm text-[var(--theme-text)]">{t('sitio.home.queresElBrief')}</p>
+                <a href={briefHref(whatsappNumber)} target="_blank" rel="noopener noreferrer" className={BRIEF_LINK}>
+                  {t('sitio.home.briefWhatsapp')}
                 </a>
               </>
             ) : (
               <a href={briefUrl} target="_blank" rel="noopener noreferrer" className={BRIEF_LINK}>
-                Descargar brief
+                {t('sitio.menu.descargarBrief')}
               </a>
             )}
           </div>
@@ -107,29 +118,29 @@ export default function HomeContactForm({ projectSlug, projectName, briefUrl }: 
     <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className={LABEL}>
-          Nombre
+          {t('sitio.home.nombre')}
           <input type="text" required autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={FIELD} />
         </label>
         <label className={LABEL}>
-          Teléfono
+          {t('sitio.lead.telefono')}
           <input type="tel" required autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} className={FIELD} />
         </label>
       </div>
       <label className={LABEL}>
-        Email
+        {t('sitio.lead.email')}
         <input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className={FIELD} />
       </label>
       <label className={LABEL}>
-        <span>Mensaje <span className="font-normal text-[var(--theme-text-muted)]">(opcional)</span></span>
+        <span>{t('sitio.lead.mensaje')} <span className="font-normal text-[var(--theme-text-muted)]">{t('sitio.home.opcional')}</span></span>
         <textarea rows={3} maxLength={2000} value={message} onChange={e => setMessage(e.target.value)} className={`${FIELD} h-auto py-3 resize-y`} />
       </label>
       <label className="flex items-start gap-2.5 text-[14px] font-normal text-[var(--theme-text)]">
         <input type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0 accent-[var(--theme-text)]" />
-        Avisame cuando haya novedades de la obra
+        {t('sitio.lead.avisameNovedades')}
       </label>
       {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
       <Pill type="submit" disabled={isSubmitting} arrow size="lg" block className="mt-1">
-        {isSubmitting ? 'Enviando…' : 'Enviar consulta'}
+        {isSubmitting ? t('sitio.lead.enviando') : t('sitio.lead.enviar')}
       </Pill>
     </form>
   );

@@ -12,6 +12,10 @@ import { formatPrice, getStatusColor, getStatusLabel, cocheraLabel } from '@/lib
 import type { Amenity, Unit, UnitViewTab } from '@/types';
 import { useCalculatorSettings } from '@/hooks/useCalculatorSettings';
 import UnitPlans from '@/components/financing/UnitPlans';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { ClaveMensaje } from '@/lib/i18n/t';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
+import { orientacionTexto } from './orientacion';
 
 // Ficha de la unidad en pantallas angostas: una sola página que scrollea
 // — barra con volver/compartir, la imagen con su selector (Plano · 3D ·
@@ -24,12 +28,12 @@ import UnitPlans from '@/components/financing/UnitPlans';
 
 /** Vistas de la imagen grande, en el orden en que se ofrecen. */
 export type MobileMediaTab = Extract<UnitViewTab, 'plano' | 'planta3d' | 'tour360' | 'vista' | 'galeria'>;
-const MEDIA_ORDER: { id: MobileMediaTab; label: string }[] = [
-  { id: 'plano', label: 'Plano' },
-  { id: 'planta3d', label: '3D' },
-  { id: 'tour360', label: '360°' },
-  { id: 'vista', label: 'Vista' },
-  { id: 'galeria', label: 'Fotos' },
+const MEDIA_ORDER: { id: MobileMediaTab; labelKey: ClaveMensaje }[] = [
+  { id: 'plano', labelKey: 'unidad.media.plano' },
+  { id: 'planta3d', labelKey: 'unidad.media.3d' },
+  { id: 'tour360', labelKey: 'unidad.tab.tour360' },
+  { id: 'vista', labelKey: 'unidad.tab.vista' },
+  { id: 'galeria', labelKey: 'unidad.media.fotos' },
 ];
 
 // Estado escrito: los colores de estado son para puntos; como texto chico
@@ -82,33 +86,36 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
     mediaTabs, mediaTab, onMediaTabChange, renderMedia, amenities, hasPointsOfInterest,
     scrollToSection, shareUrl, shareText, onBack, backLabel, onCompare, onContact,
   } = props;
+  const t = useT();
+  const { locale } = useLocale();
   // Sin bot de WhatsApp conectado al proyecto no se ofrece WhatsApp.
   const whatsappNumber = useProjectWhatsapp();
+  const pisoTexto = (n: number) => (n === 0 ? t('unidad.plantaBaja') : t('unidad.pisoN', { n }));
 
   const price = showPrice && unit.price ? unit.price : undefined;
   const currency = unit.currency ?? 'USD';
-  const pricePerM2 = price && unit.totalArea > 0 ? formatPrice(Math.round(price / unit.totalArea), currency) : null;
-  const floorText = hasFloorStep ? (floorNumber === 0 ? 'Planta baja' : `Piso ${floorNumber}`) : '';
+  const pricePerM2 = price && unit.totalArea > 0 ? formatPrice(Math.round(price / unit.totalArea), currency, locale) : null;
+  const floorText = hasFloorStep ? pisoTexto(floorNumber) : '';
   const placeText = [floorText, buildingName].filter(Boolean).join(' · ');
 
   // Datos en tarjetas de a dos — solo los que la unidad tiene cargados.
   const specs = useMemo(() => {
     const list: { label: string; value: string }[] = [
-      { label: 'Superficie', value: `${unit.totalArea} m²` },
+      { label: t('unidad.m.superficie'), value: `${unit.totalArea} m²` },
     ];
     if (!unitIsLand && isDwelling) {
-      list.push({ label: 'Dormitorios', value: unit.bedrooms === 0 ? 'Monoambiente' : String(unit.bedrooms) });
-      list.push({ label: 'Baños', value: String(unit.bathrooms) });
+      list.push({ label: t('unidad.m.dormitorios'), value: unit.bedrooms === 0 ? t('unidad.monoambiente') : String(unit.bedrooms) });
+      list.push({ label: t('unidad.m.banos'), value: String(unit.bathrooms) });
     }
-    if (placeText) list.push({ label: 'Ubicación', value: placeText });
-    if (!unitIsLand && unit.innerArea > 0 && unit.innerArea !== unit.totalArea) list.push({ label: 'Sup. interna', value: `${unit.innerArea} m²` });
-    if (!unitIsLand && unit.balconyArea > 0) list.push({ label: 'Balcón', value: `${unit.balconyArea} m²` });
-    if (!unitIsLand && unit.orientation) list.push({ label: 'Orientación', value: unit.orientation });
-    const cochera = !unitIsLand ? cocheraLabel(unit) : '';
-    if (cochera) list.push({ label: 'Cochera', value: cochera });
-    if (!unitIsLand && unit.hoaFee) list.push({ label: 'Expensas', value: `${formatPrice(unit.hoaFee, currency)}/mes` });
+    if (placeText) list.push({ label: t('nav.ubicacion'), value: placeText });
+    if (!unitIsLand && unit.innerArea > 0 && unit.innerArea !== unit.totalArea) list.push({ label: t('unidad.m.supInterna'), value: `${unit.innerArea} m²` });
+    if (!unitIsLand && unit.balconyArea > 0) list.push({ label: t('unidad.m.balcon'), value: `${unit.balconyArea} m²` });
+    if (!unitIsLand && unit.orientation) list.push({ label: t('unidad.m.orientacion'), value: orientacionTexto(unit.orientation, locale) });
+    const cochera = !unitIsLand ? cocheraLabel(unit, locale) : '';
+    if (cochera) list.push({ label: t('unidad.m.cochera'), value: cochera });
+    if (!unitIsLand && unit.hoaFee) list.push({ label: t('unidad.m.expensas'), value: t('unidad.porMes', { precio: formatPrice(unit.hoaFee, currency, locale) }) });
     return list;
-  }, [unit, unitIsLand, isDwelling, placeText, currency]);
+  }, [unit, unitIsLand, isDwelling, placeText, currency, t, locale]);
 
   // Otras unidades de la misma tipología, las más cercanas en piso primero.
   const sameType = useMemo(() => {
@@ -149,7 +156,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
           <button
             type="button"
             onClick={onCompare}
-            aria-label="Comparar con otra unidad"
+            aria-label={t('unidad.m.compararCon')}
             className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
@@ -160,7 +167,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
         )}
         <ShareMenu url={shareUrl} text={shareText} align="right">
           {trigger => (
-            <button {...trigger} type="button" aria-label="Compartir" className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
+            <button {...trigger} type="button" aria-label={t('unidad.compartir')} className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
             </button>
           )}
@@ -181,16 +188,16 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
                 className="mx-4 mt-3"
                 role="tablist"
                 size="lg"
-                ariaLabel="Vistas de la unidad"
+                ariaLabel={t('unidad.m.vistas')}
                 value={mediaTab}
                 onChange={onMediaTabChange}
-                options={mediaTabs.map(id => ({ value: id, label: MEDIA_ORDER.find(m => m.id === id)!.label }))}
+                options={mediaTabs.map(id => ({ value: id, label: t(MEDIA_ORDER.find(m => m.id === id)!.labelKey) }))}
               />
             )}
           </div>
         ) : (
           <div className="h-40 flex items-center justify-center px-6 text-center text-sm text-gray-400 bg-[#F4F5F6]">
-            Todavía no hay planos, renders ni fotos de esta unidad.
+            {t('unidad.m.sinMaterial')}
           </div>
         )}
 
@@ -200,18 +207,18 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
             {showStatus && (
               <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: STATUS_INK[unit.status] ?? getStatusColor(unit.status) }}>
                 <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: getStatusColor(unit.status) }} />
-                {getStatusLabel(unit.status)}
+                {getStatusLabel(unit.status, locale)}
               </span>
             )}
             <h2 className="m-0 text-[26px] leading-8 font-bold">{heading}</h2>
             {price ? (
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-2xl font-bold tabular-nums">{formatPrice(price, currency)}</span>
-                {pricePerM2 && <span className="text-[13px] text-[#5B6472] tabular-nums">{pricePerM2} por m²</span>}
+                <span className="text-2xl font-bold tabular-nums">{formatPrice(price, currency, locale)}</span>
+                {pricePerM2 && <span className="text-[13px] text-[#5B6472] tabular-nums">{t('unidad.m.porM2', { precio: pricePerM2 })}</span>}
               </div>
             ) : showLeads ? (
               <button type="button" onClick={() => onContact()} className="self-start text-[15px] font-semibold underline underline-offset-2">
-                Consultar precio
+                {t('unidad.consultarPrecio')}
               </button>
             ) : null}
             <div className="mt-2">
@@ -220,7 +227,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
           </section>
 
           {/* ── Datos ── */}
-          <section aria-label="Datos de la unidad" className="grid grid-cols-2 gap-2">
+          <section aria-label={t('unidad.m.datos')} className="grid grid-cols-2 gap-2">
             {specs.map(s => (
               <div key={s.label} className="bg-[#F4F5F6] rounded-xl px-3.5 py-3 flex flex-col gap-1 min-w-0">
                 <span className="text-xs text-[#5B6472]">{s.label}</span>
@@ -231,9 +238,9 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
 
           {/* Comodidades (casas): chips. */}
           {!unitIsLand && !!unit.features?.length && (
-            <section className="flex flex-wrap gap-1.5" aria-label="Comodidades">
+            <section className="flex flex-wrap gap-1.5" aria-label={t('unidad.comodidades')}>
               {unit.features.map(f => (
-                <span key={f} className="text-[13px] font-medium text-gray-700 bg-white border border-[#E6E8EB] rounded-full px-3 py-1">{f}</span>
+                <span key={f} className="text-[13px] font-medium text-gray-700 bg-white border border-[#E6E8EB] rounded-full px-3 py-1">{etiquetaCatalogo(f, locale)}</span>
               ))}
             </section>
           )}
@@ -246,10 +253,10 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
             <section id="unit-m-amenities" aria-labelledby="unit-m-amen-t" className="flex flex-col gap-3 scroll-mt-4">
               <div className="flex items-center justify-between">
                 <h2 id="unit-m-amen-t" className="m-0 text-lg font-bold">
-                  Incluye {amenities.length} amenit{amenities.length === 1 ? 'y' : 'ies'}
+                  {t('unidad.m.incluyeAmenities', { count: amenities.length })}
                 </h2>
                 <TransitionLink href={`${basePath}/amenities`} className="h-11 flex items-center text-sm font-semibold">
-                  Ver todos
+                  {t('unidad.m.verTodos')}
                 </TransitionLink>
               </div>
               {amenityThumbs.length > 0 ? (
@@ -280,8 +287,8 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
               </span>
               <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-                <span className="text-[15px] font-bold">Ubicación y alrededores</span>
-                <span className="text-xs text-[#5B6472]">Lugares cercanos y cómo llegar</span>
+                <span className="text-[15px] font-bold">{t('unidad.m.ubicacionAlrededores')}</span>
+                <span className="text-xs text-[#5B6472]">{t('unidad.m.lugaresCercanos')}</span>
               </span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
             </TransitionLink>
@@ -290,7 +297,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
           {/* ── Misma tipología ── */}
           {sameTypeShown.length > 0 && (
             <section aria-labelledby="unit-m-same-t" className="flex flex-col">
-              <h2 id="unit-m-same-t" className="m-0 mb-1 text-lg font-bold">Misma tipología</h2>
+              <h2 id="unit-m-same-t" className="m-0 mb-1 text-lg font-bold">{t('unidad.m.mismaTipologia')}</h2>
               {sameTypeShown.map(u => (
                 <TransitionLink
                   key={u.id}
@@ -299,16 +306,16 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
                 >
                   <span className="text-base font-bold min-w-11">{u.name}</span>
                   <span className="flex-1 min-w-0 truncate text-[13px] text-[#5B6472]">
-                    {[hasFloorStep ? (u.floor === 0 ? 'Planta baja' : `Piso ${u.floor}`) : '', `${u.totalArea} m²`].filter(Boolean).join(' · ')}
+                    {[hasFloorStep ? pisoTexto(u.floor) : '', `${u.totalArea} m²`].filter(Boolean).join(' · ')}
                   </span>
                   <span className="text-[15px] font-bold tabular-nums whitespace-nowrap">
-                    {showPrice && u.price ? formatPrice(u.price, u.currency ?? 'USD') : showStatus ? getStatusLabel(u.status) : ''}
+                    {showPrice && u.price ? formatPrice(u.price, u.currency ?? 'USD', locale) : showStatus ? getStatusLabel(u.status, locale) : ''}
                   </span>
                 </TransitionLink>
               ))}
               {sameType.length > sameTypeShown.length && (
                 <TransitionLink href={`${basePath}/unidades`} className="h-11 flex items-center text-sm font-semibold">
-                  Ver {sameType.length - sameTypeShown.length} más en Unidades
+                  {t('unidad.m.verMasEnUnidades', { n: sameType.length - sameTypeShown.length })}
                 </TransitionLink>
               )}
             </section>
@@ -323,14 +330,14 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
           style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
         >
           <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-            <span className="text-[17px] font-bold truncate tabular-nums">{price ? formatPrice(price, currency) : title}</span>
+            <span className="text-[17px] font-bold truncate tabular-nums">{price ? formatPrice(price, currency, locale) : title}</span>
             <span className="text-xs text-[#5B6472] truncate">{[typeLabel, `${unit.totalArea} m²`].filter(Boolean).join(' · ')}</span>
           </div>
           {whatsappNumber && (
             <button
               type="button"
               onClick={() => onContact('whatsapp')}
-              aria-label="Consultar por WhatsApp"
+              aria-label={t('unidad.m.consultarWhatsapp')}
               className="m-btn m-btn--whatsapp !w-[52px] !px-0 shrink-0"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={WHATSAPP_GLYPH} /></svg>
@@ -342,7 +349,7 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
             className="m-btn m-btn--primary shrink-0 !px-6"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z" /></svg>
-            Consultar
+            {t('unidad.m.consultar')}
           </button>
         </div>
       )}
@@ -356,6 +363,8 @@ export default function UnitMobileView(props: UnitMobileViewProps) {
 // planes; si no, el simulador hipotecario: tasa, plazo máximo y anticipo
 // mínimo del proyecto (la tasa se muestra pero no se elige).
 function QuotaCalculator({ price, currency, projectSlug, unit }: { price: number; currency: string; projectSlug: string; unit: Unit }) {
+  const t = useT();
+  const { locale } = useLocale();
   const loaded = useCalculatorSettings(projectSlug);
   const [down, setDown] = useState<number | null>(null);
   const [years, setYears] = useState<number | null>(null);
@@ -366,8 +375,8 @@ function QuotaCalculator({ price, currency, projectSlug, unit }: { price: number
     return (
       <section aria-labelledby="unit-m-cuota" className="flex flex-col gap-3.5 px-4 py-[18px] rounded-2xl border border-[#E6E8EB]">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 id="unit-m-cuota" className="m-0 text-lg font-bold">Planes de pago</h2>
-          <span className="text-xs text-[#5B6472] whitespace-nowrap">sobre {formatPrice(price, currency)}</span>
+          <h2 id="unit-m-cuota" className="m-0 text-lg font-bold">{t('unidad.m.planesDePago')}</h2>
+          <span className="text-xs text-[#5B6472] whitespace-nowrap">{t('unidad.m.sobre', { precio: formatPrice(price, currency, locale) })}</span>
         </div>
         <UnitPlans plans={settings.financingPlans} price={price} currency={currency} projectSlug={projectSlug} unit={unit} />
       </section>
@@ -388,24 +397,24 @@ function QuotaCalculator({ price, currency, projectSlug, unit }: { price: number
   return (
     <section aria-labelledby="unit-m-cuota" className="flex flex-col gap-3.5 px-4 py-[18px] rounded-2xl border border-[#E6E8EB]">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="unit-m-cuota" className="m-0 text-lg font-bold">Calculá tu cuota</h2>
-        <span className="text-xs text-[#5B6472] whitespace-nowrap">sobre {formatPrice(price, currency)}</span>
+        <h2 id="unit-m-cuota" className="m-0 text-lg font-bold">{t('unidad.m.calculaCuota')}</h2>
+        <span className="text-xs text-[#5B6472] whitespace-nowrap">{t('unidad.m.sobre', { precio: formatPrice(price, currency, locale) })}</span>
       </div>
-      <OptionRow label="Anticipo" options={downOptions} value={downPct} format={v => `${v}%`} onChange={setDown} />
-      <OptionRow label="Plazo" options={yearOptions} value={term} format={v => `${v} año${v === 1 ? '' : 's'}`} onChange={setYears} />
+      <OptionRow label={t('unidad.m.anticipo')} options={downOptions} value={downPct} format={v => `${v}%`} onChange={setDown} />
+      <OptionRow label={t('unidad.m.plazo')} options={yearOptions} value={term} format={v => t('unidad.m.anios', { count: v })} onChange={setYears} />
       <div className="flex items-end justify-between gap-3 pt-3.5 border-t border-[#ECEEF1]">
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-xs text-[#5B6472]">Cuota mensual aprox.</span>
-          <span className="text-[26px] leading-[30px] font-bold tabular-nums">{formatPrice(monthly, currency)}</span>
+          <span className="text-xs text-[#5B6472]">{t('unidad.m.cuotaMensual')}</span>
+          <span className="text-[26px] leading-[30px] font-bold tabular-nums">{formatPrice(monthly, currency, locale)}</span>
         </div>
         <div className="flex flex-col gap-0.5 text-right text-xs text-[#5B6472] tabular-nums">
-          <span>Anticipo {formatPrice(downAmount, currency)}</span>
-          <span>Financiás {formatPrice(loan, currency)}</span>
-          <span>Tasa {String(settings.interestRate).replace('.', ',')}% anual</span>
+          <span>{t('unidad.m.anticipoMonto', { precio: formatPrice(downAmount, currency, locale) })}</span>
+          <span>{t('unidad.m.financias', { precio: formatPrice(loan, currency, locale) })}</span>
+          <span>{t('unidad.m.tasa', { tasa: locale === 'es' ? String(settings.interestRate).replace('.', ',') : String(settings.interestRate) })}</span>
         </div>
       </div>
       <p className="m-0 text-xs leading-[17px] text-[#5B6472]">
-        Cálculo orientativo: solo capital e intereses. No incluye seguros, comisiones ni otros recargos.
+        {t('unidad.m.aviso')}
       </p>
     </section>
   );

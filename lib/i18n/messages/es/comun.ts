@@ -16,6 +16,8 @@ export const comun = {
   'unidades.disponibles_one': '{count} disponible',
   'unidades.disponibles_other': '{count} disponibles',
 
+  'comun.linkCopiado': 'Link copiado al portapapeles',
+
   // Chat del sitio
   'chat.saludoConNombre': '¡Hola! Soy {nombre}, el asistente virtual del proyecto. ¿En qué te puedo ayudar?',
 } as const;

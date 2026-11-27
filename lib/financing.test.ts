@@ -157,3 +157,25 @@ describe('showUnitCalculator', () => {
     expect(showUnitCalculator({ ...ok, showCalculator: false, plansCount: 2 })).toBe(false);
   });
 });
+
+describe('en inglés (sitio en inglés)', () => {
+  it('describePlan', () => {
+    expect(describePlan(base, 'en')).toBe('30% down payment + 36 installments + 3 semiannual extra payments + 15% on delivery · installments adjusted by CAC');
+    expect(describePlan({ ...base, downPaymentPct: 100, installments: 0, installmentsPct: 0, boosts: 0, boostsPct: 0, priceAdjustmentPct: -10, index: 'ninguno' }, 'en'))
+      .toBe('10% discount · 100% down payment');
+    expect(describePlan({ ...base, installments: 1, boosts: 1, boostEveryMonths: 4, index: 'ninguno' }, 'en'))
+      .toBe('30% down payment + 1 installment + 1 extra payment every 4 months + 15% on delivery');
+  });
+  it('planLeadMessage: en inglés y con precios de EE. UU.', () => {
+    expect(planLeadMessage(base, 85_000_000, 'ARS', 'unit N01-07', 'en').replace(/\u00a0/g, ' ')).toBe(
+      "Hi, I'm interested in Plan 36 for unit N01-07 (30% down payment + 36 installments + 3 semiannual extra payments + 15% on delivery · installments adjusted by CAC)."
+      + ' Based on ARS 85,000,000: down payment ARS 25,500,000, 36 installments of ARS 944,444, 3 extra payments of ARS 4,250,000, balance on delivery ARS 12,750,000.',
+    );
+  });
+  it('planLeadMessage en castellano: igual que siempre', () => {
+    expect(planLeadMessage(base, 100_000, 'USD', 'la unidad N01-07')).toBe(
+      'Hola, me interesa el Plan 36 para la unidad N01-07 (30% de anticipo + 36 cuotas + 3 refuerzos semestrales + 15% a la posesión · cuotas ajustables por CAC).'
+      + ' Sobre $100,000: anticipo $30,000, 36 cuotas de $1,111, 3 refuerzos de $5,000, saldo a la posesión $15,000.',
+    );
+  });
+});

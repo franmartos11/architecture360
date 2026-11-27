@@ -5,10 +5,12 @@ import { Footprints, Bike, Car } from 'lucide-react';
 import { ProjectTypeProvider } from '@/lib/project-type-context';
 import { useContactModal } from '@/hooks/useContactModal';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
-import { POI_CATEGORY_LABELS, PoiCategoryIcon } from '@/lib/poiCategories';
+import { poiCategoryLabel, PoiCategoryIcon } from '@/lib/poiCategories';
 import { POI_CATEGORY_COLORS } from '@/lib/poiCategoryColors';
 import type { ProjectTypeConfig } from '@/lib/project-types';
 import type { Project, PointOfInterest, PoiCategory } from '@/types';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { ClaveMensaje } from '@/lib/i18n/t';
 
 interface LocationViewProps {
   project: Project;
@@ -17,10 +19,12 @@ interface LocationViewProps {
 
 type Mode = 'walk' | 'bike' | 'drive';
 
-const MODES: { key: Mode; label: string; upper: string; Icon: typeof Footprints; field: 'walkMinutes' | 'bikeMinutes' | 'driveMinutes'; dirflg: string; travelmode: string }[] = [
-  { key: 'walk', label: 'Caminando', upper: 'CAMINANDO', Icon: Footprints, field: 'walkMinutes', dirflg: 'w', travelmode: 'walking' },
-  { key: 'bike', label: 'En bici', upper: 'EN BICI', Icon: Bike, field: 'bikeMinutes', dirflg: 'b', travelmode: 'bicycling' },
-  { key: 'drive', label: 'En auto', upper: 'EN AUTO', Icon: Car, field: 'driveMinutes', dirflg: 'd', travelmode: 'driving' },
+// Etiquetas como claves del diccionario: label (selector), upper (debajo de
+// los minutos) y orden (la línea "ordenados por tiempo…").
+const MODES: { key: Mode; label: ClaveMensaje; upper: ClaveMensaje; orden: ClaveMensaje; Icon: typeof Footprints; field: 'walkMinutes' | 'bikeMinutes' | 'driveMinutes'; dirflg: string; travelmode: string }[] = [
+  { key: 'walk', label: 'resto.ubicacion.modoCaminando', upper: 'resto.ubicacion.modoCaminandoMayus', orden: 'resto.ubicacion.ordenCaminando', Icon: Footprints, field: 'walkMinutes', dirflg: 'w', travelmode: 'walking' },
+  { key: 'bike', label: 'resto.ubicacion.modoBici', upper: 'resto.ubicacion.modoBiciMayus', orden: 'resto.ubicacion.ordenBici', Icon: Bike, field: 'bikeMinutes', dirflg: 'b', travelmode: 'bicycling' },
+  { key: 'drive', label: 'resto.ubicacion.modoAuto', upper: 'resto.ubicacion.modoAutoMayus', orden: 'resto.ubicacion.ordenAuto', Icon: Car, field: 'driveMinutes', dirflg: 'd', travelmode: 'driving' },
 ];
 
 function poiDestination(poi: PointOfInterest, projectLocation: string): string {
@@ -37,11 +41,11 @@ function directionsHref(poi: PointOfInterest, projectLocation: string, mode: Mod
 // Minutos a mostrar para una POI en el modo activo — si ese modo no tiene
 // dato cargado, cae a driveMinutes (con su propia etiqueta) antes que a
 // distanceLabel, igual que ya hacía el visor viejo.
-function minutesDisplay(poi: PointOfInterest, mode: Mode): { minutes: number; label: string } | null {
+function minutesDisplay(poi: PointOfInterest, mode: Mode): { minutes: number; label: ClaveMensaje } | null {
   const modeDef = MODES.find(m => m.key === mode)!;
   const direct = poi[modeDef.field];
   if (direct != null) return { minutes: direct, label: modeDef.upper };
-  if (poi.driveMinutes != null) return { minutes: poi.driveMinutes, label: 'EN AUTO' };
+  if (poi.driveMinutes != null) return { minutes: poi.driveMinutes, label: 'resto.ubicacion.modoAutoMayus' };
   return null;
 }
 
@@ -54,6 +58,8 @@ export default function LocationView({ project, typeConfig }: LocationViewProps)
 }
 
 function LocationViewInner({ project, typeConfig }: LocationViewProps) {
+  const t = useT();
+  const { locale } = useLocale();
   const [mode, setMode] = useState<Mode>('walk');
   const [category, setCategory] = useState<PoiCategory | 'all'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -92,10 +98,10 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
 
   const bands = useMemo(() => {
     const defs = [
-      { title: 'A PASOS · MENOS DE 5 MIN', test: (m: number | null) => m != null && m < 5 },
-      { title: 'CERCA · 5 A 10 MIN', test: (m: number | null) => m != null && m >= 5 && m <= 10 },
-      { title: 'EN LA ZONA · MÁS DE 10 MIN', test: (m: number | null) => m != null && m > 10 },
-      { title: 'SOLO EN AUTO', test: (m: number | null) => m == null },
+      { title: 'resto.ubicacion.bandaAPasos' as ClaveMensaje, test: (m: number | null) => m != null && m < 5 },
+      { title: 'resto.ubicacion.bandaCerca' as ClaveMensaje, test: (m: number | null) => m != null && m >= 5 && m <= 10 },
+      { title: 'resto.ubicacion.bandaZona' as ClaveMensaje, test: (m: number | null) => m != null && m > 10 },
+      { title: 'resto.ubicacion.bandaSoloAuto' as ClaveMensaje, test: (m: number | null) => m == null },
     ];
     return defs
       .map(b => ({
@@ -114,6 +120,12 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
     : null;
   const mapsLink = hasCoords ? `https://www.google.com/maps/search/?api=1&query=${project.latitude},${project.longitude}` : null;
 
+  const resumen = pois.length === 0
+    ? t('resto.ubicacion.vacio')
+    : `${category === 'all'
+      ? t('resto.ubicacion.lugaresDelEntorno', { count: pois.length })
+      : t('resto.ubicacion.enCategoria', { n: filtered.length, categoria: poiCategoryLabel(category, locale) })} · ${t(modeDef.orden)}`;
+
   const copyAddress = () => {
     if (navigator.clipboard) navigator.clipboard.writeText(project.location).catch(() => {});
     setCopied(true);
@@ -122,18 +134,18 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
 
   const heroStats = useMemo(() => {
     const stats: { value: string | number; label: string }[] = [];
-    if (pois.length > 0) stats.push({ value: pois.length, label: 'LUGARES CERCA' });
+    if (pois.length > 0) stats.push({ value: pois.length, label: t('resto.ubicacion.statLugares') });
     const walkable = pois.filter(p => p.walkMinutes != null && p.walkMinutes <= 10).length;
-    if (walkable > 0) stats.push({ value: walkable, label: 'A MENOS DE 10 MIN CAMINANDO' });
+    if (walkable > 0) stats.push({ value: walkable, label: t('resto.ubicacion.statCaminando') });
     let nearest: { poi: PointOfInterest; minutes: number } | null = null;
     pois.forEach(p => {
       ([p.walkMinutes, p.bikeMinutes, p.driveMinutes] as (number | undefined)[]).forEach(v => {
         if (v != null && (!nearest || v < nearest.minutes)) nearest = { poi: p, minutes: v };
       });
     });
-    if (nearest) stats.push({ value: `${(nearest as { poi: PointOfInterest; minutes: number }).minutes} min`, label: (nearest as { poi: PointOfInterest; minutes: number }).poi.name.toUpperCase() });
+    if (nearest) stats.push({ value: t('resto.ubicacion.minutos', { n: (nearest as { poi: PointOfInterest; minutes: number }).minutes }), label: (nearest as { poi: PointOfInterest; minutes: number }).poi.name.toUpperCase() });
     return stats.slice(0, 3);
-  }, [pois]);
+  }, [pois, t]);
 
   return (
     <div className="min-h-screen bg-trevo-dark">
@@ -143,9 +155,9 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
 
         <div className="flex items-end justify-between gap-[30px] flex-wrap mt-[24px]">
           <div className="min-w-[280px] flex-1">
-            <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">EL ENTORNO</div>
+            <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">{t('resto.ubicacion.eyebrow')}</div>
             <div className="font-extralight text-[clamp(30px,4.4vw,44px)] leading-[1.1] text-white mt-[9px]">
-              Todo lo que necesitás, <span className="font-medium">a pasos</span>
+              {t('resto.ubicacion.tituloA')} <span className="font-medium">{t('resto.ubicacion.tituloB')}</span>
             </div>
             <div className="flex items-center gap-[12px] flex-wrap mt-[14px]">
               <div className="flex items-center gap-[8px]">
@@ -159,7 +171,7 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                   (copied ? 'bg-trevo-green text-white' : 'bg-white/[.08] text-white/70')
                 }
               >
-                {copied ? 'Dirección copiada' : 'Copiar dirección'}
+                {t(copied ? 'resto.ubicacion.direccionCopiada' : 'resto.ubicacion.copiarDireccion')}
               </button>
             </div>
           </div>
@@ -184,7 +196,7 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
             <div className="relative border border-white/[.12] rounded-[18px] overflow-hidden bg-[#0f120f]">
               <iframe
                 src={mapSrc!}
-                title="Mapa de ubicación del proyecto"
+                title={t('resto.ubicacion.mapaTitulo')}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 className="block w-full border-0"
@@ -196,7 +208,7 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                   (selected ? 'bg-trevo-green' : 'bg-black/[.62]')
                 }>
                   {selected
-                    ? `Recorrido a ${selected.name} · ${minutesDisplay(selected, mode)?.minutes ?? selected.driveMinutes ?? '—'} min`
+                    ? t('resto.ubicacion.recorridoA', { nombre: selected.name, min: minutesDisplay(selected, mode)?.minutes ?? selected.driveMinutes ?? '—' })
                     : `${project.name} · ${project.location}`}
                 </div>
                 {selected && (
@@ -204,17 +216,17 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                     onClick={() => setSelectedId(null)}
                     className="h-[28px] px-[11px] flex items-center gap-[6px] bg-black/[.62] backdrop-blur-md rounded-full text-[11px] font-medium text-white cursor-pointer"
                   >
-                    Quitar selección ×
+                    {t('resto.ubicacion.quitarSeleccion')}
                   </button>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-[10px] flex-wrap">
               <a href={mapsLink!} target="_blank" rel="noopener noreferrer" className="h-[36px] px-[15px] flex items-center gap-[7px] border border-white/20 rounded-full text-[11.5px] font-medium text-white">
-                Abrir en Google Maps ↗
+                {t('resto.ubicacion.abrirMaps')}
               </a>
               <div className="font-light text-[11px] leading-[1.5] text-white/[.42]">
-                {selected ? 'Tocá otro lugar de la lista para cambiar el recorrido.' : 'Tocá cualquier lugar de la lista y el mapa traza el recorrido.'}
+                {t(selected ? 'resto.ubicacion.ayudaOtro' : 'resto.ubicacion.ayudaTocar')}
               </div>
             </div>
           </div>
@@ -233,7 +245,7 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                 }
               >
                 <m.Icon className="w-[15px] h-[15px]" strokeWidth={1.7} />
-                {m.label}
+                {t(m.label)}
               </button>
             ))}
           </div>
@@ -241,28 +253,25 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
           {categoriesPresent.length > 0 && (
             <div className="flex gap-[8px] flex-wrap">
               <CatChip active={category === 'all'} onClick={() => setCategory('all')}>
-                Todo el entorno · {pois.length}
+                {t('resto.ubicacion.todoElEntorno')} · {pois.length}
               </CatChip>
               {categoriesPresent.map(c => (
                 <CatChip key={c} active={category === c} onClick={() => setCategory(category === c ? 'all' : c)} dotColor={POI_CATEGORY_COLORS[c]}>
-                  {POI_CATEGORY_LABELS[c]} · {pois.filter(p => p.category === c).length}
+                  {poiCategoryLabel(c, locale)} · {pois.filter(p => p.category === c).length}
                 </CatChip>
               ))}
             </div>
           )}
 
           <div className="font-normal text-[11.5px] text-white/50">
-            {pois.length === 0
-              ? 'Todavía no hay puntos de interés cargados.'
-              : (category === 'all' ? `${pois.length} lugares del entorno` : `${filtered.length} en ${POI_CATEGORY_LABELS[category]}`) +
-                ` · ordenados por tiempo ${modeDef.label.toLowerCase()}`}
+            {resumen}
           </div>
 
           {pois.length > 0 && filtered.length === 0 && (
             <div className="border border-white/[.12] rounded-[16px] p-[36px_22px] text-center">
-              <div className="font-light text-[17px] text-white">Nada en esa categoría</div>
+              <div className="font-light text-[17px] text-white">{t('resto.ubicacion.nadaEnCategoria')}</div>
               <button onClick={() => setCategory('all')} className="h-[36px] px-[18px] inline-flex items-center bg-white rounded-full text-[12px] font-semibold text-trevo-dark cursor-pointer mt-[16px]">
-                Ver todo el entorno
+                {t('resto.ubicacion.verTodo')}
               </button>
             </div>
           )}
@@ -270,9 +279,9 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
           {bands.map(g => (
             <div key={g.title} className="flex flex-col gap-[9px]">
               <div className="flex items-center gap-[11px]">
-                <div className="font-semibold text-[10.5px] tracking-[.16em] text-trevo-lightgreen whitespace-nowrap">{g.title}</div>
+                <div className="font-semibold text-[10.5px] tracking-[.16em] text-trevo-lightgreen whitespace-nowrap">{t(g.title)}</div>
                 <div className="flex-1 h-px bg-white/10" />
-                <div className="font-normal text-[10.5px] text-white/40">{g.items.length} {g.items.length === 1 ? 'lugar' : 'lugares'}</div>
+                <div className="font-normal text-[10.5px] text-white/40">{t('resto.ubicacion.lugares', { count: g.items.length })}</div>
               </div>
               {g.items.map(p => {
                 const active = selectedId === p.id;
@@ -296,14 +305,14 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-[13.5px] text-white overflow-hidden text-ellipsis whitespace-nowrap">{p.name}</div>
                       <div className="font-light text-[11.5px] leading-[1.5] text-white/55 mt-[2px] overflow-hidden text-ellipsis whitespace-nowrap">
-                        {POI_CATEGORY_LABELS[p.category]}{p.description ? ` · ${p.description}` : ''}
+                        {poiCategoryLabel(p.category, locale)}{p.description ? ` · ${p.description}` : ''}
                       </div>
                     </div>
                     <div className="flex-none text-right">
                       <div className={'font-semibold text-[14px] ' + (active ? 'text-white' : 'text-white/90')}>
-                        {disp ? `${disp.minutes} min` : p.distanceLabel ?? '—'}
+                        {disp ? t('resto.ubicacion.minutos', { n: disp.minutes }) : p.distanceLabel ?? '—'}
                       </div>
-                      <div className="font-normal text-[9.5px] tracking-[.1em] text-white/40 mt-[3px]">{disp?.label ?? ''}</div>
+                      <div className="font-normal text-[9.5px] tracking-[.1em] text-white/40 mt-[3px]">{disp ? t(disp.label) : ''}</div>
                     </div>
                     <a
                       href={directionsHref(p, project.location, mode)}
@@ -322,14 +331,14 @@ function LocationViewInner({ project, typeConfig }: LocationViewProps) {
 
           <div className="border border-dashed border-white/20 rounded-[16px] p-[20px] flex items-center justify-between gap-[16px] flex-wrap bg-trevo-lightgreen/[.08]">
             <div className="min-w-[200px] flex-1">
-              <div className="font-medium text-[14px] text-white">¿Querés ver el barrio en persona?</div>
-              <div className="font-light text-[12px] leading-[1.6] text-white/[.58] mt-[4px]">Coordinamos una recorrida por la zona y la obra.</div>
+              <div className="font-medium text-[14px] text-white">{t('resto.ubicacion.verBarrio')}</div>
+              <div className="font-light text-[12px] leading-[1.6] text-white/[.58] mt-[4px]">{t('resto.ubicacion.coordinamos')}</div>
             </div>
             <button
-              onClick={() => openLead('Hola, quiero coordinar una recorrida por la zona y la obra.')}
+              onClick={() => openLead(t('resto.ubicacion.msgRecorrida'))}
               className="h-[38px] px-[18px] flex items-center bg-white rounded-full text-[12px] font-semibold text-trevo-dark cursor-pointer flex-none"
             >
-              Agendar visita
+              {t('resto.agendarVisita')}
             </button>
           </div>
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Unit } from '@/types';
 import { unitGalleryImages } from '@/lib/units';
+import { useT } from '@/lib/i18n/client';
 
 const VirtualTour = dynamic(() => import('@/components/tour/VirtualTour'), { ssr: false });
 
@@ -41,8 +42,9 @@ function ImagePane({ url, emptyText, bare }: { url: string | undefined | null; e
 // principal arriba + tira de miniaturas clickeables abajo, en vez de solo
 // flechas — más chica porque acá el panel mide la mitad de la pantalla.
 function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
+  const t = useT();
   const [index, setIndex] = useState(0);
-  if (images.length === 0) return <EmptyPane text="Esta unidad no tiene galería cargada." />;
+  if (images.length === 0) return <EmptyPane text={t('unidad.comparar.sinGaleria')} />;
   const safeIndex = Math.min(index, images.length - 1);
 
   return (
@@ -54,7 +56,7 @@ function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
           <>
             <button
               onClick={() => setIndex(i => (i - 1 + images.length) % images.length)}
-              aria-label="Foto anterior"
+              aria-label={t('unidad.comparar.fotoAnterior')}
               className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -63,7 +65,7 @@ function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
             </button>
             <button
               onClick={() => setIndex(i => (i + 1) % images.length)}
-              aria-label="Foto siguiente"
+              aria-label={t('unidad.comparar.fotoSiguiente')}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -87,7 +89,7 @@ function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
               <button
                 key={i}
                 onClick={() => setIndex(i)}
-                aria-label={`Ver foto ${i + 1} de ${images.length}`}
+                aria-label={t('unidad.comparar.verFotoDe', { n: i + 1, total: images.length })}
                 aria-current={i === safeIndex ? 'true' : undefined}
                 className={`relative flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden transition-opacity duration-150 ${
                   i === safeIndex ? 'ring-2 ring-inset ring-gray-900 opacity-100' : 'opacity-50 hover:opacity-80'
@@ -111,15 +113,16 @@ function GalleryPane({ images, bare }: { images: string[]; bare?: boolean }) {
 // `bare`: para las tarjetas chicas del comparador mobile — sin marco ni
 // tira de miniaturas.
 export default function ComparePaneContent({ unit, contentType, bare = false }: { unit: Unit; contentType: CompareContentType; bare?: boolean }) {
+  const t = useT();
   switch (contentType) {
     case 'tour360':
       return unit.tourImageUrl || unit.tourData
         ? <VirtualTour imageUrl={unit.tourImageUrl} tourData={unit.tourData} hideNodeNav />
-        : <EmptyPane text="Esta unidad todavía no tiene recorrido 360° cargado." />;
+        : <EmptyPane text={t('unidad.comparar.sinTour')} />;
     case 'planta3d':
-      return <ImagePane url={unit.floorPlan3dUrl} emptyText="Esta unidad no tiene planta 3D cargada." bare={bare} />;
+      return <ImagePane url={unit.floorPlan3dUrl} emptyText={t('unidad.comparar.sinPlanta3d')} bare={bare} />;
     case 'plano':
-      return <ImagePane url={unit.technicalPlanUrl || unit.plan3dUrl} emptyText="Esta unidad no tiene plano técnico cargado." bare={bare} />;
+      return <ImagePane url={unit.technicalPlanUrl || unit.plan3dUrl} emptyText={t('unidad.comparar.sinPlanoTecnico')} bare={bare} />;
     case 'galeria':
       return <GalleryPane key={unit.id} images={unitGalleryImages(unit)} bare={bare} />;
   }

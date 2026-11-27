@@ -4,9 +4,10 @@ import { useId, useState } from 'react';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { Unit } from '@/types';
-import { formatPrice, getStatusLabel } from '@/lib/units';
+import { formatPrice, getStatusLabel, unitTypeLabel } from '@/lib/units';
 import Badge from '@/components/ui/Badge';
 import Dialog from '@/components/ui/Dialog';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface UnitModalProps {
   unit: Unit | null;
@@ -20,6 +21,9 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
   const [shown, setShown] = useState(unit);
   if (unit && unit !== shown) setShown(unit);
   const current = unit ?? shown;
+  const t = useT();
+  const { locale } = useLocale();
+  const canTour = !!current?.tourImageUrl && current.status !== 'sold';
 
   return (
     <Dialog
@@ -36,7 +40,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                 <button
                   onClick={onClose}
                   className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
-                  aria-label="Cerrar"
+                  aria-label={t('resto.cerrar')}
                 >
                   <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -49,11 +53,11 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                   </div>
                   <div>
                     <h2 id={titleId} className="text-lg font-semibold text-white">{current.name}</h2>
-                    <p className="text-sm text-white/50">{current.buildingId} · Piso {current.floor}</p>
+                    <p className="text-sm text-white/50">{current.buildingId} · {t('resto.masterplan.pisoN', { n: current.floor })}</p>
                   </div>
                 </div>
 
-                <Badge status={current.status} />
+                <Badge status={current.status} locale={locale} />
               </div>
 
               {/* Details grid */}
@@ -65,8 +69,8 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                       </svg>
                     }
-                    label="Tipología"
-                    value={current.type.charAt(0).toUpperCase() + current.type.slice(1)}
+                    label={t('resto.masterplan.tipologia')}
+                    value={unitTypeLabel(current.type, locale)}
                   />
                   <DetailItem
                     icon={
@@ -74,7 +78,7 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                       </svg>
                     }
-                    label="Superficie"
+                    label={t('resto.masterplan.superficie')}
                     value={`${current.totalArea} m²`}
                   />
                   <DetailItem
@@ -83,8 +87,8 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                       </svg>
                     }
-                    label="Precio"
-                    value={current.price ? formatPrice(current.price, current.currency) : 'Consultar'}
+                    label={t('resto.masterplan.precio')}
+                    value={current.price ? formatPrice(current.price, current.currency, locale) : t('resto.masterplan.consultar')}
                   />
                   <DetailItem
                     icon={
@@ -92,8 +96,8 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     }
-                    label="Estado"
-                    value={getStatusLabel(current.status)}
+                    label={t('resto.masterplan.estado')}
+                    value={getStatusLabel(current.status, locale)}
                   />
                 </div>
               </div>
@@ -101,16 +105,16 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
               {/* Price per m² */}
               <div className="px-6 py-3 border-t border-white/5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/40">Precio por m²</span>
+                  <span className="text-white/40">{t('resto.masterplan.precioPorM2')}</span>
                   <span className="text-white font-medium">
-                    {current.price ? formatPrice(Math.round(current.price / current.totalArea), current.currency) : '-'}/m²
+                    {current.price ? formatPrice(Math.round(current.price / current.totalArea), current.currency, locale) : '-'}/m²
                   </span>
                 </div>
               </div>
 
               {/* Actions */}
               <div className="px-6 py-5 border-t border-white/5 flex gap-3">
-                {current.tourImageUrl && current.status !== 'sold' && (
+                {canTour && (
                   <Link
                     href={`${basePath}/edificio/${current.buildingId}/unidad/${current.id}`}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all duration-200 hover:shadow-lg hover:shadow-brand-600/25"
@@ -119,14 +123,14 @@ export default function UnitModal({ unit, onClose }: UnitModalProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Ver Tour 360°
+                    {t('resto.masterplan.verTour360')}
                   </Link>
                 )}
                 <button
                   onClick={onClose}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-sm font-medium transition-all duration-200 border border-white/10"
                 >
-                  Cerrar
+                  {t('resto.cerrar')}
                 </button>
               </div>
         </div>

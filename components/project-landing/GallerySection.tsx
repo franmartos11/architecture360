@@ -5,6 +5,10 @@ import type { Project } from '@/types';
 import type { SectionProps } from './types';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import { Container } from './ui';
+import { crearT } from '@/lib/i18n/t';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 // No hay una galería propia que cargar: se arma con las fotos que el
 // proyecto ya tiene (vistas aéreas, portadas de edificios, amenities) para
@@ -29,13 +33,17 @@ export function galleryImages(project: Pick<Project, 'aerialSlides' | 'buildings
   return out;
 }
 
-export default function GallerySection({ project, typeConfig }: SectionProps) {
+export default function GallerySection({ project, typeConfig, locale = 'es' }: SectionProps) {
   const images = galleryImages(project);
   if (images.length < GALLERY_MIN) return null;
+  const t = crearT(locale);
 
   const article = typeConfig.unitLabelGender === 'f' ? 'una' : 'un';
   const isSale = typeConfig.saleMode !== 'showcase';
   const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
+  const isEditorial = template === 'editorial';
+  const isComercial = template === 'comercial';
+  const unidad = typeConfig.unitLabel.toLowerCase();
 
   return (
     <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
@@ -43,11 +51,11 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
         <Reveal>
           <h2 className="m-0 mb-12 text-center font-[family-name:var(--theme-font-heading)] text-[clamp(32px,4.4vw,64px)] leading-[1.05] font-medium tracking-[-0.035em] text-[var(--theme-text)] text-balance">
             {isSale
-              ? <>No es solo {article} {typeConfig.unitLabel.toLowerCase()}. <span className="text-[var(--theme-text-muted)]">Es tu lugar.</span></>
-              : <>Cada decisión, <span className="text-[var(--theme-text-muted)]">a la vista.</span></>}
+              ? <>{t('sitio.galeria.noEsSolo', { articulo: article, unidad })} <span className="text-[var(--theme-text-muted)]">{t('sitio.galeria.esTuLugar')}</span></>
+              : <>{t('sitio.galeria.cadaDecision')} <span className="text-[var(--theme-text-muted)]">{t('sitio.galeria.aLaVista')}</span></>}
           </h2>
         </Reveal>
-        {template === 'editorial' ? (
+        {isEditorial ? (
           <Reveal delay={0.1} className="grid gap-4 md:grid-cols-12">
             {images.map((img, i) => (
               <div
@@ -61,14 +69,14 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
                   alt={img.alt}
                   fill
                   sizes={i === 0 ? '(min-width: 768px) 60vw, 100vw' : '(min-width: 768px) 45vw, 100vw'}
-                  placeholder="blur"
+                  placeholder={BLUR}
                   blurDataURL={shimmerDataUrl()}
                   className="object-cover transition-transform duration-1000 ease-out motion-safe:group-hover:scale-[1.03]"
                 />
               </div>
             ))}
           </Reveal>
-        ) : template === 'comercial' ? (
+        ) : isComercial ? (
           <Reveal delay={0.08} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {images.map(img => (
               <div
@@ -80,7 +88,7 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
                   alt={img.alt}
                   fill
                   sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                  placeholder="blur"
+                  placeholder={BLUR}
                   blurDataURL={shimmerDataUrl()}
                   className="object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-105"
                 />
@@ -100,7 +108,7 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
                   alt={img.alt}
                   fill
                   sizes="(min-width: 1360px) 400px, 30vw"
-                  placeholder="blur"
+                  placeholder={BLUR}
                   blurDataURL={shimmerDataUrl()}
                   className="object-cover"
                 />
@@ -110,7 +118,7 @@ export default function GallerySection({ project, typeConfig }: SectionProps) {
         )}
         {isSale && (
           <p className="mt-10 mx-auto max-w-[520px] text-center text-[17px] leading-normal font-medium text-[var(--theme-text)]">
-            Cada {typeConfig.unitLabel.toLowerCase()} tiene {typeConfig.showPrice ? 'su ficha, su plano y su precio' : 'su ficha y su plano'}. <span className="text-[var(--theme-text-muted)]">Elegí, compará y consultá sin vueltas.</span>
+            {t(typeConfig.showPrice ? 'sitio.galeria.cadaUnidadConPrecio' : 'sitio.galeria.cadaUnidad', { unidad })} <span className="text-[var(--theme-text-muted)]">{t('sitio.galeria.elegi')}</span>
           </p>
         )}
       </Container>

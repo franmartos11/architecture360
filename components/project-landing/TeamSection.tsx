@@ -3,17 +3,19 @@ import Reveal from '@/components/ui/Reveal';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
 // Equipo — créditos confirmados, más allá del dueño del proyecto.
-export default function TeamSection({ project }: SectionProps) {
+export default function TeamSection({ project, locale = 'es' }: SectionProps) {
   if (project.collaborators.length === 0) return null;
+  const t = crearT(locale);
   const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
 
   if (template === 'editorial') {
     return (
       <section className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
-          <SectionHeading eyebrow="Créditos" title="Equipo y autores" className="mb-10" />
+          <SectionHeading eyebrow={t('sitio.equipo.creditos')} title={t('sitio.equipo.tituloEditorial')} className="mb-10" />
           <div className="divide-y divide-[var(--theme-border)] border-y border-[var(--theme-border)]">
             {project.collaborators.map((c, i) => (
               <a
@@ -41,7 +43,7 @@ export default function TeamSection({ project }: SectionProps) {
   return (
     <section className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
       <Reveal className="max-w-[1360px] mx-auto px-4 sm:px-6 mb-12">
-        <SectionHeading eyebrow="Equipo" title="Las personas" muted="detrás del proyecto." />
+        <SectionHeading eyebrow={t('sitio.equipo.eyebrow')} title={t('sitio.equipo.titulo')} muted={t('sitio.detrasDelProyecto')} />
       </Reveal>
       <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {project.collaborators.map((c, i) => (

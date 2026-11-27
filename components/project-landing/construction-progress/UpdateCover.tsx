@@ -5,6 +5,10 @@ import Image from 'next/image';
 import { useInView, useReducedMotion } from 'framer-motion';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { ConstructionUpdate } from '@/types';
+import { useT } from '@/lib/i18n/client';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 /**
  * Portada de una entrada en la historia y el carrusel: el clip si lo hay
@@ -12,10 +16,11 @@ import type { ConstructionUpdate } from '@/types';
  * las entradas sin ninguna de las dos, así que siempre hay algo.
  */
 export default function UpdateCover({ update, sizes, priority }: { update: ConstructionUpdate; sizes: string; priority?: boolean }) {
-  const alt = update.title || 'Avance de obra';
+  const t = useT();
+  const alt = update.title || t('sitio.avance.eyebrow');
   if (update.video) return <CoverClip src={update.video} poster={update.images[0]} label={alt} />;
   if (!update.images[0]) return null;
-  return <Image src={update.images[0]} alt={alt} fill sizes={sizes} placeholder="blur" blurDataURL={shimmerDataUrl()} className="object-cover" priority={priority} />;
+  return <Image src={update.images[0]} alt={alt} fill sizes={sizes} placeholder={BLUR} blurDataURL={shimmerDataUrl()} className="object-cover" priority={priority} />;
 }
 
 /**

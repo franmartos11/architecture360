@@ -9,6 +9,8 @@ import type { Unit, Room } from '@/types';
 import RoomPlanViewer from '../RoomPlanViewer';
 import ParkingPlanViewer from '../ParkingPlanViewer';
 import { parkingFloorGroups } from '@/lib/units';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { etiquetaPiso } from '@/lib/i18n/catalogo';
 
 type PlanView = '3d' | '2d' | 'ambientes' | 'cochera';
 
@@ -39,10 +41,13 @@ export default function PlanoTab({
   // Casa de 2+ plantas: la planta baja vive en roomPlanImage/rooms, las de
   // más arriba en unit.levels — acá se unifican para poder elegir cuál
   // mostrar con el mismo selector.
+  const t = useT();
+  const { locale } = useLocale();
+  const plantaBaja = t('unidad.plantaBaja');
   const levels = useMemo(() => [
-    { label: 'Planta baja', planImage: unit.roomPlanImage || unit.technicalPlanUrl || '', rooms: unit.rooms ?? [] },
-    ...(unit.levels ?? []).map(l => ({ label: l.label, planImage: l.planImage || '', rooms: l.rooms })),
-  ], [unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
+    { label: plantaBaja, planImage: unit.roomPlanImage || unit.technicalPlanUrl || '', rooms: unit.rooms ?? [] },
+    ...(unit.levels ?? []).map(l => ({ label: etiquetaPiso(l.label, locale), planImage: l.planImage || '', rooms: l.rooms })),
+  ], [plantaBaja, locale, unit.roomPlanImage, unit.technicalPlanUrl, unit.rooms, unit.levels]);
   const [activeLevelIdx, setActiveLevelIdx] = useState(0);
   const showLevels = hasRooms || hasPlantaPlans;
   const activeLevel = levels[activeLevelIdx] ?? levels[0];
@@ -66,6 +71,10 @@ export default function PlanoTab({
     }
   }
 
+  const isCochera = planView === 'cochera';
+  const isAmbientes = planView === 'ambientes';
+  const is3d = planView === '3d';
+
   return (
     <motion.div
       key="plano"
@@ -83,7 +92,7 @@ export default function PlanoTab({
               onClick={() => onPlanViewChange('ambientes')}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'ambientes' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              {hasRooms ? 'Ambientes' : 'Plantas'}
+              {t(hasRooms ? 'unidad.plano.ambientes' : 'unidad.plano.plantas')}
             </button>
           )}
           {!!unit.plan3dUrl && (
@@ -91,7 +100,7 @@ export default function PlanoTab({
               onClick={() => onPlanViewChange('3d')}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              Plano 3D
+              {t('unidad.plano.plano3d')}
             </button>
           )}
           {!!unit.technicalPlanUrl && (
@@ -99,7 +108,7 @@ export default function PlanoTab({
               onClick={() => onPlanViewChange('2d')}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === '2d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              Plano técnico
+              {t('unidad.plano.tecnico')}
             </button>
           )}
           {/* Solo si este depto tiene al menos una cochera marcada y con
@@ -110,14 +119,14 @@ export default function PlanoTab({
               onClick={() => onPlanViewChange('cochera')}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${planView === 'cochera' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              Cochera
+              {t('unidad.plano.cochera')}
             </button>
           )}
         </div>
       </div>
 
       {/* Selector de subsuelo — solo si tiene cocheras en más de un piso */}
-      {planView === 'cochera' && parkingGroups.length > 1 && (
+      {isCochera && parkingGroups.length > 1 && (
         <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2">
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
             {parkingGroups.map((g, i) => (
@@ -134,7 +143,7 @@ export default function PlanoTab({
       )}
 
       {/* Selector de planta — solo si hay más de una (casa de 2+ niveles) */}
-      {planView === 'ambientes' && levels.length > 1 && (
+      {isAmbientes && levels.length > 1 && (
         <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2">
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
             {levels.map((l, i) => (
@@ -152,9 +161,9 @@ export default function PlanoTab({
 
       {/* Plan image with zoom */}
       <div className="flex-1 relative overflow-hidden">
-        {planView === 'cochera' && activeParking ? (
+        {isCochera && activeParking ? (
           <ParkingPlanViewer key={activeParking.planImage} planImage={activeParking.planImage} spots={activeParking.spots} />
-        ) : planView === 'ambientes' && showLevels && activeLevel.planImage ? (
+        ) : isAmbientes && showLevels && activeLevel.planImage ? (
           <RoomPlanViewer
             key={activeLevel.planImage}
             planImage={activeLevel.planImage}
@@ -162,17 +171,17 @@ export default function PlanoTab({
             onSelectRoom={onSelectRoom}
             focusRoomId={activeLevel.rooms.some(r => r.id === focusRoomId) ? focusRoomId : undefined}
           />
-        ) : planView === 'ambientes' && showLevels ? (
+        ) : isAmbientes && showLevels ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-            {activeLevel.label} sin plano cargado todavía.
+            {t('unidad.plano.sinPlano', { planta: activeLevel.label })}
           </div>
         ) : (
         <AnimatePresence mode="wait">
           <motion.div
             key={planView}
-            initial={{ opacity: 0, x: planView === '3d' ? -20 : 20 }}
+            initial={{ opacity: 0, x: is3d ? -20 : 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: planView === '3d' ? 20 : -20 }}
+            exit={{ opacity: 0, x: is3d ? 20 : -20 }}
             transition={{ duration: 0.25 }}
             className={`absolute inset-0 flex items-center justify-center ${fill ? '' : 'p-2 sm:p-4'}`}
           >
@@ -195,8 +204,8 @@ export default function PlanoTab({
                   contentStyle={PLAN_CONTENT_STYLE}
                 >
                   <Image
-                    src={planView === '3d' ? (unit.plan3dUrl || unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.plan3dUrl || '')}
-                    alt={planView === '3d' ? 'Plano 3D' : 'Plano técnico'}
+                    src={is3d ? (unit.plan3dUrl || unit.floorPlan3dUrl || '') : (unit.technicalPlanUrl || unit.plan3dUrl || '')}
+                    alt={t(is3d ? 'unidad.plano.plano3d' : 'unidad.plano.tecnico')}
                     width={1200}
                     height={1200}
                     unoptimized={(planView === '2d' ? unit.technicalPlanUrl : unit.plan3dUrl)?.endsWith('.svg')}

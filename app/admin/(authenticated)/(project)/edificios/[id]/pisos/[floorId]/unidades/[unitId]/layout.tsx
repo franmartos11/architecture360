@@ -341,7 +341,7 @@ export default function UnitShellLayout({
           <div className="flex flex-col gap-3 p-4 rounded-xl border border-gray-200 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="m-0 text-xs font-semibold text-gray-900">Replicar "{unit.code}" a otras {pluralize(unitLabelLower)}</p>
+                <p className="m-0 text-xs font-semibold text-gray-900">Replicar &ldquo;{unit.code}&rdquo; a otras {pluralize(unitLabelLower)}</p>
                 <p className="m-0 text-[11px] text-gray-600 mt-0.5">Copia los bloques elegidos en lote. No cambia códigos, precios, estados ni ubicación en el plano.</p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

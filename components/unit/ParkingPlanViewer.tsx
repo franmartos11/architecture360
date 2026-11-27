@@ -3,6 +3,7 @@
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
 import type { UnitParkingSpot } from '@/types';
+import { useT } from '@/lib/i18n/client';
 
 // Plano del piso de cocheras con el/los espacio(s) de ESTE depto resaltados.
 // Mismo enfoque que RoomPlanViewer: la imagen se muestra a su proporción
@@ -16,6 +17,7 @@ export default function ParkingPlanViewer({
   planImage: string;
   spots: UnitParkingSpot[];
 }) {
+  const t = useT();
   const drawn = spots.filter(s => s.polygon?.length >= 3);
 
   return (
@@ -31,7 +33,7 @@ export default function ParkingPlanViewer({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={planImage}
-              alt="Plano de cocheras"
+              alt={t('unidad.plano.cocheras')}
               className="block max-w-[100cqw] max-h-[100cqh] w-auto h-auto select-none"
               draggable={false}
             />
@@ -59,7 +61,7 @@ export default function ParkingPlanViewer({
                   style={{ left: `${center.x}%`, top: `${center.y}%`, transform: 'translate(-50%, -50%)' }}
                 >
                   <span className="bg-gray-900 text-white text-[11px] font-semibold rounded-md px-2 py-0.5 whitespace-nowrap shadow-lg">
-                    {spot.label || 'Tu cochera'}
+                    {spot.label || t('unidad.plano.tuCochera')}
                   </span>
                 </div>
               );

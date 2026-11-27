@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
+import { useT } from '@/lib/i18n/client';
 
 // El visor BIM no se monta en mobile: en un celular la geometría tarda
 // mucho o directamente no carga, y la experiencia termina en una pantalla
@@ -19,6 +20,7 @@ export default function BimMobileGate({ coverImage, title, children }: {
   children: React.ReactNode;
 }) {
   // null en el servidor: no se decide (ni se monta el visor) hasta saber el ancho.
+  const t = useT();
   const wide = useSyncExternalStore(subscribe, () => window.matchMedia(WIDE_QUERY).matches, () => null);
   if (wide === null) return null;
   if (wide) return <>{children}</>;
@@ -30,7 +32,7 @@ export default function BimMobileGate({ coverImage, title, children }: {
         </div>
       )}
       <p className="text-[15px] leading-relaxed text-gray-600">
-        El modelo 3D está pensado para verse desde una computadora o una tablet. Abrí este link desde ahí para recorrerlo.
+        {t('resto.bim.soloEscritorio')}
       </p>
     </div>
   );

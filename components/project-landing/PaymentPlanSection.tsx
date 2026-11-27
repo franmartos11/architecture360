@@ -2,8 +2,10 @@ import Reveal from '@/components/ui/Reveal';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function PaymentPlanSection({ project }: SectionProps) {
+export default function PaymentPlanSection({ project, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   const items = (project.themeConfig?.paymentPlanItems ?? []).filter(
     step => step.label.trim() && step.value.trim()
   );
@@ -11,17 +13,18 @@ export default function PaymentPlanSection({ project }: SectionProps) {
 
   const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
   const note = project.themeConfig?.paymentPlanNote?.trim();
+  const isEditorial = template === 'editorial';
 
   return (
     <section id="pagos" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
       <Container>
         <SectionHeading
-          eyebrow="Financiación"
-          title="Esquema de compra"
-          muted={template === 'editorial' ? undefined : 'claro y flexible'}
+          eyebrow={t('sitio.pagos.eyebrow')}
+          title={t('sitio.pagos.titulo')}
+          muted={isEditorial ? undefined : t('sitio.pagos.tituloAtenuado')}
         />
         <Reveal delay={0.08}>
-          {template === 'editorial' ? (
+          {isEditorial ? (
             <ol className="mt-10 m-0 p-0 list-none grid gap-6 sm:grid-cols-2 lg:grid-cols-4 border-t border-[var(--theme-border)] pt-6">
               {items.map((step, i) => (
                 <li key={`${step.label}-${i}`} className="flex flex-col gap-2">

@@ -5,6 +5,7 @@ import { animate, m, useInView, useReducedMotion } from 'framer-motion';
 import { currentStageIndex } from '@/lib/construction-progress';
 import type { ConstructionProgress } from '@/types';
 import { Pill } from '../ui';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Resumen: porcentaje que cuenta hasta su valor al entrar en pantalla,
@@ -14,6 +15,7 @@ export default function Summary({ progress, onLapse }: { progress: ConstructionP
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '0px 0px -15% 0px' });
   const reduce = useReducedMotion();
+  const t = useT();
   const [shown, setShown] = useState(0);
   const percent = progress.percent;
   const current = currentStageIndex(progress);
@@ -44,14 +46,14 @@ export default function Summary({ progress, onLapse }: { progress: ConstructionP
               )}
               {currentLabel && (
                 <div className="pb-2 flex flex-col gap-1">
-                  <span className="text-sm text-[var(--theme-text-muted)]">Etapa actual</span>
+                  <span className="text-sm text-[var(--theme-text-muted)]">{t('sitio.avance.etapaActual')}</span>
                   <span className="text-lg font-semibold">{currentLabel}</span>
                 </div>
               )}
             </div>
           )}
           {percent != null && (
-            <div className="h-1.5 rounded-full bg-[var(--theme-border)] overflow-hidden" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Avance general de la obra">
+            <div className="h-1.5 rounded-full bg-[var(--theme-border)] overflow-hidden" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={t('sitio.avance.avanceGeneral')}>
               <m.div
                 className="h-full rounded-full bg-[var(--theme-accent)] origin-left"
                 initial={{ scaleX: 0 }}
@@ -63,9 +65,9 @@ export default function Summary({ progress, onLapse }: { progress: ConstructionP
           {(progress.deliveryEstimate || onLapse) && (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 justify-between">
               {progress.deliveryEstimate && (
-                <span className="text-[15px]"><span className="text-[var(--theme-text-muted)]">Entrega estimada · </span><span className="font-semibold">{progress.deliveryEstimate}</span></span>
+                <span className="text-[15px]"><span className="text-[var(--theme-text-muted)]">{t('sitio.about.entregaEstimada')} · </span><span className="font-semibold">{progress.deliveryEstimate}</span></span>
               )}
-              {onLapse && <Pill onClick={onLapse} variant="ghost" arrow>Ver time-lapse</Pill>}
+              {onLapse && <Pill onClick={onLapse} variant="ghost" arrow>{t('sitio.avance.verTimeLapse')}</Pill>}
             </div>
           )}
         </div>
@@ -75,7 +77,7 @@ export default function Summary({ progress, onLapse }: { progress: ConstructionP
         <ol
           className="grid gap-2"
           style={{ gridTemplateColumns: `repeat(${progress.stages.length}, minmax(0, 1fr))` }}
-          aria-label="Etapas de la obra"
+          aria-label={t('sitio.avance.etapas')}
         >
           {progress.stages.map((s, i) => {
             const done = current >= 0 && i < current;
@@ -104,20 +106,21 @@ export default function Summary({ progress, onLapse }: { progress: ConstructionP
 }
 
 function StageDot({ done, active }: { done: boolean; active: boolean }) {
+  const t = useT();
   if (done) {
     return (
-      <span className="shrink-0 w-4 h-4 rounded-full bg-[var(--theme-text)] text-[var(--theme-bg)] flex items-center justify-center" aria-label="Terminada">
+      <span className="shrink-0 w-4 h-4 rounded-full bg-[var(--theme-text)] text-[var(--theme-bg)] flex items-center justify-center" aria-label={t('sitio.avance.terminada')}>
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
       </span>
     );
   }
   if (active) {
     return (
-      <span className="relative shrink-0 w-4 h-4 flex items-center justify-center" aria-label="En curso">
+      <span className="relative shrink-0 w-4 h-4 flex items-center justify-center" aria-label={t('sitio.avance.enCurso')}>
         <span className="absolute inset-0 rounded-full bg-[var(--theme-accent)] opacity-40 motion-safe:animate-ping" />
         <span className="relative w-2.5 h-2.5 rounded-full bg-[var(--theme-accent)]" />
       </span>
     );
   }
-  return <span className="shrink-0 w-4 h-4 rounded-full border border-[var(--theme-border)]" aria-label="Pendiente" />;
+  return <span className="shrink-0 w-4 h-4 rounded-full border border-[var(--theme-border)]" aria-label={t('sitio.avance.pendiente')} />;
 }

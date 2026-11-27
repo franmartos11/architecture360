@@ -7,8 +7,12 @@
 import type { Locale } from './locales';
 
 const EN: Record<string, string> = {
-  // Tipologías (units.type)
+  // Tipologías (units.type); los genéricos los pone la Carga guiada
   monoambiente: 'studio',
+  unidad: 'unit',
+  lote: 'lot',
+  casa: 'house',
+  dúplex: 'duplex',
   penthouse: 'penthouse',
   'local comercial': 'commercial unit',
   cochera: 'parking space',
@@ -76,4 +80,23 @@ export function etiquetaCatalogo(valor: string, locale: Locale): string {
   }
   const t = EN[clave];
   return t ? conMayuscula(valor, t) : valor;
+}
+
+/**
+ * Nombre de un piso que generó la plataforma ("Piso 3", "Planta baja", "PB",
+ * "Subsuelo 2") en el idioma del sitio. Uno escrito a mano por la
+ * desarrolladora ("Terraza Norte") queda igual hasta la traducción con IA.
+ */
+export function etiquetaPiso(label: string, locale: Locale): string {
+  if (locale === 'es' || !label) return label;
+  const l = label.trim();
+  const piso = l.match(/^piso (\d+)$/i);
+  if (piso) return `Floor ${piso[1]}`;
+  if (/^(planta baja|pb)$/i.test(l)) return 'Ground floor';
+  if (/^planta alta$/i.test(l)) return 'Upper floor';
+  // El piso único de un loteo o proyecto de una planta (Carga guiada).
+  if (/^plano$/i.test(l)) return 'Site plan';
+  const sub = l.match(/^subsuelo(?: (\d+))?$/i);
+  if (sub) return sub[1] ? `Basement ${sub[1]}` : 'Basement';
+  return label;
 }

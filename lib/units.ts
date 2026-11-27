@@ -36,8 +36,12 @@ export const UNIT_CURRENCIES = ['USD', 'ARS', 'EUR', 'UYU', 'BRL', 'CLP', 'MXN',
 // m² sin colas de float (80.00000001) y sin ceros de más.
 export const fmtM2 = (n: number) => String(Math.round(n * 100) / 100);
 
-export function formatPrice(price: number, currency: string = 'USD'): string {
-  const locale = CURRENCY_LOCALE[currency] ?? 'en-US';
+/**
+ * Precio con el formato de su moneda. En el sitio en inglés (`siteLocale 'en'`)
+ * siempre con separadores de EE. UU.: "$ 85.000.000" en pesos se leería mal.
+ */
+export function formatPrice(price: number, currency: string = 'USD', siteLocale: Locale = 'es'): string {
+  const locale = siteLocale === 'en' ? 'en-US' : (CURRENCY_LOCALE[currency] ?? 'en-US');
   return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
 }
 

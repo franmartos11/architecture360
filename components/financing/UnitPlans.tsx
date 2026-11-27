@@ -5,6 +5,7 @@ import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { planLeadMessage, type FinancingPlan } from '@/lib/financing';
 import { PlanBreakdown, PlanSelector } from './PlanBreakdown';
 import type { Unit } from '@/types';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Planes de pago sobre el precio de una unidad, en el bloque "Cuota" de la
 // ficha en celular: selector, desglose y "Consultar por este plan".
@@ -15,6 +16,8 @@ export default function UnitPlans({ plans, price, currency, projectSlug, unit }:
   projectSlug: string;
   unit: Unit;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const [planId, setPlanId] = useState(plans[0].id);
   const [leadOpen, setLeadOpen] = useState(false);
   const plan = plans.find(p => p.id === planId) ?? plans[0];
@@ -27,14 +30,14 @@ export default function UnitPlans({ plans, price, currency, projectSlug, unit }:
         onClick={() => setLeadOpen(true)}
         className="min-h-11 w-full rounded-xl bg-[#1A1D21] text-white text-[15px] font-semibold"
       >
-        Consultar por este plan
+        {t('resto.financiacion.consultarPlan')}
       </button>
       <LeadCaptureModal
         isOpen={leadOpen}
         onClose={() => setLeadOpen(false)}
         unit={unit}
         projectSlug={projectSlug}
-        initialMessage={planLeadMessage(plan, price, currency, `la unidad ${unit.name}`)}
+        initialMessage={planLeadMessage(plan, price, currency, t('resto.financiacion.msgSujetoUnidad', { nombre: unit.name }), locale)}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { updateIdFromHash } from '@/lib/construction-progress-view';
 import type { ConstructionProgress, ConstructionUpdate } from '@/types';
 import { Container } from '../ui';
 import UpdateCover from './UpdateCover';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 /** "Excavación · Texto…" — la etapa y el texto, lo que haya. */
 function detailLine(progress: ConstructionProgress, u: ConstructionUpdate): string {
@@ -33,6 +34,8 @@ export default function StoryScroll({ progress, updates, total, onMore, onAll }:
   onAll: () => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const t = useT();
+  const { locale } = useLocale();
   const n = updates.length;
   const [active, setActive] = useState(0);
   const { scrollYProgress } = useScroll({ target: trackRef, offset: ['start start', 'end end'] });
@@ -86,11 +89,11 @@ export default function StoryScroll({ progress, updates, total, onMore, onAll }:
                       className="group w-full text-left flex gap-4 py-3.5 border-t border-[var(--theme-border)]"
                     >
                       <span className={`shrink-0 w-[72px] pt-0.5 text-[13px] tabular-nums transition-colors duration-500 ${on ? 'text-[var(--theme-text)] font-semibold' : 'text-[var(--theme-text-muted)]'}`}>
-                        {formatUpdateDate(up.date)}
+                        {formatUpdateDate(up.date, locale)}
                       </span>
                       <span className="min-w-0 flex flex-col gap-1">
                         <span className={`text-[17px] leading-snug font-medium transition-colors duration-500 ${on ? 'text-[var(--theme-text)]' : 'text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text)]'}`}>
-                          {up.title || stageLabelOf(progress, up.stageId) || 'Actualización'}
+                          {up.title || stageLabelOf(progress, up.stageId) || t('sitio.avance.actualizacion')}
                         </span>
                         {/* El texto se abre solo en la activa: la lista se lee de un vistazo. */}
                         {detail && (
@@ -112,7 +115,7 @@ export default function StoryScroll({ progress, updates, total, onMore, onAll }:
                 onClick={onAll}
                 className="shrink-0 py-3.5 border-t border-[var(--theme-border)] w-full text-left text-[15px] font-semibold underline underline-offset-4 decoration-[var(--theme-border)] hover:decoration-[var(--theme-text)] transition-colors"
               >
-                Ver las {total} entradas
+                {t('sitio.avance.verEntradas', { count: total })}
               </button>
             )}
           </div>
@@ -136,14 +139,14 @@ export default function StoryScroll({ progress, updates, total, onMore, onAll }:
                 onClick={() => onMore(u.id)}
                 className="absolute top-4 right-4 px-3.5 py-1.5 rounded-full text-[13px] font-semibold bg-black/45 backdrop-blur-md border border-white/25 text-white hover:bg-black/60 transition-colors"
               >
-                +{u.images.length - 1} {u.images.length === 2 ? 'foto' : 'fotos'}
+                {t('sitio.avance.masFotos', { count: u.images.length - 1 })}
               </button>
             )}
             <div className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between gap-4 bg-gradient-to-t from-black/55 to-transparent text-white pointer-events-none">
               <AnimatePresence mode="wait" initial={false}>
                 <m.span key={u.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35 }} className="flex flex-col">
                   {stage && <span className="text-xs tracking-[0.18em] uppercase text-white/75">{stage}</span>}
-                  <span className="text-2xl font-semibold tracking-[-0.02em]">{formatUpdateDate(u.date)}</span>
+                  <span className="text-2xl font-semibold tracking-[-0.02em]">{formatUpdateDate(u.date, locale)}</span>
                 </m.span>
               </AnimatePresence>
               {n > 1 && (

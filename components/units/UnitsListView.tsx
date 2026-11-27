@@ -5,9 +5,12 @@ import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { ProjectTypeProvider } from '@/lib/project-type-context';
+import { ProjectTypeProvider, useProjectTypeConfig } from '@/lib/project-type-context';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { T } from '@/lib/i18n/t';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel, pluralize, unitCategory, unitIsDwelling, UNIT_CATEGORY_LABEL } from '@/lib/units';
+import { formatPrice, getStatusLabel, getStatusColor, unitTypeLabel, pluralize, unitCategory, unitIsDwelling, unitCategoryLabel } from '@/lib/units';
 import { unitAgreement, type ProjectTypeConfig } from '@/lib/project-types';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useUnitFavorites } from '@/hooks/useUnitFavorites';
@@ -32,15 +35,18 @@ const STATUS_ORDER: UnitStatus[] = ['available', 'reserved', 'sold'];
 // Chips de categoría (solo si el proyecto mezcla viviendas con locales /
 // cocheras) — en plural, como filtro.
 const CATEGORY_ORDER: UnitCategory[] = ['vivienda', 'comercial', 'cochera'];
-const CATEGORY_CHIP_LABEL: Record<UnitCategory, string> = {
-  vivienda: 'Viviendas',
-  comercial: 'Locales',
-  cochera: 'Cocheras',
-};
+const CATEGORY_CHIP_KEY = {
+  vivienda: 'plano.lista.categoria.vivienda',
+  comercial: 'plano.lista.categoria.comercial',
+  cochera: 'plano.lista.categoria.cochera',
+} as const satisfies Record<UnitCategory, string>;
 
-function placeLabel(unit: Unit, buildingName: string | undefined, hasFloorStep: boolean): string {
+// next/image: el modo de placeholder no es texto visible.
+const BLUR = 'blur' as const;
+
+function placeLabel(unit: Unit, buildingName: string | undefined, hasFloorStep: boolean, t: T): string {
   return (hasFloorStep
-    ? [buildingName, unit.floor === 0 ? 'Planta baja' : `Piso ${unit.floor}`]
+    ? [buildingName, unit.floor === 0 ? t('plano.piso.plantaBaja') : t('plano.piso.n', { n: unit.floor })]
     : [buildingName]
   ).filter(Boolean).join(' · ');
 }
@@ -58,9 +64,9 @@ function dormRank(u: Unit): number {
   return unitIsDwelling(u) ? u.bedrooms : -1;
 }
 
-function unitTags(u: Unit): string[] {
+function unitTags(u: Unit, t: T): string[] {
   const tags: string[] = [];
-  if (unitHasFeat(u, 'plano')) tags.push('Plano');
+  if (unitHasFeat(u, 'plano')) tags.push(t('plano.lista.tag.plano'));
   if (unitHasFeat(u, 'tour')) tags.push('360°');
   return tags.slice(0, 2);
 }
@@ -75,11 +81,17 @@ export default function UnitsListView({ project, initialQuery, typeConfig }: Uni
 
 function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListViewProps) {
   const basePath = useProjectBasePath();
-  const { hasFloorStep, buildingLabel, unitLabel, unitIsLand, showPrice, showStatus } = typeConfig;
+  const t = useT();
+  const { locale } = useLocale();
+  // Las etiquetas (Unidad/Lote, Torre/Etapa) en el idioma de la página: las
+  // da el contexto (ProjectTypeProvider, arriba). En castellano, las de la prop.
+  const typeConfigEnIdioma = useProjectTypeConfig();
+  const { hasFloorStep, unitIsLand, showPrice, showStatus } = typeConfig;
+  const { buildingLabel, unitLabel } = locale === 'es' ? typeConfig : typeConfigEnIdioma;
   const uAgree = unitAgreement(typeConfig);
   const unitLabelLower = unitLabel.toLowerCase();
   const buildingLabelLower = buildingLabel.toLowerCase();
-  const unitLabelPlural = pluralize(unitLabel);
+  const unitLabelPlural = pluralize(unitLabel, locale);
   const unitLabelPluralLower = unitLabelPlural.toLowerCase();
   const hasMultipleBuildings = project.buildings.length > 1;
 
@@ -194,15 +206,16 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
 
   const presentFeats = useMemo(() => {
     const base: { key: FeatKey; label: string }[] = [
-      { key: 'plano', label: 'Con plano' },
-      { key: 'tour', label: 'Recorrido 360°' },
-      { key: 'balcon', label: 'Con balcón' },
+      { key: 'plano', label: t('plano.lista.feat.plano') },
+      { key: 'tour', label: t('plano.lista.feat.tour') },
+      { key: 'balcon', label: t('plano.lista.feat.balcon') },
     ];
     const extra = new Set<string>();
     project.units.forEach(u => (u.features ?? []).forEach(f => extra.add(f)));
-    const all = [...base, ...Array.from(extra).map(f => ({ key: f as FeatKey, label: f }))];
+    // La característica guardada (en castellano) es la clave del filtro; solo la etiqueta cambia.
+    const all = [...base, ...Array.from(extra).map(f => ({ key: f as FeatKey, label: etiquetaCatalogo(f, locale) }))];
     return all.filter(f => project.units.some(u => unitHasFeat(u, f.key)));
-  }, [project.units]);
+  }, [project.units, t, locale]);
 
   const hasAdvancedFacets = !!priceBounds || !!areaBounds || hasMultipleBuildings || presentFeats.length > 0;
 
@@ -248,9 +261,9 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
 
   const filterSummary = () => {
     const parts: string[] = [];
-    if (categoryFilter !== 'all') parts.push(UNIT_CATEGORY_LABEL[categoryFilter].toLowerCase());
-    parts.push(typeFilter === 'all' ? `todas las tipologías` : unitTypeLabel(typeFilter));
-    if (showPrice && priceBounds) parts.push(`hasta ${formatPrice(effectiveMaxPrice)}`);
+    if (categoryFilter !== 'all') parts.push(unitCategoryLabel(categoryFilter, locale).toLowerCase());
+    parts.push(typeFilter === 'all' ? t('plano.lista.msgTodasTipologias') : unitTypeLabel(typeFilter, locale));
+    if (showPrice && priceBounds) parts.push(t('plano.lista.msgHasta', { precio: formatPrice(effectiveMaxPrice, undefined, locale) }));
     return parts.join(' · ');
   };
 
@@ -264,34 +277,36 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
   const bestPrice = cmpPriced.length ? Math.min(...cmpPriced.map(u => u.price!)) : null;
 
   const cmpRows: { label: string; vals: { text: string; hi: boolean }[] }[] = [];
-  if (!unitIsLand) cmpRows.push({ label: 'TIPOLOGÍA', vals: cmpUnits.map(u => ({ text: unitTypeLabel(u.type), hi: false })) });
-  cmpRows.push({ label: 'UBICACIÓN', vals: cmpUnits.map(u => ({ text: placeLabel(u, buildingName(u.buildingId), hasFloorStep) || '—', hi: false })) });
-  cmpRows.push({ label: 'SUPERFICIE', vals: cmpUnits.map(u => ({ text: `${u.totalArea} m²`, hi: u.totalArea === bestArea })) });
-  if (!unitIsLand && cmpDwellings.length > 0) cmpRows.push({ label: 'AMBIENTES', vals: cmpUnits.map(u => unitIsDwelling(u)
-    ? { text: `${u.bedrooms} dorm · ${u.bathrooms} baños`, hi: u.bedrooms === bestBedrooms }
+  if (!unitIsLand) cmpRows.push({ label: t('plano.lista.cmp.tipologia'), vals: cmpUnits.map(u => ({ text: unitTypeLabel(u.type, locale), hi: false })) });
+  cmpRows.push({ label: t('plano.lista.cmp.ubicacion'), vals: cmpUnits.map(u => ({ text: placeLabel(u, buildingName(u.buildingId), hasFloorStep, t) || '—', hi: false })) });
+  cmpRows.push({ label: t('plano.lista.cmp.superficie'), vals: cmpUnits.map(u => ({ text: `${u.totalArea} m²`, hi: u.totalArea === bestArea })) });
+  if (!unitIsLand && cmpDwellings.length > 0) cmpRows.push({ label: t('plano.lista.cmp.ambientes'), vals: cmpUnits.map(u => unitIsDwelling(u)
+    ? { text: t('plano.lista.cmp.ambientesValor', { dorm: u.bedrooms, banos: u.bathrooms }), hi: u.bedrooms === bestBedrooms }
     : { text: '—', hi: false }) });
-  if (cmpUnits.some(u => u.orientation)) cmpRows.push({ label: 'ORIENTACIÓN', vals: cmpUnits.map(u => ({ text: u.orientation || '—', hi: false })) });
+  if (cmpUnits.some(u => u.orientation)) cmpRows.push({ label: t('plano.lista.cmp.orientacion'), vals: cmpUnits.map(u => ({ text: u.orientation || '—', hi: false })) });
   if (showPrice) {
-    cmpRows.push({ label: 'PRECIO', vals: cmpUnits.map(u => ({ text: u.price != null ? formatPrice(u.price, u.currency) : 'Consultar', hi: u.price != null && u.price === bestPrice })) });
-    cmpRows.push({ label: 'VALOR / M²', vals: cmpUnits.map(u => ({ text: u.price != null && u.totalArea > 0 ? formatPrice(Math.round(u.price / u.totalArea), u.currency) : '—', hi: false })) });
+    cmpRows.push({ label: t('plano.lista.cmp.precio'), vals: cmpUnits.map(u => ({ text: u.price != null ? formatPrice(u.price, u.currency, locale) : t('plano.consultar'), hi: u.price != null && u.price === bestPrice })) });
+    cmpRows.push({ label: t('plano.lista.cmp.valorM2'), vals: cmpUnits.map(u => ({ text: u.price != null && u.totalArea > 0 ? formatPrice(Math.round(u.price / u.totalArea), u.currency, locale) : '—', hi: false })) });
   }
-  if (showStatus) cmpRows.push({ label: 'ESTADO', vals: cmpUnits.map(u => ({ text: getStatusLabel(u.status), hi: false })) });
+  if (showStatus) cmpRows.push({ label: t('plano.lista.cmp.estado'), vals: cmpUnits.map(u => ({ text: getStatusLabel(u.status, locale), hi: false })) });
 
   type ColKey = 'unidad' | 'ubicacion' | 'tipologia' | 'm2' | 'dorm' | 'banos' | 'estado' | 'precio' | 'acciones';
   const columns: { key: ColKey; label: string; width: string; end?: boolean }[] = [
     { key: 'unidad', label: unitLabel, width: '1.4fr' },
-    { key: 'ubicacion', label: 'Ubicación', width: '1fr' },
-    ...(!unitIsLand ? [{ key: 'tipologia' as const, label: 'Tipología', width: '1.2fr' }] : []),
+    { key: 'ubicacion', label: t('plano.lista.col.ubicacion'), width: '1fr' },
+    ...(!unitIsLand ? [{ key: 'tipologia' as const, label: t('plano.lista.col.tipologia'), width: '1.2fr' }] : []),
     { key: 'm2', label: 'm²', width: '.7fr' },
     ...(!unitIsLand && hasDwellings ? [
-      { key: 'dorm' as const, label: 'Dorm', width: '.6fr' },
-      { key: 'banos' as const, label: 'Baños', width: '.6fr' },
+      { key: 'dorm' as const, label: t('plano.lista.col.dorm'), width: '.6fr' },
+      { key: 'banos' as const, label: t('plano.lista.col.banos'), width: '.6fr' },
     ] : []),
-    ...(showStatus ? [{ key: 'estado' as const, label: 'Estado', width: '1.4fr' }] : []),
-    ...(showPrice ? [{ key: 'precio' as const, label: 'Precio', width: '.9fr' }] : []),
+    ...(showStatus ? [{ key: 'estado' as const, label: t('plano.lista.col.estado'), width: '1.4fr' }] : []),
+    ...(showPrice ? [{ key: 'precio' as const, label: t('plano.lista.col.precio'), width: '.9fr' }] : []),
     { key: 'acciones', label: '', width: 'auto', end: true },
   ];
   const gridTemplate = columns.map(c => c.width).join(' ');
+  const enFichas = vista === 'grid';
+  const filtraPor = [!unitIsLand && t('plano.lista.hero.criterioTipologia'), hasMultipleBuildings && buildingLabelLower, t('plano.lista.hero.criterioPresupuesto')].filter(Boolean).join(', ');
 
   return (
     <div className="min-h-screen bg-white wide:bg-trevo-light wide:pb-[120px]">
@@ -311,20 +326,21 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
           showStatus={showStatus}
           showLeads={typeConfig.showLeads}
           unitLabelPluralLower={unitLabelPluralLower}
+          unitLabelLower={unitLabelLower}
           unitHref={u => `${basePath}/edificio/${u.buildingId}/unidad/${u.id}` + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '')}
-          categories={hasCategoryFilterRow ? categoriesPresent.map(c => ({ value: c, label: CATEGORY_CHIP_LABEL[c] })) : []}
+          categories={hasCategoryFilterRow ? categoriesPresent.map(c => ({ value: c, label: t(CATEGORY_CHIP_KEY[c]) })) : []}
           categoryFilter={categoryFilter}
           setCategoryFilter={setCategoryFilter}
           orden={orden}
           setOrden={setOrden}
           sortOptions={[
-            { value: 'piso', label: 'Por piso' },
+            { value: 'piso', label: t('plano.lista.orden.porPiso') },
             ...(showPrice && pricedUnits.length > 0 ? [
-              { value: 'precio-asc' as const, label: 'Menor precio' },
-              { value: 'precio-desc' as const, label: 'Mayor precio' },
+              { value: 'precio-asc' as const, label: t('plano.lista.orden.menorPrecio') },
+              { value: 'precio-desc' as const, label: t('plano.lista.orden.mayorPrecio') },
             ] : []),
-            { value: 'm2-desc', label: 'Más m²' },
-            ...(!unitIsLand && hasDwellings ? [{ value: 'dorm-desc' as const, label: 'Más dormitorios' }] : []),
+            { value: 'm2-desc', label: t('plano.lista.orden.masM2') },
+            ...(!unitIsLand && hasDwellings ? [{ value: 'dorm-desc' as const, label: t('plano.lista.orden.masDorm') }] : []),
           ]}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
@@ -360,7 +376,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               fill
               sizes="100vw"
               priority
-              placeholder="blur"
+              placeholder={BLUR}
               blurDataURL={shimmerDataUrl(1920, 1080)}
               className="object-cover opacity-50"
             />
@@ -375,24 +391,22 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
           <div className="flex items-end justify-between gap-[32px] flex-wrap mt-[16px]">
             <div className="min-w-[260px] flex-1">
               <div className="font-semibold text-[11px] tracking-[.2em] text-trevo-lightgreen">
-                {unitLabelPlural.toUpperCase()} DISPONIBLES
+                {t('plano.lista.hero.disponibles', { unidades: unitLabelPlural.toUpperCase() })}
               </div>
               <div className="font-extralight text-[clamp(34px,5vw,52px)] leading-[1.06] text-white mt-[10px] text-pretty">
-                Encontrá tu{' '}
-                {unitIsLand
-                  ? <span className="font-medium">próximo terreno</span>
-                  : <span className="font-medium">próximo hogar</span>}
+                {t('plano.lista.hero.encontra')}{' '}
+                <span className="font-medium">{unitIsLand ? t('plano.lista.hero.proximoTerreno') : t('plano.lista.hero.proximoHogar')}</span>
               </div>
               <div className="font-light text-[13.5px] leading-[1.6] text-white/[.68] mt-[12px] max-w-[440px]">
-                Filtrá por {[!unitIsLand && 'tipología', hasMultipleBuildings && buildingLabelLower, 'presupuesto'].filter(Boolean).join(', ')}.
-                {' '}Compará hasta tres {unitLabelPluralLower} y pedí la que te interese sin salir de esta página.
+                {t('plano.lista.hero.filtraPor', { criterios: filtraPor })}
+                {' '}{t('plano.lista.hero.compara', { unidades: unitLabelPluralLower })}
               </div>
             </div>
             <div className="grid grid-cols-2 sm:flex gap-x-[26px] gap-y-[16px] sm:flex-wrap">
               <Stat value={project.units.length} label={unitLabelPlural.toUpperCase()} />
-              {showStatus && <Stat value={availableCount} label="DISPONIBLES" />}
-              {hasMultipleBuildings && <Stat value={project.buildings.length} label={pluralize(buildingLabel).toUpperCase()} />}
-              {showPrice && minPrice != null && <Stat value={formatPrice(minPrice, minPriceCurrency)} label="DESDE" />}
+              {showStatus && <Stat value={availableCount} label={t('plano.lista.stat.disponibles')} />}
+              {hasMultipleBuildings && <Stat value={project.buildings.length} label={pluralize(buildingLabel, locale).toUpperCase()} />}
+              {showPrice && minPrice != null && <Stat value={formatPrice(minPrice, minPriceCurrency, locale)} label={t('plano.lista.stat.desde')} />}
             </div>
           </div>
         </div>
@@ -405,26 +419,26 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
           <div className="flex items-center gap-[14px] flex-wrap">
             <div className="flex items-center gap-[9px] flex-wrap">
               <Chip active={typeFilter === 'all' && categoryFilter === 'all' && statusFilter === 'all' && !onlyFavs} onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); setStatusFilter('all'); setOnlyFavs(false); }}>
-                Todas · {project.units.length}
+                {t('plano.lista.todas', { n: project.units.length })}
               </Chip>
               {hasCategoryFilterRow && categoriesPresent.map(c => (
                 <Chip key={c} active={categoryFilter === c} onClick={() => setCategoryFilter(categoryFilter === c ? 'all' : c)}>
-                  {CATEGORY_CHIP_LABEL[c]} · {project.units.filter(u => unitCategory(u) === c).length}
+                  {t(CATEGORY_CHIP_KEY[c])} · {project.units.filter(u => unitCategory(u) === c).length}
                 </Chip>
               ))}
-              {hasTypeFilterRow && typeChips.map(t => (
-                <Chip key={t} active={typeFilter === t} onClick={() => setTypeFilter(typeFilter === t ? 'all' : t)}>
-                  {unitTypeLabel(t)} · {project.units.filter(u => u.type === t).length}
+              {hasTypeFilterRow && typeChips.map(tipo => (
+                <Chip key={tipo} active={typeFilter === tipo} onClick={() => setTypeFilter(typeFilter === tipo ? 'all' : tipo)}>
+                  {unitTypeLabel(tipo, locale)} · {project.units.filter(u => u.type === tipo).length}
                 </Chip>
               ))}
               {showStatus && STATUS_ORDER.map(s => (
                 <Chip key={s} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}>
-                  {getStatusLabel(s)} · {project.units.filter(u => u.status === s).length}
+                  {getStatusLabel(s, locale)} · {project.units.filter(u => u.status === s).length}
                 </Chip>
               ))}
               {favorites.length > 0 && (
                 <Chip active={onlyFavs} onClick={() => setOnlyFavs(v => !v)}>
-                  ♥ Favoritas · {favorites.length}
+                  {t('plano.lista.favoritas', { n: favorites.length })}
                 </Chip>
               )}
             </div>
@@ -441,7 +455,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   }
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
-                  {advOpen ? 'Menos filtros' : 'Más filtros'}
+                  {advOpen ? t('plano.lista.menosFiltros') : t('plano.lista.masFiltros')}
                 </button>
               )}
               <div className="relative">
@@ -450,11 +464,11 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   onChange={e => setOrden(e.target.value as Orden)}
                   className="h-[34px] pl-[12px] pr-[30px] rounded-full border border-trevo-dark/[.16] bg-white text-[12px] font-medium text-trevo-dark cursor-pointer appearance-none"
                 >
-                  <option value="piso">Orden: {hasFloorStep ? 'por torre y piso' : 'por defecto'}</option>
-                  {showPrice && <option value="precio-asc">Precio: menor a mayor</option>}
-                  {showPrice && <option value="precio-desc">Precio: mayor a menor</option>}
-                  <option value="m2-desc">Superficie: mayor a menor</option>
-                  {!unitIsLand && hasDwellings && <option value="dorm-desc">Más dormitorios</option>}
+                  <option value="piso">{hasFloorStep ? t('plano.lista.orden.torreYPiso') : t('plano.lista.orden.porDefecto')}</option>
+                  {showPrice && <option value="precio-asc">{t('plano.lista.orden.precioAsc')}</option>}
+                  {showPrice && <option value="precio-desc">{t('plano.lista.orden.precioDesc')}</option>}
+                  <option value="m2-desc">{t('plano.lista.orden.m2Desc')}</option>
+                  {!unitIsLand && hasDwellings && <option value="dorm-desc">{t('plano.lista.orden.masDorm')}</option>}
                 </select>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="absolute right-[12px] top-1/2 -translate-y-1/2 pointer-events-none text-trevo-dark/50"><path d="M6 9l6 6 6-6" /></svg>
               </div>
@@ -463,13 +477,13 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   onClick={() => setVista('grid')}
                   className={'h-[32px] px-[14px] flex items-center text-[11.5px] font-medium ' + (vista === 'grid' ? 'bg-trevo-dark text-white' : 'text-trevo-dark/60')}
                 >
-                  Fichas
+                  {t('plano.lista.vista.fichas')}
                 </button>
                 <button
                   onClick={() => setVista('table')}
                   className={'h-[32px] px-[14px] flex items-center text-[11.5px] font-medium ' + (vista === 'table' ? 'bg-trevo-dark text-white' : 'text-trevo-dark/60')}
                 >
-                  Tabla
+                  {t('plano.lista.vista.tabla')}
                 </button>
               </div>
             </div>
@@ -480,8 +494,8 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               {priceBounds && (
                 <div className="flex flex-col gap-[9px]">
                   <div className="flex items-baseline justify-between gap-[10px]">
-                    <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">PRESUPUESTO HASTA</div>
-                    <div className="font-semibold text-[12px] text-trevo-dark">{formatPrice(effectiveMaxPrice)}</div>
+                    <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">{t('plano.lista.presupuestoHasta')}</div>
+                    <div className="font-semibold text-[12px] text-trevo-dark">{formatPrice(effectiveMaxPrice, undefined, locale)}</div>
                   </div>
                   <input
                     type="range"
@@ -497,7 +511,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               {areaBounds && (
                 <div className="flex flex-col gap-[9px]">
                   <div className="flex items-baseline justify-between gap-[10px]">
-                    <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">SUPERFICIE DESDE</div>
+                    <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">{t('plano.lista.superficieDesde')}</div>
                     <div className="font-semibold text-[12px] text-trevo-dark">{effectiveMinArea} m²</div>
                   </div>
                   <input
@@ -515,7 +529,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                 <div className="flex flex-col gap-[9px]">
                   <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">{buildingLabel.toUpperCase()}</div>
                   <div className="flex gap-[8px] flex-wrap">
-                    <Chip size="sm" active={buildingFilter === 'all'} onClick={() => setBuildingFilter('all')}>Todas</Chip>
+                    <Chip size="sm" active={buildingFilter === 'all'} onClick={() => setBuildingFilter('all')}>{t('plano.lista.todasEdificios')}</Chip>
                     {project.buildings.map(b => (
                       <Chip key={b.id} size="sm" active={buildingFilter === b.id} onClick={() => setBuildingFilter(buildingFilter === b.id ? 'all' : b.id)}>
                         {b.name}
@@ -526,7 +540,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               )}
               {presentFeats.length > 0 && (
                 <div className="flex flex-col gap-[9px]">
-                  <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">CARACTERÍSTICAS</div>
+                  <div className="font-semibold text-[10.5px] tracking-[.14em] text-trevo-brown">{t('plano.lista.caracteristicas')}</div>
                   <div className="flex gap-[8px] flex-wrap">
                     {presentFeats.map(f => (
                       <Chip
@@ -548,12 +562,12 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
             <div className="flex items-center gap-[12px] flex-wrap">
               <div className="font-medium text-[12.5px] text-trevo-dark">
                 {filtered.length === project.units.length
-                  ? `${project.units.length} ${unitLabelPluralLower}`
-                  : `${filtered.length} de ${project.units.length} ${unitLabelPluralLower}`}
+                  ? t('plano.lista.total', { total: project.units.length, unidades: unitLabelPluralLower })
+                  : t('plano.lista.filtradas', { n: filtered.length, total: project.units.length, unidades: unitLabelPluralLower })}
               </div>
               {hasFilters && (
                 <button onClick={clearAll} className="text-[11.5px] font-medium text-trevo-green underline underline-offset-[3px]">
-                  Limpiar filtros
+                  {t('plano.lista.limpiarFiltros')}
                 </button>
               )}
             </div>
@@ -562,7 +576,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                 {STATUS_ORDER.map(s => (
                   <div key={s} className="flex items-center gap-[6px]">
                     <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: getStatusColor(s) }} />
-                    <span className="text-[11px] text-trevo-dark/[.62]">{getStatusLabel(s)}</span>
+                    <span className="text-[11px] text-trevo-dark/[.62]">{getStatusLabel(s, locale)}</span>
                   </div>
                 ))}
               </div>
@@ -578,28 +592,28 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
         {filtered.length === 0 ? (
           project.units.length === 0 ? (
             <div className="text-center py-20 text-trevo-dark/40 font-light">
-              Todavía no hay {unitLabelPluralLower} {uAgree.cargado}s.
+              {t('plano.lista.vacia', { unidades: unitLabelPluralLower, cargadas: `${uAgree.cargado}s` })}
             </div>
           ) : (
             <div className="bg-white border border-trevo-dark/[.1] rounded-[16px] p-[52px_28px] text-center">
-              <div className="font-light text-[20px] text-trevo-dark">Ninguna {unitLabelLower} entra en esos filtros</div>
+              <div className="font-light text-[20px] text-trevo-dark">{t('plano.lista.sinResultados', { unidad: unitLabelLower, unidades: unitLabelPluralLower })}</div>
               <div className="font-light text-[13px] leading-[1.6] text-trevo-dark/60 mt-[8px] max-w-[400px] mx-auto">
-                Probá ampliar el presupuesto o la superficie. También podemos avisarte cuando entre algo así.
+                {t('plano.lista.sinResultadosAyuda')}
               </div>
               <div className="flex gap-[10px] justify-center flex-wrap mt-[20px]">
                 <button onClick={clearAll} className="h-[40px] px-[20px] flex items-center bg-trevo-dark rounded-full text-[12.5px] font-medium text-white">
-                  Quitar filtros
+                  {t('plano.lista.quitarFiltros')}
                 </button>
                 <button
-                  onClick={() => openLead(`Hola, no encontré ${unitLabelPluralLower} que encajen con mi búsqueda (${filterSummary()}). Avísenme cuando haya algo así.`)}
+                  onClick={() => openLead(t('plano.lista.msgSinResultados', { unidades: unitLabelPluralLower, filtros: filterSummary() }))}
                   className="h-[40px] px-[20px] flex items-center border border-trevo-dark/[.18] rounded-full text-[12.5px] font-medium text-trevo-dark"
                 >
-                  Avisame cuando haya
+                  {t('plano.lista.avisame')}
                 </button>
               </div>
             </div>
           )
-        ) : vista === 'grid' ? (
+        ) : enFichas ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[20px]">
             {filtered.map(u => (
               <UnitCard
@@ -622,16 +636,16 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
             ))}
 
             <div className="border border-dashed border-trevo-dark/[.22] rounded-[16px] p-[22px] flex flex-col justify-center gap-[12px] bg-trevo-lightgreen/[.09]">
-              <div className="font-semibold text-[10.5px] tracking-[.16em] text-trevo-brown">ASESORAMIENTO</div>
-              <div className="font-light text-[19px] leading-[1.3] text-trevo-dark text-pretty">¿No encontrás lo que buscás?</div>
+              <div className="font-semibold text-[10.5px] tracking-[.16em] text-trevo-brown">{t('plano.lista.asesor.titulo')}</div>
+              <div className="font-light text-[19px] leading-[1.3] text-trevo-dark text-pretty">{t('plano.lista.asesor.pregunta')}</div>
               <div className="font-light text-[12px] leading-[1.6] text-trevo-dark/[.62]">
-                Contanos qué necesitás y te mandamos las {unitLabelPluralLower} que mejor encajan{!unitIsLand ? ', con plano y financiación' : ''}.
+                {t(unitIsLand ? 'plano.lista.asesor.texto' : 'plano.lista.asesor.textoConPlano', { unidades: unitLabelPluralLower })}
               </div>
               <button
-                onClick={() => openLead(`Hola, busco ${unitLabelPluralLower} en ${project.name}${hasFilters ? ` (${filterSummary()})` : ''} y me gustaría que un asesor me ayude a encontrar la opción indicada.`)}
+                onClick={() => openLead(t('plano.lista.msgAsesor', { unidades: unitLabelPluralLower, proyecto: project.name, filtros: hasFilters ? ` (${filterSummary()})` : '' }))}
                 className="h-[38px] px-[18px] self-start flex items-center bg-trevo-dark rounded-full text-[12px] font-medium text-white mt-[4px]"
               >
-                Hablar con un asesor
+                {t('plano.lista.asesor.boton')}
               </button>
             </div>
           </div>
@@ -674,7 +688,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
           <div className="max-w-[1220px] mx-auto bg-trevo-dark rounded-[16px] p-[12px_14px_12px_18px] flex items-center justify-between gap-[18px] flex-wrap shadow-[0_26px_52px_-26px_rgba(27,30,28,.7)] pointer-events-auto">
             <div className="flex items-center gap-[14px] flex-wrap min-w-0">
               <div className="font-medium text-[12.5px] text-white">
-                {cmp.length === 1 ? 'Elegí una más para comparar' : `${cmp.length} ${unitLabelPluralLower} seleccionadas`}
+                {cmp.length === 1 ? t('plano.lista.cmp.elegiUnaMas') : t('plano.lista.cmp.seleccionadas', { n: cmp.length, unidades: unitLabelPluralLower })}
               </div>
               <div className="flex gap-[7px] flex-wrap">
                 {cmpUnits.map(u => (
@@ -686,7 +700,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               </div>
             </div>
             <div className="flex items-center gap-[9px]">
-              <button onClick={() => setCmp([])} className="h-[36px] px-[14px] flex items-center text-[12px] font-medium text-white/[.66]">Vaciar</button>
+              <button onClick={() => setCmp([])} className="h-[36px] px-[14px] flex items-center text-[12px] font-medium text-white/[.66]">{t('plano.lista.cmp.vaciar')}</button>
               <button
                 onClick={() => { if (cmp.length >= 2) setCmpOpen(true); }}
                 disabled={cmp.length < 2}
@@ -695,7 +709,7 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   (cmp.length < 2 ? 'bg-white/[.18] text-white/50 cursor-not-allowed' : 'bg-white text-trevo-dark cursor-pointer')
                 }
               >
-                {cmp.length < 2 ? 'Comparar' : `Comparar ${cmp.length} ${unitLabelPluralLower}`}
+                {cmp.length < 2 ? t('plano.lista.cmp.comparar') : t('plano.lista.cmp.compararN', { n: cmp.length, unidades: unitLabelPluralLower })}
               </button>
             </div>
           </div>
@@ -718,8 +732,8 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
               >
                 <div className="p-[20px_24px] border-b border-trevo-dark/[.1] flex items-center justify-between gap-[16px]">
                   <div>
-                    <div className="font-medium text-[16px] text-trevo-dark">Comparar {unitLabelPluralLower}</div>
-                    <div className="font-light text-[11.5px] text-trevo-dark/[.55] mt-[3px]">Lo mejor de cada fila queda resaltado.</div>
+                    <div className="font-medium text-[16px] text-trevo-dark">{t('plano.lista.cmp.titulo', { unidades: unitLabelPluralLower })}</div>
+                    <div className="font-light text-[11.5px] text-trevo-dark/[.55] mt-[3px]">{t('plano.lista.cmp.resaltado')}</div>
                   </div>
                   <button onClick={() => setCmpOpen(false)} className="w-[32px] h-[32px] flex items-center justify-center rounded-[9px] border border-trevo-dark/[.14] text-[16px] text-trevo-dark">×</button>
                 </div>
@@ -767,13 +781,13 @@ function UnitsListViewInner({ project, initialQuery, typeConfig }: UnitsListView
                   </div>
                   <div className="flex gap-[10px] flex-wrap mt-[22px]">
                     <button
-                      onClick={() => { setCmpOpen(false); openLead(`Hola, quiero consultar por estas ${unitLabelPluralLower}: ${cmpUnits.map(u => u.name).join(', ')}.`); }}
+                      onClick={() => { setCmpOpen(false); openLead(t('plano.lista.msgComparar', { unidades: unitLabelPluralLower, nombres: cmpUnits.map(u => u.name).join(', ') })); }}
                       className="h-[40px] px-[20px] flex items-center bg-trevo-dark rounded-full text-[12.5px] font-medium text-white"
                     >
-                      Consultar estas {unitLabelPluralLower}
+                      {t('plano.lista.cmp.consultarEstas', { unidades: unitLabelPluralLower })}
                     </button>
                     <button onClick={() => setCmpOpen(false)} className="h-[40px] px-[20px] flex items-center border border-trevo-dark/[.16] rounded-full text-[12.5px] font-medium text-trevo-dark">
-                      Seguir mirando
+                      {t('plano.lista.cmp.seguirMirando')}
                     </button>
                   </div>
                 </div>
@@ -843,9 +857,11 @@ function UnitCard({
   filtersQuery: string;
   allUnits: Unit[];
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const sold = showStatus && unit.status === 'sold';
   const statusColor = getStatusColor(unit.status);
-  const tags = unitTags(unit);
+  const tags = unitTags(unit, t);
   const img = unit.interiorImageUrl || unit.galleryImages?.[0];
   const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
     + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
@@ -881,23 +897,23 @@ function UnitCard({
             alt={unit.name}
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            placeholder="blur"
+            placeholder={BLUR}
             blurDataURL={shimmerDataUrl()}
             className={'object-cover transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none' + (sold ? ' grayscale' : zoom)}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-trevo-dark/20 text-xs">Sin foto</div>
+          <div className="absolute inset-0 flex items-center justify-center text-trevo-dark/20 text-xs">{t('plano.lista.ficha.sinFoto')}</div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/[.62] via-black/0 to-black/[.16]" />
         {showStatus && (
           <span className="absolute top-[11px] right-[11px] h-[26px] px-[10px] flex items-center gap-[6px] bg-white/[.94] rounded-full text-[10.5px] font-semibold text-trevo-dark">
             <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: statusColor }} />
-            {getStatusLabel(unit.status)}
+            {getStatusLabel(unit.status, locale)}
           </span>
         )}
         <button
           onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleFav(); }}
-          aria-label="Favorita"
+          aria-label={t('plano.lista.ficha.favorita')}
           className="absolute top-[11px] left-[11px] w-[28px] h-[28px] flex items-center justify-center rounded-full bg-white/90"
           style={{ color: isFav ? '#c94a4a' : 'rgba(27,30,28,.55)' }}
         >
@@ -908,7 +924,7 @@ function UnitCard({
         <div className="absolute left-0 right-0 bottom-0 p-[14px_16px] flex items-end justify-between gap-[10px]">
           <div className="min-w-0">
             <p className="text-[10px] text-white/[.78] tracking-[.16em] uppercase font-medium">
-              {placeLabel(unit, buildingName, hasFloorStep)}
+              {placeLabel(unit, buildingName, hasFloorStep, t)}
             </p>
             <h3 className="text-white text-[20px] leading-[1.15] font-medium mt-[4px]">{unit.name}</h3>
           </div>
@@ -925,20 +941,20 @@ function UnitCard({
       <div className="p-[15px_16px_16px] flex flex-col gap-[13px]">
         <div className="flex items-start justify-between gap-[12px]">
           <div className="min-w-0">
-            <p className="text-[13.5px] font-medium text-trevo-dark">{unitIsLand ? unitLabelLower : unitTypeLabel(unit.type)}</p>
+            <p className="text-[13.5px] font-medium text-trevo-dark">{unitIsLand ? unitLabelLower : unitTypeLabel(unit.type, locale)}</p>
             <p className="text-[11.5px] font-light text-trevo-dark/[.58] mt-[3px]">
               {unitIsLand || !unitIsDwelling(unit)
                 ? `${unit.totalArea} m²`
-                : `${unit.totalArea} m² · ${unit.bedrooms} dorm · ${unit.bathrooms} baños`}
+                : t('plano.lista.ficha.medidas', { m2: unit.totalArea, dorm: unit.bedrooms, banos: unit.bathrooms })}
             </p>
           </div>
           {showPrice && (
             <div className="text-right flex-none">
               <p className={'text-[15px] ' + (sold ? 'font-normal text-trevo-dark/[.45]' : 'font-semibold text-trevo-dark')}>
-                {sold ? '—' : unit.price != null ? formatPrice(unit.price, unit.currency) : 'Consultar'}
+                {sold ? '—' : unit.price != null ? formatPrice(unit.price, unit.currency, locale) : t('plano.consultar')}
               </p>
               <p className="text-[10px] font-normal text-trevo-dark/[.45] mt-[3px]">
-                {sold ? 'Vendida' : unit.price != null && unit.totalArea > 0 ? `${formatPrice(Math.round(unit.price / unit.totalArea), unit.currency)} / m²` : ''}
+                {sold ? t('plano.estado.vendida') : unit.price != null && unit.totalArea > 0 ? `${formatPrice(Math.round(unit.price / unit.totalArea), unit.currency, locale)} / m²` : ''}
               </p>
             </div>
           )}
@@ -948,21 +964,21 @@ function UnitCard({
             <span className={'w-[16px] h-[16px] rounded-[5px] flex items-center justify-center text-[10px] text-white ' + (inCmp ? 'bg-trevo-green border border-trevo-green' : 'border border-trevo-dark/[.24]')}>
               {inCmp ? '✓' : ''}
             </span>
-            Comparar
+            {t('plano.lista.cmp.comparar')}
           </button>
           {sold ? (
             similares.length > 0 ? (
               <Link href={similaresHref} className={'text-[11.5px] font-semibold text-trevo-dark/50 hover:decoration-current focus-visible:decoration-current ' + linkAccent}>
-                Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+                {t('plano.lista.ficha.verSimilares', { count: similares.length })}
               </Link>
             ) : (
               <Link href={href} className={'text-[11.5px] font-semibold text-trevo-dark/50 hover:decoration-current focus-visible:decoration-current ' + linkAccent}>
-                Ver {unitLabelLower} →
+                {t('plano.lista.ficha.verUnidad', { unidad: unitLabelLower })}
               </Link>
             )
           ) : (
             <Link href={href} className={'text-[11.5px] font-semibold text-trevo-green group-hover/card:decoration-current group-has-[:focus-visible]/card:decoration-current ' + linkAccent}>
-              Ver {unitLabelLower} →
+              {t('plano.lista.ficha.verUnidad', { unidad: unitLabelLower })}
             </Link>
           )}
         </div>
@@ -987,6 +1003,8 @@ function UnitRow({
   filtersQuery: string;
   allUnits: Unit[];
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const sold = showStatus && unit.status === 'sold';
   const href = `${basePath}/edificio/${unit.buildingId}/unidad/${unit.id}`
     + (filtersQuery ? `?volver=${encodeURIComponent(filtersQuery)}` : '');
@@ -1016,9 +1034,9 @@ function UnitRow({
           </div>
         );
       case 'ubicacion':
-        return <div className="text-[12px] font-normal text-trevo-dark/70">{placeLabel(unit, buildingName, hasFloorStep)}</div>;
+        return <div className="text-[12px] font-normal text-trevo-dark/70">{placeLabel(unit, buildingName, hasFloorStep, t)}</div>;
       case 'tipologia':
-        return <div className="text-[12px] font-normal text-trevo-dark/70">{unitTypeLabel(unit.type)}</div>;
+        return <div className="text-[12px] font-normal text-trevo-dark/70">{unitTypeLabel(unit.type, locale)}</div>;
       case 'm2':
         return <div className="text-[12px] font-medium text-trevo-dark">{unit.totalArea} m²</div>;
       case 'dorm':
@@ -1029,13 +1047,13 @@ function UnitRow({
         return (
           <div className="flex items-center gap-[6px]">
             <span className="w-[7px] h-[7px] rounded-full flex-none" style={{ backgroundColor: getStatusColor(unit.status) }} />
-            <span className="text-[11.5px] font-normal text-trevo-dark/[.72] whitespace-nowrap">{getStatusLabel(unit.status)}</span>
+            <span className="text-[11.5px] font-normal text-trevo-dark/[.72] whitespace-nowrap">{getStatusLabel(unit.status, locale)}</span>
           </div>
         );
       case 'precio':
         return (
           <div className={'text-[12.5px] ' + (sold ? 'font-normal text-trevo-dark/[.45]' : 'font-semibold text-trevo-dark')}>
-            {sold ? '—' : unit.price != null ? formatPrice(unit.price, unit.currency) : 'Consultar'}
+            {sold ? '—' : unit.price != null ? formatPrice(unit.price, unit.currency, locale) : t('plano.consultar')}
           </div>
         );
       case 'acciones':
@@ -1053,16 +1071,16 @@ function UnitRow({
             {sold ? (
               similares.length > 0 ? (
                 <Link href={similaresHref} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-dark/50">
-                  Ver {similares.length} similar{similares.length === 1 ? '' : 'es'} →
+                  {t('plano.lista.ficha.verSimilares', { count: similares.length })}
                 </Link>
               ) : (
                 <Link href={href} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-dark/50">
-                  Ver {unitLabelLower} →
+                  {t('plano.lista.ficha.verUnidad', { unidad: unitLabelLower })}
                 </Link>
               )
             ) : (
               <Link href={href} className="text-[11.5px] font-semibold whitespace-nowrap text-trevo-green">
-                Ver {unitLabelLower} →
+                {t('plano.lista.ficha.verUnidad', { unidad: unitLabelLower })}
               </Link>
             )}
           </div>

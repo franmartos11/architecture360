@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TourData } from '@/types';
 import type { Scene, Viewer } from 'marzipano';
 import type { SunAzimuths } from '@/lib/sun-position';
+import { useT } from '@/lib/i18n/client';
 
 interface VirtualTourProps {
   imageUrl?: string;
@@ -29,7 +30,8 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
   const viewerRef = useRef<ReturnType<typeof Object> | null>(null);
   const scenesRef = useRef<Record<string, Scene>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const t = useT();
+  const [error, setError] = useState(false);
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(focusNodeId || tourData?.initialNodeId || null);
   const sunriseMarkerRef = useRef<HTMLDivElement>(null);
   const sunsetMarkerRef = useRef<HTMLDivElement>(null);
@@ -51,8 +53,8 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
   // pocos segundos, no es un elemento persistente como el indicador de sol.
   useEffect(() => {
     if (!noteVisible) return;
-    const t = setTimeout(() => setNoteVisible(false), NOTE_HIDE_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setNoteVisible(false), NOTE_HIDE_MS);
+    return () => clearTimeout(timer);
   }, [noteVisible, currentNodeId]);
 
   useEffect(() => {
@@ -219,7 +221,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
         setIsLoading(false);
       } catch (err) {
         console.error('Error initializing Marzipano:', err);
-        setError('Error al cargar el visor 360°');
+        setError(true);
         setIsLoading(false);
       }
     }
@@ -339,7 +341,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
             <div className="absolute inset-0 rounded-full border-2 border-white/20" />
             <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white animate-spin" />
           </div>
-          <p className="text-sm text-white/50 font-medium tracking-wide uppercase">Cargando 360°...</p>
+          <p className="text-sm text-white/50 font-medium tracking-wide uppercase">{t('resto.tour.cargando')}</p>
         </div>
       )}
 
@@ -349,7 +351,7 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
           <svg className="w-12 h-12 text-red-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
-          <p className="text-sm text-white/60">{error}</p>
+          <p className="text-sm text-white/60">{t('resto.tour.errorVisor')}</p>
         </div>
       )}
 
@@ -360,20 +362,20 @@ export default function VirtualTour({ imageUrl, tourData, initialView, focusNode
             <div
               ref={sunriseMarkerRef}
               className="absolute top-1/2 left-1/2 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center text-[10px] leading-none transition-opacity"
-              title="Sale el sol"
+              title={t('resto.tour.saleElSol')}
             >
               🌅
             </div>
             <div
               ref={sunsetMarkerRef}
               className="absolute top-1/2 left-1/2 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] leading-none transition-opacity"
-              title="Se pone el sol"
+              title={t('resto.tour.sePoneElSol')}
             >
               🌇
             </div>
             <div className="absolute top-1/2 left-1/2 -mt-0.5 -ml-0.5 w-1 h-1 rounded-full bg-white/70" />
           </div>
-          <span className="text-[10px] text-white/50 font-medium tracking-wide uppercase">Sol</span>
+          <span className="text-[10px] text-white/50 font-medium tracking-wide uppercase">{t('resto.tour.sol')}</span>
         </div>
       )}
 

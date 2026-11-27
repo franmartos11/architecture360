@@ -7,6 +7,7 @@ import Popover from '@/components/ui/Popover';
 import { exploreCardsFor } from '@/components/ui/ProjectMenu';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import type { ProjectNavInfo } from '@/lib/project-nav';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Ítem "Explorar 3D ▾" de la barra completa (≥1200px): despliega las vistas
 // con miniatura y una línea que explica cada una. `current` es el label de
@@ -14,13 +15,15 @@ import type { ProjectNavInfo } from '@/lib/project-nav';
 export default function ExploreSwitcher({ info, current }: { info: ProjectNavInfo; current?: string }) {
   const basePath = useProjectBasePath();
   const [open, setOpen] = useState(false);
-  const cards = exploreCardsFor(info, basePath);
+  const t = useT();
+  const { locale } = useLocale();
+  const cards = exploreCardsFor(info, basePath, locale);
 
   // Con un solo destino no hay nada que desplegar: link directo.
   if (cards.length < 2) {
     return cards[0] ? (
       <Link href={cards[0].href} className={navItemClass(!!current)}>
-        Explorar 3D
+        {t('nav.explorar3d')}
       </Link>
     ) : null;
   }
@@ -32,11 +35,11 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={current ? `Explorar 3D: ${current}. Cambiar de vista` : 'Explorar 3D: elegir vista'}
+        aria-label={current ? t('sitio.explore.cambiarVista', { vista: current }) : t('sitio.explore.elegirVista')}
         // Abierto se ve como activo (raya fija) — el resaltado lo lleva el panel.
         className={`flex items-center gap-1.5 ${navItemClass(!!current || open)}`}
       >
-        Explorar 3D
+        {t('nav.explorar3d')}
         <svg className={`w-[15px] h-[15px] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -53,7 +56,7 @@ export default function ExploreSwitcher({ info, current }: { info: ProjectNavInf
         onClose={() => setOpen(false)}
         role="menu"
         align="start"
-        ariaLabel="Explorar 3D"
+        ariaLabel={t('nav.explorar3d')}
         className="lg-glass !animate-none !mt-3 !z-[55] w-[380px] !p-2 !rounded-[26px] flex flex-col gap-0.5 !text-white"
       >
           {cards.map(card => {

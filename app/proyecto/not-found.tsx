@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata: Metadata = {
   title: 'Sitio no disponible',
@@ -14,7 +15,8 @@ export const metadata: Metadata = {
 //
 // Va a pantalla completa y por encima de todo, igual que app/error.tsx,
 // para no heredar el chrome de la red social del layout raíz.
-export default function ProjectNotFound() {
+export default async function ProjectNotFound() {
+  const t = await getT();
   return (
     <main className="fixed inset-0 z-[9999] overflow-y-auto bg-brand-50">
       <div className="min-h-full flex items-center justify-center px-4 py-12">
@@ -26,13 +28,12 @@ export default function ProjectNotFound() {
             </svg>
           </div>
 
-          <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-600">Sitio no disponible</p>
+          <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-600">{t('sitio.noEncontrado.eyebrow')}</p>
           <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-            Este proyecto todavía no está publicado
+            {t('sitio.noEncontrado.titulo')}
           </h1>
           <p className="mt-3 text-sm sm:text-base text-gray-600 leading-relaxed">
-            Puede que el sitio se esté terminando de preparar o que el link no sea correcto.
-            Probá de nuevo más tarde o pedile el link actualizado a quien te lo compartió.
+            {t('sitio.noEncontrado.texto')}
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
@@ -40,23 +41,23 @@ export default function ProjectNotFound() {
               href="/"
               className="h-11 px-5 inline-flex items-center justify-center rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
             >
-              Volver al inicio
+              {t('sitio.noEncontrado.volver')}
             </Link>
             <Link
               href="/directorio"
               className="h-11 px-5 inline-flex items-center justify-center rounded-lg bg-white border border-gray-300 text-gray-800 text-sm font-medium hover:bg-gray-50 transition-colors"
             >
-              Ver otros proyectos
+              {t('sitio.noEncontrado.otros')}
             </Link>
           </div>
 
           <div className="mt-10 pt-6 border-t border-brand-200">
             <p className="text-sm text-gray-600">
-              ¿Es tu proyecto?{' '}
+              {t('sitio.noEncontrado.esTuProyecto')}{' '}
               <Link href="/admin/login" className="font-medium text-gray-900 underline underline-offset-4 hover:text-brand-700">
-                Iniciá sesión
+                {t('sitio.comentarios.iniciaSesion')}
               </Link>{' '}
-              para ver la vista previa y publicarlo.
+              {t('sitio.noEncontrado.paraPublicar')}
             </p>
           </div>
         </div>

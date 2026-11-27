@@ -7,18 +7,23 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
 import type { Unit, BimModel } from '@/types';
 import BimUnifiedViewer from '@/components/bim/BimUnifiedViewer';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { etiquetaPiso } from '@/lib/i18n/catalogo';
 
 type ViewMode = 'render' | 'bim-3d' | 'bim-gallery';
 
 export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?: BimModel }) {
   // Planta baja (unit.floorPlan3dUrl) + plantas de más (unit.levels[].plan3dImage).
+  const t = useT();
+  const { locale } = useLocale();
+  const plantaBaja = t('unidad.plantaBaja');
   const levels = useMemo(
     () =>
       [
-        { label: 'Planta baja', image: unit.floorPlan3dUrl || '' },
-        ...(unit.levels ?? []).map(l => ({ label: l.label, image: l.plan3dImage || '' })),
+        { label: plantaBaja, image: unit.floorPlan3dUrl || '' },
+        ...(unit.levels ?? []).map(l => ({ label: etiquetaPiso(l.label, locale), image: l.plan3dImage || '' })),
       ].filter(l => l.image),
-    [unit.floorPlan3dUrl, unit.levels],
+    [plantaBaja, locale, unit.floorPlan3dUrl, unit.levels],
   );
 
   const hasRender = levels.length > 0;
@@ -34,6 +39,8 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
   const viewMode: ViewMode = chosenMode === 'render' && !hasRender ? (hasBim3D ? 'bim-3d' : 'bim-gallery') : chosenMode;
   const [activeIdx, setActiveIdx] = useState(0);
   const active = levels[activeIdx] ?? levels[0];
+  const isRender = viewMode === 'render';
+  const isBim = viewMode === 'bim-3d' || viewMode === 'bim-gallery';
 
 
   return (
@@ -54,7 +61,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
                 onClick={() => setViewMode('render')}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'render' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                Planta Estática
+                {t('unidad.planta3d.estatica')}
               </button>
             )}
             {hasBim3D && (
@@ -62,7 +69,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
                 onClick={() => setViewMode('bim-3d')}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'bim-3d' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                Modelo BIM
+                {t('unidad.planta3d.bim')}
               </button>
             )}
             {hasBimGallery && (
@@ -70,7 +77,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
                 onClick={() => setViewMode('bim-gallery')}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${viewMode === 'bim-gallery' ? 'bg-white text-gray-900 shadow' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                Imágenes
+                {t('unidad.planta3d.imagenes')}
               </button>
             )}
           </div>
@@ -78,7 +85,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
       )}
 
       {/* Selector de pisos (si hay múltiples plantas estáticas y estamos en render) */}
-      {viewMode === 'render' && levels.length > 1 && (
+      {isRender && levels.length > 1 && (
         <div className="flex-shrink-0 flex items-center justify-center gap-1 px-4 pb-2 z-20">
           <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-inner">
             {levels.map((l, i) => (
@@ -95,7 +102,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
       )}
 
       <div className="flex-1 relative bg-white">
-        {(viewMode === 'bim-3d' || viewMode === 'bim-gallery') && bimModel && (
+        {isBim && bimModel && (
           <div className="absolute inset-0 bg-white">
             <BimUnifiedViewer
               geometryUrl={bimModel.geometryUrl}
@@ -107,13 +114,13 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
           </div>
         )}
 
-        {viewMode === 'render' && !active && (
+        {isRender && !active && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-            Todavía no hay planta 3D cargada para esta unidad.
+            {t('unidad.planta3d.sinPlanta')}
           </div>
         )}
 
-        {viewMode === 'render' && active && (
+        {isRender && active && (
           <div className="absolute inset-0 p-2 sm:p-4 bg-gray-50/50">
             <TransformWrapper
               key={activeIdx}
@@ -134,7 +141,7 @@ export default function Planta3DTab({ unit, bimModel }: { unit: Unit; bimModel?:
               >
                 <Image
                   src={active.image}
-                  alt={levels.length > 1 ? `Planta 3D — ${active.label}` : 'Planta 3D'}
+                  alt={levels.length > 1 ? t('unidad.planta3d.altNivel', { planta: active.label }) : t('unidad.tab.planta3d')}
                   width={1200}
                   height={1200}
                   priority

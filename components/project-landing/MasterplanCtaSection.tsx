@@ -5,6 +5,8 @@ import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { projectHasContent } from '@/lib/project-content';
 import { ArrowIcon, Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
+import { intlLocale } from '@/lib/i18n/locales';
 
 interface ExploreRow {
   title: string;
@@ -17,28 +19,35 @@ interface ExploreRow {
 // "Explorar 3D": una fila grande por cada forma de recorrer el proyecto que
 // realmente tenga contenido. La key del registro sigue siendo 'masterplan'
 // para no romper el section_config guardado de los proyectos existentes.
-export default function MasterplanCtaSection({ project, basePath, typeConfig }: SectionProps) {
+export default function MasterplanCtaSection({ project, basePath, typeConfig, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   const isHouse = !typeConfig.hasUnitStep;
   const rows: ExploreRow[] = [];
   // Sin vista aérea ni imagen de masterplan, /masterplan da 404.
   if (projectHasContent(project).facade) {
     rows.push(isHouse
-      ? { title: 'Vista frontal', desc: 'Entrá a recorrer la casa desde el frente.', href: `${basePath}/masterplan` }
-      : { title: 'Masterplan', desc: 'Explorá el proyecto con el visor interactivo.', href: `${basePath}/masterplan` });
+      ? { title: t('sitio.explorar.vistaFrontal'), desc: t('sitio.explorar.vistaFrontalDesc'), href: `${basePath}/masterplan` }
+      : { title: t('sitio.explorar.masterplan'), desc: t('sitio.explorar.masterplanDesc'), href: `${basePath}/masterplan` });
   }
   if (project.commonAreasTour) {
-    rows.push({ title: 'Tour 360°', desc: 'Entrá a los espacios y mirá alrededor.', href: `${basePath}/recorrido` });
+    rows.push({ title: t('sitio.about.tour360'), desc: t('sitio.explorar.tourDesc'), href: `${basePath}/recorrido` });
   }
   if (typeConfig.hasUnitStep && project.units.length > 0) {
-    const label = pluralize(typeConfig.unitLabel);
+    const label = pluralize(typeConfig.unitLabel, locale);
+    // "ficha, plano, precio y estado" (en inglés, "fact sheet, floor plan, price, and status").
+    const lista = new Intl.ListFormat(intlLocale(locale), { type: 'conjunction' }).format(
+      [t('sitio.explorar.ficha'), t('sitio.explorar.plano'), typeConfig.showPrice && t('sitio.explorar.precio'), typeConfig.showStatus && t('sitio.explorar.estado')].filter((x): x is string => !!x),
+    );
     rows.push({
       title: label,
-      desc: `${project.units.length === 1 ? `1 ${typeConfig.unitLabel.toLowerCase()}` : `${typeConfig.unitLabelGender === 'f' ? 'Las' : 'Los'} ${project.units.length} ${label.toLowerCase()}`} con ${['ficha', 'plano', typeConfig.showPrice && 'precio', typeConfig.showStatus && 'estado'].filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' y $1')}.`,
+      desc: project.units.length === 1
+        ? t('sitio.explorar.unaUnidad', { unidad: typeConfig.unitLabel.toLowerCase(), lista })
+        : t('sitio.explorar.variasUnidades', { los: typeConfig.unitLabelGender === 'f' ? 'Las' : 'Los', count: project.units.length, unidades: label.toLowerCase(), lista }),
       href: `${basePath}/unidades`,
     });
   }
   if (project.bimModels.length > 0) {
-    rows.push({ title: 'Modelo BIM', desc: 'Recorré el edificio en detalle, pieza por pieza.', href: bimModelHref(project.bimModels[0].id), wideOnly: true });
+    rows.push({ title: t('sitio.bim.eyebrow'), desc: t('sitio.explorar.bimDesc'), href: bimModelHref(project.bimModels[0].id), wideOnly: true });
   }
   if (rows.length === 0) return null;
   const template = resolveWebTemplateKey(project.themeConfig?.webTemplate);
@@ -48,9 +57,9 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
       <section id="explorar" className="py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <SectionHeading
-            eyebrow="Accesos interactivos"
-            title="Explorá el proyecto"
-            muted="a tu ritmo"
+            eyebrow={t('sitio.explorar.accesos')}
+            title={t('sitio.explorar.tituloComercial')}
+            muted={t('sitio.explorar.tituloComercialAtenuado')}
             className="mb-10"
           />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -70,7 +79,7 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
                   <p className="m-0 text-sm text-[var(--theme-text-muted)] leading-relaxed">{r.desc}</p>
                 </div>
                 <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--theme-text)] group-hover:text-[var(--theme-accent)] transition-colors">
-                  Abrir <ArrowIcon />
+                  {t('sitio.explorar.abrir')} <ArrowIcon />
                 </span>
               </Link>
             ))}
@@ -85,8 +94,8 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
       <section id="explorar" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <SectionHeading
-            eyebrow="Recorridos"
-            title="Exploración digital"
+            eyebrow={t('sitio.explorar.recorridos')}
+            title={t('sitio.explorar.tituloEditorial')}
             className="mb-10"
           />
           <div className="divide-y divide-[var(--theme-border)] border-y border-[var(--theme-border)]">
@@ -119,9 +128,9 @@ export default function MasterplanCtaSection({ project, basePath, typeConfig }: 
       <Container>
         <SectionHeading
           onDark
-          eyebrow="Explorar 3D"
-          title="Recorrelo desde cualquier ángulo,"
-          muted="sin moverte de donde estás."
+          eyebrow={t('nav.explorar3d')}
+          title={t('sitio.explorar.titulo')}
+          muted={t('sitio.explorar.tituloAtenuado')}
           className="mb-16"
         />
         {/* Hover (y foco con teclado) de cada fila, sin tocar la composición:

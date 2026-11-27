@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor } from './floor-explorer';
+import { parkingSpotsOnFloor, spotLabel, amenitiesPlacedIn, amenitiesWhereLabel, mainAmenityFloor, floorName } from './floor-explorer';
 import type { Amenity, Floor, Unit } from '@/types';
 
 const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
@@ -49,5 +49,24 @@ describe('amenities en la torre', () => {
   it('el piso principal de amenities es el que más tiene', () => {
     expect(mainAmenityFloor(placed, floors)?.id).toBe('f10');
     expect(mainAmenityFloor([], floors)).toBeUndefined();
+  });
+});
+
+describe('en inglés', () => {
+  it('nombres de piso y cochera en inglés; la etiqueta cargada queda igual', () => {
+    expect(floorName({ number: 0, label: '' }, 'en')).toBe('Ground floor');
+    expect(floorName({ number: 3, label: 'Piso 3' }, 'en')).toBe('Floor 3');
+    expect(floorName({ number: 0, label: 'Planta baja' }, 'en')).toBe('Ground floor');
+    expect(floorName({ number: 3, label: 'Piso 3' })).toBe('Piso 3');
+    expect(floorName({ number: 4, label: '' }, 'en')).toBe('Floor 4');
+    expect(floorName({ number: 4, label: 'Terraza' }, 'en')).toBe('Terraza');
+    expect(spotLabel({ unit: unit('B04'), spot: { floorId: 'ss1', polygon: square } }, 'en')).toBe('Parking B04');
+  });
+
+  it('el resumen de amenities por piso', () => {
+    const floors = [floor('f5', 5, ''), floor('f10', 10, '')];
+    const placed = [amenity('Pool', 'f10'), amenity('Cowork', 'f5'), amenity('Gym', 'f10')];
+    expect(amenitiesWhereLabel(placed, floors, 'en')).toBe('Cowork on floor 5 · Pool and Gym on floor 10');
+    expect(amenitiesWhereLabel(placed, floors)).toBe('Cowork en piso 5 · Pool y Gym en piso 10');
   });
 });

@@ -32,8 +32,12 @@ const SUPABASE_CONFIGURED =
 
 // Un pedido a un archivo con extensión (imagen, ícono, etc.) nunca es una
 // ruta de página — no tiene sentido evaluarlo como subdominio de proyecto.
+// Solo extensiones de archivo reales: un código de unidad con punto ("1.2")
+// es una página, no un asset.
+const ASSET_EXT = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|bmp|css|js|mjs|map|json|txt|xml|pdf|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|glb|gltf|bin|wasm|hdr|ktx2|webmanifest)$/i;
+
 function isStaticAssetPath(pathname: string) {
-  return pathname.startsWith('/_next') || /\.[a-zA-Z0-9]+$/.test(pathname);
+  return pathname.startsWith('/_next') || ASSET_EXT.test(pathname);
 }
 
 export async function proxy(request: NextRequest) {

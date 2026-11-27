@@ -4,6 +4,7 @@ import { useState, useCallback, memo } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { PLAN_WHEEL, PLAN_DOUBLE_CLICK, PLAN_CONTENT_STYLE } from '@/lib/plan-zoom';
 import type { Room } from '@/types';
+import { useT } from '@/lib/i18n/client';
 
 interface RoomPlanViewerProps {
   planImage: string;
@@ -19,6 +20,7 @@ type DrawnRoom = Room & { polygon: NonNullable<Room['polygon']> };
 const isDrawn = (r: Room): r is DrawnRoom => Array.isArray(r.polygon) && r.polygon.length >= 3;
 
 export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRoomId }: RoomPlanViewerProps) {
+  const t = useT();
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 
   const drawnRooms = rooms.filter(isDrawn);
@@ -48,7 +50,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={planImage}
-              alt="Plano de ambientes"
+              alt={t('unidad.plano.ambientesAlt')}
               className="block max-w-[100cqw] max-h-[100cqh] w-auto h-auto select-none"
               draggable={false}
             />
@@ -70,7 +72,7 @@ export default function RoomPlanViewer({ planImage, rooms, onSelectRoom, focusRo
               >
                 <div className="bg-gray-900 text-white text-xs font-medium rounded-lg px-3 py-1.5 whitespace-nowrap shadow-lg">
                   {hovered.name}
-                  <span className="text-white/50 ml-1.5">· click para ver la ficha</span>
+                  <span className="text-white/50 ml-1.5">{t('unidad.plano.clickFicha')}</span>
                 </div>
               </div>
             )}
@@ -91,6 +93,7 @@ function RoomPolygonBase({
   onHover: (id: string | null) => void;
   onSelect?: (room: Room) => void;
 }) {
+  const t = useT();
   const points = room.polygon.map(p => `${p.x},${p.y}`).join(' ');
 
   const handleEnter = useCallback(() => onHover(room.id), [onHover, room.id]);
@@ -107,7 +110,7 @@ function RoomPolygonBase({
       onClick={handleClick}
       role="button"
       tabIndex={0}
-      aria-label={`Ver ${room.name}`}
+      aria-label={t('unidad.plano.verAmbiente', { nombre: room.name })}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();

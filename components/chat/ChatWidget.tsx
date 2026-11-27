@@ -8,6 +8,8 @@ import { readAttribution } from '@/lib/analytics/client-state';
 import { borrarTokenChat, guardarTokenChat, leerTokenChat } from '@/lib/chat/web-token';
 import { useProjectWhatsapp } from '@/lib/project-whatsapp-context';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
+import { useT } from '@/lib/i18n/client';
+import type { ClaveMensaje } from '@/lib/i18n/t';
 
 // Chat del sitio: el asistente del proyecto (el mismo cerebro del bot de
 // WhatsApp) en una burbuja. La charla vive en el servidor; el navegador solo
@@ -15,9 +17,10 @@ import { useProjectBasePath } from '@/lib/project-base-path-context';
 
 type Mensaje = { autor: 'cliente' | 'bot'; tipo: 'texto' | 'imagen' | 'documento'; cuerpo: string };
 
-const SUGERENCIAS_GENERAL = ['¿Qué unidades hay disponibles?', '¿Tienen planes de pago?', 'Quiero agendar una visita'];
-const SUGERENCIAS_UNIDAD = ['¿Cuánto sale esta unidad?', 'Mandame el plano', 'Quiero agendar una visita'];
-const SUGERENCIAS_COMPARAR = ['¿Qué diferencias hay entre estas dos?', '¿Cuál me conviene más?', 'Quiero agendar una visita'];
+// Sugerencias como claves del diccionario: se muestran y se mandan al bot en el idioma del sitio.
+const SUGERENCIAS_GENERAL: ClaveMensaje[] = ['resto.chat.sugDisponibles', 'resto.chat.sugPlanes', 'resto.chat.sugVisita'];
+const SUGERENCIAS_UNIDAD: ClaveMensaje[] = ['resto.chat.sugPrecio', 'resto.chat.sugPlano', 'resto.chat.sugVisita'];
+const SUGERENCIAS_COMPARAR: ClaveMensaje[] = ['resto.chat.sugDiferencias', 'resto.chat.sugConviene', 'resto.chat.sugVisita'];
 const URL_RE = /(https?:\/\/[^\s<>()]+)/g;
 
 function rutaRelativa(nextPathname: string | null, basePath: string): string {
@@ -29,12 +32,11 @@ function rutaRelativa(nextPathname: string | null, basePath: string): string {
   return full.slice(0, 300);
 }
 const MAX_MENSAJE = 1000;
-const ERRORES: Record<string, string> = {
-  limite_dia: 'Ahora no puedo responder. Dejanos tu consulta y te contactamos.',
-  limite_charla: 'Llegamos al límite de esta charla. Dejanos tu contacto y te escribimos.',
-  sin_respuesta: 'No pude responder eso ahora. Probá escribirlo de nuevo en un momento.',
+const ERRORES: Record<string, ClaveMensaje> = {
+  limite_dia: 'resto.chat.errorLimiteDia',
+  limite_charla: 'resto.chat.errorLimiteCharla',
+  sin_respuesta: 'resto.chat.errorSinRespuesta',
 };
-const NO_SE_PUDO = 'No se pudo enviar.';
 
 function storage(): Storage | null {
   try {
@@ -58,6 +60,7 @@ export default function ChatWidget({
   formulario?: boolean;
 }) {
   const track = useTrack();
+  const t = useT();
   const whatsapp = useProjectWhatsapp();
   const basePath = useProjectBasePath();
   const nextPathname = usePathname();
@@ -76,9 +79,7 @@ export default function ChatWidget({
   const campo = useRef<HTMLInputElement>(null);
 
   const nombre = nombreBot?.trim() || null;
-  const saludo = nombre
-    ? `¡Hola! Soy ${nombre}, el asistente virtual del proyecto. ¿En qué te puedo ayudar?`
-    : '¡Hola! Soy el asistente virtual del proyecto. ¿En qué te puedo ayudar?';
+  const saludo = nombre ? t('chat.saludoConNombre', { nombre }) : t('resto.chat.saludo');
   const charloAlgo = mensajes.some((m) => m.autor === 'cliente');
   const ruta = rutaRelativa(nextPathname, basePath);
   const sugerencias = ruta.includes('?compare=')
@@ -108,12 +109,12 @@ export default function ChatWidget({
   };
 
   const retomar = async () => {
-    const t = leerTokenChat(storage(), projectSlug, Date.now());
-    if (!t) return;
-    token.current = t;
+    const guardado = leerTokenChat(storage(), projectSlug, Date.now());
+    if (!guardado) return;
+    token.current = guardado;
     setRetomando(true);
     try {
-      const res = await fetch(`/api/chat/${projectSlug}?token=${t}`);
+      const res = await fetch(`/api/chat/${projectSlug}?token=${guardado}`);
       const data = (await res.json().catch(() => null)) as { mensajes?: Mensaje[]; motivo?: string } | null;
       if (!res.ok) {
         olvidarSiNoExiste(res.status, data);
@@ -146,7 +147,7 @@ export default function ChatWidget({
     setEnviando(true);
     const fallo = () => {
       setPendiente(limpio);
-      setAviso({ texto: NO_SE_PUDO });
+      setAviso({ texto: t('resto.chat.noSePudo') });
     };
     try {
       const { visitorId, ref } = readAttribution();
@@ -181,7 +182,7 @@ export default function ChatWidget({
       }
       if (data.error) {
         const tope = data.error === 'limite_dia' || data.error === 'limite_charla';
-        setAviso({ texto: ERRORES[data.error] ?? ERRORES.sin_respuesta, salidas: tope });
+        setAviso({ texto: t(ERRORES[data.error] ?? ERRORES.sin_respuesta), salidas: tope });
         // El mensaje quedó guardado: reintentar no lo repite (el servidor lo reconoce).
         if (!tope) setPendiente(limpio);
         return;
@@ -212,7 +213,7 @@ export default function ChatWidget({
     return (
       <button
         type="button"
-        aria-label="Abrir chat"
+        aria-label={t('resto.chat.abrir')}
         onClick={abrir}
         className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-[110] flex h-12 w-12 sm:h-10 sm:w-auto sm:gap-2 sm:px-3.5 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
@@ -220,7 +221,7 @@ export default function ChatWidget({
           <BotMessageSquare className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
           <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-[var(--theme-accent)]" aria-hidden="true" />
         </span>
-        <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">Asistente IA</span>
+        <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">{t('resto.chat.asistenteIA')}</span>
       </button>
     );
   }
@@ -228,7 +229,7 @@ export default function ChatWidget({
   return (
     <section
       role="dialog"
-      aria-label={`Chat con ${nombre ?? 'el asistente virtual'}`}
+      aria-label={t('resto.chat.chatCon', { nombre: nombre ?? t('resto.chat.elAsistente') })}
       className="fixed inset-0 z-[120] flex flex-col bg-[var(--theme-surface)] text-[var(--theme-text)] sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[560px] sm:max-h-[calc(100dvh-48px)] sm:w-[380px] sm:rounded-[var(--theme-radius,1rem)] sm:border sm:border-[var(--theme-border)] sm:shadow-[0_24px_70px_rgba(0,0,0,0.3)] overflow-hidden"
     >
       <header className="flex items-center gap-3 border-b border-[var(--theme-border)] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:py-3">
@@ -237,14 +238,14 @@ export default function ChatWidget({
           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[var(--theme-surface)]" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-[15px] font-semibold">{nombre ?? 'Asistente virtual'}</p>
-          <p className="m-0 text-xs text-[var(--theme-text-muted)]">Asistente virtual · en línea</p>
+          <p className="m-0 truncate text-[15px] font-semibold">{nombre ?? t('resto.chat.asistenteVirtual')}</p>
+          <p className="m-0 text-xs text-[var(--theme-text-muted)]">{t('resto.chat.enLinea')}</p>
         </div>
         {mensajes.length > 0 && !enviando && !retomando && (
           <button
             type="button"
-            aria-label="Nueva charla"
-            title="Nueva charla"
+            aria-label={t('resto.chat.nuevaCharla')}
+            title={t('resto.chat.nuevaCharla')}
             onClick={reiniciar}
             className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--theme-text-muted)] hover:bg-[var(--theme-bg)] hover:text-[var(--theme-text)]"
           >
@@ -253,11 +254,11 @@ export default function ChatWidget({
         )}
         <button
           type="button"
-          aria-label="Cerrar chat"
+          aria-label={t('resto.chat.cerrarChat')}
           onClick={() => setAbierto(false)}
           className="flex min-h-[40px] items-center gap-1 rounded-full px-2.5 text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-bg)] hover:text-[var(--theme-text)]"
         >
-          <span className="sm:hidden">Cerrar</span>
+          <span className="sm:hidden">{t('resto.cerrar')}</span>
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
       </header>
@@ -275,12 +276,12 @@ export default function ChatWidget({
                 className="self-start flex items-center gap-2 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3.5 py-2.5 text-sm font-semibold hover:border-[var(--theme-accent)]"
               >
                 <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {m.cuerpo.includes('/api/ficha/') ? 'Descargar ficha PDF' : 'Abrir el PDF'}
+                {t(m.cuerpo.includes('/api/ficha/') ? 'resto.chat.descargarFicha' : 'resto.chat.abrirPdf')}
               </a>
             ) : m.tipo === 'imagen' ? (
               <a key={i} href={m.cuerpo} target="_blank" rel="noopener noreferrer" className="self-start max-w-[85%]">
                 {/* eslint-disable-next-line @next/next/no-img-element -- imágenes del proyecto, mismas que la galería */}
-                <img src={m.cuerpo} alt="Imagen del proyecto" loading="lazy" className="max-h-56 rounded-xl object-cover" />
+                <img src={m.cuerpo} alt={t('resto.chat.imagenProyecto')} loading="lazy" className="max-h-56 rounded-xl object-cover" />
               </a>
             ) : (
               <Burbuja key={i} autor={m.autor}>{m.cuerpo}</Burbuja>
@@ -293,7 +294,7 @@ export default function ChatWidget({
                 <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse [animation-delay:150ms]" />
                 <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse [animation-delay:300ms]" />
               </span>
-              <span>escribiendo…</span>
+              <span>{t('resto.chat.escribiendo')}</span>
             </div>
           )}
           {aviso && (
@@ -308,7 +309,7 @@ export default function ChatWidget({
                       rel="noopener noreferrer"
                       className="rounded-full bg-[var(--theme-accent)] px-3.5 py-1.5 text-[13px] font-semibold text-[var(--theme-text-on-accent)]"
                     >
-                      Escribir por WhatsApp
+                      {t('resto.chat.escribirWhatsapp')}
                     </a>
                   )}
                   {formulario && (
@@ -317,7 +318,7 @@ export default function ChatWidget({
                       onClick={() => setAbierto(false)}
                       className="rounded-full border border-[var(--theme-border)] px-3.5 py-1.5 text-[13px] font-semibold"
                     >
-                      Dejar mis datos
+                      {t('resto.chat.dejarDatos')}
                     </a>
                   )}
                 </div>
@@ -328,17 +329,17 @@ export default function ChatWidget({
                   onClick={() => void enviar(pendiente, true)}
                   className="mt-1.5 text-sm font-semibold text-[var(--theme-accent)] underline underline-offset-2"
                 >
-                  Reintentar
+                  {t('resto.chat.reintentar')}
                 </button>
               )}
             </div>
           )}
           {retomando && (
-            <p className="m-0 self-center text-xs text-[var(--theme-text-muted)]">Cargando la charla…</p>
+            <p className="m-0 self-center text-xs text-[var(--theme-text-muted)]">{t('resto.chat.cargando')}</p>
           )}
           {!charloAlgo && !enviando && !retomando && (
             <div className="mt-1 flex flex-wrap gap-2">
-              {sugerencias.map((s) => (
+              {sugerencias.map((clave) => t(clave)).map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -364,8 +365,8 @@ export default function ChatWidget({
         <input
           ref={campo}
           type="text"
-          aria-label="Tu mensaje"
-          placeholder="Escribí tu consulta…"
+          aria-label={t('resto.chat.tuMensaje')}
+          placeholder={t('resto.chat.placeholder')}
           value={texto}
           disabled={retomando}
           maxLength={MAX_MENSAJE}
@@ -374,7 +375,7 @@ export default function ChatWidget({
         />
         <button
           type="submit"
-          aria-label="Enviar"
+          aria-label={t('resto.chat.enviar')}
           disabled={enviando || retomando || !texto.trim()}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] disabled:opacity-40"
         >
@@ -382,7 +383,7 @@ export default function ChatWidget({
         </button>
       </form>
       <p className="m-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3 text-[11px] text-[var(--theme-text-muted)]">
-        Respuestas de un asistente con IA: confirmá precios y condiciones con el equipo.
+        {t('resto.chat.aviso')}
       </p>
     </section>
   );

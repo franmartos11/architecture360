@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import BimModelViewer from './BimModelViewer';
 import BimGallery from './BimGallery';
+import { useT } from '@/lib/i18n/client';
 
 interface Props {
   geometryUrl: string | null;
@@ -20,6 +21,7 @@ export default function BimUnifiedViewer({
   title, 
   controlledMode 
 }: Props) {
+  const t = useT();
   const hasViewer = !!geometryUrl;
   const hasGallery = galleryImages.length > 0;
   
@@ -52,7 +54,7 @@ export default function BimUnifiedViewer({
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Modelo 3D
+              {t('resto.bim.modelo3d')}
             </button>
             <button
               onClick={() => setInternalTab('gallery')}
@@ -62,7 +64,7 @@ export default function BimUnifiedViewer({
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Imágenes
+              {t('resto.bim.imagenes')}
             </button>
           </div>
         </div>

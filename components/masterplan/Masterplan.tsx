@@ -6,6 +6,9 @@ import { useTransitionRouter } from '@/components/ui/TransitionUtils';
 import type { Unit } from '@/types';
 import UnitPolygon from './UnitPolygon';
 import UnitModal from './UnitModal';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
+import { unitTypeLabel } from '@/lib/units';
 
 interface MasterplanProps {
   imageUrl: string;
@@ -21,6 +24,8 @@ interface FilterState {
 
 export default function Masterplan({ imageUrl, units }: MasterplanProps) {
   const router = useTransitionRouter();
+  const t = useT();
+  const { locale } = useLocale();
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
@@ -69,60 +74,60 @@ export default function Masterplan({ imageUrl, units }: MasterplanProps) {
         {/* Stats cards */}
         <div className="glass rounded-2xl p-5">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-3">
-            Disponibilidad
+            {t('resto.masterplan.disponibilidad')}
           </h3>
           <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Disponibles" count={availableCount} color="bg-status-available" />
-            <StatCard label="Reservados" count={reservedCount} color="bg-status-reserved" />
-            <StatCard label="Vendidos" count={soldCount} color="bg-status-sold" />
+            <StatCard label={t('resto.masterplan.disponibles')} count={availableCount} color="bg-status-available" />
+            <StatCard label={t('resto.masterplan.reservados')} count={reservedCount} color="bg-status-reserved" />
+            <StatCard label={t('resto.masterplan.vendidos')} count={soldCount} color="bg-status-sold" />
           </div>
         </div>
 
         {/* Filters */}
         <div className="glass rounded-2xl p-5 space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-            Filtros
+            {t('resto.masterplan.filtros')}
           </h3>
 
           <FilterSelect
-            label="Estado"
+            label={t('resto.masterplan.estado')}
             value={filters.status}
             onChange={(v) => setFilters((f) => ({ ...f, status: v as FilterState['status'] }))}
             options={[
-              { value: 'all', label: 'Todos' },
-              { value: 'available', label: 'Disponible' },
-              { value: 'reserved', label: 'Reservado' },
-              { value: 'sold', label: 'Vendido' },
+              { value: 'all', label: t('resto.masterplan.todos') },
+              { value: 'available', label: t('resto.masterplan.disponible') },
+              { value: 'reserved', label: t('resto.masterplan.reservado') },
+              { value: 'sold', label: t('resto.masterplan.vendido') },
             ]}
           />
 
           <FilterSelect
-            label="Tipología"
+            label={t('resto.masterplan.tipologia')}
             value={filters.type}
             onChange={(v) => setFilters((f) => ({ ...f, type: v as FilterState['type'] }))}
             options={[
-              { value: 'all', label: 'Todas' },
-              ...types.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) })),
+              { value: 'all', label: t('resto.masterplan.todas') },
+              ...types.map((tipo) => ({ value: tipo, label: unitTypeLabel(tipo, locale) })),
             ]}
           />
 
           <FilterSelect
-            label="Torre"
+            label={t('resto.masterplan.torre')}
             value={filters.buildingId}
             onChange={(v) => setFilters((f) => ({ ...f, buildingId: v }))}
             options={[
-              { value: 'all', label: 'Todas' },
+              { value: 'all', label: t('resto.masterplan.todas') },
               ...buildings.map((b) => ({ value: b, label: b })),
             ]}
           />
 
           <FilterSelect
-            label="Piso"
+            label={t('resto.masterplan.piso')}
             value={String(filters.floor)}
             onChange={(v) => setFilters((f) => ({ ...f, floor: v === 'all' ? 'all' : Number(v) }))}
             options={[
-              { value: 'all', label: 'Todos' },
-              ...floors.map((f) => ({ value: String(f), label: `Piso ${f}` })),
+              { value: 'all', label: t('resto.masterplan.todos') },
+              ...floors.map((f) => ({ value: String(f), label: t('resto.masterplan.pisoN', { n: f }) })),
             ]}
           />
 
@@ -132,19 +137,19 @@ export default function Masterplan({ imageUrl, units }: MasterplanProps) {
             }
             className="w-full py-2 text-sm text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5"
           >
-            Limpiar filtros
+            {t('resto.masterplan.limpiarFiltros')}
           </button>
         </div>
 
         {/* Legend */}
         <div className="glass rounded-2xl p-5">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-3">
-            Leyenda
+            {t('resto.masterplan.leyenda')}
           </h3>
           <div className="space-y-2">
-            <LegendItem color="bg-status-available" label="Disponible" />
-            <LegendItem color="bg-status-reserved" label="Reservado" />
-            <LegendItem color="bg-status-sold" label="Vendido" />
+            <LegendItem color="bg-status-available" label={t('resto.masterplan.disponible')} />
+            <LegendItem color="bg-status-reserved" label={t('resto.masterplan.reservado')} />
+            <LegendItem color="bg-status-sold" label={t('resto.masterplan.vendido')} />
           </div>
         </div>
       </aside>
@@ -156,7 +161,7 @@ export default function Masterplan({ imageUrl, units }: MasterplanProps) {
             {/* Background image */}
             <Image
               src={imageUrl}
-              alt="Masterplan del proyecto"
+              alt={t('resto.masterplan.alt')}
               width={1600}
               height={900}
               priority
@@ -192,7 +197,7 @@ export default function Masterplan({ imageUrl, units }: MasterplanProps) {
 
         {/* Instruction text */}
         <p className="text-center text-sm text-white/30 mt-3">
-          Hacé clic en una unidad para ver detalles · Pasá el mouse para previsualizarla
+          {t('resto.masterplan.instruccion')}
         </p>
       </div>
 
@@ -256,6 +261,7 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 }
 
 function HoverTooltip({ unit }: { unit: Unit }) {
+  const { locale } = useLocale();
   // Position tooltip near the center of the polygon
   const polygon = unit.polygon || [];
   if (polygon.length === 0) return null;
@@ -274,7 +280,7 @@ function HoverTooltip({ unit }: { unit: Unit }) {
       <div className="glass rounded-lg px-3 py-2 text-center whitespace-nowrap">
         <p className="text-xs font-semibold text-white">{unit.name}</p>
         <p className="text-[10px] text-white/50">
-          {unit.totalArea}m² · {unit.type}
+          {unit.totalArea}m² · {etiquetaCatalogo(unit.type, locale)}
         </p>
       </div>
     </div>

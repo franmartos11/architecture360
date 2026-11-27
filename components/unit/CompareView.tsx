@@ -10,12 +10,14 @@ import ComparePaneContent, { type CompareContentType } from './ComparePaneConten
 import CompareMobile from './CompareMobile';
 import LeadCaptureModal from '@/components/ui/LeadCaptureModal';
 import { useContactModal } from '@/hooks/useContactModal';
+import { useT } from '@/lib/i18n/client';
+import type { ClaveMensaje } from '@/lib/i18n/t';
 
-const CONTENT_TYPES: { id: CompareContentType; label: string }[] = [
-  { id: 'planta3d', label: 'Planta 3D' },
-  { id: 'tour360', label: '360°' },
-  { id: 'plano', label: 'Planos' },
-  { id: 'galeria', label: 'Galería' },
+const CONTENT_TYPES: { id: CompareContentType; labelKey: ClaveMensaje }[] = [
+  { id: 'planta3d', labelKey: 'unidad.tab.planta3d' },
+  { id: 'tour360', labelKey: 'unidad.tab.tour360' },
+  { id: 'plano', labelKey: 'unidad.tab.planos' },
+  { id: 'galeria', labelKey: 'unidad.tab.galeria' },
 ];
 
 function unitHasCompareContent(u: Unit, type: CompareContentType): boolean {
@@ -44,22 +46,23 @@ interface CompareViewProps {
 }
 
 export default function CompareView({ unit, allUnits, initialContentType, initialCompareUnitId, onClose, showPrice = false, showLeads = false, projectSlug }: CompareViewProps) {
+  const t = useT();
   const [compareUnitId, setCompareUnitId] = useState<string | null>(initialCompareUnitId ?? null);
   const candidates = useMemo(() => allUnits.filter(u => u.id !== unit.id), [allUnits, unit.id]);
   const compareUnit = candidates.find(u => u.id === compareUnitId) ?? null;
   const availableTypes = useMemo(() => {
     const visible = CONTENT_TYPES.filter(
-      t => unitHasCompareContent(unit, t.id) || (compareUnit ? unitHasCompareContent(compareUnit, t.id) : false)
+      ct => unitHasCompareContent(unit, ct.id) || (compareUnit ? unitHasCompareContent(compareUnit, ct.id) : false)
     );
     return visible.length > 0 ? visible : CONTENT_TYPES;
   }, [unit, compareUnit]);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [contentType, setContentType] = useState<CompareContentType>(() => {
-    const initial = availableTypes.find(t => t.id === initialContentType)?.id;
+    const initial = availableTypes.find(ct => ct.id === initialContentType)?.id;
     return initial ?? availableTypes[0].id;
   });
-  const activeContentType: CompareContentType = availableTypes.some(t => t.id === contentType)
+  const activeContentType: CompareContentType = availableTypes.some(ct => ct.id === contentType)
     ? contentType
     : availableTypes[0].id;
   const [metricsVisible, setMetricsVisible] = useState(true);
@@ -131,7 +134,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         <CompareMobile
           unit={unit}
           compareUnit={compareUnit}
-          contentTypes={availableTypes}
+          contentTypes={availableTypes.map(ct => ({ id: ct.id, label: t(ct.labelKey) }))}
           contentType={activeContentType}
           onContentTypeChange={setContentType}
           onClose={onClose}
@@ -146,10 +149,10 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         {compareUnit && (
           <button
             onClick={() => setPickerOpen(true)}
-            aria-label="Cambiar unidad"
+            aria-label={t('unidad.comparar.cambiarUnidad')}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 rounded-full pl-3 lg:pl-4 pr-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-all shadow-lg"
           >
-            <span className="hidden lg:inline">Cambiar Unidad</span>
+            <span className="hidden lg:inline">{t('unidad.comparar.cambiarUnidadCorto')}</span>
             <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
@@ -157,7 +160,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
         )}
         <button
           onClick={onClose}
-          aria-label="Salir del comparador"
+          aria-label={t('unidad.comparar.salir')}
           className="w-10 h-10 rounded-full bg-white hover:bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700 transition-all shadow-lg shrink-0"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -170,12 +173,12 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
           nombre de unidad; no chocan porque los badges se centran dentro de
           cada panel (25%/75% de ancho) y esto se centra en toda la pantalla (50%) */}
       <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 flex items-center p-1 bg-gray-100 rounded-full border border-gray-200 shadow-lg overflow-x-auto max-w-[90vw]">
-        {availableTypes.map(t => {
-          const isActive = activeContentType === t.id;
+        {availableTypes.map(ct => {
+          const isActive = activeContentType === ct.id;
           return (
             <button
-              key={t.id}
-              onClick={() => setContentType(t.id)}
+              key={ct.id}
+              onClick={() => setContentType(ct.id)}
               className={`relative px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
                 isActive ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}
@@ -187,7 +190,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 />
               )}
-              <span className="relative z-10">{t.label}</span>
+              <span className="relative z-10">{t(ct.labelKey)}</span>
             </button>
           );
         })}
@@ -233,7 +236,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
                   <rect x="3" y="4" width="7.5" height="16" rx="1" />
                   <rect x="13.5" y="4" width="7.5" height="16" rx="1" />
                 </svg>
-                Elegir Unidad a Comparar
+                {t('unidad.comparar.elegirAComparar')}
               </button>
             </div>
           )}
@@ -249,7 +252,7 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
           >
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-300 group-hover:bg-gray-400 transition-colors pointer-events-none" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center pointer-events-none group-hover:scale-110 transition-transform">
-              <span className="text-[10px] font-black text-gray-600 tracking-widest leading-none mt-[1px]">VS</span>
+              <span className="text-[10px] font-black text-gray-600 tracking-widest leading-none mt-[1px]">{t('unidad.comparar.vs')}</span>
             </div>
           </div>
         )}
@@ -261,10 +264,10 @@ export default function CompareView({ unit, allUnits, initialContentType, initia
             <button
               onClick={() => setMetricsVisible(v => !v)}
               aria-expanded={metricsVisible}
-              aria-label={metricsVisible ? 'Ocultar datos de comparación' : 'Mostrar datos de comparación'}
+              aria-label={t(metricsVisible ? 'unidad.comparar.ocultarDatosAria' : 'unidad.comparar.mostrarDatosAria')}
               className="relative z-10 -mb-px flex items-center gap-1.5 px-4 py-1.5 rounded-t-lg bg-white border border-b-0 border-gray-200 shadow-sm text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors"
             >
-              {metricsVisible ? 'Ocultar datos' : 'Ver datos'}
+              {t(metricsVisible ? 'unidad.comparar.ocultarDatos' : 'unidad.comparar.verDatos')}
               <svg
                 className={`w-3.5 h-3.5 transition-transform duration-200 ${metricsVisible ? '' : 'rotate-180'}`}
                 fill="none"

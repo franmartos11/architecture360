@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { EditorSkeleton } from '@/components/admin/PanelSkeletons';
@@ -12,13 +12,17 @@ export default function VideoEditor({ onSaved }: { onSaved: () => void }) {
   const [url, setUrl] = useState('');
   const [caption, setCaption] = useState('');
 
-  useEffect(() => {
+  // La configuración llega después del primer render: se copia al estado al cambiar
+  // (ajuste en el render, no en un efecto: evita un render extra en cascada).
+  const [fuente, setFuente] = useState<typeof themeConfig | undefined>(undefined);
+  if (themeConfig !== fuente) {
+    setFuente(themeConfig);
     if (themeConfig) {
       setTitle(themeConfig.videoBlock?.title ?? '');
       setUrl(themeConfig.videoBlock?.url ?? '');
       setCaption(themeConfig.videoBlock?.caption ?? '');
     }
-  }, [themeConfig]);
+  }
 
   if (loading) return <EditorSkeleton rows={3} />;
 

@@ -2,6 +2,7 @@
 
 import type { Unit } from '@/types';
 import { unitIsDwelling } from '@/lib/units';
+import { useT } from '@/lib/i18n/client';
 
 interface CompareMetricsBarProps {
   unitA: Unit;
@@ -17,11 +18,12 @@ interface Metric {
 }
 
 export default function CompareMetricsBar({ unitA, unitB }: CompareMetricsBarProps) {
+  const t = useT();
   const metrics: Metric[] = [
-    { label: 'Total', a: unitA.totalArea, b: unitB.totalArea, suffix: 'm²', decimals: 1 },
-    { label: 'Interior', a: unitA.innerArea, b: unitB.innerArea, suffix: 'm²', decimals: 1 },
+    { label: t('unidad.comparar.total'), a: unitA.totalArea, b: unitB.totalArea, suffix: 'm²', decimals: 1 },
+    { label: t('unidad.comparar.interior'), a: unitA.innerArea, b: unitB.innerArea, suffix: 'm²', decimals: 1 },
     {
-      label: 'Exterior',
+      label: t('unidad.comparar.exterior'),
       a: (unitA.balconyArea ?? 0) + (unitA.externalArea ?? 0),
       b: (unitB.balconyArea ?? 0) + (unitB.externalArea ?? 0),
       suffix: 'm²',
@@ -29,8 +31,8 @@ export default function CompareMetricsBar({ unitA, unitB }: CompareMetricsBarPro
     },
     // Dormitorios/baños solo entre viviendas — un local o una cochera no los tiene.
     ...(unitIsDwelling(unitA) && unitIsDwelling(unitB) ? [
-      { label: 'Ambientes', a: unitA.bedrooms, b: unitB.bedrooms, suffix: '', decimals: 0 },
-      { label: 'Baños', a: unitA.bathrooms, b: unitB.bathrooms, suffix: '', decimals: 0 },
+      { label: t('unidad.comparar.ambientes'), a: unitA.bedrooms, b: unitB.bedrooms, suffix: '', decimals: 0 },
+      { label: t('unidad.comparar.banos'), a: unitA.bathrooms, b: unitB.bathrooms, suffix: '', decimals: 0 },
     ] : []),
   ];
 

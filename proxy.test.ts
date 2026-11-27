@@ -206,4 +206,10 @@ describe('proxy: idioma en la dirección', () => {
     expect(res.headers.get('x-middleware-rewrite')).toBe('https://www.torre.com/proyecto/torre/amenities');
     expect(idioma(res)).toBe('en');
   });
+
+  it('una unidad con punto en el código ("1.2") no se confunde con un archivo', async () => {
+    const res = await proxy(get('https://app.plataforma.com/proyecto/torre/en/edificio/b/unidad/1.2', { headers: { host: 'app.plataforma.com' } }));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('https://app.plataforma.com/proyecto/torre/edificio/b/unidad/1.2');
+    expect(res.headers.get('x-middleware-request-x-atrium-lang')).toBe('en');
+  });
 });

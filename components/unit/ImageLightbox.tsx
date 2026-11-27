@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { m as motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import ModalPortal from '@/components/ui/ModalPortal';
 import { BACKDROP, DIALOG_OUT, EASE_OUT, REDUCED_FADE, SWAP } from '@/lib/motion';
+import { useT } from '@/lib/i18n/client';
 
 // Lightbox de imagen a pantalla completa con prev/next/contador — usado
 // por la Galería de la unidad, las fotos de amenities y de ambientes, y la
@@ -76,7 +77,7 @@ export default function ImageLightbox({
   index,
   onIndexChange,
   onClose,
-  altPrefix = 'Imagen',
+  altPrefix,
   originRect,
 }: {
   isOpen: boolean;
@@ -89,6 +90,7 @@ export default function ImageLightbox({
    *  la foto abre con un fundido. */
   originRect?: DOMRect | null;
 }) {
+  const t = useT();
   const open = isOpen && images.length > 0;
   return (
     <ModalPortal open={open}>
@@ -100,7 +102,7 @@ export default function ImageLightbox({
             index={index}
             onIndexChange={onIndexChange}
             onClose={onClose}
-            altPrefix={altPrefix}
+            altPrefix={altPrefix ?? t('unidad.imagen')}
             originRect={originRect ?? null}
           />
         )}
@@ -127,6 +129,7 @@ function LightboxBody({
   altPrefix: string;
   originRect: DOMRect | null;
 }) {
+  const t = useT();
   const reduced = !!useReducedMotion();
   const [openedAt] = useState(index);
   // Con movimiento reducido no hay viaje: ni siquiera hace falta medir.
@@ -223,7 +226,7 @@ function LightboxBody({
       >
         <button
           onClick={onClose}
-          aria-label="Cerrar"
+          aria-label={t('unidad.cerrar')}
           className="absolute top-6 right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -234,7 +237,7 @@ function LightboxBody({
         {index > 0 && (
           <button
             onClick={e => { e.stopPropagation(); onIndexChange(index - 1); }}
-            aria-label="Imagen anterior"
+            aria-label={t('unidad.imagenAnterior')}
             className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -246,7 +249,7 @@ function LightboxBody({
         {index < images.length - 1 && (
           <button
             onClick={e => { e.stopPropagation(); onIndexChange(index + 1); }}
-            aria-label="Imagen siguiente"
+            aria-label={t('unidad.imagenSiguiente')}
             className="absolute right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors backdrop-blur"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

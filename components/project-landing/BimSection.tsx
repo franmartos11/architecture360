@@ -5,9 +5,14 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { bimModelHref } from '@/lib/bim';
 import type { SectionProps } from './types';
 import { ArrowIcon, Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function BimSection({ project }: SectionProps) {
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
+
+export default function BimSection({ project, locale = 'es' }: SectionProps) {
   if (project.bimModels.length === 0) return null;
+  const t = crearT(locale);
 
   return (
     // Solo en pantallas anchas: en mobile el modelo no carga bien (ver
@@ -15,7 +20,7 @@ export default function BimSection({ project }: SectionProps) {
     <section id="bim" className="hidden wide:block py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
       <Container>
         <Reveal>
-          <SectionHeading eyebrow="Modelo BIM" title="Cada pieza," muted="en detalle." className="mb-12" />
+          <SectionHeading eyebrow={t('sitio.bim.eyebrow')} title={t('sitio.bim.titulo')} muted={t('sitio.bim.tituloAtenuado')} className="mb-12" />
         </Reveal>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {project.bimModels.map((m, i) => (
@@ -26,7 +31,7 @@ export default function BimSection({ project }: SectionProps) {
                     <Image
                       src={m.coverImage} alt={m.title} fill
                       sizes="(min-width: 1024px) 33vw, 50vw"
-                      placeholder="blur" blurDataURL={shimmerDataUrl()}
+                      placeholder={BLUR} blurDataURL={shimmerDataUrl()}
                       className="object-cover transition-transform duration-[1100ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:scale-[1.06]"
                     />
                   )}

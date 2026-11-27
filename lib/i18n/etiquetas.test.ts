@@ -116,3 +116,34 @@ describe('dónde está el visitante (barra)', () => {
     expect(projectSectionFor('/proyecto/t/unidades', '/proyecto/t', info)).toEqual({ label: 'Units', detail: '21 disponibles' });
   });
 });
+
+describe('precios en inglés', () => {
+  it('separadores de EE. UU. con cualquier moneda; en castellano, como siempre', async () => {
+    const { formatPrice } = await import('@/lib/units');
+    expect(formatPrice(85000000, 'ARS', 'en').replace(/\s/g, ' ')).toBe('ARS 85,000,000');
+    expect(formatPrice(150000, 'EUR', 'en')).toBe('€150,000');
+    expect(formatPrice(120000, 'USD', 'en')).toBe('$120,000');
+    expect(formatPrice(85000000, 'ARS')).toBe(new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(85000000));
+  });
+});
+
+describe('nombres que genera la plataforma (Carga guiada)', () => {
+  it('pisos', async () => {
+    const { etiquetaPiso } = await import('./catalogo');
+    expect(etiquetaPiso('Piso 3', 'en')).toBe('Floor 3');
+    expect(etiquetaPiso('Planta baja', 'en')).toBe('Ground floor');
+    expect(etiquetaPiso('PB', 'en')).toBe('Ground floor');
+    expect(etiquetaPiso('Subsuelo 2', 'en')).toBe('Basement 2');
+    expect(etiquetaPiso('Subsuelo', 'en')).toBe('Basement');
+    expect(etiquetaPiso('Planta alta', 'en')).toBe('Upper floor');
+    expect(etiquetaPiso('Plano', 'en')).toBe('Site plan');
+    expect(etiquetaPiso('Terraza Norte', 'en')).toBe('Terraza Norte');
+    expect(etiquetaPiso('Piso 3', 'es')).toBe('Piso 3');
+  });
+  it('tipos por defecto', () => {
+    expect(etiquetaCatalogo('Unidad', 'en')).toBe('Unit');
+    expect(etiquetaCatalogo('Lote', 'en')).toBe('Lot');
+    expect(etiquetaCatalogo('Casa', 'en')).toBe('House');
+    expect(etiquetaCatalogo('Dúplex', 'en')).toBe('Duplex');
+  });
+});

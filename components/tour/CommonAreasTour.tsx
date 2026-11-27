@@ -8,6 +8,7 @@ import type { TourData } from '@/types';
 import type { SunAzimuths } from '@/lib/sun-position';
 import { useProjectNav } from '@/lib/project-nav-context';
 import { useTrack } from '@/components/analytics/SiteTracker';
+import { useT } from '@/lib/i18n/client';
 
 const VirtualTour = dynamic(() => import('./VirtualTour'), { ssr: false });
 
@@ -32,12 +33,14 @@ export default function CommonAreasTour({
   focusNodeId,
   label,
   backHref,
-  backLabel = 'Volver a la vista aérea',
+  backLabel: backLabelProp,
   embed = false,
   orientationDegrees,
   sunAzimuths,
 }: CommonAreasTourProps) {
   const router = useTransitionRouter();
+  const t = useT();
+  const backLabel = backLabelProp ?? t('resto.tour.volverFachada');
   const basePath = useProjectBasePath();
   // Embebido en un iframe del propio sitio el tracker está apagado: no cuenta doble.
   const track = useTrack();
@@ -88,7 +91,7 @@ export default function CommonAreasTour({
             <div className="glass rounded-xl px-4 py-2.5 pointer-events-auto min-w-0 max-w-[60vw] sm:max-w-none">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="text-sm font-medium text-white/90 truncate">{label ?? `Recorrido de espacios comunes · ${projectName}`}</span>
+                <span className="text-sm font-medium text-white/90 truncate">{label ?? t('resto.tour.recorridoEspacios', { nombre: projectName })}</span>
               </div>
             </div>
           </div>

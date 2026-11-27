@@ -1,5 +1,5 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
@@ -15,11 +15,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
-  if (!project) return { title: 'Proyecto no encontrado' };
+  const t = await getT();
+  if (!project) return { title: t('sitio.paginas.proyectoNoEncontrado') };
   return {
     alternates: await alternatesFor(slug, '/recorrido', project.locales, locale),
-    title: `${project.name} | Recorrido de espacios comunes`,
-    description: `Recorré en 360° los pasillos, la pileta y las áreas comunes de ${project.name}.`,
+    title: t('sitio.paginas.titulo', { nombre: project.name, seccion: t('sitio.paginas.recorridoTitulo') }),
+    description: t('sitio.paginas.recorridoDescripcion', { nombre: project.name }),
   };
 }
 

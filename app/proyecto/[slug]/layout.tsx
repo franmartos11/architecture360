@@ -16,6 +16,8 @@ import ChatWidgetLoader from '@/components/chat/ChatWidgetLoader';
 import HtmlLang from '@/components/i18n/HtmlLang';
 import { LocaleProvider } from '@/lib/i18n/client';
 import { getLocale } from '@/lib/i18n/server';
+import { intlLocale, type Locale } from '@/lib/i18n/locales';
+import { crearT, type T } from '@/lib/i18n/t';
 
 import { pluralize } from '@/lib/units';
 interface LayoutProps {
@@ -35,13 +37,11 @@ interface LayoutProps {
 // página en la misma request se deduplican.
 // "Exterior y terraza" — bajada de Recorrido 360 en el desplegable de
 // Explorar 3D. Con más de tres espacios, solo la cantidad.
-function tourSpacesLabel(names: string[]): string | undefined {
+function tourSpacesLabel(names: string[], t: T, locale: Locale): string | undefined {
   if (names.length === 0) return undefined;
-  if (names.length > 3) return `${names.length} espacios`;
-  const [first, ...rest] = names.map((n, i) => (i === 0 ? n : n.toLowerCase()));
-  if (rest.length === 0) return first;
-  const last = rest.pop();
-  return `${[first, ...rest].join(', ')} y ${last}`;
+  if (names.length > 3) return t('sitio.layout.espacios', { n: names.length });
+  const list = names.map((n, i) => (i === 0 ? n : n.toLowerCase()));
+  return new Intl.ListFormat(intlLocale(locale), { type: 'conjunction' }).format(list);
 }
 
 // Un borrador solo lo ve su dueño (ver getSiteProject), pero igual: que
@@ -61,10 +61,12 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   ]);
   if (!view) notFound();
   const { project, isDraftPreview, canPublish } = view;
+  // El idioma ya se leyó arriba (junto con el proyecto): no se vuelve a pedir.
+  const t = crearT(locale);
   // /en de un proyecto sin inglés activado: no existe.
   if (!project.locales.includes(locale)) notFound();
 
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, locale);
   const theme = resolveTheme(project.themeConfig);
   const content = projectHasContent(project);
   // Barra y menú: solo las secciones con contenido, salvo en la vista previa
@@ -72,6 +74,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   // cargar (esas páginas le muestran el mensaje de vacío en vez de un 404).
   // El recorrido no: /recorrido sin tour da 404 también en el borrador.
   const inNav = (has: boolean) => has || isDraftPreview;
+  const isDefaultLocale = locale === 'es';
   // "Plantas" del menú: el primer edificio con plano cargado. Una casa no
   // tiene plano propio (su edificio redirige a la ficha), así que no va.
   const plansBuilding = typeConfig.hasUnitStep
@@ -80,7 +83,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   return (
     <LocaleProvider locale={locale} disponibles={project.locales}>
-    {locale !== 'es' && <HtmlLang locale={locale} />}
+    {!isDefaultLocale && <HtmlLang locale={locale} />}
     <ProjectBasePathProvider basePath={basePath}>
       <ProjectWhatsappProvider numero={project.whatsappNumber}>
       <SiteTracker projectSlug={project.slug} isDraftPreview={isDraftPreview} briefUrl={project.briefPdfUrl ?? undefined}>
@@ -102,7 +105,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           singleUnit={!typeConfig.hasUnitStep && project.units[0]
             ? { buildingId: project.units[0].buildingId, unitId: project.units[0].id, label: typeConfig.unitLabel }
             : undefined}
-          unitsLabel={`${pluralize(typeConfig.unitLabel)}`}
+          unitsLabel={pluralize(typeConfig.unitLabel, locale)}
           projectSlug={project.slug}
           projectLocation={project.location?.split(',')[0]?.trim() || undefined}
           showLeads={typeConfig.showLeads}
@@ -116,18 +119,18 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           explore={{
             hasFacade: inNav(content.facade),
             facadeImage: project.aerialSlides[0]?.imageUrl || project.masterplanImage || undefined,
-            facadeDetail: project.aerialSlides.length > 1 ? `${project.aerialSlides.length} ángulos` : 'Vista aérea',
+            facadeDetail: project.aerialSlides.length > 1 ? t('sitio.layout.angulos', { n: project.aerialSlides.length }) : t('sitio.layout.vistaAerea'),
             plans: plansBuilding && {
               buildingId: plansBuilding.id,
               image: plansBuilding.floors.find(f => f.planImage)?.planImage || plansBuilding.coverImage,
-              label: typeConfig.hasFloorStep ? 'Plantas' : `Plano de ${pluralize(typeConfig.unitLabel)}`,
+              label: typeConfig.hasFloorStep ? t('nav.plantas') : t('sitio.layout.planoDe', { unidad: typeConfig.unitLabel, unidades: pluralize(typeConfig.unitLabel, locale) }),
               detail: typeConfig.hasFloorStep && plansBuilding.floors.length > 1
-                ? `${plansBuilding.floors.length} pisos · elegí tu unidad`
-                : 'Elegí tu unidad',
+                ? t('sitio.layout.pisosElegi', { n: plansBuilding.floors.length })
+                : t('sitio.layout.elegiTuUnidad'),
             },
             tourImage: project.commonAreasTour?.nodes.find(n => n.id === project.commonAreasTour?.initialNodeId)?.imageUrl
               ?? project.commonAreasTour?.nodes[0]?.imageUrl,
-            tourDetail: project.commonAreasTour ? tourSpacesLabel(project.commonAreasTour.nodes.map(n => n.name)) : undefined,
+            tourDetail: project.commonAreasTour ? tourSpacesLabel(project.commonAreasTour.nodes.map(n => n.name), t, locale) : undefined,
           }}
         >
           {children}

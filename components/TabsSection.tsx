@@ -3,10 +3,16 @@
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
+import { formatPrice, unitIsDwelling, unitCategory, unitCategoryLabel } from '@/lib/units';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
+import type { Locale } from '@/lib/i18n/locales';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
 import { Pill } from '@/components/project-landing/ui';
 import type { Unit } from '@/types';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 interface TypologyGroup {
   id: string;
@@ -22,7 +28,7 @@ interface TypologyGroup {
   sampleUnit: Unit;
 }
 
-function buildTypologies(units: Unit[]): TypologyGroup[] {
+function buildTypologies(units: Unit[], locale: Locale): TypologyGroup[] {
   const groups = new Map<string, Unit[]>();
   for (const u of units) {
     const key = u.modelName || u.type;
@@ -37,9 +43,10 @@ function buildTypologies(units: Unit[]): TypologyGroup[] {
     const sampleUnit = withImage ?? groupUnits[0];
     return {
       id: key,
-      label: key,
+      // Sin modelo, el grupo es el tipo (valor de catálogo en castellano).
+      label: groupUnits[0].modelName ? key : etiquetaCatalogo(key, locale),
       bedrooms: sampleUnit.bedrooms,
-      categoryLabel: unitIsDwelling(sampleUnit) ? null : UNIT_CATEGORY_LABEL[unitCategory(sampleUnit)],
+      categoryLabel: unitIsDwelling(sampleUnit) ? null : unitCategoryLabel(unitCategory(sampleUnit), locale),
       minArea: areas.length ? Math.min(...areas) : 0,
       maxArea: areas.length ? Math.max(...areas) : 0,
       minPrice: prices.length ? Math.min(...prices) : null,
@@ -58,28 +65,30 @@ function formatArea(min: number, max: number): string {
 
 export function TabsSection({ units, showPrice, unitIsLand = false, kindLabel }: { units: Unit[]; showPrice: boolean; unitIsLand?: boolean; kindLabel: string }) {
   const basePath = useProjectBasePath();
-  const typologies = useMemo(() => buildTypologies(units), [units]);
+  const t = useT();
+  const { locale } = useLocale();
+  const typologies = useMemo(() => buildTypologies(units, locale), [units, locale]);
   const [activeTab, setActiveTab] = useState(typologies[0]?.id ?? '');
 
-  const activeData = typologies.find(t => t.id === activeTab) ?? typologies[0];
+  const activeData = typologies.find(ty => ty.id === activeTab) ?? typologies[0];
   if (!activeData) return null;
 
   // Un lote es terreno — no tiene dormitorios que anunciar. Un local /
   // cochera tampoco: se anuncia su categoría en el rótulo de arriba.
   const bedroomsText = activeData.categoryLabel
     ? null
-    : activeData.bedrooms > 0 ? `${activeData.bedrooms}` : 'Monoambiente';
+    : activeData.bedrooms > 0 ? `${activeData.bedrooms}` : t('sitio.tipologias.monoambiente');
   const area = formatArea(activeData.minArea, activeData.maxArea);
   const specs = [
-    area && { label: 'Superficie', value: area },
-    !unitIsLand && bedroomsText && { label: 'Dormitorios', value: bedroomsText },
-    activeData.sampleUnit.bathrooms > 0 && !activeData.categoryLabel && { label: 'Baños', value: String(activeData.sampleUnit.bathrooms) },
+    area && { label: t('sitio.tipologias.superficie'), value: area },
+    !unitIsLand && bedroomsText && { label: t('sitio.tipologias.dormitorios'), value: bedroomsText },
+    activeData.sampleUnit.bathrooms > 0 && !activeData.categoryLabel && { label: t('sitio.tipologias.banos'), value: String(activeData.sampleUnit.bathrooms) },
   ].filter(Boolean).slice(0, 2) as { label: string; value: string }[];
 
   return (
     <div className="w-full">
       {/* Con muchas tipologías las pestañas scrollean de costado en vez de apilarse en 4 renglones. */}
-      <div role="tablist" aria-label="Modelos" className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
+      <div role="tablist" aria-label={t('sitio.tipologias.modelos')} className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
         {typologies.map((tab) => {
           const isActive = tab.id === activeData.id;
           return (
@@ -106,15 +115,15 @@ export function TabsSection({ units, showPrice, unitIsLand = false, kindLabel }:
           {activeData.image ? (
             <Image
               src={activeData.image}
-              alt={`Imagen de referencia del modelo ${activeData.label}`}
+              alt={t('sitio.tipologias.imagenReferencia', { modelo: activeData.label })}
               fill
               sizes="(min-width: 1024px) 60vw, 100vw"
-              placeholder="blur"
+              placeholder={BLUR}
               blurDataURL={shimmerDataUrl()}
               className="object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-[var(--theme-text-muted)] text-sm">Sin imagen todavía</div>
+            <div className="w-full h-full flex items-center justify-center text-[var(--theme-text-muted)] text-sm">{t('sitio.tipologias.sinImagen')}</div>
           )}
         </div>
 
@@ -142,14 +151,14 @@ export function TabsSection({ units, showPrice, unitIsLand = false, kindLabel }:
           <div className="flex flex-col gap-4">
             {showPrice && (
               <p className="m-0 text-sm text-[var(--theme-text-muted)]">
-                {activeData.minPrice != null ? 'Desde' : 'Precio'}
+                {activeData.minPrice != null ? t('sitio.tipologias.desde') : t('sitio.tipologias.precio')}
                 <span className="block text-[clamp(30px,3vw,40px)] leading-[1.1] font-semibold tracking-[-0.03em] text-[var(--theme-text)]">
-                  {activeData.minPrice != null ? formatPrice(activeData.minPrice, activeData.sampleUnit.currency) : 'Consultar'}
+                  {activeData.minPrice != null ? formatPrice(activeData.minPrice, activeData.sampleUnit.currency, locale) : t('sitio.tipologias.consultar')}
                 </span>
               </p>
             )}
             <Pill href={`${basePath}/edificio/${activeData.sampleUnit.buildingId}/unidad/${activeData.sampleUnit.id}`} arrow size="lg" block>
-              Conocer {activeData.label}
+              {t('sitio.tipologias.conocer', { modelo: activeData.label })}
             </Pill>
           </div>
         </div>

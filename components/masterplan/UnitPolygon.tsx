@@ -2,6 +2,8 @@
 
 import { useCallback, memo } from 'react';
 import type { Unit } from '@/types';
+import { useLocale } from '@/lib/i18n/client';
+import { etiquetaCatalogo } from '@/lib/i18n/catalogo';
 
 interface UnitPolygonProps {
   unit: Unit;
@@ -11,6 +13,7 @@ interface UnitPolygonProps {
 }
 
 function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
+  const { locale } = useLocale();
   // Los hooks van antes que cualquier return condicional (reglas de
   // hooks) — ninguno depende de `points`, así que no hay problema en
   // declararlos antes de calcularlo.
@@ -39,7 +42,7 @@ function UnitPolygon({ unit, isHovered, onHover, onSelect }: UnitPolygonProps) {
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       role="button"
-      aria-label={`${unit.name} - ${unit.type} - ${unit.totalArea}m²`}
+      aria-label={`${unit.name} - ${etiquetaCatalogo(unit.type, locale)} - ${unit.totalArea}m²`}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

@@ -6,13 +6,18 @@ import { projectHasContent } from '@/lib/project-content';
 import { pluralize } from '@/lib/units';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import { Container, Pill, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 // Más que esto en tipografía de 52px es una pared de texto: el primer
 // párrafo va grande solo si es corto; si no, va en tamaño de lectura.
 const LEAD_MAX_CHARS = 320;
 
-export default function AboutSection({ project, basePath, typeConfig }: SectionProps) {
+export default function AboutSection({ project, basePath, typeConfig, locale = 'es' }: SectionProps) {
   if (!project.description) return null;
+  const t = crearT(locale);
 
   // Ficha académica: solo se completa (y solo tiene sentido mostrar) en
   // proyectos showcase — un desarrollo comercial no tiene "cátedra".
@@ -33,7 +38,7 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
         <Container className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-start">
           <div className="flex flex-col gap-5">
             <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--theme-accent)]">
-              Sobre el desarrollo
+              {t('sitio.about.sobreElDesarrollo')}
             </span>
             <p className="m-0 font-[family-name:var(--theme-font-heading)] text-[clamp(24px,3vw,40px)] leading-[1.15] font-bold tracking-[-0.025em] text-[var(--theme-text)]">
               {lead}
@@ -43,31 +48,31 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
             ))}
             {(hasFacade || project.commonAreasTour) && (
               <div className="flex gap-2.5 flex-wrap pt-2">
-                {hasFacade && <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? 'Ver vista frontal' : 'Explorar masterplan'}</Pill>}
-                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">Tour 360°</Pill>}
+                {hasFacade && <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? t('sitio.about.verVistaFrontal') : t('sitio.about.explorarMasterplan')}</Pill>}
+                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">{t('sitio.about.tour360')}</Pill>}
               </div>
             )}
           </div>
           <Reveal className="tpl-card p-6 rounded-[var(--theme-radius)] bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-sm space-y-4">
             <span className="block text-xs font-semibold uppercase tracking-[0.08em] text-[var(--theme-text-muted)]">
-              Ficha resumen
+              {t('sitio.about.fichaResumen')}
             </span>
             <dl className="m-0 divide-y divide-[var(--theme-border)] text-sm">
               {project.location && (
                 <div className="py-2.5 flex justify-between gap-4">
-                  <dt className="text-[var(--theme-text-muted)]">Ubicación</dt>
+                  <dt className="text-[var(--theme-text-muted)]">{t('nav.ubicacion')}</dt>
                   <dd className="m-0 font-semibold text-[var(--theme-text)] text-right">{project.location}</dd>
                 </div>
               )}
               {project.units.length > 0 && (
                 <div className="py-2.5 flex justify-between gap-4">
-                  <dt className="text-[var(--theme-text-muted)]">{pluralize(typeConfig.unitLabel)}</dt>
+                  <dt className="text-[var(--theme-text-muted)]">{pluralize(typeConfig.unitLabel, locale)}</dt>
                   <dd className="m-0 font-semibold text-[var(--theme-text)]">{project.units.length}</dd>
                 </div>
               )}
               {project.constructionProgress?.deliveryEstimate && (
                 <div className="py-2.5 flex justify-between gap-4">
-                  <dt className="text-[var(--theme-text-muted)]">Entrega estimada</dt>
+                  <dt className="text-[var(--theme-text-muted)]">{t('sitio.about.entregaEstimada')}</dt>
                   <dd className="m-0 font-semibold text-[var(--theme-text)]">{project.constructionProgress.deliveryEstimate}</dd>
                 </div>
               )}
@@ -84,7 +89,7 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
         <Container className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
           <div className="flex flex-col gap-5">
             <p className="m-0 text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--theme-text-muted)]">
-              Memoria & concepto
+              {t('sitio.about.memoriaConcepto')}
             </p>
             {academicLine && (
               <p className="m-0 text-sm font-medium text-[var(--theme-accent)]">{academicLine}</p>
@@ -97,8 +102,8 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
             ))}
             {(hasFacade || project.commonAreasTour) && (
               <div className="flex gap-2.5 flex-wrap pt-2">
-                {hasFacade && <Pill href={`${basePath}/masterplan`} variant="ghost" arrow>{isHouse ? 'Ver vista frontal' : 'Ver masterplan'}</Pill>}
-                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">Tour 360°</Pill>}
+                {hasFacade && <Pill href={`${basePath}/masterplan`} variant="ghost" arrow>{isHouse ? t('sitio.about.verVistaFrontal') : t('sitio.about.verMasterplan')}</Pill>}
+                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">{t('sitio.about.tour360')}</Pill>}
               </div>
             )}
           </div>
@@ -109,7 +114,7 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
                 alt={project.name}
                 fill
                 sizes="(min-width: 1024px) 45vw, 100vw"
-                placeholder="blur"
+                placeholder={BLUR}
                 blurDataURL={shimmerDataUrl()}
                 className="object-cover"
               />
@@ -123,7 +128,7 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
   return (
     <section id="next" className="pt-[var(--theme-spacing)] pb-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
       <Container>
-        <SectionHeading eyebrow="Sobre el proyecto">
+        <SectionHeading eyebrow={t('sitio.about.sobreElProyecto')}>
           <div className="flex flex-col gap-10">
             {academicLine && (
               <p className="m-0 -mb-4 text-sm font-medium text-[var(--theme-accent)]">{academicLine}</p>
@@ -147,8 +152,8 @@ export default function AboutSection({ project, basePath, typeConfig }: SectionP
             {(hasFacade || project.commonAreasTour) && (
               <div className="flex gap-2.5 flex-wrap">
                 {/* Sin fachada cargada /masterplan da 404: no se ofrece. */}
-                {hasFacade && <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? 'Ver vista frontal' : 'Ver masterplan'}</Pill>}
-                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">Tour 360°</Pill>}
+                {hasFacade && <Pill href={`${basePath}/masterplan`} arrow>{isHouse ? t('sitio.about.verVistaFrontal') : t('sitio.about.verMasterplan')}</Pill>}
+                {project.commonAreasTour && <Pill href={`${basePath}/recorrido`} variant="ghost">{t('sitio.about.tour360')}</Pill>}
               </div>
             )}
           </div>

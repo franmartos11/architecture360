@@ -1,12 +1,15 @@
 import type { UnitStatus } from '@/types';
 import { getStatusLabel } from '@/lib/units';
+import type { Locale } from '@/lib/i18n/locales';
 
 interface BadgeProps {
   status: UnitStatus;
   size?: 'sm' | 'md';
+  /** Idioma del sitio público; sin él, castellano (panel). */
+  locale?: Locale;
 }
 
-export default function Badge({ status, size = 'md' }: BadgeProps) {
+export default function Badge({ status, size = 'md', locale = 'es' }: BadgeProps) {
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1';
 
   return (
@@ -20,7 +23,7 @@ export default function Badge({ status, size = 'md' }: BadgeProps) {
             : 'bg-status-sold'
         }`}
       />
-      {getStatusLabel(status)}
+      {getStatusLabel(status, locale)}
     </span>
   );
 }

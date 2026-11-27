@@ -1,5 +1,5 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import AerialViewWrapper from '@/components/aerial/AerialViewWrapper';
@@ -14,11 +14,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
-  if (!project) return { title: 'Proyecto no encontrado' };
+  const t = await getT();
+  if (!project) return { title: t('sitio.paginas.proyectoNoEncontrado') };
   // "Fachada": el mismo nombre que le dan la barra, el menú y las migas.
   return {
     alternates: await alternatesFor(slug, '/masterplan', project.locales, locale),
-    title: `${project.name} | Fachada`,
+    title: t('sitio.paginas.titulo', { nombre: project.name, seccion: t('nav.fachada') }),
     description: project.description,
   };
 }

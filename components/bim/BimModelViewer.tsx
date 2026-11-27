@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useT } from '@/lib/i18n/client';
 
 // El visor 3D de Google para archivos GLB/glTF — un web component que se
 // registra con un import side-effect. Se carga lazy (solo en el browser)
@@ -17,6 +18,7 @@ interface BimModelViewerProps {
 }
 
 export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps) {
+  const t = useT();
   useEffect(() => {
     // Importar el web component solo en el cliente. El import registra
     // <model-viewer> como custom element — una vez registrado, cualquier
@@ -48,7 +50,7 @@ export default function BimModelViewer({ src, alt, poster }: BimModelViewerProps
           
           <div className="relative z-10 flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
-            <span className="text-sm font-medium tracking-wide">Cargando modelo 3D...</span>
+            <span className="text-sm font-medium tracking-wide">{t('resto.bim.cargando')}</span>
           </div>
         </div>
 

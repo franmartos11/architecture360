@@ -1,5 +1,5 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import FloorPlanWrapper from '@/components/floorplan/FloorPlanWrapper';
@@ -17,21 +17,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug, buildingId } = await params;
   const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
-  if (!project) return { title: 'Proyecto no encontrado' };
+  const t = await getT();
+  if (!project) return { title: t('sitio.paginas.proyectoNoEncontrado') };
 
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, locale);
   const building = project.buildings.find(b => b.id === buildingId);
   if (!building) {
-    return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
+    return { title: t(typeConfig.buildingLabelGender === 'f' ? 'sitio.paginas.edificioNoEncontrada' : 'sitio.paginas.edificioNoEncontrado', { edificio: typeConfig.buildingLabel }) };
   }
 
   const unitLabelLower = typeConfig.unitLabel.toLowerCase();
   const title = typeConfig.hasFloorStep
-    ? `${building.name} | Plano de Pisos`
-    : `${building.name} | Plano de ${pluralize(typeConfig.unitLabel)}`;
+    ? t('sitio.paginas.titulo', { nombre: building.name, seccion: t('sitio.paginas.planoDePisos') })
+    : t('sitio.paginas.titulo', { nombre: building.name, seccion: t('sitio.paginas.planoDeUnidades', { unidad: typeConfig.unitLabel, unidades: pluralize(typeConfig.unitLabel, locale) }) });
   const description = typeConfig.hasFloorStep
-    ? `Explorá el plano de pisos de ${building.name} en ${project.name}, con disponibilidad de unidades en tiempo real.`
-    : `Explorá el plano de ${pluralize(unitLabelLower)} de ${building.name} en ${project.name}, con disponibilidad de ${pluralize(unitLabelLower)} en tiempo real.`;
+    ? t('sitio.paginas.edificioDescripcionPisos', { edificio: building.name, nombre: project.name })
+    : t('sitio.paginas.edificioDescripcion', { unidad: unitLabelLower, unidades: pluralize(unitLabelLower, locale), edificio: building.name, nombre: project.name });
   const image = project.masterplanImage || undefined;
 
   return {
@@ -53,7 +54,7 @@ export default async function BuildingPage({ params, searchParams }: PageProps) 
   if (!project || !building) notFound();
 
   const initialFloor = piso ? parseInt(piso, 10) : 1;
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, await getLocale());
 
   // Una casa ES la unidad — no hay plano de pisos que navegar, así que el
   // "edificio" público de una casa no tiene nada propio que mostrar: se

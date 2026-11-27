@@ -1,5 +1,5 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CommonAreasTourWrapper from '@/components/tour/CommonAreasTourWrapper';
@@ -17,16 +17,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug, buildingId } = await params;
   const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
-  if (!project) return { title: 'Proyecto no encontrado' };
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const t = await getT();
+  if (!project) return { title: t('sitio.paginas.proyectoNoEncontrado') };
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, locale);
   const building = project.buildings.find(b => b.id === buildingId);
   if (!building) {
-    return { title: `${typeConfig.buildingLabel} no ${typeConfig.buildingLabelGender === 'f' ? 'encontrada' : 'encontrado'}` };
+    return { title: t(typeConfig.buildingLabelGender === 'f' ? 'sitio.paginas.edificioNoEncontrada' : 'sitio.paginas.edificioNoEncontrado', { edificio: typeConfig.buildingLabel }) };
   }
   return {
     alternates: await alternatesFor(slug, `/edificio/${buildingId}/recorrido`, project.locales, locale),
-    title: `${building.name} | Amenities en 360°`,
-    description: `Recorré en 360° las amenities exclusivas de ${building.name}.`,
+    title: t('sitio.paginas.titulo', { nombre: building.name, seccion: t('sitio.paginas.amenities360') }),
+    description: t('sitio.paginas.edificioRecorridoDescripcion', { nombre: building.name }),
   };
 }
 
@@ -41,6 +42,7 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
   // La ubicación (lat/lng) es del proyecto, no de la torre.
   const sunAzimuths = project?.latitude != null ? getSunAzimuths(project.latitude) : null;
   const basePath = await getProjectBasePath(slug);
+  const t = await getT();
 
   return (
     <CommonAreasTourWrapper
@@ -48,9 +50,9 @@ export default async function BuildingTourPage({ params, searchParams }: PagePro
       projectSlug={slug}
       tourData={building.amenitiesTour}
       focusNodeId={focus}
-      label={`Recorrido — ${building.name}`}
+      label={t('sitio.paginas.recorridoDe', { nombre: building.name })}
       backHref={`${basePath}/edificio/${buildingId}`}
-      backLabel={`Volver a ${building.name}`}
+      backLabel={t('sitio.paginas.volverA', { nombre: building.name })}
       embed={isEmbed}
       orientationDegrees={building.tourOrientationDegrees}
       sunAzimuths={sunAzimuths}

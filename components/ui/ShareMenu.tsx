@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Popover, { MenuItem } from '@/components/ui/Popover';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useT } from '@/lib/i18n/client';
 
 interface ShareMenuProps {
   /** Link a compartir. */
@@ -22,6 +23,7 @@ interface ShareMenuProps {
 export default function ShareMenu({ url, text, children, align = 'right' }: ShareMenuProps) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
+  const tr = useT();
 
   const enc = encodeURIComponent;
   const targets = [
@@ -34,12 +36,15 @@ export default function ShareMenu({ url, text, children, align = 'right' }: Shar
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
-      toast('Link copiado');
+      toast(tr('sitio.share.copiado'));
     } catch {
-      toast('No se pudo copiar el link', 'error');
+      toast(tr('sitio.share.errorCopiar'), 'error');
     }
     setOpen(false);
   };
+
+  // Share nativo del sistema (mobile): solo si el navegador lo tiene.
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const nativeShare = async () => {
     try { await navigator.share({ text, url }); } catch { /* cancelado */ }
@@ -49,8 +54,8 @@ export default function ShareMenu({ url, text, children, align = 'right' }: Shar
   return (
     <div className="relative inline-block">
       {children({ onClick: () => setOpen(o => !o), 'aria-expanded': open })}
-      <Popover open={open} onClose={() => setOpen(false)} role="menu" align={align === 'right' ? 'end' : 'start'} ariaLabel="Compartir" className="w-44 text-sm">
-        <MenuItem onClick={copy}>Copiar link</MenuItem>
+      <Popover open={open} onClose={() => setOpen(false)} role="menu" align={align === 'right' ? 'end' : 'start'} ariaLabel={tr('sitio.share.compartir')} className="w-44 text-sm">
+        <MenuItem onClick={copy}>{tr('sitio.share.copiar')}</MenuItem>
         {targets.map(t => (
           <a
             key={t.label}
@@ -64,8 +69,8 @@ export default function ShareMenu({ url, text, children, align = 'right' }: Shar
             {t.label}
           </a>
         ))}
-        {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-          <MenuItem onClick={nativeShare} className="border-t border-gray-100">Más opciones…</MenuItem>
+        {canShare && (
+          <MenuItem onClick={nativeShare} className="border-t border-gray-100">{tr('sitio.share.masOpciones')}</MenuItem>
         )}
       </Popover>
     </div>

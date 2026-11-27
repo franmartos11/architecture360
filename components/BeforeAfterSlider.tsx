@@ -4,6 +4,10 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import type { BeforeAfterPair } from '@/types';
+import { useT } from '@/lib/i18n/client';
+
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
 
 // Slider comparador de una foto "antes" contra una "después" del mismo
 // lugar — típico de un reciclaje/rehabilitación. La imagen "antes" se
@@ -21,6 +25,7 @@ interface BeforeAfterSliderProps extends BeforeAfterPair {
 
 export default function BeforeAfterSlider({ label, beforeImage, afterImage, beforeLabel, afterLabel, sizes = '(min-width: 768px) 800px, 100vw' }: BeforeAfterSliderProps) {
   const [percent, setPercent] = useState(50);
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -67,7 +72,7 @@ export default function BeforeAfterSlider({ label, beforeImage, afterImage, befo
         onKeyDown={handleKeyDown}
         role="slider"
         tabIndex={0}
-        aria-label={label || 'Comparar antes y después'}
+        aria-label={label || t('sitio.antesDespues.comparar')}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(percent)}
@@ -76,30 +81,30 @@ export default function BeforeAfterSlider({ label, beforeImage, afterImage, befo
         {/* Después — de fondo, ocupa todo el marco */}
         <Image
           src={afterImage}
-          alt={afterLabel ?? 'Después'}
+          alt={afterLabel ?? t('sitio.antesDespues.despues')}
           fill
           sizes={sizes}
-          placeholder="blur"
+          placeholder={BLUR}
           blurDataURL={shimmerDataUrl()}
           className="object-cover pointer-events-none"
         />
         <span className={`${tagClass(!!afterLabel)} right-4`}>
-          {afterLabel ?? 'Después'}
+          {afterLabel ?? t('sitio.antesDespues.despues')}
         </span>
 
         {/* Antes — recortada con clip-path, no escalada, para que ninguna de las dos fotos se deforme */}
         <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}>
           <Image
             src={beforeImage}
-            alt={beforeLabel ?? 'Antes'}
+            alt={beforeLabel ?? t('sitio.antesDespues.antes')}
             fill
             sizes={sizes}
-            placeholder="blur"
+            placeholder={BLUR}
             blurDataURL={shimmerDataUrl()}
             className="object-cover pointer-events-none"
           />
           <span className={`${tagClass(!!beforeLabel)} left-4`}>
-            {beforeLabel ?? 'Antes'}
+            {beforeLabel ?? t('sitio.antesDespues.antes')}
           </span>
         </div>
 

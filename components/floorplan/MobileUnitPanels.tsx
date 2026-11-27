@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { m as motion, useReducedMotion } from 'framer-motion';
 import { SWAP } from '@/lib/motion';
+import { useT } from '@/lib/i18n/client';
 
 // Piezas de la vista de plantas en mobile: la tarjeta fija de abajo con lo
 // elegido en el plano y el detalle que se abre desde ella (dentro de
@@ -45,6 +46,7 @@ export function MobileSelectionCard({ summary, selectionKey, actions, onExpand }
   actions: MobileActions;
   onExpand: () => void;
 }) {
+  const t = useT();
   const reduced = !!useReducedMotion();
   const swipeFrom = useRef<number | null>(null);
   const cardActions = { ...actions, favorite: undefined };
@@ -65,7 +67,7 @@ export function MobileSelectionCard({ summary, selectionKey, actions, onExpand }
           type="button"
           onClick={onExpand}
           aria-haspopup="dialog"
-          aria-label={`${summary.title}: ver detalle`}
+          aria-label={t('plano.verDetalle', { nombre: summary.title })}
           initial={reduced ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={SWAP}
@@ -98,7 +100,7 @@ export function MobileSelectionCard({ summary, selectionKey, actions, onExpand }
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...SWAP, delay: reduced ? 0 : 0.05 }}
             className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mt-1"
-            aria-label="Datos de la unidad"
+            aria-label={t('plano.datosUnidad')}
           >
             {summary.facts.map(f => (
               <li key={f} className="shrink-0 px-2.5 py-1 rounded-lg bg-[#F3F5F7] text-[12.5px] font-semibold text-gray-700 whitespace-nowrap">{f}</li>
@@ -122,17 +124,18 @@ export function MobileUnitDetail({ summary, photos, specs, actions, onClose, onS
   /** Lo que sigue a los datos: qué incluye, ubicación, etc. */
   children?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col min-h-full">
       <div className="relative h-[220px] shrink-0 bg-gray-100">
         <PhotoCarousel photos={photos} />
         <div className="absolute top-4 right-4 flex gap-2">
           {onShare && (
-            <button type="button" onClick={onShare} aria-label="Compartir esta unidad" className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center shadow-sm">
+            <button type="button" onClick={onShare} aria-label={t('plano.compartirUnidad')} className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center shadow-sm">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4" /></svg>
             </button>
           )}
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center shadow-sm">
+          <button type="button" onClick={onClose} aria-label={t('plano.cerrar')} className="w-11 h-11 rounded-full bg-white/95 text-gray-900 flex items-center justify-center shadow-sm">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
           </button>
         </div>
@@ -184,7 +187,9 @@ function StatusLine({ label, color }: { label: string; color?: string }) {
 }
 
 function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?: boolean }) {
+  const t = useT();
   const { favorite, secondary, primary } = actions;
+  const conFlecha = primary?.icon === 'arrow';
   return (
     // En la tarjeta (equal, sin favorito) la acción principal va a la
     // izquierda y "Ver unidad" a la derecha.
@@ -193,7 +198,7 @@ function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?:
         <button
           type="button"
           onClick={favorite.onToggle}
-          aria-label={favorite.on ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+          aria-label={favorite.on ? t('plano.quitarFavoritos') : t('plano.guardarFavoritos')}
           aria-pressed={favorite.on}
           className={`m-btn !w-[52px] !px-0 shrink-0 ${favorite.on ? 'bg-[#FFF1E8] text-[#C2410C]' : 'm-btn--secondary'}`}
         >
@@ -208,9 +213,9 @@ function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?:
       )}
       {primary && (
         <button type="button" onClick={primary.onClick} className={`m-btn m-btn--primary ${equal ? 'flex-[1_1_0]' : 'flex-[1.3_1_0]'}`}>
-          {primary.icon !== 'arrow' && <ChatGlyph />}
+          {!conFlecha && <ChatGlyph />}
           <span className="truncate">{primary.label}</span>
-          {primary.icon === 'arrow' && (
+          {conFlecha && (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           )}
         </button>
@@ -221,6 +226,7 @@ function ActionRow({ actions, equal = false }: { actions: MobileActions; equal?:
 
 // Fotos de la unidad, deslizables de a una, con contador.
 function PhotoCarousel({ photos }: { photos: string[] }) {
+  const t = useT();
   const [index, setIndex] = useState(0);
   if (photos.length === 0) return null;
   return (
@@ -234,13 +240,13 @@ function PhotoCarousel({ photos }: { photos: string[] }) {
       >
         {photos.map((src, i) => (
           <div key={src + i} className="relative w-full h-full shrink-0 snap-start">
-            <Image src={src} alt={i === 0 ? 'Interior de la unidad' : ''} fill sizes="100vw" priority={i === 0} className="object-cover" />
+            <Image src={src} alt={i === 0 ? t('plano.interiorUnidad') : ''} fill sizes="100vw" priority={i === 0} className="object-cover" />
           </div>
         ))}
       </div>
       {photos.length > 1 && (
         <span className="absolute left-4 bottom-3 rounded-[10px] bg-gray-900/75 px-2 py-1 text-xs font-semibold text-white tabular-nums pointer-events-none">
-          {index + 1} / {photos.length} fotos
+          {t('plano.fotoDeN', { i: index + 1, n: photos.length })}
         </span>
       )}
     </>

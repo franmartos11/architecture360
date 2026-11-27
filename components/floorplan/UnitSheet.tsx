@@ -5,6 +5,7 @@ import { m as motion, AnimatePresence } from 'framer-motion';
 import { useSheetDrag } from '@/hooks/useSheetDrag';
 import { BACKDROP } from '@/lib/motion';
 import { useScrollLock } from '@/hooks/useScrollLock';
+import { useT } from '@/lib/i18n/client';
 
 // Media query del layout de escritorio — la misma que la variante `wide`
 // de globals.css. Por encima, la ficha vive en el panel lateral y la hoja
@@ -28,6 +29,7 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
   handleOverContent?: boolean;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const { reduced, y, handlers, sheetMotion } = useSheetDrag(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
   useScrollLock(open);
@@ -91,7 +93,7 @@ export function UnitSheet({ open, onClose, label, contentKey, handleOverContent 
                   type="button"
                   onClick={onClose}
                   onPointerDown={e => e.stopPropagation()}
-                  aria-label="Cerrar"
+                  aria-label={t('plano.cerrar')}
                   className="group absolute right-1.5 top-0 w-11 h-11 flex items-center justify-center"
                 >
                   <span className="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors">

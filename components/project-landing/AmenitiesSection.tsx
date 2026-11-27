@@ -5,8 +5,13 @@ import { shimmerDataUrl } from '@/lib/imagePlaceholder';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { ArrowIcon, Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function AmenitiesSection({ project, basePath }: SectionProps) {
+// Valor de la prop de next/image, no texto (el guardián de i18n mira los placeholder escritos a mano).
+const BLUR = 'blur' as const;
+
+export default function AmenitiesSection({ project, basePath, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   // Una tarjeta necesita una foto — sin eso no hay nada que mostrar.
   const cards = project.amenities.filter(a => a.images.length > 0);
   if (cards.length === 0) return null;
@@ -17,7 +22,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
       <section id="amenities" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <Reveal>
-            <SectionHeading eyebrow="Amenities" title="Espacios comunes incluidos" className="mb-10" />
+            <SectionHeading eyebrow={t('nav.amenities')} title={t('sitio.amenities.tituloComercial')} className="mb-10" />
           </Reveal>
           <div className="grid gap-4 md:grid-cols-2">
             {cards.map((a, i) => (
@@ -32,7 +37,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
                       alt={a.name}
                       fill
                       sizes="(min-width: 640px) 220px, 100vw"
-                      placeholder="blur"
+                      placeholder={BLUR}
                       blurDataURL={shimmerDataUrl()}
                       className="object-cover transition-transform duration-700 group-hover:scale-105"
                     />
@@ -52,7 +57,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
                       )}
                     </div>
                     <span className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--theme-text)]">
-                      Ver detalle <ArrowIcon />
+                      {t('sitio.amenities.verDetalle')} <ArrowIcon />
                     </span>
                   </div>
                 </Link>
@@ -69,7 +74,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
       <section id="amenities" className="py-[var(--theme-spacing)] bg-[var(--theme-bg)] border-t border-[var(--theme-border)]">
         <Container>
           <Reveal>
-            <SectionHeading eyebrow="Amenities" title="Programa de uso común" className="mb-10" />
+            <SectionHeading eyebrow={t('nav.amenities')} title={t('sitio.amenities.tituloEditorial')} className="mb-10" />
           </Reveal>
           <div className="grid gap-6 md:grid-cols-12">
             {cards.map((a, i) => (
@@ -81,7 +86,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
                       alt={a.name}
                       fill
                       sizes={i === 0 ? '100vw' : '(min-width: 768px) 33vw, 100vw'}
-                      placeholder="blur"
+                      placeholder={BLUR}
                       blurDataURL={shimmerDataUrl()}
                       className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                     />
@@ -106,7 +111,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
     <section id="amenities" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)]">
       <Container>
         <Reveal>
-          <SectionHeading eyebrow="Amenities" title="Espacios para disfrutar," muted="relajarte y conectar." className="mb-12" />
+          <SectionHeading eyebrow={t('nav.amenities')} title={t('sitio.amenities.titulo')} muted={t('sitio.amenities.tituloAtenuado')} className="mb-12" />
         </Reveal>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5">
           {cards.map((a, i) => (
@@ -118,7 +123,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
                     alt={a.name}
                     fill
                     sizes="(min-width: 1360px) 340px, (min-width: 640px) 50vw, 100vw"
-                    placeholder="blur"
+                    placeholder={BLUR}
                     blurDataURL={shimmerDataUrl()}
                     className="object-cover transition-transform duration-[1100ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:scale-[1.07]"
                   />
@@ -132,7 +137,7 @@ export default function AmenitiesSection({ project, basePath }: SectionProps) {
                   <h3 className="m-0 font-[family-name:var(--theme-font-heading)] text-[22px] font-semibold tracking-[-0.015em]">{a.name}</h3>
                   {a.description && <p className="m-0 text-sm leading-normal text-[var(--theme-text-muted)] line-clamp-3">{a.description}</p>}
                   <span className="mt-1.5 inline-flex items-center gap-2 text-sm font-semibold">
-                    Ver más
+                    {t('sitio.amenities.verMas')}
                     <span className="transition-transform duration-[450ms] group-hover:translate-x-1"><ArrowIcon /></span>
                   </span>
                 </div>

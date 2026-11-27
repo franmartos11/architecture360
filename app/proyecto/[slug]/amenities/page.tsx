@@ -1,5 +1,5 @@
 import { alternatesFor } from '@/lib/i18n/alternates';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSiteProject, getSiteProjectBySlug } from '@/data/project-repository';
@@ -16,11 +16,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const locale = await getLocale();
   const project = await getSiteProjectBySlug(slug);
-  if (!project) return { title: 'Proyecto no encontrado' };
+  const t = await getT();
+  if (!project) return { title: t('sitio.paginas.proyectoNoEncontrado') };
   return {
     alternates: await alternatesFor(slug, '/amenities', project.locales, locale),
-    title: `${project.name} | Amenities`,
-    description: `Conocé y recorré en 360° las amenities de ${project.name}.`,
+    title: t('sitio.paginas.titulo', { nombre: project.name, seccion: t('nav.amenities') }),
+    description: t('sitio.paginas.amenitiesDescripcion', { nombre: project.name }),
   };
 }
 
@@ -36,6 +37,6 @@ export default async function AmenitiesPage({ params, searchParams }: PageProps)
   // el mensaje de vacío ("Todavía no hay…") en vez de un 404.
   if (!view.isDraftPreview && !projectHasContent(project).amenities) notFound();
 
-  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode);
+  const typeConfig = getProjectTypeConfig(project.projectType, project.saleMode, await getLocale());
   return <AmenitiesView project={project} initialBuildingFilter={edificio} typeConfig={typeConfig} />;
 }

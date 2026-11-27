@@ -11,6 +11,7 @@ import SameAngleCompare from './construction-progress/SameAngleCompare';
 import StoryScroll from './construction-progress/StoryScroll';
 import StoryCarousel from './construction-progress/StoryCarousel';
 import TimeLapse from './construction-progress/TimeLapse';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 /**
  * Avance de obra. Cada pieza aparece solo si tiene datos:
@@ -26,6 +27,8 @@ import TimeLapse from './construction-progress/TimeLapse';
  */
 export default function ConstructionProgressView({ progress }: { progress: ConstructionProgress }) {
   const reduce = useReducedMotion();
+  const t = useT();
+  const { locale } = useLocale();
   const updates = useMemo(() => visibleUpdates(progress), [progress]);
   const frames = useMemo(() => lapseFrames(updates), [updates]);
   const story = useMemo(() => storyWindow(updates), [updates]);
@@ -40,13 +43,13 @@ export default function ConstructionProgressView({ progress }: { progress: Const
     <section id="avance" className="py-[calc(var(--theme-spacing)/2)] bg-[var(--theme-bg)] text-[var(--theme-text)]">
       <Container>
         <SectionHeading
-          eyebrow="Avance de obra"
-          title="Así va la obra."
-          muted={last ? `Actualizado ${formatUpdateDate(last.date)}.` : undefined}
+          eyebrow={t('sitio.avance.eyebrow')}
+          title={t('sitio.avance.titulo')}
+          muted={last ? t('sitio.avance.actualizado', { fecha: formatUpdateDate(last.date, locale) }) : undefined}
           className="mb-12"
         />
         <Summary progress={progress} onLapse={frames.length > 2 ? () => openLapse() : undefined} />
-        {comparison && <SameAngleCompare comparison={comparison} />}
+        {comparison && <SameAngleCompare progress={progress} comparison={comparison} />}
       </Container>
 
       {updates.length > 0 && (

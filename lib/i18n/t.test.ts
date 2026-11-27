@@ -42,3 +42,9 @@ describe('locales', () => {
     expect(isLocale(undefined)).toBe(false);
   });
 });
+
+describe('clave de plural pedida sin count', () => {
+  it('usa la forma plural en vez de mostrar la clave', () => {
+    expect(crearT('en')('unidades.disponibles')).toBe('{count} available');
+  });
+});

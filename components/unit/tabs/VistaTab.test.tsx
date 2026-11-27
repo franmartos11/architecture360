@@ -5,6 +5,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 vi.mock('next/dynamic', () => ({ default: () => (props: { imageUrl?: string }) => <div data-testid="pano">{props.imageUrl}</div> }));
 
 import VistaTab from './VistaTab';
+import { LocaleProvider } from '@/lib/i18n/client';
 import type { UnitView } from '@/lib/floor-views';
 
 const view = (over: Partial<UnitView> = {}): UnitView => ({
@@ -64,5 +65,22 @@ describe('VistaTab', () => {
     render(<VistaTab view={view({ photos: [], initialIndex: 0, panorama: 'https://x.supabase.co/p.jpg' })} />);
     expect(screen.getByTestId('pano')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Fotos' })).toBeNull();
+  });
+
+  it('en inglés: orientación y nombre del piso que generó la plataforma, en inglés', () => {
+    const oeste = view({
+      approximate: true, floorLabel: 'Piso 3', initialIndex: 0,
+      photos: [
+        { direction: 'O', url: 'https://x.supabase.co/o.jpg', label: 'Oeste' },
+        { direction: 'N', url: 'https://x.supabase.co/n.jpg', label: 'Norte' },
+      ],
+    });
+    render(<LocaleProvider locale="en" disponibles={['es', 'en']}><VistaTab view={oeste} /></LocaleProvider>);
+    expect(screen.getByText('Approximate West view from Floor 3')).toBeTruthy();
+    expect(screen.getByRole('img').getAttribute('alt')).toBe('View to the West from Floor 3');
+    expect(screen.getByText('W')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'North' }));
+    expect(screen.getByText('Approximate North view from Floor 3')).toBeTruthy();
+    expect(screen.getByText(/actual view may vary/)).toBeTruthy();
   });
 });

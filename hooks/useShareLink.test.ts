@@ -48,4 +48,16 @@ describe('useShareLink', () => {
     expect(writeText).toHaveBeenCalledWith('https://x/y');
     expect(toastSpy).toHaveBeenCalledWith('Link copiado al portapapeles');
   });
+
+  it('en el sitio en inglés, el aviso de copiado sale en inglés', async () => {
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const { createElement } = await import('react');
+    const { LocaleProvider } = await import('@/lib/i18n/client');
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(LocaleProvider, { locale: 'en', disponibles: ['es', 'en'], children });
+    const { result } = renderHook(() => useShareLink(), { wrapper });
+    await result.current('https://x/y', 'T', 'X');
+    expect(toastSpy).toHaveBeenCalledWith('Link copied to clipboard');
+  });
 });

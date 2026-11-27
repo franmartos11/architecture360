@@ -9,7 +9,8 @@ import { ProjectMenuButton } from '@/components/ui/ProjectMenu';
 import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import { useContactModal } from '@/hooks/useContactModal';
 import { useProjectBasePath } from '@/lib/project-base-path-context';
-import { EXPLORE_GROUP, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { exploreGroup, projectNavHrefs, projectSectionFor, type ProjectNavInfo } from '@/lib/project-nav';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Barra única del sitio público de un proyecto — la misma en la web, en
 // Explorar 3D y en la ficha de unidad (rediseño C/D). Según el ancho:
@@ -33,8 +34,10 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
   const pathname = usePathname();
   const basePath = useProjectBasePath();
   const contactModal = useContactModal();
+  const t = useT();
+  const { locale } = useLocale();
   const hrefs = projectNavHrefs(basePath, info.singleUnit, info.explore.plans?.buildingId);
-  const section = projectSectionFor(pathname, basePath, info);
+  const section = projectSectionFor(pathname, basePath, info, locale);
   const isActive = (href: string) => pathname.replace(/\/+$/, '') === href.replace(/\/+$/, '');
   const unitsLabel = info.singleUnit?.label ?? info.unitsLabel;
   // En la ficha de una unidad, "Unidades" también es la sección activa.
@@ -82,7 +85,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
     // site-nav: queda quieta durante la transición entre páginas;
     // data-site-nav: ahí corre la línea de navegación lenta (globals.css).
     <nav
-      aria-label="Principal"
+      aria-label={t('sitio.nav.principal')}
       data-site-nav=""
       style={{ viewTransitionName: 'site-nav', ...navVars }}
       className="fixed top-0 left-0 right-0 z-50"
@@ -107,7 +110,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
             <button
               type="button"
               onClick={goBack}
-              aria-label="Volver"
+              aria-label={t('sitio.nav.volver')}
               className="min-[1200px]:hidden -ml-2 -mr-1.5 sm:-mr-3 w-11 h-11 shrink-0 flex items-center justify-center rounded-lg text-[var(--nav-fg)]"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
@@ -116,7 +119,9 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
           {/* Marca — este sitio es white-label: lleva el nombre del proyecto, no el de la plataforma. */}
           <Link
             href={hrefs.home}
-            aria-label={info.projectLocation ? `${info.projectName}, ${info.projectLocation} — inicio` : `${info.projectName} — inicio`}
+            aria-label={info.projectLocation
+              ? t('sitio.nav.inicioConLugar', { nombre: info.projectName, lugar: info.projectLocation })
+              : t('sitio.nav.inicio', { nombre: info.projectName })}
             className="hit-44 shrink-0 min-w-0 flex flex-col"
           >
             <span className="block font-[family-name:var(--theme-font-heading)] text-[17px] sm:text-lg font-semibold leading-tight tracking-tight text-[var(--nav-fg)] truncate max-w-[40vw] md:max-w-[280px]">
@@ -134,28 +139,28 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
           {/* Barra completa (≥1200px) */}
           <div className="hidden min-[1200px]:flex items-center gap-1">
             <Link href={hrefs.home} aria-current={onHome ? 'page' : undefined} className={navItemClass(onHome)}>
-              Proyecto
+              {t('nav.proyecto')}
             </Link>
-            <ExploreSwitcher info={info} current={section?.group === EXPLORE_GROUP ? section.label : undefined} />
+            <ExploreSwitcher info={info} current={section?.group === exploreGroup(locale) ? section.label : undefined} />
             {/* Cada sección solo si tiene contenido (ver lib/project-content.ts). */}
             {info.hasUnits && (
               <Link href={hrefs.units} aria-current={unitsActive ? 'page' : undefined} className={`flex items-center gap-2 ${navItemClass(unitsActive)}`}>
                 {unitsLabel}
                 {!info.singleUnit && info.unitsAvailable != null && (
                   <span className="px-[7px] py-0.5 rounded-full text-[11px] font-semibold bg-[var(--theme-accent)]/25 text-[var(--nav-fg)]">
-                    {info.unitsAvailable}<span className="sr-only"> disponibles</span>
+                    {info.unitsAvailable}<span className="sr-only"> {t('sitio.nav.disponibles')}</span>
                   </span>
                 )}
               </Link>
             )}
             {info.hasAmenities && (
               <Link href={hrefs.amenities} aria-current={isActive(hrefs.amenities) ? 'page' : undefined} className={navItemClass(isActive(hrefs.amenities))}>
-                Amenities
+                {t('nav.amenities')}
               </Link>
             )}
             {info.hasLocation && (
               <Link href={hrefs.location} aria-current={isActive(hrefs.location) ? 'page' : undefined} className={navItemClass(isActive(hrefs.location))}>
-                Ubicación
+                {t('nav.ubicacion')}
               </Link>
             )}
             {/* El brief es un PDF: link común (no TransitionLink), en otra pestaña. */}
@@ -164,7 +169,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />
                 </svg>
-                Brief
+                {t('sitio.nav.brief')}
               </a>
             )}
           </div>
@@ -202,7 +207,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
               <button
                 type="button"
                 onClick={() => contactModal.open()}
-                aria-label="Contactar"
+                aria-label={t('sitio.nav.contactar')}
                 className="nav-cta h-11 w-11 sm:h-10 sm:w-auto sm:px-5 text-[15px] font-semibold whitespace-nowrap"
               >
                 {/* En mobile no entra el texto: queda redondo con un sobre. */}
@@ -210,7 +215,7 @@ export default function Navbar({ info }: { info: ProjectNavInfo }) {
                   <rect x="3" y="5" width="18" height="14" rx="3" />
                   <path d="m4 7 8 6 8-6" />
                 </svg>
-                <span className="hidden sm:inline">Contactar</span>
+                <span className="hidden sm:inline">{t('sitio.nav.contactar')}</span>
               </button>
             )}
             <div className="min-[1200px]:hidden">

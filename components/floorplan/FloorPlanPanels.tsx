@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
-import { formatPrice, getStatusColor, unitIsDwelling, unitCategory, UNIT_CATEGORY_LABEL } from '@/lib/units';
+import { formatPrice, getStatusColor, unitIsDwelling, unitCategory, unitCategoryLabel } from '@/lib/units';
+import { useLocale, useT } from '@/lib/i18n/client';
 import type { FloorParkingSpot } from '@/lib/floor-explorer';
 import type { Amenity, Unit } from '@/types';
 
@@ -11,7 +12,10 @@ export const AMENITY_COLOR = '#968676';
 export const AMENITY_TEXT = '#6f604f';
 
 const STATUS_TEXT: Record<string, string> = { available: '#15803d', reserved: '#a16207', sold: '#b91c1c' };
-const STATUS_SHORT: Record<string, string> = { available: 'Disponible', reserved: 'Reservado', sold: 'Vendido' };
+const STATUS_SHORT_KEY = { reserved: 'plano.estado.reservado', sold: 'plano.estado.vendido' } as const;
+
+// next/image: el modo de placeholder no es texto visible.
+const BLUR = 'blur' as const;
 
 function Chevron({ color = 'currentColor' }: { color?: string }) {
   return (
@@ -68,11 +72,12 @@ export function IncludesBlock({
   amenityWhere: string;
   onGoAmenities?: () => void;
 }) {
+  const t = useT();
   const spots = (unit.parkingSpots ?? []).filter(s => s.polygon.length >= 3 && canGoSpot(s.floorId));
   if (spots.length === 0 && (amenityCount === 0 || !onGoAmenities)) return null;
   return (
     <>
-      <h4 className={SECTION_TITLE}>INCLUYE</h4>
+      <h4 className={SECTION_TITLE}>{t('plano.incluye')}</h4>
       <div className="flex flex-col gap-[7px] mt-2.5">
         {spots.map((spot, i) => (
           <button
@@ -82,8 +87,8 @@ export function IncludesBlock({
           >
             <span className="w-[30px] h-[30px] rounded-[7px] bg-[#f1efea] flex items-center justify-center text-[11px] font-bold text-gray-700 shrink-0">P</span>
             <span className="flex-1 min-w-0">
-              <span className="block text-[12.5px] font-semibold text-gray-900">{spot.label ? `Cochera ${spot.label}` : 'Cochera'}</span>
-              <span className="block text-[11px] text-gray-400 mt-0.5 truncate">{spot.floorLabel ? `${spot.floorLabel} · ` : ''}ver en el plano</span>
+              <span className="block text-[12.5px] font-semibold text-gray-900">{spot.label ? t('plano.cocheraN', { nombre: spot.label }) : t('plano.cochera')}</span>
+              <span className="block text-[11px] text-gray-400 mt-0.5 truncate">{spot.floorLabel ? `${spot.floorLabel} · ` : ''}{t('plano.verEnPlano')}</span>
             </span>
             <Chevron color="#83978c" />
           </button>
@@ -95,7 +100,7 @@ export function IncludesBlock({
           >
             <span className="w-[30px] h-[30px] rounded-[7px] bg-[#f4f0ea] flex items-center justify-center shrink-0"><AmenityMarkerIcon /></span>
             <span className="flex-1 min-w-0">
-              <span className="block text-[12.5px] font-semibold text-gray-900">{amenityCount} amenit{amenityCount === 1 ? 'y' : 'ies'} de uso común</span>
+              <span className="block text-[12.5px] font-semibold text-gray-900">{t('plano.amenitiesUsoComun', { count: amenityCount })}</span>
               {amenityWhere && <span className="block text-[11px] text-gray-400 mt-0.5">{amenityWhere}</span>}
             </span>
             <Chevron color="#83978c" />
@@ -120,6 +125,7 @@ export function AmenityPanel({
   onSelectSibling: (a: Amenity) => void;
   next?: { label: string; onClick: () => void } | null;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col">
       <div className="relative h-[200px] bg-[#eceae5] shrink-0">
@@ -129,14 +135,14 @@ export function AmenityPanel({
             alt={amenity.name}
             fill
             sizes="(max-width: 768px) 100vw, 336px"
-            placeholder="blur"
+            placeholder={BLUR}
             blurDataURL={shimmerDataUrl(336, 200)}
             className="object-cover"
           />
         )}
         <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-white/95 rounded-full">
           <AmenityMarkerIcon size={8} />
-          <span className="text-[9.5px] font-bold tracking-[0.12em]" style={{ color: AMENITY_TEXT }}>AMENITY · USO COMÚN</span>
+          <span className="text-[9.5px] font-bold tracking-[0.12em]" style={{ color: AMENITY_TEXT }}>{t('plano.amenityUsoComun').toUpperCase()}</span>
         </div>
       </div>
       <div className="p-[18px] pb-5">
@@ -153,7 +159,7 @@ export function AmenityPanel({
             href={tourHref}
             className="mt-4 h-[46px] flex items-center justify-center gap-2 bg-[#1b1e1c] hover:bg-[#333833] rounded-[11px] text-white font-semibold text-[13px] transition-colors"
           >
-            Recorrer en 360°
+            {t('plano.recorrer360')}
             <Chevron />
           </Link>
         )}
@@ -161,7 +167,7 @@ export function AmenityPanel({
           href={amenitiesHref}
           className="mt-2 h-10 flex items-center justify-center border border-gray-200 rounded-[11px] text-xs font-medium text-gray-700 hover:border-emerald-700 hover:text-emerald-700 transition-colors"
         >
-          Ver en Amenidades
+          {t('plano.verEnAmenidades')}
         </Link>
 
         {siblings.length > 0 && (
@@ -185,7 +191,7 @@ export function AmenityPanel({
           </>
         )}
 
-        {next && <NextAvailableCard caption="VER UNIDADES DISPONIBLES" label={next.label} onClick={next.onClick} />}
+        {next && <NextAvailableCard caption={t('plano.verUnidadesDisponiblesTitulo')} label={next.label} onClick={next.onClick} />}
       </div>
     </div>
   );
@@ -202,9 +208,15 @@ export function SpotPanel({
   showPrice: boolean;
   onGoOwner: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const own = spot.unit;
   const color = showStatus ? getStatusColor(own.status) : '#83978c';
-  const statusLabel = own.status === 'available' ? 'DISPONIBLE CON SU UNIDAD' : STATUS_SHORT[own.status]?.toUpperCase();
+  const statusKey = STATUS_SHORT_KEY[own.status as keyof typeof STATUS_SHORT_KEY];
+  const statusLabel = own.status === 'available' ? t('plano.estado.disponibleConUnidad') : statusKey ? t(statusKey).toUpperCase() : undefined;
+  const vendida = showStatus && own.status === 'sold';
+  const pisoDuena = own.floor === 0 ? t('plano.piso.plantaBaja') : t('plano.piso.n', { n: own.floor });
+  const tipoDuena = unitIsDwelling(own) ? t('plano.dorm', { n: own.bedrooms }) : unitCategoryLabel(unitCategory(own), locale);
   return (
     <div className="flex flex-col">
       <div className="relative h-[150px] bg-[#1b1e1c] flex flex-col justify-end p-[18px] shrink-0">
@@ -214,13 +226,13 @@ export function SpotPanel({
             <span className="text-[9.5px] font-bold tracking-[0.12em]" style={{ color: STATUS_TEXT[own.status] }}>{statusLabel}</span>
           </div>
         )}
-        <p className="text-[10px] font-semibold tracking-[0.16em] text-white/60">COCHERA</p>
+        <p className="text-[10px] font-semibold tracking-[0.16em] text-white/60">{t('plano.cocheraTitulo')}</p>
         <p className="text-[40px] leading-none font-light text-white mt-1.5 truncate">{spot.spot.label || own.name}</p>
       </div>
       <div className="p-[18px] pb-5">
         <p className="text-[12.5px] text-[#5c6660]">{floorLabel} · {buildingName}</p>
 
-        <h4 className={SECTION_TITLE}>{showStatus && own.status === 'sold' ? 'SE VENDIÓ JUNTO CON' : 'INCLUIDA CON LA UNIDAD'}</h4>
+        <h4 className={SECTION_TITLE}>{vendida ? t('plano.seVendioCon') : t('plano.incluidaCon')}</h4>
         <button
           onClick={onGoOwner}
           className="mt-2.5 w-full flex items-center gap-3 p-2 border border-gray-200 rounded-xl text-left hover:border-emerald-700 transition-colors"
@@ -234,10 +246,10 @@ export function SpotPanel({
               <span className="text-[13px] font-semibold text-gray-900 truncate">{own.name}</span>
             </span>
             <span className="block text-[11px] text-[#83978c] mt-[3px] truncate">
-              {own.floor === 0 ? 'Planta baja' : `Piso ${own.floor}`} · {unitIsDwelling(own) ? `${own.bedrooms} dorm` : UNIT_CATEGORY_LABEL[unitCategory(own)]} · {own.totalArea} m²
+              {pisoDuena} · {tipoDuena} · {own.totalArea} m²
             </span>
             {showPrice && own.price ? (
-              <span className="block text-xs font-semibold text-emerald-700 mt-[3px]">{formatPrice(own.price, own.currency)}</span>
+              <span className="block text-xs font-semibold text-emerald-700 mt-[3px]">{formatPrice(own.price, own.currency, locale)}</span>
             ) : null}
           </span>
         </button>
@@ -245,7 +257,7 @@ export function SpotPanel({
           onClick={onGoOwner}
           className="mt-3.5 w-full h-[46px] flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 rounded-[11px] text-white font-semibold text-[13px] transition-colors"
         >
-          Ver la unidad {own.name}
+          {t('plano.verLaUnidadN', { nombre: own.name })}
           <Chevron />
         </button>
       </div>

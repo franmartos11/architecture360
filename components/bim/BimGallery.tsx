@@ -3,8 +3,13 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { shimmerDataUrl } from '@/lib/imagePlaceholder';
+import { useT } from '@/lib/i18n/client';
+
+/** next/image: shimmer mientras carga la foto. */
+const BLUR = 'blur' as const;
 
 export default function BimGallery({ images, title }: { images: string[]; title: string }) {
+  const t = useT();
   const [active, setActive] = useState(0);
   if (images.length === 0) return null;
 
@@ -13,10 +18,10 @@ export default function BimGallery({ images, title }: { images: string[]; title:
       <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-gray-100">
         <Image
           src={images[active]}
-          alt={`${title} — imagen ${active + 1}`}
+          alt={t('resto.bim.imagenAlt', { titulo: title, n: active + 1 })}
           fill
           sizes="(min-width: 1024px) 900px, 100vw"
-          placeholder="blur"
+          placeholder={BLUR}
           blurDataURL={shimmerDataUrl()}
           className="object-contain"
           priority={active === 0}
@@ -30,7 +35,7 @@ export default function BimGallery({ images, title }: { images: string[]; title:
               key={`${src}-${i}`}
               type="button"
               onClick={() => setActive(i)}
-              aria-label={`Ver imagen ${i + 1}`}
+              aria-label={t('resto.bim.verImagen', { n: i + 1 })}
               aria-current={i === active}
               className={`relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border-2 transition-colors ${
                 i === active ? 'border-gray-900' : 'border-transparent hover:border-gray-300'

@@ -15,7 +15,8 @@ export function crearT(locale: Locale): T {
   const d = DICCIONARIOS[locale] as Record<string, string>;
   return (clave, vars) => {
     const plural = vars && typeof vars.count === 'number' ? `${clave}_${vars.count === 1 ? 'one' : 'other'}` : null;
-    const texto = (plural && d[plural]) ?? d[clave] ?? clave;
+    // Una clave que solo existe en plural, pedida sin count, usa la forma plural (nunca la clave cruda).
+    const texto = (plural && d[plural]) ?? d[clave] ?? d[`${clave}_other`] ?? clave;
     return vars ? texto.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : texto;
   };
 }

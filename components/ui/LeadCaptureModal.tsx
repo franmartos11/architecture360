@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/units';
 import { WIDE_QUERY } from '@/components/floorplan/UnitSheet';
 import { readAttribution } from '@/lib/analytics/client-state';
 import { useTrack } from '@/components/analytics/SiteTracker';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Pantalla angosta (mobile): la consulta es una hoja desde abajo en vez del
 // modal centrado de escritorio.
@@ -58,6 +59,11 @@ export default function LeadCaptureModal({
   const whatsappNumber = useProjectWhatsapp();
   const track = useTrack();
   const typeConfig = useProjectTypeConfig();
+  const t = useT();
+  const { locale } = useLocale();
+  // El +54 fijo (y anteponerlo al enviar) es para el comprador argentino; en
+  // otro idioma el número va tal cual lo escribe, con su propio prefijo.
+  const prefijoAr = locale === 'es';
   const { hasFloorStep, unitIsLand, showPrice } = typeConfig;
   const isNarrow = useIsNarrow();
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -70,11 +76,14 @@ export default function LeadCaptureModal({
   const defaultMessage = initialMessage
     ? initialMessage
     : unit
-      ? `Hola, me interesa recibir más información sobre ${uAgree.el} ${unitLabelLower} ${unit.name}`
-        + (!unitIsLand && unit.modelName ? ` (${unit.modelName})` : '')
-        + (hasFloorStep ? ` en el piso ${unit.floor}` : '')
-        + '.'
-      : 'Hola, me interesa recibir más información sobre el proyecto.';
+      ? t('sitio.lead.msgUnidad', {
+          el: uAgree.el,
+          unidad: unitLabelLower,
+          nombre: unit.name,
+          modelo: !unitIsLand && unit.modelName ? ` (${unit.modelName})` : '',
+          piso: hasFloorStep ? t('sitio.lead.msgPiso', { piso: unit.floor }) : '',
+        })
+      : t('sitio.lead.msgProyecto');
 
   useEffect(() => {
     if (isOpen) {
@@ -97,7 +106,7 @@ export default function LeadCaptureModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !phone) {
-      alert("Por favor completa los campos requeridos.");
+      alert(t('sitio.lead.faltanCampos'));
       return;
     }
     
@@ -110,9 +119,9 @@ export default function LeadCaptureModal({
         body: JSON.stringify({
           name,
           email,
-          // Mobile: el +54 está fijo al lado del campo; se agrega al enviar
-          // salvo que la persona haya escrito su propio prefijo.
-          phone: isNarrow && !phone.trim().startsWith('+') ? `+54 ${phone.trim()}` : phone,
+          // Mobile en castellano: el +54 está fijo al lado del campo; se agrega
+          // al enviar salvo que la persona haya escrito su propio prefijo.
+          phone: prefijoAr && isNarrow && !phone.trim().startsWith('+') ? `+54 ${phone.trim()}` : phone,
           message,
           // uuid real de la fila; unit.id es el código legible.
           unitId: unit?.dbId || null,
@@ -136,11 +145,11 @@ export default function LeadCaptureModal({
           setMessage(defaultMessage);
         }, 3000);
       } else {
-        alert("Hubo un error al enviar tu consulta. Por favor, intenta de nuevo.");
+        alert(t('sitio.lead.errorEnvio'));
       }
     } catch (error) {
       console.error(error);
-      alert("Hubo un error al enviar tu consulta. Por favor, intenta de nuevo.");
+      alert(t('sitio.lead.errorEnvio'));
     } finally {
       setIsSubmitting(false);
     }
@@ -151,7 +160,7 @@ export default function LeadCaptureModal({
     ? [
         !unitIsLand && unit.modelName ? unit.modelName : '',
         unit.totalArea ? `${unit.totalArea} m²` : '',
-        showPrice && unit.price ? formatPrice(unit.price, unit.currency) : '',
+        showPrice && unit.price ? formatPrice(unit.price, unit.currency, locale) : '',
       ].filter(Boolean).join(' · ')
     : '';
   const successBody = (
@@ -161,8 +170,8 @@ export default function LeadCaptureModal({
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
-      <h3 id="lead-success-title" className="text-xl font-bold text-gray-900 mb-2">¡Mensaje enviado!</h3>
-      <p className="text-[15px] text-gray-500">Un asesor se pondrá en contacto con vos a la brevedad.</p>
+      <h3 id="lead-success-title" className="text-xl font-bold text-gray-900 mb-2">{t('sitio.lead.enviadoTitulo')}</h3>
+      <p className="text-[15px] text-gray-500">{t('sitio.lead.enviadoTexto')}</p>
     </div>
   );
 
@@ -175,11 +184,11 @@ export default function LeadCaptureModal({
           <Image src={unitThumb} alt="" fill sizes="52px" className="object-cover" />
         </span>
       )}
-      <span>{unit ? `Consultar por ${uAgree.el} ${unitLabelLower} ${unit.name}` : 'Consultar por el proyecto'}</span>
+      <span>{unit ? t('sitio.lead.tituloUnidadMovil', { el: uAgree.el, unidad: unitLabelLower, nombre: unit.name }) : t('sitio.lead.tituloProyectoMovil')}</span>
     </span>
-  ) : unit ? `Consultar sobre ${uAgree.esta} ${unitLabelLower}` : 'Consultar sobre el proyecto';
+  ) : unit ? t('sitio.lead.tituloUnidad', { esta: uAgree.esta, unidad: unitLabelLower }) : t('sitio.lead.tituloProyecto');
   const description = isNarrow
-    ? (unit ? unitMeta : 'Te respondemos a la brevedad')
+    ? (unit ? unitMeta : t('sitio.lead.teRespondemos'))
     : unit ? `${unit.name}${!unitIsLand && unit.modelName ? ` • ${unit.modelName}` : ''}` : undefined;
 
   const footer = isNarrow ? (
@@ -190,9 +199,9 @@ export default function LeadCaptureModal({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.5"></circle>
             <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
-          Enviando…
+          {t('sitio.lead.enviando')}
         </>
-      ) : 'Enviar consulta'}
+      ) : t('sitio.lead.enviar')}
     </button>
   ) : (
     <div className="w-full flex flex-col gap-3">
@@ -212,7 +221,7 @@ export default function LeadCaptureModal({
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
             </svg>
-            Enviar consulta
+            {t('sitio.lead.enviar')}
           </>
         )}
       </button>
@@ -223,7 +232,7 @@ export default function LeadCaptureModal({
           className="w-full py-3.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md"
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d={WHATSAPP_PATH} /></svg>
-          Consultar por WhatsApp
+          {t('sitio.lead.consultarWhatsapp')}
         </button>
       )}
     </div>
@@ -237,49 +246,64 @@ export default function LeadCaptureModal({
         <>
           <button type="button" onClick={handleWhatsApp} className="m-btn m-btn--whatsapp shrink-0 w-full">
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d={WHATSAPP_PATH} /></svg>
-            Escribir por WhatsApp
+            {t('sitio.lead.escribirWhatsapp')}
           </button>
 
           <div className="flex items-center gap-2.5 text-xs font-medium text-[#5B6472]">
             <span className="flex-1 h-px bg-[#E6E8EB]" />
-            o dejá tus datos y te llamamos
+            {t('sitio.lead.oDejaTusDatos')}
             <span className="flex-1 h-px bg-[#E6E8EB]" />
           </div>
         </>
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="lead-m-name" className="text-[13px] font-semibold">Nombre y apellido</label>
-        <input id="lead-m-name" type="text" required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Cómo te llamás" className={M_INPUT} />
+        <label htmlFor="lead-m-name" className="text-[13px] font-semibold">{t('sitio.lead.nombreYApellido')}</label>
+        <input id="lead-m-name" type="text" required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder={t('sitio.lead.comoTeLlamas')} className={M_INPUT} />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="lead-m-phone" className="text-[13px] font-semibold">Celular</label>
-        <div className="flex h-12 rounded-xl border border-[#D5D9DE] overflow-hidden focus-within:border-gray-900 focus-within:ring-2 focus-within:ring-gray-900/10">
-          <span className="flex items-center px-3 bg-[#F4F5F6] text-[15px] font-semibold border-r border-[#D5D9DE]" aria-hidden="true">+54</span>
+        <label htmlFor="lead-m-phone" className="text-[13px] font-semibold">{t('sitio.lead.celular')}</label>
+        {prefijoAr ? (
+          <div className="flex h-12 rounded-xl border border-[#D5D9DE] overflow-hidden focus-within:border-gray-900 focus-within:ring-2 focus-within:ring-gray-900/10">
+            <span className="flex items-center px-3 bg-[#F4F5F6] text-[15px] font-semibold border-r border-[#D5D9DE]" aria-hidden="true">+54</span>
+            <input
+              ref={phoneRef}
+              id="lead-m-phone"
+              type="tel"
+              inputMode="tel"
+              required
+              autoComplete="tel-national"
+              aria-label={t('sitio.lead.celularSinPrefijo')}
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder={t('sitio.lead.celularEjemplo')}
+              className="flex-1 min-w-0 px-3.5 text-[16px] text-gray-900 placeholder:text-gray-400 outline-none bg-white"
+            />
+          </div>
+        ) : (
           <input
             ref={phoneRef}
             id="lead-m-phone"
             type="tel"
             inputMode="tel"
             required
-            autoComplete="tel-national"
-            aria-label="Celular, sin el +54"
+            autoComplete="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            placeholder="387 123 4567"
-            className="flex-1 min-w-0 px-3.5 text-[16px] text-gray-900 placeholder:text-gray-400 outline-none bg-white"
+            placeholder={t('sitio.lead.celularEjemplo')}
+            className={M_INPUT}
           />
-        </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="lead-m-email" className="text-[13px] font-semibold">Email</label>
-        <input id="lead-m-email" type="email" inputMode="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" className={M_INPUT} />
+        <label htmlFor="lead-m-email" className="text-[13px] font-semibold">{t('sitio.lead.email')}</label>
+        <input id="lead-m-email" type="email" inputMode="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t('sitio.lead.emailEjemploMovil')} className={M_INPUT} />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="lead-m-msg" className="text-[13px] font-semibold">Mensaje</label>
+        <label htmlFor="lead-m-msg" className="text-[13px] font-semibold">{t('sitio.lead.mensaje')}</label>
         <textarea
           id="lead-m-msg"
           rows={3}
@@ -291,7 +315,7 @@ export default function LeadCaptureModal({
 
       <label htmlFor="lead-m-updates" className="flex items-start gap-2.5 text-[14px] text-gray-700">
         <input id="lead-m-updates" type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-5 h-5 shrink-0 accent-gray-900" />
-        Avisame cuando haya novedades de la obra
+        {t('sitio.lead.avisameNovedades')}
       </label>
     </form>
   );
@@ -300,24 +324,24 @@ export default function LeadCaptureModal({
   const desktopForm = (
     <form id="lead-form" onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="lead-name" className="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
-        <input id="lead-name" type="text" required value={name} onChange={e => setName(e.target.value)} className={FIELD} placeholder="Juan Pérez" />
+        <label htmlFor="lead-name" className="block text-sm font-medium text-gray-700 mb-1">{t('sitio.lead.nombreCompleto')}</label>
+        <input id="lead-name" type="text" required value={name} onChange={e => setName(e.target.value)} className={FIELD} placeholder={t('sitio.lead.nombreEjemplo')} />
       </div>
       <div>
-        <label htmlFor="lead-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <input id="lead-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} className={FIELD} placeholder="juan@ejemplo.com" />
+        <label htmlFor="lead-email" className="block text-sm font-medium text-gray-700 mb-1">{t('sitio.lead.email')}</label>
+        <input id="lead-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} className={FIELD} placeholder={t('sitio.lead.emailEjemplo')} />
       </div>
       <div>
-        <label htmlFor="lead-phone" className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-        <input id="lead-phone" type="tel" required value={phone} onChange={e => setPhone(e.target.value)} className={FIELD} placeholder="+54 11 1234 5678" />
+        <label htmlFor="lead-phone" className="block text-sm font-medium text-gray-700 mb-1">{t('sitio.lead.telefono')}</label>
+        <input id="lead-phone" type="tel" required value={phone} onChange={e => setPhone(e.target.value)} className={FIELD} placeholder={t('sitio.lead.telefonoEjemplo')} />
       </div>
       <div>
-        <label htmlFor="lead-msg" className="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
+        <label htmlFor="lead-msg" className="block text-sm font-medium text-gray-700 mb-1">{t('sitio.lead.mensaje')}</label>
         <textarea id="lead-msg" rows={4} value={message} onChange={e => setMessage(e.target.value)} className={`${FIELD} resize-none`} />
       </div>
       <label htmlFor="lead-updates" className="flex items-start gap-2.5 text-sm text-gray-700">
         <input id="lead-updates" type="checkbox" checked={wantsUpdates} onChange={e => setWantsUpdates(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0 accent-gray-900" />
-        Avisame cuando haya novedades de la obra
+        {t('sitio.lead.avisameNovedades')}
       </label>
     </form>
   );

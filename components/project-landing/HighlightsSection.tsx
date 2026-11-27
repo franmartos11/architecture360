@@ -2,8 +2,10 @@ import Reveal from '@/components/ui/Reveal';
 import { resolveWebTemplateKey } from '@/lib/web-templates';
 import type { SectionProps } from './types';
 import { Container, SectionHeading } from './ui';
+import { crearT } from '@/lib/i18n/t';
 
-export default function HighlightsSection({ project }: SectionProps) {
+export default function HighlightsSection({ project, locale = 'es' }: SectionProps) {
+  const t = crearT(locale);
   const items = (project.themeConfig?.highlightsItems ?? []).filter(
     h => h.kicker.trim() && h.title.trim()
   );
@@ -38,7 +40,7 @@ export default function HighlightsSection({ project }: SectionProps) {
   return (
     <section id="diferenciales" className="py-[calc(var(--theme-spacing)/1.5)] bg-[var(--theme-bg)]">
       <Container>
-        <SectionHeading eyebrow="Diferenciales" title="Puntos clave" muted="del proyecto" className="mb-10" />
+        <SectionHeading eyebrow={t('sitio.diferenciales.eyebrow')} title={t('sitio.diferenciales.titulo')} muted={t('sitio.diferenciales.tituloAtenuado')} className="mb-10" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((item, i) => (
             <Reveal

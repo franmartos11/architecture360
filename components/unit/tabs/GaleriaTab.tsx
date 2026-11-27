@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import Image from 'next/image';
 import { m as motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@/lib/i18n/client';
 
 export default function GaleriaTab({
   images,
@@ -16,6 +17,7 @@ export default function GaleriaTab({
   /** `rect`: dónde estaba la foto tocada, para que el lightbox abra desde ahí. */
   onOpenLightbox: (index: number, rect: DOMRect) => void;
 }) {
+  const t = useT();
   const thumbsRef = useRef<HTMLDivElement>(null);
 
   const scrollThumbs = (dir: 'left' | 'right') => {
@@ -40,7 +42,7 @@ export default function GaleriaTab({
           <motion.img
             key={activeIndex}
             src={images[activeIndex]}
-            alt={`Imagen ${activeIndex + 1}`}
+            alt={t('unidad.imagenN', { n: activeIndex + 1 })}
             initial={{ opacity: 0, scale: 1.03 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
@@ -63,7 +65,7 @@ export default function GaleriaTab({
         {activeIndex > 0 && (
           <button
             onClick={e => { e.stopPropagation(); onIndexChange(activeIndex - 1); }}
-            aria-label="Imagen anterior"
+            aria-label={t('unidad.imagenAnterior')}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -76,7 +78,7 @@ export default function GaleriaTab({
         {activeIndex < images.length - 1 && (
           <button
             onClick={e => { e.stopPropagation(); onIndexChange(activeIndex + 1); }}
-            aria-label="Imagen siguiente"
+            aria-label={t('unidad.imagenSiguiente')}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -93,7 +95,7 @@ export default function GaleriaTab({
         <button
           onClick={() => scrollThumbs('left')}
           className="absolute left-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-r from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-          aria-label="Desplazar izquierda"
+          aria-label={t('unidad.desplazarIzquierda')}
         >
           <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -110,7 +112,7 @@ export default function GaleriaTab({
             <button
               key={i}
               onClick={() => onIndexChange(i)}
-              aria-label={`Ver foto ${i + 1} de la galería`}
+              aria-label={t('unidad.galeria.verFoto', { n: i + 1 })}
               aria-current={i === activeIndex ? 'true' : undefined}
               className={`relative flex-shrink-0 rounded-lg overflow-hidden transition-all duration-200 ${
                 i === activeIndex
@@ -118,7 +120,7 @@ export default function GaleriaTab({
                   : 'w-20 h-14 opacity-55 hover:opacity-90 hover:scale-105'
               }`}
             >
-              <Image src={img} alt={`Thumbnail ${i + 1}`} fill sizes="100px" className="object-cover" />
+              <Image src={img} alt={t('unidad.miniatura', { n: i + 1 })} fill sizes="100px" className="object-cover" />
             </button>
           ))}
         </div>
@@ -127,7 +129,7 @@ export default function GaleriaTab({
         <button
           onClick={() => scrollThumbs('right')}
           className="absolute right-0 top-0 bottom-0 z-10 px-3 flex items-center justify-center bg-gradient-to-l from-white via-white/90 to-transparent hover:from-gray-50 transition-colors"
-          aria-label="Desplazar derecha"
+          aria-label={t('unidad.desplazarDerecha')}
         >
           <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />

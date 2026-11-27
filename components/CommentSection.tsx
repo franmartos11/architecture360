@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 import ProfileHoverCard from '@/components/social/ProfileHoverCard';
 import KebabMenu from '@/components/ui/KebabMenu';
 import EmojiPicker from '@/components/ui/EmojiPicker';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface Comment {
   id: string;
@@ -35,6 +36,8 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const toast = useToast();
+  const t = useT();
+  const { locale } = useLocale();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Inserta en la posición del cursor (no siempre al final) y le devuelve
@@ -98,15 +101,15 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
       setText('');
     } else {
       const data = await res.json().catch(() => ({}));
-      toast(data.error ?? 'No se pudo publicar el comentario.', 'error');
+      toast(data.error ?? t('sitio.comentarios.errorPublicar'), 'error');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Borrar este comentario?')) return;
+    if (!window.confirm(t('sitio.comentarios.confirmarBorrar'))) return;
     const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
     if (res.ok) setComments(prev => prev.filter(c => c.id !== id));
-    else toast('No se pudo borrar.', 'error');
+    else toast(t('sitio.comentarios.errorBorrar'), 'error');
   };
 
   return (
@@ -120,7 +123,7 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
               onChange={e => setText(e.target.value)}
               rows={3}
               maxLength={2000}
-              placeholder="Dejá un comentario..."
+              placeholder={t('sitio.comentarios.placeholder')}
               className="w-full px-4 py-3 pr-11 rounded-[var(--theme-radius)] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)] focus:ring-2 focus:ring-[var(--theme-accent)]/20 focus:border-[var(--theme-accent)] outline-none transition-all resize-none"
             />
             <div className="absolute right-2 bottom-2">
@@ -133,13 +136,13 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
               disabled={posting || !text.trim()}
               className="px-6 py-3 bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] hover:opacity-85 transition-opacity duration-300 tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {posting ? 'Publicando...' : 'Comentar'}
+              {posting ? t('sitio.comentarios.publicando') : t('sitio.comentarios.comentar')}
             </button>
           </div>
         </form>
       ) : (
         <p className="text-center text-[var(--theme-text-muted)] font-light py-6 border border-dashed border-[var(--theme-border)] rounded-[var(--theme-radius)]">
-          <a href="/admin/login" className="text-[var(--theme-text)] underline hover:no-underline">Iniciá sesión</a> para comentar.
+          <a href="/admin/login" className="text-[var(--theme-text)] underline hover:no-underline">{t('sitio.comentarios.iniciaSesion')}</a> {t('sitio.comentarios.paraComentar')}
         </p>
       )}
 
@@ -171,16 +174,16 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
                       <ProfileHoverCard handle={c.author.handle} loggedIn={!!userId} isOwnProfile={c.author_id === userId}>
                         <a href={`/portfolio/${c.author.handle}`} className="hover:underline">{c.author.display_name}</a>
                       </ProfileHoverCard>
-                    ) : 'Usuario'}
+                    ) : t('sitio.comentarios.usuario')}
                   </p>
                   <span className="text-xs text-[var(--theme-text-muted)]">
-                    {formatRelativeTime(c.created_at)}
+                    {formatRelativeTime(c.created_at, locale)}
                   </span>
                 </div>
                 <p className="text-[var(--theme-text-muted)] font-light mt-0.5 whitespace-pre-line">{c.body}</p>
               </div>
               {c.author_id === userId && (
-                <KebabMenu items={[{ label: 'Borrar', onClick: () => handleDelete(c.id), danger: true }]} />
+                <KebabMenu items={[{ label: t('sitio.comentarios.borrar'), onClick: () => handleDelete(c.id), danger: true }]} />
               )}
             </div>
           ))}
@@ -191,7 +194,7 @@ export default function CommentSection({ entityType, entityId }: CommentSectionP
                 disabled={loadingMore}
                 className="text-sm font-medium text-[var(--theme-text-muted)] hover:text-[var(--theme-text)] transition-colors disabled:opacity-50"
               >
-                {loadingMore ? 'Cargando...' : 'Cargar más comentarios'}
+                {loadingMore ? t('sitio.comentarios.cargando') : t('sitio.comentarios.cargarMas')}
               </button>
             </div>
           )}

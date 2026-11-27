@@ -1,4 +1,4 @@
-import type { Locale } from '@/lib/i18n/locales';
+import { intlLocale, type Locale } from '@/lib/i18n/locales';
 import { z } from 'zod';
 import { formatPrice } from '@/lib/units';
 import { newId } from '@/lib/analytics/client-state';
@@ -101,36 +101,61 @@ export function computePlan(price: number, plan: FinancingPlan): PlanBreakdown {
   };
 }
 
-const fmtPct = (n: number) => `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
+const fmtPct = (n: number, locale: Locale = 'es') => `${n.toLocaleString(intlLocale(locale), { maximumFractionDigits: 2 })}%`;
 
 const FREQ: Record<number, [string, string]> = { 3: ['trimestral', 'trimestrales'], 6: ['semestral', 'semestrales'], 12: ['anual', 'anuales'] };
+const FREQ_EN: Record<number, string> = { 3: 'quarterly', 6: 'semiannual', 12: 'annual' };
 
-export function boostsLabel(boosts: number, everyMonths: number): string {
+// Estos textos los ve y los manda el comprador (mensaje prellenado del
+// formulario), así que siguen el idioma del sitio. El castellano es el de
+// siempre: el panel, la ficha PDF y el bot no pasan idioma.
+const enPlural = (n: number, one: string, other: string) => `${n} ${n === 1 ? one : other}`;
+
+export function boostsLabel(boosts: number, everyMonths: number, locale: Locale = 'es'): string {
+  if (locale === 'en') {
+    const f = FREQ_EN[everyMonths];
+    const noun = boosts === 1 ? 'extra payment' : 'extra payments';
+    return f ? `${boosts} ${f} ${noun}` : `${boosts} ${noun} every ${everyMonths} months`;
+  }
   const f = FREQ[everyMonths];
   const noun = boosts === 1 ? 'refuerzo' : 'refuerzos';
   return f ? `${boosts} ${noun} ${f[boosts === 1 ? 0 : 1]}` : `${boosts} ${noun} cada ${everyMonths} meses`;
 }
 
 /** "30% de anticipo + 36 cuotas + 3 refuerzos semestrales + 15% a la posesión · cuotas ajustables por CAC" */
-export function describePlan(p: FinancingPlan): string {
-  const parts = [`${fmtPct(p.downPaymentPct)} de anticipo`];
-  if (p.installments > 0) parts.push(`${p.installments} ${p.installments === 1 ? 'cuota' : 'cuotas'}`);
-  if (p.boosts > 0) parts.push(boostsLabel(p.boosts, p.boostEveryMonths));
+export function describePlan(p: FinancingPlan, locale: Locale = 'es'): string {
+  const en = locale === 'en';
+  const pct = (n: number) => fmtPct(n, locale);
+  const parts = [en ? `${pct(p.downPaymentPct)} down payment` : `${pct(p.downPaymentPct)} de anticipo`];
+  if (p.installments > 0) parts.push(en ? enPlural(p.installments, 'installment', 'installments') : `${p.installments} ${p.installments === 1 ? 'cuota' : 'cuotas'}`);
+  if (p.boosts > 0) parts.push(boostsLabel(p.boosts, p.boostEveryMonths, locale));
   const poss = possessionPct(p);
-  if (poss > 0) parts.push(`${fmtPct(poss)} a la posesión`);
+  if (poss > 0) parts.push(en ? `${pct(poss)} on delivery` : `${pct(poss)} a la posesión`);
 
   const pieces = [];
-  if (p.priceAdjustmentPct < 0) pieces.push(`${fmtPct(-p.priceAdjustmentPct)} de descuento`);
-  if (p.priceAdjustmentPct > 0) pieces.push(`${fmtPct(p.priceAdjustmentPct)} de recargo`);
+  if (p.priceAdjustmentPct < 0) pieces.push(en ? `${pct(-p.priceAdjustmentPct)} discount` : `${pct(-p.priceAdjustmentPct)} de descuento`);
+  if (p.priceAdjustmentPct > 0) pieces.push(en ? `${pct(p.priceAdjustmentPct)} surcharge` : `${pct(p.priceAdjustmentPct)} de recargo`);
   pieces.push(parts.join(' + '));
-  if (p.index !== 'ninguno' && (p.installments > 0 || p.boosts > 0)) pieces.push(`cuotas ajustables por ${INDEX_LABEL[p.index]}`);
+  if (p.index !== 'ninguno' && (p.installments > 0 || p.boosts > 0)) {
+    pieces.push(en ? `installments adjusted by ${indexLabel(p.index, 'en')}` : `cuotas ajustables por ${INDEX_LABEL[p.index]}`);
+  }
   return pieces.join(' · ');
 }
 
-/** Mensaje prellenado del formulario de contacto al consultar por un plan. `subject`: "la unidad N01-07", "el modelo Duet". */
-export function planLeadMessage(plan: FinancingPlan, price: number, currency: string, subject?: string): string {
+/**
+ * Mensaje prellenado del formulario de contacto al consultar por un plan.
+ * `subject`, ya en el idioma del sitio: "la unidad N01-07", "el modelo Duet" / "unit N01-07", "the Duet model".
+ */
+export function planLeadMessage(plan: FinancingPlan, price: number, currency: string, subject?: string, locale: Locale = 'es'): string {
   const r = computePlan(price, plan);
-  const fmt = (n: number) => formatPrice(Math.round(n), currency);
+  const fmt = (n: number) => formatPrice(Math.round(n), currency, locale);
+  if (locale === 'en') {
+    const montos = [`down payment ${fmt(r.downPayment)}`];
+    if (plan.installments > 0) montos.push(`${enPlural(plan.installments, 'installment', 'installments')} of ${fmt(r.installmentAmount)}`);
+    if (plan.boosts > 0) montos.push(`${enPlural(plan.boosts, 'extra payment', 'extra payments')} of ${fmt(r.boostAmount)}`);
+    if (r.possessionAmount > 0) montos.push(`balance on delivery ${fmt(r.possessionAmount)}`);
+    return `Hi, I'm interested in ${plan.name}${subject ? ` for ${subject}` : ''} (${describePlan(plan, locale)}). Based on ${fmt(r.planPrice)}: ${montos.join(', ')}.`;
+  }
   const montos = [`anticipo ${fmt(r.downPayment)}`];
   if (plan.installments > 0) montos.push(`${plan.installments} ${plan.installments === 1 ? 'cuota' : 'cuotas'} de ${fmt(r.installmentAmount)}`);
   if (plan.boosts > 0) montos.push(`${plan.boosts} ${plan.boosts === 1 ? 'refuerzo' : 'refuerzos'} de ${fmt(r.boostAmount)}`);

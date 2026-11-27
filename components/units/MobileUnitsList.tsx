@@ -7,7 +7,9 @@ import { m as motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useSheetDrag } from '@/hooks/useSheetDrag';
 import { BACKDROP } from '@/lib/motion';
 import { TransitionLink as Link } from '@/components/ui/TransitionUtils';
-import { formatPrice, getStatusLabel, unitTypeLabel, unitCategory, unitIsDwelling, CATEGORY_COLOR, CATEGORY_INK, CATEGORY_SHORT } from '@/lib/units';
+import { formatPrice, getStatusLabel, unitTypeLabel, unitCategory, unitIsDwelling, categoryShortLabel, CATEGORY_COLOR, CATEGORY_INK } from '@/lib/units';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { T } from '@/lib/i18n/t';
 import type { Unit, UnitCategory, UnitStatus, UnitType } from '@/types';
 
 // Lista de unidades en pantallas angostas: pestañas por tipo, un solo botón
@@ -33,6 +35,8 @@ export interface MobileUnitsListProps {
   showStatus: boolean;
   showLeads: boolean;
   unitLabelPluralLower: string;
+  /** En singular, para "Ver 1 unidad" en otros idiomas. */
+  unitLabelLower: string;
   unitHref: (u: Unit) => string;
   // Pestañas
   categories: { value: UnitCategory; label: string }[];
@@ -65,10 +69,18 @@ export interface MobileUnitsListProps {
 }
 
 const STATUS_INK: Record<string, string> = { available: '#2E7D4F', reserved: '#A16207', sold: '#B91C1C' };
-const STATUS_SHORT: Record<string, string> = { available: 'Disponible', reserved: 'Reservada', sold: 'Vendida' };
+const STATUS_SHORT_KEY = {
+  available: 'plano.estado.disponible',
+  reserved: 'plano.estado.reservada',
+  sold: 'plano.estado.vendida',
+} as const;
+const statusShort = (status: string, t: T): string | undefined =>
+  status in STATUS_SHORT_KEY ? t(STATUS_SHORT_KEY[status as keyof typeof STATUS_SHORT_KEY]) : undefined;
 
-const floorName = (n: number) => (n === 0 ? 'Planta baja' : n < 0 ? `Subsuelo ${-n}` : `Piso ${n}`);
-const floorShort = (n: number) => (n === 0 ? 'PB' : n < 0 ? `SS${-n}` : String(n));
+const floorName = (n: number, t: T) =>
+  n === 0 ? t('plano.piso.plantaBaja') : n < 0 ? t('plano.piso.subsuelo', { n: -n }) : t('plano.piso.n', { n });
+const floorShort = (n: number, t: T) =>
+  n === 0 ? t('plano.piso.cortoPB') : n < 0 ? t('plano.piso.cortoSS', { n: -n }) : String(n);
 
 // Tres cortes "hasta X" repartidos en los valores reales, redondeados.
 function thresholds(values: number[], step: number): number[] {
@@ -79,6 +91,8 @@ function thresholds(values: number[], step: number): number[] {
 }
 
 export default function MobileUnitsList(p: MobileUnitsListProps) {
+  const t = useT();
+  const { locale } = useLocale();
   const [floorFilter, setFloorFilter] = useState<number | 'all'>('all');
   const [sheetOpen, setSheetOpen] = useState(false);
   const reduced = !!useReducedMotion();
@@ -147,21 +161,21 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
       const u = rows[0];
       const avail = rows.filter(r => r.status === 'available').length;
       const count = p.showStatus
-        ? `${avail} ${avail === 1 ? 'disponible' : 'disponibles'}`
+        ? t('unidades.disponibles', { count: avail })
         : `${rows.length} ${p.unitLabelPluralLower}`;
-      const place = [p.hasMultipleBuildings ? p.buildingName(u.buildingId) : null, floorName(u.floor)].filter(Boolean).join(' · ');
+      const place = [p.hasMultipleBuildings ? p.buildingName(u.buildingId) : null, floorName(u.floor, t)].filter(Boolean).join(' · ');
       return { key, name: `${place} · ${count}`, rows };
     });
-  }, [shown, p]);
+  }, [shown, p, t]);
 
   const n = shown.length;
   const availableShown = shown.filter(u => u.status === 'available').length;
   const resultLabel = p.showStatus
-    ? (availableShown === n ? `${n} ${availableShown === 1 ? 'disponible' : 'disponibles'}` : `${availableShown} de ${n} disponibles`)
+    ? (availableShown === n ? t('unidades.disponibles', { count: n }) : t('plano.disponiblesDe', { n: availableShown, total: n }))
     : `${n} ${p.unitLabelPluralLower}`;
 
   const tabs = p.categories.length > 1
-    ? [{ value: 'all' as const, label: 'Todas', n: p.allUnits.length },
+    ? [{ value: 'all' as const, label: t('plano.movil.todas'), n: p.allUnits.length },
        ...p.categories.map(c => ({ value: c.value, label: c.label, n: p.allUnits.filter(u => unitCategory(u) === c.value).length }))]
     : [];
 
@@ -172,7 +186,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
           <Segmented
             role="tablist"
             size="tall"
-            ariaLabel="Tipo de unidad"
+            ariaLabel={t('plano.movil.tipoUnidad')}
             value={p.categoryFilter}
             onChange={p.setCategoryFilter}
             options={tabs.map(t => ({ value: t.value, label: t.label, sub: t.n }))}
@@ -187,7 +201,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
             className="m-btn m-btn--secondary m-btn--sm shrink-0 !h-10 !px-3.5"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
-            Ordenar y filtrar
+            {t('plano.movil.ordenarFiltrar')}
             {activeCount > 0 && (
               <span className="min-w-5 h-5 px-1 rounded-full bg-gray-900 text-white text-[11px] font-bold flex items-center justify-center">{activeCount}</span>
             )}
@@ -196,12 +210,12 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
       </div>
 
       {p.allUnits.length === 0 ? (
-        <p className="px-6 py-12 text-center text-sm text-[#5B6472]">Todavía no hay {p.unitLabelPluralLower} cargadas.</p>
+        <p className="px-6 py-12 text-center text-sm text-[#5B6472]">{t('plano.movil.vacia', { unidades: p.unitLabelPluralLower })}</p>
       ) : n === 0 ? (
         <div className="px-6 py-12 flex flex-col items-center gap-3 text-center">
-          <span className="text-base font-bold">No hay {p.unitLabelPluralLower} con estos filtros</span>
+          <span className="text-base font-bold">{t('plano.movil.sinResultados', { unidades: p.unitLabelPluralLower })}</span>
           <button type="button" onClick={clearSheet} className="m-btn m-btn--secondary m-btn--sm">
-            Limpiar filtros
+            {t('plano.lista.limpiarFiltros')}
           </button>
         </div>
       ) : (
@@ -233,8 +247,8 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
           className="mx-4 my-6 w-[calc(100%-2rem)] min-h-[68px] px-4 rounded-[14px] bg-[#F4F5F6] flex items-center gap-3 text-left"
         >
           <span className="flex-1 flex flex-col gap-0.5">
-            <span className="text-[15px] font-bold">¿No encontrás lo que buscás?</span>
-            <span className="text-[13px] text-[#5B6472]">Hablá con un asesor</span>
+            <span className="text-[15px] font-bold">{t('plano.lista.asesor.pregunta')}</span>
+            <span className="text-[13px] text-[#5B6472]">{t('plano.movil.hablaAsesor')}</span>
           </span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
         </button>
@@ -246,7 +260,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
             <motion.button
               key="scrim"
               type="button"
-              aria-label="Cerrar filtros"
+              aria-label={t('plano.movil.cerrarFiltros')}
               onClick={() => setSheetOpen(false)}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={BACKDROP}
               className="fixed inset-0 z-[70] bg-[rgba(17,24,39,0.55)] backdrop-blur-[3px]"
@@ -264,71 +278,71 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
               <div {...sheetDrag.handlers} className="touch-none cursor-grab active:cursor-grabbing">
               <div className="flex justify-center pt-2"><span className="w-10 h-1 rounded-full bg-[#D5D9DE]" /></div>
               <div className="flex items-center justify-between pl-4 pr-2 pt-1.5 pb-2">
-                <h2 id="t-filtros" className="m-0 text-lg font-bold">Ordenar y filtrar</h2>
-                <button type="button" onClick={() => setSheetOpen(false)} onPointerDown={e => e.stopPropagation()} aria-label="Cerrar" className="w-11 h-11 rounded-xl flex items-center justify-center">
+                <h2 id="t-filtros" className="m-0 text-lg font-bold">{t('plano.movil.ordenarFiltrar')}</h2>
+                <button type="button" onClick={() => setSheetOpen(false)} onPointerDown={e => e.stopPropagation()} aria-label={t('plano.cerrar')} className="w-11 h-11 rounded-xl flex items-center justify-center">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
               </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-1 pb-4 grid content-start gap-[22px]">
-                <OptGroup title="Ordenar por" cols={2} options={p.sortOptions} value={p.orden} onPick={p.setOrden} />
+                <OptGroup title={t('plano.movil.ordenarPor')} cols={2} options={p.sortOptions} value={p.orden} onPick={p.setOrden} />
                 {p.showStatus && (
                   <OptGroup
-                    title="Estado"
+                    title={t('plano.movil.estado')}
                     cols={2}
-                    options={[{ value: 'all', label: 'Todos' }, ...(['available', 'reserved', 'sold'] as const).map(s => ({ value: s, label: STATUS_SHORT[s] }))]}
+                    options={[{ value: 'all', label: t('plano.movil.todos') }, ...(['available', 'reserved', 'sold'] as const).map(s => ({ value: s, label: t(STATUS_SHORT_KEY[s]) }))]}
                     value={p.statusFilter}
                     onPick={p.setStatusFilter}
                   />
                 )}
                 {p.hasMultipleBuildings && (
                   <OptGroup
-                    title="Torre"
+                    title={t('plano.movil.torre')}
                     cols={2}
-                    options={[{ value: 'all', label: 'Todas' }, ...p.buildings.map(b => ({ value: b.id, label: b.name }))]}
+                    options={[{ value: 'all', label: t('plano.movil.todas') }, ...p.buildings.map(b => ({ value: b.id, label: b.name }))]}
                     value={p.buildingFilter}
                     onPick={p.setBuildingFilter}
                   />
                 )}
                 {showFloorFilter && (
                   <OptGroup
-                    title="Piso"
+                    title={t('plano.movil.piso')}
                     cols={4}
-                    options={[{ value: 'all' as const, label: 'Todos' }, ...floors.map(f => ({ value: f, label: floorShort(f) }))]}
+                    options={[{ value: 'all' as const, label: t('plano.movil.todos') }, ...floors.map(f => ({ value: f, label: floorShort(f, t) }))]}
                     value={floorFilter}
                     onPick={setFloorFilter}
                   />
                 )}
                 {p.typeOptions.length > 1 && (
                   <OptGroup
-                    title="Tipología"
+                    title={t('plano.movil.tipologia')}
                     cols={2}
-                    options={[{ value: 'all' as const, label: 'Todas' }, ...p.typeOptions.map(t => ({ value: t, label: unitTypeLabel(t) }))]}
+                    options={[{ value: 'all' as const, label: t('plano.movil.todas') }, ...p.typeOptions.map(tipo => ({ value: tipo, label: unitTypeLabel(tipo, locale) }))]}
                     value={p.typeFilter}
                     onPick={p.setTypeFilter}
                   />
                 )}
                 {priceCuts.length > 0 && (
                   <OptGroup
-                    title="Precio"
+                    title={t('plano.movil.precio')}
                     cols={2}
-                    options={[{ value: 0, label: 'Cualquiera' }, ...priceCuts.map(c => ({ value: c, label: `Hasta ${formatPrice(c)}` }))]}
+                    options={[{ value: 0, label: t('plano.movil.cualquiera') }, ...priceCuts.map(c => ({ value: c, label: t('plano.movil.hasta', { precio: formatPrice(c, undefined, locale) }) }))]}
                     value={priceCuts.includes(p.maxPrice) ? p.maxPrice : 0}
                     onPick={p.setMaxPrice}
                   />
                 )}
                 {areaCuts.length > 0 && (
                   <OptGroup
-                    title="Superficie"
+                    title={t('plano.movil.superficie')}
                     cols={2}
-                    options={[{ value: 0, label: 'Cualquiera' }, ...areaCuts.map(c => ({ value: c, label: `Desde ${c} m²` }))]}
+                    options={[{ value: 0, label: t('plano.movil.cualquiera') }, ...areaCuts.map(c => ({ value: c, label: t('plano.movil.desdeM2', { n: c }) }))]}
                     value={areaCuts.includes(p.minArea) ? p.minArea : 0}
                     onPick={p.setMinArea}
                   />
                 )}
                 {(p.feats.length > 0 || p.favoritesCount > 0) && (
                   <div className="grid gap-2.5">
-                    <span className="text-sm font-bold">Con</span>
+                    <span className="text-sm font-bold">{t('plano.movil.con')}</span>
                     <div className="flex flex-wrap gap-2">
                       {p.feats.map(f => {
                         const on = p.selectedFeats.includes(f.key);
@@ -339,7 +353,7 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
                         );
                       })}
                       {p.favoritesCount > 0 && (
-                        <Pill on={p.onlyFavs} onClick={() => p.setOnlyFavs(!p.onlyFavs)}>Solo favoritas · {p.favoritesCount}</Pill>
+                        <Pill on={p.onlyFavs} onClick={() => p.setOnlyFavs(!p.onlyFavs)}>{t('plano.movil.soloFavoritas', { n: p.favoritesCount })}</Pill>
                       )}
                     </div>
                   </div>
@@ -349,9 +363,9 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
                 className="shrink-0 grid grid-cols-[1fr_2fr] gap-2 px-4 pt-3 border-t border-[#ECEEF0]"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
               >
-                <button type="button" onClick={clearSheet} className="m-btn m-btn--secondary">Limpiar</button>
+                <button type="button" onClick={clearSheet} className="m-btn m-btn--secondary">{t('plano.movil.limpiar')}</button>
                 <button type="button" onClick={() => setSheetOpen(false)} className="m-btn m-btn--primary">
-                  {n === 1 ? 'Ver 1 unidad' : `Ver ${n} ${p.unitLabelPluralLower}`}
+                  {t('plano.movil.ver', { count: n, unidad: p.unitLabelLower, unidades: p.unitLabelPluralLower })}
                 </button>
               </div>
             </motion.section>
@@ -363,17 +377,21 @@ export default function MobileUnitsList(p: MobileUnitsListProps) {
 }
 
 function Row({ unit: u, p }: { unit: Unit; p: MobileUnitsListProps }) {
+  const t = useT();
+  const { locale } = useLocale();
   const img = u.interiorImageUrl || u.galleryImages?.[0];
   const sold = p.showStatus && u.status === 'sold';
   const cat = unitCategory(u);
-  const kind = p.unitIsLand ? '' : u.modelName || (unitIsDwelling(u) ? unitTypeLabel(u.type) : '');
+  const kind = p.unitIsLand ? '' : u.modelName || (unitIsDwelling(u) ? unitTypeLabel(u.type, locale) : '');
+  const area = locale === 'es' ? String(u.totalArea).replace('.', ',') : String(u.totalArea);
   const meta = [
-    u.totalArea > 0 ? `${String(u.totalArea).replace('.', ',')} m²` : null,
-    p.hasFloorStep ? floorName(u.floor) : null,
+    u.totalArea > 0 ? `${area} m²` : null,
+    p.hasFloorStep ? floorName(u.floor, t) : null,
     p.hasMultipleBuildings && !p.hasFloorStep ? p.buildingName(u.buildingId) : null,
   ].filter(Boolean).join(' · ');
-  const right = p.showPrice ? (sold ? 'Vendida' : u.price != null ? formatPrice(u.price, u.currency) : 'Consultar') : null;
-  const statusNote = p.showStatus && u.status !== 'available' && !(sold && p.showPrice) ? STATUS_SHORT[u.status] ?? getStatusLabel(u.status) : null;
+  const right = p.showPrice ? (sold ? t('plano.estado.vendida') : u.price != null ? formatPrice(u.price, u.currency, locale) : t('plano.consultar')) : null;
+  const statusNote = p.showStatus && u.status !== 'available' && !(sold && p.showPrice) ? statusShort(u.status, t) ?? getStatusLabel(u.status, locale) : null;
+  const catShort = categoryShortLabel(cat, locale);
   return (
     <Link
       href={p.unitHref(u)}
@@ -388,12 +406,12 @@ function Row({ unit: u, p }: { unit: Unit; p: MobileUnitsListProps }) {
           {kind && <span className="font-medium text-[13px] text-[#5B6472]"> · {kind}</span>}
         </span>
         <span className="flex items-center gap-1.5 min-w-0">
-          {CATEGORY_SHORT[cat] && (
+          {catShort && (
             <span
               className="shrink-0 px-1.5 py-px rounded-md text-[11px] font-bold"
               style={{ color: CATEGORY_INK[cat], background: `${CATEGORY_COLOR[cat]}1f` }}
             >
-              {CATEGORY_SHORT[cat]}
+              {catShort}
             </span>
           )}
           {meta && <span className="text-[13px] text-[#5B6472] truncate">{meta}</span>}
